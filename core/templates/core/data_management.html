@@ -1,0 +1,164 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Gestione Dati | Kandor{% endblock %}
+
+{% block content %}
+<style>
+    .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid #eaeaea;
+    }
+
+    .card h2 {
+        margin-top: 0;
+        color: #417690;
+        font-size: 18px;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 10px;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 8px 16px;
+        background: #417690;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-top: 10px;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .btn:hover {
+        background: #205067;
+    }
+
+    .btn-secondary {
+        background: #666;
+    }
+
+    .btn-danger {
+        background: #ba2121;
+    }
+
+    .file-input {
+        margin-top: 10px;
+        margin-bottom: 10px;
+        display: block;
+        width: 100%;
+    }
+
+    .help-text {
+        font-size: 12px;
+        color: #666;
+        margin-top: 5px;
+    }
+
+    form {
+        margin-top: 15px;
+        border-top: 1px dashed #ccc;
+        padding-top: 15px;
+    }
+</style>
+
+<div id="content-main">
+    <h1>Gestione Dati: Import/Export</h1>
+
+    {% if messages %}
+    <ul class="messagelist">
+        {% for message in messages %}
+        <li{% if message.tags %} class="{{ message.tags }}" {% endif %}>{{ message }}</li>
+            {% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="card-grid">
+        <!-- Card 1: Templates Excel -->
+        <div class="card">
+            <h2>1. Scarica Modelli Excel</h2>
+            <p>Scarica i file Excel vuoti da compilare.</p>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <a href="{% url 'download_template' model_name='dipendente' %}" class="btn btn-secondary">📥 Modello
+                    Dipendenti</a>
+                <a href="{% url 'download_template' model_name='cliente' %}" class="btn btn-secondary">📥 Modello
+                    Clienti</a>
+                <a href="{% url 'download_template' model_name='mezzo' %}" class="btn btn-secondary">📥 Modello
+                    Mezzi</a>
+            </div>
+        </div>
+
+        <!-- Card 2: Importa Dati -->
+        <div class="card">
+            <h2>2. Importa Dati da Excel</h2>
+            <p>Carica i file Excel compilati per aggiungere/aggiornare dati.</p>
+
+            <form method="post" enctype="multipart/form-data" action="{% url 'import_data' %}">
+                {% csrf_token %}
+                <label><strong>Tipo Dati:</strong></label>
+                <select name="model_name" required style="padding: 5px; width: 100%;">
+                    <option value="dipendente">Dipendenti</option>
+                    <option value="cliente">Clienti</option>
+                    <option value="mezzo">Mezzi</option>
+                </select>
+
+                <div
+                    style="margin-top: 15px; margin-bottom: 15px; padding: 10px; background-color: #f9f9f9; border-radius: 4px;">
+                    <label style="display: block; margin-bottom: 5px;"><strong>Modalità Importazione:</strong></label>
+
+                    <div style="margin-bottom: 5px;">
+                        <input type="radio" id="mode_update" name="import_mode" value="UPDATE" checked>
+                        <label for="mode_update"><strong>Aggiorna Esistenti</strong> (Sovrascrivi dati se CF
+                            esiste)</label>
+                    </div>
+
+                    <div>
+                        <input type="radio" id="mode_add" name="import_mode" value="ADD_ONLY">
+                        <label for="mode_add"><strong>Solo Aggiunta</strong> (Salta se CF esiste)</label>
+                    </div>
+                </div>
+
+                <label style="margin-top: 10px; display: block;"><strong>File Excel:</strong></label>
+                <input type="file" name="file" accept=".xlsx" class="file-input" required>
+
+                <button type="submit" class="btn">🚀 Avvia Importazione</button>
+                <p class="help-text">Nota: Usa i modelli scaricati a sinistra. Il sistema cercherà di riconoscere i
+                    record esistenti (per Codice Fiscale o Ragione Sociale) per aggiornarli.</p>
+            </form>
+        </div>
+
+        <!-- Card 3: Database Ops -->
+        <div class="card">
+            <h2>3. Backup & Ripristino</h2>
+            <p>Salva o ripristina l'intero database.</p>
+
+            <a href="{% url 'backup_db' %}" class="btn"
+                style="width: 100%; text-align: center; box-sizing: border-box;">💾 Scarica Backup Completo (.json)</a>
+
+            <form method="post" enctype="multipart/form-data" action="{% url 'restore_db' %}" style="margin-top: 20px;">
+                {% csrf_token %}
+                <label><strong>Ripristina da Backup:</strong></label>
+                <input type="file" name="backup_file" accept=".json" class="file-input" required>
+
+                <button type="submit" class="btn btn-danger"
+                    onclick="return confirm('SEI SICURO? Questa operazione sovrascriverà i dati esistenti!')">⚠️
+                    Ripristina Database</button>
+                <p class="help-text" style="color: #ba2121;">ATTENZIONE: Il ripristino può duplicare o sovrascrivere
+                    dati. Usare con cautela.</p>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+{% load i18n l10n admin_urls %}
+
+{% block content %}
+<div
+    style="max-width: 600px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+    <h2>Invia Messaggio Telegram</h2>
+
+    <p>Stai per inviare un messaggio a <strong>{{ employees|length }}</strong> dipendenti selezionati.</p>
+
+    <div
+        style="margin-bottom: 20px; max-height: 150px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 4px;">
+        <ul style="margin: 0; padding-left: 20px;">
+            {% for emp in employees %}
+            <li>
+                {{ emp.nome }} {{ emp.cognome }}
+                {% if not emp.telegram_chat_id %}
+                <span style="color: red; font-size: 11px;">(Nessun Chat ID - Non riceverà nulla)</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <form action="" method="post">
+        {% csrf_token %}
+
+        <!-- Include the selected IDs to persist the selection -->
+        {% for id in selected_ids %}
+        <input type="hidden" name="_selected_action" value="{{ id }}">
+        {% endfor %}
+        <input type="hidden" name="action" value="send_telegram_message_action">
+        <input type="hidden" name="apply" value="1">
+
+        <div style="margin-bottom: 20px;">
+            <label for="message_text" style="display: block; font-weight: bold; margin-bottom: 5px;">Testo del
+                Messaggio:</label>
+            <textarea name="message_text" id="message_text" rows="5"
+                style="width: 100%; border: 1px solid #ccc; padding: 10px; border-radius: 4px; font-family: sans-serif;"
+                placeholder="Scrivi qui il messaggio..." required></textarea>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <input type="submit" value="Invia Messaggio"
+                style="background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">
+            <a href="#" onclick="window.history.back(); return false;"
+                style="padding: 10px 20px; color: #666; text-decoration: none;">Annulla</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

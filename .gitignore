@@ -1,0 +1,30 @@
+# Credenziali
+.env
+*.toml
+
+# Database locale
+db.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Static files (raccolti)
+staticfiles/
+
+# Media uploads
+contratti/
+
+# OS
+.DS_Store
+Thumbs.db

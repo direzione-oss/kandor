@@ -1,0 +1,88 @@
+{% if has_birthdays %}
+<div class="module dashboard-widget"
+    style="margin-bottom: 20px; border: 1px solid #79aec8; border-radius: 5px; overflow: hidden;">
+    <h3 style="background: #79aec8; color: white; margin: 0; padding: 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+        onclick="toggleWidget('birthdays-content', this)">
+        <span>🎂 Compleanni in Arrivo (20 giorni)</span>
+        <span style="font-size: 12px;">▼</span>
+    </h3>
+    <div id="birthdays-content" style="padding: 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tbody>
+                <!-- DIPENDENTI -->
+                {% if employees_birthdays %}
+                <tr style="background: #f8f9fa;">
+                    <td colspan="3"
+                        style="padding: 6px 10px; font-size: 11px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; border-bottom: 1px solid #eee;">
+                        Dipendenti
+                    </td>
+                </tr>
+                {% for item in employees_birthdays %}
+                <tr
+                    style="border-bottom: 1px solid #eee; background-color: {% if item.is_today %}#fff9c4{% else %}white{% endif %};">
+                    <td style="padding: 10px; color: #333;">
+                        <strong>{{ item.obj.nome }} {{ item.obj.cognome }}</strong>
+                    </td>
+                    <td style="padding: 10px; text-align: right; color: #666;">
+                        {% if item.is_today %}
+                        <span style="color: #d35400; font-weight: bold;">OGGI! 🎉</span>
+                        {% else %}
+                        {{ item.date|date:"d M" }} (tra {{ item.days_until }} gg)
+                        {% endif %}
+                    </td>
+                    <td style="padding: 10px; text-align: right;">
+                        <a href="/admin/core/dipendente/{{ item.obj.id }}/change/"
+                            style="text-decoration: none; color: #79aec8;">👤</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+
+                <!-- CLIENTI -->
+                {% if clients_birthdays %}
+                <tr style="background: #f8f9fa;">
+                    <td colspan="3"
+                        style="padding: 6px 10px; font-size: 11px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; border-bottom: 1px solid #eee;">
+                        Clienti
+                    </td>
+                </tr>
+                {% for item in clients_birthdays %}
+                <tr
+                    style="border-bottom: 1px solid #eee; background-color: {% if item.is_today %}#e8f5e9{% else %}white{% endif %};">
+                    <td style="padding: 10px; color: #333;">
+                        <strong>{{ item.obj.referente_nome }}</strong><br>
+                        <span style="font-size: 11px; color: #7f8c8d;">{{ item.obj.ragione_sociale }}</span>
+                    </td>
+                    <td style="padding: 10px; text-align: right; color: #666;">
+                        {% if item.is_today %}
+                        <span style="color: #2ecc71; font-weight: bold;">OGGI! 🎁</span>
+                        {% else %}
+                        {{ item.date|date:"d M" }} (tra {{ item.days_until }} gg)
+                        {% endif %}
+                    </td>
+                    <td style="padding: 10px; text-align: right;">
+                        <a href="/admin/core/cliente/{{ item.obj.id }}/change/"
+                            style="text-decoration: none; color: #79aec8;">🏢</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function toggleWidget(id, header) {
+        var content = document.getElementById(id);
+        var icon = header.querySelector('span:last-child');
+        if (content.style.display === "none") {
+            content.style.display = "block";
+            icon.innerText = "▼";
+        } else {
+            content.style.display = "none";
+            icon.innerText = "▲";
+        }
+    }
+</script>
+{% endif %}

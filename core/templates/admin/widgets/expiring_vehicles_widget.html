@@ -1,0 +1,29 @@
+{% if vehicles %}
+<div class="app-box" style="border-top: 4px solid #ff9800;">
+    <caption style="background: #ff9800; color: #fff;">⚠️ Scadenze Mezzi (Prossimi 45 gg)</caption>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 30%;">Mezzo</th>
+                <th style="width: 20%;">Targa</th>
+                <th>Scadenza</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in vehicles %}
+            {% for alert in item.alerts %}
+            <tr>
+                <td><strong>{{ item.obj.modello }}</strong></td>
+                <td>{{ item.obj.targa }}</td>
+                <td>
+                    <span style="color: {{ alert.color }}; font-weight: bold;">
+                        {{ alert.type }}: {{ alert.date|date:"d/m/Y" }} ({{ alert.status }})
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}

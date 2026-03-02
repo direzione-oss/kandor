@@ -1,0 +1,217 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Trova Jolly | Kandor{% endblock %}
+
+{% block content %}
+<style>
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+        border: 1px solid #eaeaea;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #333;
+    }
+
+    select,
+    input[type="date"],
+    input[type="time"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .btn-submit {
+        background-color: #417690;
+        color: white;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .btn-submit:hover {
+        background-color: #205067;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    th {
+        text-align: left;
+        padding: 10px;
+        background: #f8f8f8;
+        border-bottom: 2px solid #ddd;
+        font-weight: 600;
+    }
+
+    td {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        vertical-align: middle;
+    }
+
+    .badge {
+        background: #eee;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-size: 0.75em;
+        margin-right: 4px;
+        display: inline-block;
+        margin-bottom: 2px;
+    }
+
+    .badge-cp {
+        background: #ffdfdf;
+        color: #b71c1c;
+    }
+
+    .badge-skill {
+        background: #e3f2fd;
+        color: #0d47a1;
+    }
+
+    .error {
+        color: #ba2121;
+        background: #fff5f5;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        border: 1px solid #ffdbdb;
+    }
+</style>
+
+<div id="content-main">
+    <h1>Trova Sostituto (Jolly)</h1>
+
+    {% if error_message %}
+    <div class="error">{{ error_message }}</div>
+    {% endif %}
+
+    <div class="card">
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="client">Cliente Target:</label>
+                <select name="client_id" id="client" required>
+                    <option value="">-- Seleziona Cliente --</option>
+                    {% for c in clients %}
+                    <option value="{{ c.id }}" {% if search_params.client_id == c.id %}selected{% endif %}>
+                        {{ c.ragione_sociale }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="qualifica">Qualifica Richiesta (Opzionale):</label>
+                <select name="qualifica_id" id="qualifica">
+                    <option value="">-- Qualsiasi --</option>
+                    {% for q in qualifications %}
+                    <option value="{{ q.id }}" {% if search_params.qualifica_id == q.id %}selected{% endif %}>
+                        {{ q.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 20px;">
+                <div class="form-group" style="flex: 1;">
+                    <label for="date">Data Intervento:</label>
+                    <input type="date" name="date" id="date" value="{{ search_params.date|default:'' }}" required>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="start_time">Ora Inizio:</label>
+                    <input type="time" name="start_time" id="start_time"
+                        value="{{ search_params.start_time|default:'08:00' }}" required>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="end_time">Ora Fine:</label>
+                    <input type="time" name="end_time" id="end_time"
+                        value="{{ search_params.end_time|default:'12:00' }}" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">🔍 Cerca Dipendenti Disponibili</button>
+        </form>
+    </div>
+
+    {% if results is not None %}
+    <div class="card">
+        <h2 style="margin-top: 0; font-size: 18px; color: #417690;">Risultati Candidati</h2>
+
+        {% if results %}
+        <p>Trovati <strong>{{ results|length }}</strong> dipendenti compatibili (Attivi, No Ferie, No Sovrapposizioni).
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Dipendente</th>
+                    <th>Distanza GPS</th>
+                    <th>Qualifiche</th>
+                    <th style="width: 100px;">Azione</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in results %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div style="font-weight: bold; font-size: 1.1em;">{{ item.dipendente }}</div>
+                        {% if item.dipendente.categoria_protetta %}
+                        <span class="badge badge-cp" title="Categoria Protetta">Cat. Protetta</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.distanza_km != float_inf %}
+                        <strong>{{ item.distanza_km|floatformat:1 }} km</strong> <br>
+                        <span style="font-size: 0.8em; color: #666;">dalla sede cliente</span>
+                        {% else %}
+                        <span style="color: #999;">N/A (No GPS)</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for skill in item.skills %}
+                        <span class="badge badge-skill">{{ skill }}</span>
+                        {% empty %}
+                        <span style="color: #ccc;">-</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <!-- Link all'admin per creare il turno precompilato (Futuro) -->
+                        <a href="/admin/core/turno/add/" class="button"
+                            style="padding: 5px 10px; font-size: 12px; text-decoration: none; color: white; background: #447e9b; border-radius: 3px;">Assegna</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #ba2121; font-weight: bold;">⚠️ Nessun dipendente disponibile trovato con questi criteri.</p>
+        <p>Verifica che non siano tutti in ferie o già impegnati in altri turni.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

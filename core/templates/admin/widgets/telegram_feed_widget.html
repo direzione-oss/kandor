@@ -1,0 +1,173 @@
+<style>
+    .telegram-item {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: start;
+        gap: 10px;
+        transition: opacity 0.3s ease;
+    }
+
+    .telegram-item.completed-task {
+        opacity: 0.5;
+    }
+
+    .telegram-note {
+        font-size: 0.8em;
+        color: #888;
+        display: block;
+        margin-top: 2px;
+    }
+</style>
+
+<div class="module dashboard-widget">
+    <h2 style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+        onclick="toggleWidget('telegram-content', this)">
+        <span>📡 Telegram Feed</span>
+        <span style="font-size: 14px;">▼</span>
+    </h2>
+    <div id="telegram-content" style="display: flex; gap: 20px; flex-wrap: wrap;">
+
+        <!-- Ore Lavorate -->
+        <div
+            style="flex: 1; min-width: 250px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin-top: 0; color: #447e9b; border-bottom: 2px solid #447e9b; padding-bottom: 5px;">🕒 Ultime
+                Ore</h3>
+            <ul style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
+                {% for item in latest_hours %}
+                <li class="telegram-item {% if item.is_validated %}completed-task{% endif %}">
+                    <input type="checkbox" onclick="toggleStatus('timetracking', {{ item.id }}, this)" {{
+                        item.is_validated|yesno:"checked," }}>
+                    <div>
+                        <strong>{{ item.dipendente }}</strong><br>
+                        <span style="color: #666;">{{ item.assegnazione.cliente }}</span><br>
+                        <small>{{ item.check_out|date:"d/m H:i" }} - {{ item.durata_ore|floatformat:1 }}h</small>
+                        {% if item.note %}
+                        <em class="telegram-note">{{ item.note|truncatechars:40 }}</em>
+                        {% endif %}
+                    </div>
+                </li>
+                {% empty %}
+                <li style="color: #999;">Nessuna attività recente.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Assenze -->
+        <div
+            style="flex: 1; min-width: 250px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin-top: 0; color: #eca23e; border-bottom: 2px solid #eca23e; padding-bottom: 5px;">🏖️
+                Assenze</h3>
+            <ul style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
+                {% for item in latest_absences %}
+                <li class="telegram-item {% if item.is_processed %}completed-task{% endif %}">
+                    <input type="checkbox" onclick="toggleStatus('assenza', {{ item.id }}, this)" {{
+                        item.is_processed|yesno:"checked," }}>
+                    <div>
+                        <strong>{{ item.dipendente }}</strong><br>
+                        <span style="background: #eee; padding: 2px 5px; border-radius: 4px; font-size: 0.8em;">{{
+                            item.get_tipo_display }}</span><br>
+                        <small>Il {{ item.data_inizio|date:"d/m/Y" }}</small>
+                        {% if item.note %}
+                        <em class="telegram-note">{{ item.note|truncatechars:40 }}</em>
+                        {% endif %}
+                    </div>
+                </li>
+                {% empty %}
+                <li style="color: #999;">Nessuna assenza recente.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Segnalazioni -->
+        <div
+            style="flex: 1; min-width: 250px; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h3 style="margin-top: 0; color: #ba2121; border-bottom: 2px solid #ba2121; padding-bottom: 5px;">📝
+                Segnalazioni</h3>
+            <ul style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
+                {% for item in latest_reports %}
+                <li class="telegram-item {% if item.risolto %}completed-task{% endif %}">
+                    <input type="checkbox" onclick="toggleStatus('segnalazione', {{ item.id }}, this)" {{
+                        item.risolto|yesno:"checked," }}>
+                    <div>
+                        <strong>{{ item.dipendente }}</strong><br>
+                        <span>{{ item.testo|truncatechars:50 }}</span><br>
+                        <small>{{ item.data_inserimento|date:"d/m H:i" }}</small>
+                        {% if item.risolto %} <span style="color: green;">✔</span> {% else %} <span
+                            style="color: red;">⚠</span> {% endif %}
+                    </div>
+                </li>
+                {% empty %}
+                <li style="color: #999;">Nessuna segnalazione.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    if (typeof toggleWidget === 'undefined') {
+        function toggleWidget(id, header) {
+            var content = document.getElementById(id);
+            var icon = header.querySelector('span:last-child');
+            if (content.style.display === "none") {
+                content.style.display = "flex";
+                icon.innerText = "▼";
+            } else {
+                content.style.display = "none";
+                icon.innerText = "▲";
+            }
+        }
+    }
+
+    function toggleStatus(model, id, checkbox) {
+        const li = checkbox.closest('li');
+
+        // Optimistic UI update
+        if (checkbox.checked) {
+            li.classList.add('completed-task');
+        } else {
+            li.classList.remove('completed-task');
+        }
+
+        fetch(`/telegram-toggle/${model}/${id}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    checkbox.checked = data.new_state;
+                    if (data.new_state) {
+                        li.classList.add('completed-task');
+                    } else {
+                        li.classList.remove('completed-task');
+                    }
+                } else {
+                    alert('Errore aggiornamento: ' + data.error);
+                    // Revert
+                    checkbox.checked = !checkbox.checked;
+                    if (checkbox.checked) {
+                        li.classList.add('completed-task');
+                    } else {
+                        li.classList.remove('completed-task');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Errore di connessione');
+                // Revert
+                checkbox.checked = !checkbox.checked;
+                if (checkbox.checked) {
+                    li.classList.add('completed-task');
+                } else {
+                    li.classList.remove('completed-task');
+                }
+            });
+    }
+</script>

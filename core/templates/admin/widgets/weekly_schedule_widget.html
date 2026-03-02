@@ -1,0 +1,90 @@
+<div class="module dashboard-widget"
+    style="margin-bottom: 20px; border: 1px solid #cfd8dc; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); font-family: 'Roboto', 'Segoe UI', sans-serif;">
+    <h3
+        style="background: #37474f; color: white; margin: 0; padding: 12px 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-weight: 600;">📅 Settimana: {{ week_range }}</span>
+            <div style="background: rgba(255,255,255,0.15); border-radius: 4px; display: flex; overflow: hidden;">
+                <a href="?week={{ prev_week_offset }}"
+                    style="color: white; padding: 4px 10px; text-decoration: none; border-right: 1px solid rgba(255,255,255,0.2); font-size: 13px; transition: background 0.2s;">&larr;
+                    Prev</a>
+                <a href="?week={{ next_week_offset }}"
+                    style="color: white; padding: 4px 10px; text-decoration: none; font-size: 13px; transition: background 0.2s;">Next
+                    &rarr;</a>
+            </div>
+        </div>
+        <a href="/admin/core/turno/"
+            style="color: #fff; font-size: 12px; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-weight: 500;">Gestisci
+            Turni &rarr;</a>
+    </h3>
+
+    <div style="overflow-x: auto; background: #fff;">
+        <table style="width: 100%; border-collapse: collapse; min-width: 1000px; table-layout: fixed;">
+            <thead>
+                <tr style="background: #eceff1; border-bottom: 2px solid #cfd8dc;">
+                    {% for day in schedule %}
+                    <th
+                        style="padding: 12px 8px; text-align: center; border-right: 1px solid #dee2e6; width: 14.28%; {% if day.is_today %}background-color: #2e7d32; color: white;{% else %}color: #546e7a;{% endif %}">
+                        <div style="font-size: 14px; font-weight: 700; text-transform: uppercase;">{{ day.day_name }}
+                        </div>
+                        <div style="font-size: 11px; font-weight: normal; opacity: 0.9;">{{ day.day_date }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    {% for day in schedule %}
+                    <td
+                        style="padding: 8px; vertical-align: top; border-right: 1px solid #f0f0f0; background-color: {% if day.is_today %}#f1f8f3{% else %}#fff{% endif %}; height: 200px;">
+                        {% if day.shifts %}
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            {% for shift in day.shifts %}
+                            {% if shift.assignments %}
+                            {% for assign in shift.assignments %}
+                            <div
+                                style="background: white; border: 1px solid #e0e0e0; border-left: 4px solid #0277bd; border-radius: 4px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.1s;">
+                                <div
+                                    style="font-weight: 700; color: #333; font-size: 13px; margin-bottom: 4px; line-height: 1.3;">
+                                    {{ assign.cliente.ragione_sociale }}
+                                </div>
+
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <span
+                                        style="background: #e3f2fd; color: #0277bd; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 600;">
+                                        {{ shift.squadra }}
+                                    </span>
+                                </div>
+
+                                <div
+                                    style="font-size: 12px; color: #555; display: flex; align-items: center; gap: 4px; border-top: 1px solid #f5f5f5; padding-top: 4px; margin-top: 4px;">
+                                    <span style="color: #78909c;">🕒</span>
+                                    <span style="font-weight: 600; color: #37474f;">
+                                        {{ assign.time_range }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <!-- Shift without specific assignments -->
+                            <div
+                                style="background: white; border: 1px solid #e0e0e0; border-left: 4px solid #9e9e9e; border-radius: 4px; padding: 8px;">
+                                <div style="font-weight: 600; color: #616161; font-size: 12px;">{{ shift.squadra }}
+                                </div>
+                                <div style="font-size: 11px; color: #9e9e9e; margin-top: 2px;">No assignments</div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="text-align: center; color: #cfd8dc; font-size: 24px; padding-top: 30px;">&bull;
+                        </div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

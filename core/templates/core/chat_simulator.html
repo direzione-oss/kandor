@@ -1,0 +1,121 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Telegram | Kandor{% endblock %}
+
+{% block content %}
+<style>
+    .chat-container {
+        max-width: 600px;
+        margin: 20px auto;
+        border: 1px solid #ccc;
+        background: #fdfdfd;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        height: 500px;
+    }
+    .chat-history {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #e5ddd5;
+    }
+    .message {
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        max-width: 80%;
+        line-height: 1.4;
+    }
+    .message.sent {
+        background: #dcf8c6;
+        align-self: flex-end;
+        margin-left: auto;
+    }
+    .message.received {
+        background: white;
+        align-self: flex-start;
+        border: 1px solid #eee;
+    }
+    .chat-input-area {
+        padding: 10px;
+        background: #f0f0f0;
+        border-top: 1px solid #ccc;
+    }
+    .form-row {
+        margin-bottom: 10px;
+    }
+    input[type="text"], select {
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+    }
+    button {
+        width: 100%;
+        padding: 10px;
+        background: #417690;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    button:hover { background: #205067; }
+</style>
+
+<div id="content-main">
+    <h1>🤖 Telegram</h1>
+    <p>Invia messaggi reali ai dipendenti tramite il bot Telegram aziendale.</p>
+    
+    <div class="chat-container">
+        <div class="chat-history" id="chatHistory">
+            <div class="message received">
+                <strong>System:</strong> Seleziona un dipendente e scrivi un messaggio.<br>
+                <em>Il messaggio verrà inviato immediatamente al dispositivo del dipendente.</em>
+            </div>
+            
+            {% if last_response %}
+            <div class="message sent">
+                <strong>A: {{ selected_employee }}</strong><br>
+                {{ last_message }}
+            </div>
+            <div class="message received">
+                <strong>Stato:</strong> {{ last_response|safe }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="chat-input-area">
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-row">
+                    <label><strong>Destinatario:</strong></label>
+                    <select name="employee_id" required>
+                        <option value="">-- Seleziona Dipendente --</option>
+                        {% for d in employees %}
+                        <option value="{{ d.id }}" {% if selected_employee_id == d.id %}selected{% endif %}>
+                            {{ d }} (Chat ID: {{ d.telegram_chat_id|default:"N/A" }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <input type="text" name="message" placeholder="Scrivi messaggio..." value="{{ last_message|default:'' }}" required autocomplete="off">
+                </div>
+                <button type="submit" style="background: #27ae60;">📲 Invia Messaggio (Telegram)</button>
+            </form>
+        </div>
+    </div>
+    
+    <div style="text-align: center; margin-top: 10px;">
+        <a href="/admin/core/timetracking/" target="_blank">Vedi TimeTracking nel Database</a>
+    </div>
+</div>
+
+<script>
+    // Auto-scroll to bottom
+    var chatHistory = document.getElementById("chatHistory");
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+</script>
+{% endblock %}
