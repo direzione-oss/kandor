@@ -18,4 +18,14 @@
 </div>
 {% endblock %}
 
-{% block nav-global %}{% endblock %}
+{% block nav-global %}
+<nav style="background: #1a1a2e; padding: 0 20px; display: flex; align-items: center; gap: 0; border-bottom: 2px solid #e74c3c; font-size: 13px;">
+    <a href="{% url 'find_jolly' %}" style="color: #ccc; text-decoration: none; padding: 10px 15px; transition: all 0.2s;" onmouseover="this.style.color='#fff';this.style.background='#333'" onmouseout="this.style.color='#ccc';this.style.background='transparent'">🏥 Trova Jolly</a>
+    <a href="{% url 'reconciliation' %}" style="color: #ccc; text-decoration: none; padding: 10px 15px; transition: all 0.2s;" onmouseover="this.style.color='#fff';this.style.background='#333'" onmouseout="this.style.color='#ccc';this.style.background='transparent'">📊 Report Ore</a>
+    <a href="{% url 'generate_shifts' %}" style="color: #ccc; text-decoration: none; padding: 10px 15px; transition: all 0.2s;" onmouseover="this.style.color='#fff';this.style.background='#333'" onmouseout="this.style.color='#ccc';this.style.background='transparent'">🗓️ Genera Turni</a>
+    <a href="/data-management/" style="color: #ccc; text-decoration: none; padding: 10px 15px; transition: all 0.2s;" onmouseover="this.style.color='#fff';this.style.background='#333'" onmouseout="this.style.color='#ccc';this.style.background='transparent'">💾 Gestione Dati</a>
+    <a href="{% url 'chat_simulator' %}" style="color: #ccc; text-decoration: none; padding: 10px 15px; transition: all 0.2s;" onmouseover="this.style.color='#fff';this.style.background='#333'" onmouseout="this.style.color='#ccc';this.style.background='transparent'">💬 Telegram</a>
+    <span style="flex-grow: 1;"></span>
+    <a href="{% url 'manuale_utente' %}" style="color: #f1c40f; text-decoration: none; padding: 10px 15px; font-weight: bold; transition: all 0.2s;" onmouseover="this.style.color='#fff';this.style.background='#333'" onmouseout="this.style.color='#f1c40f';this.style.background='transparent'">📘 Manuale d'Uso</a>
+</nav>
+{% endblock %}
