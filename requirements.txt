@@ -4,6 +4,9 @@ psycopg2-binary
 geopy
 certifi
 Pillow
+pandas
+xlsxwriter
+openpyxl
 python-dotenv
 gunicorn
 whitenoise
