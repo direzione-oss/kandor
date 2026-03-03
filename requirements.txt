@@ -10,3 +10,4 @@ openpyxl
 python-dotenv
 gunicorn
 whitenoise
+requests
