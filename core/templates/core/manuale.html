@@ -2,136 +2,470 @@
 
 {% block content %}
 <div
-    style="max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); line-height: 1.6;">
-    <h1 style="color: #E60000; border-bottom: 2px solid #E60000; padding-bottom: 10px;">Manuale Utente - Kandor Portal
-    </h1>
+    style="max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); line-height: 1.7; font-size: 14px;">
 
-    <p>Benvenuto nel manuale di utilizzo del portale gestionale **Kandor**. Questo documento descrive le funzionalità
-        principali del sistema.</p>
+    <h1 style="color: #1a5276; border-bottom: 3px solid #2980b9; padding-bottom: 10px; font-size: 28px;">📘 Manuale
+        d'Uso — Kandor</h1>
+    <p style="color: #777;">Versione 1.0 — Marzo 2026 | URL: <a
+            href="https://kandor.onrender.com">kandor.onrender.com</a></p>
+
+    <!-- SOMMARIO -->
+    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #333;">Sommario</h3>
+        <div style="columns: 2; column-gap: 30px; font-size: 13px;">
+            <ol style="margin: 0; padding-left: 20px;">
+                <li><a href="#intro">Introduzione</a></li>
+                <li><a href="#accesso">Accesso al Sistema</a></li>
+                <li><a href="#dashboard">Dashboard Principale</a></li>
+                <li><a href="#dipendenti">Gestione Dipendenti</a></li>
+                <li><a href="#clienti">Gestione Clienti</a></li>
+                <li><a href="#qualifiche">Gestione Qualifiche</a></li>
+                <li><a href="#mezzi">Mezzi Aziendali</a></li>
+                <li><a href="#squadre">Gestione Squadre</a></li>
+                <li><a href="#turni">Pianificazione Turni</a></li>
+                <li><a href="#programmazione">Programmazione Ricorrente</a></li>
+                <li><a href="#straordinarie">Richieste Straordinarie</a></li>
+                <li><a href="#jolly">Trova Jolly</a></li>
+                <li><a href="#timetracking">Registrazione Ore</a></li>
+                <li><a href="#assenze">Gestione Assenze</a></li>
+                <li><a href="#segnalazioni">Segnalazioni</a></li>
+                <li><a href="#riconciliazione">Riconciliazione Ore</a></li>
+                <li><a href="#telegram">Integrazione Telegram</a></li>
+                <li><a href="#messaggi">Messaggi Programmati</a></li>
+                <li><a href="#chat">Simulatore Chat</a></li>
+                <li><a href="#dati">Gestione Dati (Import/Export)</a></li>
+                <li><a href="#backup">Backup e Ripristino</a></li>
+                <li><a href="#widget">Widget Dashboard</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ol>
+        </div>
+    </div>
 
     <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
 
-    <h2 style="color: #333;">🚀 Avvio del Sistema</h2>
-    <p>Per avviare il sistema, fai doppio click sul file <strong>start_app.bat</strong> presente sul desktop.</p>
+    <!-- 1. INTRODUZIONE -->
+    <h2 id="intro" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">1. Introduzione</h2>
+    <p><strong>KANDOR</strong> è un sistema ERP per la gestione operativa di imprese di servizi (pulizie, facility
+        management). Permette di:</p>
     <ul>
-        <li>Una finestra nera (Server Django): <strong>Non chiuderla</strong>.</li>
-        <li>Una seconda finestra nera (Bot Telegram): <strong>Non chiuderla</strong>.</li>
-        <li>Il browser predefinito sulla pagina di login.</li>
+        <li><strong>Gestire dipendenti</strong> con dati anagrafici, qualifiche e stato</li>
+        <li><strong>Gestire clienti</strong> con indirizzi e programmazione lavori</li>
+        <li><strong>Pianificare turni</strong> automaticamente da programmazioni ricorrenti</li>
+        <li><strong>Tracciare le ore lavorate</strong> in tempo reale, anche via Telegram</li>
+        <li><strong>Gestire assenze</strong> (malattia, ferie, permessi)</li>
+        <li><strong>Trovare sostituti</strong> (Jolly) in caso di emergenza</li>
+        <li><strong>Riconciliare le ore</strong> previste vs lavorate per cliente</li>
+        <li><strong>Comunicare con i dipendenti</strong> via Telegram</li>
     </ul>
 
-    <h2 style="color: #333; margin-top: 30px;">🏠 Dashboard Principale</h2>
-
-    <h3 style="color: #666;">1. Widget Informativi</h3>
-    <ul>
-        <li><strong>⚠️ Scadenze Mezzi</strong>: Avvisi su assicurazioni o revisioni in scadenza.</li>
-        <li><strong>📅 Programma Settimanale</strong>: Visualizza i turni della settimana corrente (Lun-Dom).
-            <ul>
-                <li>Usa <strong>Prev/Next</strong> per navigare tra le settimane.</li>
-            </ul>
-        </li>
-        <li><strong>📡 Telegram Feed</strong>: Flusso in tempo reale delle attività.
-            <ul>
-                <li>Clicca sulla casella accanto a ogni voce per segnarla come "Gestita".</li>
-            </ul>
-        </li>
-    </ul>
-
-    <h3 style="color: #666;">2. Operazioni Frequenti</h3>
-    <ul>
-        <li><strong>🏥 Jolly</strong>: Trova un sostituto disponibile.</li>
-        <li><strong>Importare Excel</strong>: Caricare il file compilato per popolare il database in massa.
-            <ul>
-                <li>Puoi scegliere tra <strong>Aggiorna Esistenti</strong> (sovrascrive i dati se il Codice Fiscale
-                    esiste) o <strong>Solo Aggiunta</strong> (ignora chi è già presente).</li>
-                <li>Il sistema accetta file anche se mancano dati opzionali come la data di nascita.</li>
-            </ul>
-        </li>
-        <li><strong>📊 Report</strong>: Riconciliazione ore lavorate vs contratto.</li>
-        <li><strong>🗓️ Turni</strong>: Generatore automatico turni.</li>
-        <li><strong>💾 Dati</strong>: Import/Export Excel e Backup.</li>
-    </ul>
-
-    <h2 style="color: #333; margin-top: 30px;">📱 Integrazione Telegram</h2>
-    <p>Il Bot Telegram permette ai dipendenti di inviare report giornalieri e richieste direttamente dallo smartphone.
-    </p>
-
-    <div style="background: #fff3cd; padding: 10px; border-left: 5px solid #ffc107; margin-bottom: 20px;">
-        <strong>Importante</strong>: Per poter usare il bot, ogni dipendente deve avere il proprio <strong>Telegram Chat
-            ID</strong> inserito nella sua scheda anagrafica.
+    <!-- 2. ACCESSO -->
+    <h2 id="accesso" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">2. Accesso al
+        Sistema</h2>
+    <p>Apri il browser e vai a: <strong><a href="https://kandor.onrender.com">kandor.onrender.com</a></strong></p>
+    <p>Inserisci <strong>Nome utente</strong> e <strong>Password</strong>, poi clicca <strong>"Accedi"</strong>.</p>
+    <div style="background: #fff3cd; padding: 10px 15px; border-left: 5px solid #ffc107; margin: 15px 0;">
+        <strong>Nota:</strong> L'istanza free di Render si "addormenta" dopo 15 min di inattività. Il primo accesso può
+        richiedere ~50 secondi.
     </div>
+    <p><strong>Cambio Password:</strong> Clicca sul tuo nome in alto a destra → "Cambia password".</p>
 
-    <h3 style="color: #666;">Comandi Disponibili per i Dipendenti</h3>
+    <!-- 3. DASHBOARD -->
+    <h2 id="dashboard" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">3. Dashboard
+        Principale</h2>
+    <p>La homepage mostra widget informativi e accesso rapido a tutte le funzioni:</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px 12px;">Sezione</th>
+            <th style="padding: 8px 12px;">Contenuto</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px 12px;"><strong>Widget superiori</strong></td>
+            <td style="padding: 8px 12px;">Scadenze veicoli, Compleanni</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px 12px;"><strong>Pianificazione Settimanale</strong></td>
+            <td style="padding: 8px 12px;">Turni della settimana con navigazione</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px 12px;"><strong>Feed Telegram</strong></td>
+            <td style="padding: 8px 12px;">Ore, assenze e segnalazioni in tempo reale</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px 12px;"><strong>Operatività / Anagrafiche</strong></td>
+            <td style="padding: 8px 12px;">Accesso a tutti i modelli dati</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px 12px;"><strong>Operazioni Frequenti</strong></td>
+            <td style="padding: 8px 12px;">Jolly, Report, Turni, Dati, Guida, Telegram</td>
+        </tr>
+    </table>
 
-    <h4 style="color: #2c3e50; margin-bottom: 10px;">1. Registrazione Ore Lavorate</h4>
-    <p>Il bot è progettato per ricevere il report <strong>a fine turno</strong>. Il dipendente deve scrivere il
-        <strong>Nome del Cliente</strong> seguito dalle <strong>Ore Lavorate</strong>.</p>
-    <ul>
-        <li><strong>Sintassi</strong>: <code>[Nome Cliente] [Ore]</code></li>
-        <li><strong>Esempi</strong>:
-            <ul>
-                <li>"<em>Condominio Rossi 4</em>" (Registra 4 ore)</li>
-                <li>"<em>Hotel Roma 4.5</em>" (Registra 4 ore e mezza)</li>
-                <li>"<em>Ufficio Milano 8:30</em>" (Registra 8 ore e 30 min)</li>
-            </ul>
-        </li>
-    </ul>
-
-    <h4 style="color: #2c3e50; margin-bottom: 10px; margin-top: 20px;">2. Richieste di Assenza</h4>
-    <p>Per comunicare un'assenza per la <strong>giornata corrente</strong>:</p>
-    <ul>
-        <li><strong>Malattia</strong>: Scrivere <code>malattia</code> (es. "Sono malato oggi").</li>
-        <li><strong>Ferie</strong>: Scrivere <code>ferie</code> (es. "Vorrei ferie per oggi").</li>
-        <li><strong>Permesso</strong>: Scrivere <code>permesso</code>.</li>
-    </ul>
-
-    <h4 style="color: #2c3e50; margin-bottom: 10px; margin-top: 20px;">3. Segnalazioni</h4>
-    <ul>
-        <li>Per inviare una nota di manutenzione, scrivere <code>segnalazione</code> all'inizio del messaggio.</li>
-        <li>Esempio: "<em>segnalazione cancello rotto ingresso nord</em>".</li>
-    </ul>
-
-    <h3 style="color: #666; margin-top: 30px;">Feed Telegram in Dashboard</h3>
-    <p>Tutti i messaggi arrivano nel widget <strong>Telegram Feed</strong> in Dashboard.</p>
-    <ul>
-        <li>Clicca sulla <strong>casella di spunta</strong> accanto a un messaggio per segnarlo come "Gestito". La riga
-            diventerà trasparente.</li>
-    </ul>
-
-    <h2 style="color: #333; margin-top: 30px;">🛠️ Funzionalità Dettagliate</h2>
-
-    <h3 style="color: #666;">Gestione Jolly</h3>
+    <!-- 4. DIPENDENTI -->
+    <h2 id="dipendenti" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">4. Gestione
+        Dipendenti</h2>
+    <p><strong>Dashboard → Dipendenti</strong></p>
+    <h3 style="color: #27ae60;">Campi Principali</h3>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px;">Campo</th>
+            <th style="padding: 8px;">Descrizione</th>
+            <th style="padding: 8px;">Obbl.</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Nome / Cognome</td>
+            <td style="padding: 8px;">Dati anagrafici</td>
+            <td style="padding: 8px;">✅</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Codice Fiscale</td>
+            <td style="padding: 8px;">Univoco, 16 caratteri</td>
+            <td style="padding: 8px;">✅</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Data di Nascita</td>
+            <td style="padding: 8px;">Auto-calcolata dal CF se mancante</td>
+            <td style="padding: 8px;">❌</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Indirizzo Residenza</td>
+            <td style="padding: 8px;">Geocodificato automaticamente (GPS)</td>
+            <td style="padding: 8px;">✅</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Telegram Chat ID</td>
+            <td style="padding: 8px;">Per integrazione bot Telegram</td>
+            <td style="padding: 8px;">❌</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Stato</td>
+            <td style="padding: 8px;">Attivo / Malattia / Ferie / Permesso / 104 / Inattivo</td>
+            <td style="padding: 8px;">✅</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Qualifiche</td>
+            <td style="padding: 8px;">Selezione multipla delle competenze</td>
+            <td style="padding: 8px;">❌</td>
+        </tr>
+    </table>
+    <h3 style="color: #27ae60;">Azione: Invia Messaggio Telegram</h3>
     <ol>
-        <li>Clicca su <strong>Jolly</strong> dalla Dashboard.</li>
-        <li>Inserisci Cliente, Data e Orari.</li>
-        <li>Il sistema mostrerà i dipendenti disponibili (quelli non impegnati in altri turni).</li>
+        <li>Seleziona dipendenti con le checkbox</li>
+        <li>Menu "Azione" → <strong>"💬 Invia Messaggio Telegram"</strong></li>
+        <li>Scrivi il messaggio e conferma</li>
     </ol>
 
-    <h3 style="color: #666;">Report e Riconciliazione</h3>
-    <p>Confronta le ore lavorate con il contratto. Status:</p>
-    <ul>
-        <li>🟢 <strong>OK</strong>: Ore in linea.</li>
-        <li>🔴 <strong>ALARM</strong>: Ore insufficienti.</li>
-        <li>🟡 <strong>WARNING</strong>: Troppe ore.</li>
-    </ul>
+    <!-- 5. CLIENTI -->
+    <h2 id="clienti" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">5. Gestione Clienti
+    </h2>
+    <p><strong>Dashboard → Clienti</strong></p>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px;">Campo</th>
+            <th style="padding: 8px;">Descrizione</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Ragione Sociale</td>
+            <td style="padding: 8px;">Nome dell'azienda cliente</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Partita IVA / CF</td>
+            <td style="padding: 8px;">Dati fiscali</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Indirizzo Sede</td>
+            <td style="padding: 8px;">Geocodificato automaticamente</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Referente</td>
+            <td style="padding: 8px;">Nome, ruolo e data di nascita del referente</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Ore Mensili Contratto</td>
+            <td style="padding: 8px;">Per la riconciliazione ore</td>
+        </tr>
+    </table>
+    <p>Nella scheda cliente trovi anche: <strong>Programmazione Ricorrente</strong> e <strong>Richieste
+            Straordinarie</strong> (sezioni inline).</p>
 
-    <h3 style="color: #666;">Gestione Dati</h3>
-    <ul>
-        <li><strong>Importare Excel</strong>: Puoi scegliere tra <strong>Aggiorna Esistenti</strong> o <strong>Solo
-                Aggiunta</strong>.</li>
-        <li><strong>Backup</strong>: Clicca per scaricare una copia di sicurezza di tutti i dati.</li>
-    </ul>
+    <!-- 6. QUALIFICHE -->
+    <h2 id="qualifiche" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">6. Gestione
+        Qualifiche</h2>
+    <p><strong>Dashboard → Qualifiche</strong></p>
+    <p>Definiscono le competenze (es. "Pulizie industriali", "Giardinaggio"). Vengono assegnate ai dipendenti e
+        richieste nelle programmazioni. Usate anche nel Trova Jolly per filtrare i candidati.</p>
 
-    <h2 style="color: #333; margin-top: 30px;">📋 Gestione Mezzi e Scadenze</h2>
-    <p>Inserisci le date di <strong>Scadenza Assicurazione</strong> e <strong>Bollo</strong> nelle schede dei mezzi.</p>
-    <ul>
-        <li>Il sistema ti avviserà in Dashboard <strong>45 giorni prima</strong> della scadenza con un widget dedicato.
-        </li>
-    </ul>
+    <!-- 7. MEZZI -->
+    <h2 id="mezzi" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">7. Mezzi Aziendali
+    </h2>
+    <p><strong>Dashboard → Mezzi Aziendali</strong></p>
+    <p>Campi: <strong>Modello</strong>, <strong>Targa</strong> (univoca), <strong>Stato</strong>
+        (Disponibile/Manutenzione/Riparazione), <strong>Km</strong>, <strong>Scadenza Polizza</strong>, <strong>Scadenza
+            Bollo</strong>.</p>
+    <div style="background: #d4edda; padding: 10px 15px; border-left: 5px solid #28a745; margin: 15px 0;">
+        Il widget in dashboard avvisa <strong>45 giorni prima</strong> delle scadenze di polizza e bollo.
+    </div>
 
-    <div style="margin-top: 50px; text-align: center;">
+    <!-- 8. SQUADRE -->
+    <h2 id="squadre" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">8. Gestione Squadre
+    </h2>
+    <p><strong>Dashboard → Squadre</strong></p>
+    <p>Campi: <strong>Nome</strong>, <strong>Caposquadra</strong>, <strong>Componenti</strong> (selezione multipla
+        dipendenti).</p>
+    <p><strong>Azione:</strong> "💬 Invia Messaggio alla Squadra" — invia a tutti i membri con Telegram configurato.</p>
+
+    <!-- 9. TURNI -->
+    <h2 id="turni" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">9. Pianificazione
+        Turni</h2>
+    <p><strong>Dashboard → Turni</strong></p>
+    <p>Un <strong>Turno</strong> = un giorno di lavoro per una squadra. Contiene <strong>Assegnazioni</strong> (inline):
+        "la squadra va dal cliente X dalle Y alle Z".</p>
+    <h3 style="color: #27ae60;">Generazione Automatica</h3>
+    <p>Clicca <strong>"Genera Turni"</strong> dalla dashboard per creare assegnazioni per i <strong>prossimi 7
+            giorni</strong> basandosi sulle programmazioni ricorrenti. Evita duplicati automaticamente.</p>
+
+    <!-- 10. PROGRAMMAZIONE RICORRENTE -->
+    <h2 id="programmazione" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">10.
+        Programmazione Ricorrente</h2>
+    <p>Accessibile dalla <strong>scheda del Cliente</strong> (sezione inline).</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px;">Campo</th>
+            <th style="padding: 8px;">Descrizione</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Tipo Ripetizione</td>
+            <td style="padding: 8px;">Settimanale o Mensile</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Giorno</td>
+            <td style="padding: 8px;">Giorno della settimana (Lun-Dom) o del mese (1-31)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Ora Inizio + Durata</td>
+            <td style="padding: 8px;">Es. 06:30 + 2.5h → Ora Fine calcolata automaticamente</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">Qualifica Richiesta</td>
+            <td style="padding: 8px;">Competenza necessaria per il lavoro</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">Squadra / Mezzo Abituale</td>
+            <td style="padding: 8px;">Per la generazione automatica turni</td>
+        </tr>
+    </table>
+    <p>⚡ Il sistema valida le <strong>sovrapposizioni orarie</strong> per squadra e mezzo.</p>
+
+    <!-- 11. RICHIESTE STRAORDINARIE -->
+    <h2 id="straordinarie" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">11. Richieste
+        Straordinarie</h2>
+    <p>Dalla <strong>scheda del Cliente</strong>. Lavori extra non ricorrenti con: data, orari, descrizione e stato
+        completamento.</p>
+
+    <!-- 12. TROVA JOLLY -->
+    <h2 id="jolly" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">12. Trova Jolly</h2>
+    <p><strong>Dashboard → Trova Jolly</strong></p>
+    <p>Trova <strong>sostituti disponibili</strong> per una copertura improvvisa.</p>
+    <ol>
+        <li>Seleziona il <strong>Cliente</strong></li>
+        <li>(Opzionale) Seleziona la <strong>Qualifica</strong></li>
+        <li>Inserisci <strong>Data</strong> e <strong>Orari</strong></li>
+        <li>Clicca <strong>"Cerca"</strong></li>
+    </ol>
+    <h3 style="color: #27ae60;">Filtri Automatici</h3>
+    <ul>
+        <li>✅ Solo dipendenti <strong>ATTIVI</strong></li>
+        <li>✅ <strong>NON</strong> in ferie/malattia/permesso</li>
+        <li>✅ <strong>NON</strong> già impegnati in turni sovrapposti</li>
+        <li>✅ Con la <strong>qualifica</strong> richiesta (se specificata)</li>
+    </ul>
+    <p>Risultati ordinati per <strong>distanza geografica</strong> (dal più vicino al cliente).</p>
+
+    <!-- 13. TIME TRACKING -->
+    <h2 id="timetracking" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">13.
+        Registrazione Ore (Time Tracking)</h2>
+    <p><strong>Dashboard → Time Tracking</strong></p>
+    <p>Campi: Dipendente, Assegnazione, Check-in/out, Note, Origine (Manuale/Telegram), Validato.</p>
+    <p>La <strong>durata</strong> viene calcolata automaticamente. I dipendenti possono registrare le ore anche via
+        <strong>Telegram</strong>.</p>
+
+    <!-- 14. ASSENZE -->
+    <h2 id="assenze" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">14. Gestione Assenze
+    </h2>
+    <p><strong>Dashboard → Assenze</strong></p>
+    <p>Tipi: <strong>Ferie</strong>, <strong>Malattia</strong>, <strong>Permesso</strong>, <strong>Legge 104</strong>,
+        <strong>Altro</strong>.</p>
+    <p>Filtri per tipo e data. I dipendenti possono segnalare assenze via Telegram.</p>
+
+    <!-- 15. SEGNALAZIONI -->
+    <h2 id="segnalazioni" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">15.
+        Segnalazioni</h2>
+    <p>Inviate dai dipendenti via Telegram (comando <code>segnalazione testo...</code>). Campi: testo, data, stato
+        "Risolto", note amministrazione.</p>
+
+    <!-- 16. RICONCILIAZIONE -->
+    <h2 id="riconciliazione" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">16.
+        Riconciliazione Ore</h2>
+    <p><strong>Dashboard → Report Ore</strong></p>
+    <p>Confronta <strong>ore contrattuali</strong> vs <strong>ore lavorate</strong> per mese. Seleziona mese e anno.</p>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px;">Stato</th>
+            <th style="padding: 8px;">Significato</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">🟢 <strong>OK</strong></td>
+            <td style="padding: 8px;">Differenza entro ±5 ore</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">🟠 <strong>WARNING</strong></td>
+            <td style="padding: 8px;">Più di +5 ore (straordinari)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">🔴 <strong>ALARM</strong></td>
+            <td style="padding: 8px;">Più di -5 ore (lavoro mancante)</td>
+        </tr>
+    </table>
+
+    <!-- 17. TELEGRAM -->
+    <h2 id="telegram" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">17. Integrazione
+        Telegram</h2>
+    <div style="background: #fff3cd; padding: 10px 15px; border-left: 5px solid #ffc107; margin: 15px 0;">
+        <strong>Prerequisito:</strong> Ogni dipendente deve avere il <strong>Telegram Chat ID</strong> nella scheda
+        anagrafica.
+    </div>
+    <h3 style="color: #27ae60;">Comandi per i Dipendenti</h3>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px;">Messaggio</th>
+            <th style="padding: 8px;">Azione</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;"><code>Hotel Roma 8</code></td>
+            <td style="padding: 8px;">Registra 8 ore per "Hotel Roma"</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;"><code>Pulizie Centro 4.5</code></td>
+            <td style="padding: 8px;">Registra 4.5 ore</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;"><code>Roma 6:30</code></td>
+            <td style="padding: 8px;">Registra 6h 30min (formato HH:MM)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;"><code>Malattia</code></td>
+            <td style="padding: 8px;">Registra assenza per malattia (oggi)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;"><code>Ferie</code></td>
+            <td style="padding: 8px;">Registra ferie (oggi)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;"><code>Permesso</code></td>
+            <td style="padding: 8px;">Registra permesso (oggi)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;"><code>Segnalazione testo...</code></td>
+            <td style="padding: 8px;">Invia segnalazione all'amministrazione</td>
+        </tr>
+    </table>
+    <h3 style="color: #27ae60;">Come Ottenere il Chat ID</h3>
+    <p>Il dipendente invia un messaggio qualsiasi al bot. Se non registrato, il bot risponde con: <em>"Il tuo ID
+            Telegram è: XXXXXXX"</em>. L'admin lo inserisce nella scheda del dipendente.</p>
+
+    <!-- 18. MESSAGGI PROGRAMMATI -->
+    <h2 id="messaggi" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">18. Messaggi
+        Programmati</h2>
+    <p><strong>Dashboard → Messaggi Programmabili</strong></p>
+    <p>Programma l'invio di messaggi Telegram: titolo, testo, data/ora invio, destinatari specifici o tutti i dipendenti
+        attivi.</p>
+
+    <!-- 19. CHAT SIMULATOR -->
+    <h2 id="chat" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">19. Simulatore Chat
+    </h2>
+    <p><strong>Dashboard → Telegram</strong></p>
+    <p>Invia messaggi Telegram direttamente dalla piattaforma web. Seleziona un dipendente, scrivi il messaggio e clicca
+        "Invia".</p>
+
+    <!-- 20. GESTIONE DATI -->
+    <h2 id="dati" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">20. Gestione Dati
+        (Import/Export)</h2>
+    <p><strong>Dashboard → Gestione Dati</strong></p>
+    <h3 style="color: #27ae60;">Template Excel</h3>
+    <p>Scarica template pre-formattati per: <strong>Dipendenti</strong>, <strong>Clienti</strong>,
+        <strong>Mezzi</strong>, <strong>Qualifiche</strong>.</p>
+    <h3 style="color: #27ae60;">Importazione</h3>
+    <ol>
+        <li>Scarica il template</li>
+        <li>Compilalo con i dati</li>
+        <li>Seleziona tipo dato e file</li>
+        <li>Scegli: <strong>AGGIORNA</strong> (aggiorna esistenti + crea nuovi) o <strong>SOVRASCRIVI</strong></li>
+        <li>Clicca "Importa"</li>
+    </ol>
+
+    <!-- 21. BACKUP -->
+    <h2 id="backup" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">21. Backup e
+        Ripristino</h2>
+    <p><strong>Gestione Dati → Backup</strong> (solo Superuser)</p>
+    <ul>
+        <li><strong>Backup:</strong> Scarica file JSON completo di tutti i dati</li>
+        <li><strong>Ripristino:</strong> Carica un file backup precedente per ripristinare i dati</li>
+    </ul>
+    <div style="background: #f8d7da; padding: 10px 15px; border-left: 5px solid #dc3545; margin: 15px 0;">
+        <strong>⚠️ Attenzione:</strong> Il ripristino sovrascrive i dati esistenti. Fai sempre un backup prima!
+    </div>
+
+    <!-- 22. WIDGET -->
+    <h2 id="widget" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">22. Widget Dashboard
+    </h2>
+    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
+        <tr style="background: #2980b9; color: white;">
+            <th style="padding: 8px;">Widget</th>
+            <th style="padding: 8px;">Funzione</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">🚗 <strong>Scadenze Veicoli</strong></td>
+            <td style="padding: 8px;">Polizza/bollo scaduti (rosso) o in scadenza entro 45gg (arancione)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">🎂 <strong>Compleanni</strong></td>
+            <td style="padding: 8px;">Compleanni nei prossimi 20 giorni (dipendenti e referenti clienti)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">📅 <strong>Pianificazione</strong></td>
+            <td style="padding: 8px;">Vista settimanale turni con navigazione ← →</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
+            <td style="padding: 8px;">📱 <strong>Feed Telegram</strong></td>
+            <td style="padding: 8px;">Ultime 10 ore, assenze e segnalazioni da Telegram</td>
+        </tr>
+    </table>
+
+    <!-- 23. FAQ -->
+    <h2 id="faq" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">23. FAQ</h2>
+    <h3 style="color: #27ae60;">Il sito è lento al primo accesso</h3>
+    <p>Normale con il piano free di Render. Il servizio "dorme" dopo 15 min di inattività e richiede ~50s per
+        riattivarsi.</p>
+    <h3 style="color: #27ae60;">Un dipendente non riceve messaggi Telegram</h3>
+    <ul>
+        <li>Verifica il <strong>Telegram Chat ID</strong> nella scheda</li>
+        <li>Il dipendente deve aver avviato una conversazione col bot</li>
+    </ul>
+    <h3 style="color: #27ae60;">Le coordinate GPS non vengono calcolate</h3>
+    <p>Inserisci l'indirizzo completo (via, numero, città, provincia). Risalva la scheda se necessario.</p>
+    <h3 style="color: #27ae60;">Errori nell'importazione Excel</h3>
+    <p>Scarica sempre il template aggiornato. CF e P.IVA devono essere univoci.</p>
+    <h3 style="color: #27ae60;">Come aggiungere un nuovo amministratore</h3>
+    <p>Admin panel → <strong>Utenti</strong> → <strong>Aggiungi Utente</strong>. Attiva "Stato staff" e "Stato
+        superutente".</p>
+
+    <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
+
+    <div style="text-align: center; margin-top: 30px;">
+        <p style="color: #999; font-size: 12px;">Kandor — Sistema ERP per la Gestione Operativa Aziendale<br>Sviluppato
+            per Studio Serra — © 2026</p>
         <a href="/admin/"
-            style="background: #E60000; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">Torna
-            alla Dashboard</a>
+            style="background: #2980b9; color: white; padding: 10px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">←
+            Torna alla Dashboard</a>
     </div>
 </div>
 {% endblock %}
