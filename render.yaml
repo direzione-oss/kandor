@@ -2,7 +2,7 @@ services:
   - type: web
     name: kandor
     runtime: python
-    buildCommand: "./build.sh"
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate"
     startCommand: "gunicorn cleanup_erp.wsgi --bind 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
