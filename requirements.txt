@@ -2,6 +2,7 @@ Django>=5.0
 djangorestframework
 psycopg2-binary
 geopy
+certifi
 Pillow
 python-dotenv
 gunicorn
