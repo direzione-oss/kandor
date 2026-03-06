@@ -1,8 +1,6 @@
 import os
 
-# Template con TUTTE le variabili pre-renderizzate nella vista
-# Ogni tag {{ }} e' su una riga corta e contiene solo nomi semplici
-template = r"""{% extends "admin/base_site.html" %}
+template = r'''{% extends "admin/base_site.html" %}
 {% load i18n %}
 {% block content %}
 <div style="max-width:1200px;margin:0 auto;padding:20px">
@@ -29,7 +27,7 @@ template = r"""{% extends "admin/base_site.html" %}
 <button type="submit" style="padding:8px 20px;background:#2980b9;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Analizza</button>
 </div>
 <div style="align-self:flex-end">
-<a href="/analisi-contratti/pdf/?soglia={{ soglia }}&mese={{ mese }}&anno={{ anno }}" style="padding:8px 20px;background:#e74c3c;color:#fff!important;text-decoration:none;border-radius:4px;font-weight:600;display:inline-block">PDF Sotto Soglia</a>
+<button type="submit" formaction="/analisi-contratti/pdf/" style="padding:8px 20px;background:#e74c3c;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">PDF Sotto Soglia</button>
 </div>
 </form>
 </div>
@@ -96,9 +94,9 @@ template = r"""{% extends "admin/base_site.html" %}
 </div>
 </div>
 {% endblock %}
-"""
+'''
 
 filepath = os.path.join('core', 'templates', 'core', 'analisi_contratti.html')
-with open(filepath, 'w', newline='\n') as f:
-    f.write(template.lstrip('\n'))
+with open(filepath, 'wb') as f:
+    f.write(template.lstrip('\n').encode('utf-8'))
 print(f'OK: {filepath}')
