@@ -28,12 +28,15 @@
         padding-bottom: 10px;
     }
 
-    .btn {
+    .btn,
+    a.btn,
+    a.btn:visited,
+    a.btn:hover {
         display: inline-block;
         padding: 8px 16px;
         background: #417690;
-        color: white;
-        text-decoration: none;
+        color: white !important;
+        text-decoration: none !important;
         border-radius: 4px;
         margin-top: 10px;
         border: none;
@@ -41,17 +44,26 @@
         font-size: 14px;
     }
 
-    .btn:hover {
+    .btn:hover,
+    a.btn:hover {
         background: #205067;
+        color: white !important;
     }
 
-    .btn-secondary {
+    .btn-secondary,
+    a.btn-secondary,
+    a.btn-secondary:visited,
+    a.btn-secondary:hover {
         background: #666;
         color: white !important;
     }
 
-    .btn-danger {
+    .btn-danger,
+    a.btn-danger,
+    a.btn-danger:visited,
+    a.btn-danger:hover {
         background: #ba2121;
+        color: white !important;
     }
 
     .file-input {
