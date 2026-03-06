@@ -311,12 +311,44 @@ def chat_simulator_view(request):
 def telegram_webhook_view(request):
     """
     Riceve aggiornamenti da Telegram (Webhook).
-    Formato JSON standard Telegram.
+    Gestisce messaggi di testo e callback_query (bottoni inline).
     """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            # Basic parsing per messaggi diretti
+            token = settings.TELEGRAM_BOT_TOKEN
+            
+            # Gestione callback_query (bottoni inline)
+            callback = data.get('callback_query')
+            if callback:
+                cb_data = callback.get('data', '')
+                chat_id = str(callback['message']['chat']['id'])
+                first_name = callback.get('from', {}).get('first_name', 'Utente')
+                callback_id = callback.get('id')
+                
+                # Rispondi al callback per togliere il loading
+                if token and callback_id:
+                    import requests as req
+                    req.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                             json={'callback_query_id': callback_id})
+                
+                from .utils_kandor_chat import handle_telegram_callback
+                response = handle_telegram_callback(chat_id, cb_data, sender_name=first_name)
+                
+                if response and token:
+                    import requests as req
+                    send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                    payload = {'chat_id': chat_id, 'text': response['text']}
+                    if response.get('reply_markup'):
+                        payload['reply_markup'] = response['reply_markup']
+                    try:
+                        req.post(send_url, json=payload)
+                    except Exception as e:
+                        print(f"[Telegram Error] Callback Send: {e}")
+                
+                return HttpResponse("OK")
+            
+            # Gestione messaggi di testo
             message = data.get('message', {})
             chat = message.get('chat', {})
             text = message.get('text', '')
@@ -324,18 +356,23 @@ def telegram_webhook_view(request):
             first_name = chat.get('first_name', 'Utente')
             
             if chat_id and text:
-                response_text = handle_telegram_message(chat_id, text, sender_name=first_name)
+                response = handle_telegram_message(chat_id, text, sender_name=first_name)
                 
-                # Risposta Tramite API Diretta (più affidabile)
-                if response_text:
-                    token = settings.TELEGRAM_BOT_TOKEN
-                    if token:
-                        import requests
-                        send_url = f"https://api.telegram.org/bot{token}/sendMessage"
-                        try:
-                            requests.post(send_url, json={'chat_id': chat_id, 'text': response_text})
-                        except Exception as network_error:
-                            print(f"[Telegram Error] Send Failed: {network_error}")
+                if response and token:
+                    import requests as req
+                    send_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                    
+                    if isinstance(response, dict):
+                        payload = {'chat_id': chat_id, 'text': response['text']}
+                        if response.get('reply_markup'):
+                            payload['reply_markup'] = response['reply_markup']
+                    else:
+                        payload = {'chat_id': chat_id, 'text': response}
+                    
+                    try:
+                        req.post(send_url, json=payload)
+                    except Exception as e:
+                        print(f"[Telegram Error] Send Failed: {e}")
 
                 return HttpResponse("OK")
                 

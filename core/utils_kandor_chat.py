@@ -11,11 +11,7 @@ def normalize_text(text):
     return re.sub(r'\s+', ' ', text.strip().lower())
 
 def fuzzy_find_cliente(query_name):
-    """
-    Cerca il cliente che meglio matcha il nome fornito.
-    Ritorna (Cliente, score) o (None, 0).
-    Semplice implementazione: 'contains' case insensitive
-    """
+    """Cerca il cliente che meglio matcha il nome fornito."""
     query = normalize_text(query_name)
     candidates = Cliente.objects.all()
     best_match = None
@@ -23,9 +19,9 @@ def fuzzy_find_cliente(query_name):
     
     for c in candidates:
         c_name = normalize_text(c.ragione_sociale)
-        if query == c_name: # Exact
+        if query == c_name:
             return c
-        if query in c_name: # Contains
+        if query in c_name:
             score = len(query) / len(c_name)
             if score > best_score:
                 best_score = score
@@ -34,12 +30,7 @@ def fuzzy_find_cliente(query_name):
     return best_match
 
 def parse_message(text):
-    """
-    Estrae (nome_cliente, ore) dal testo.
-    Supporta formati: "Hotel Roma 4", "Roma 4.5", "Hotel Roma 4:30"
-    """
-    # Regex per trovare numeri alla fine (es. 4, 4.5, 4,5, 4:30)
-    # Group 1: Nome Cliente, Group 2: Ore
+    """Estrae (nome_cliente, ore) dal testo."""
     match = re.search(r'^(.*?)(\d+[.,:]?\d*)$', text.strip())
     
     if match:
@@ -47,7 +38,7 @@ def parse_message(text):
         time_part = match.group(2).strip().replace(',', '.')
         
         hours = 0.0
-        if ':' in time_part: # Format HH:MM
+        if ':' in time_part:
             h, m = time_part.split(':')
             hours = int(h) + int(m)/60
         else:
@@ -57,262 +48,373 @@ def parse_message(text):
     
     return None, None
 
+
+# ========== MENU INTERATTIVO ==========
+
+def get_main_menu():
+    """Ritorna il menu principale con bottoni inline."""
+    return {
+        'inline_keyboard': [
+            [{'text': 'Registra Ore', 'callback_data': 'menu_ore'}],
+            [{'text': 'Malattia', 'callback_data': 'menu_malattia'},
+             {'text': 'Ferie', 'callback_data': 'menu_ferie'}],
+            [{'text': 'Permesso', 'callback_data': 'menu_permesso'},
+             {'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}],
+        ]
+    }
+
+def get_clienti_keyboard(dipendente):
+    """Ritorna tastiera inline con i clienti assegnati al dipendente."""
+    clienti_ids = AssegnazioneTurno.objects.filter(
+        turno__squadra__componenti=dipendente
+    ).values_list('cliente_id', flat=True).distinct()
+    
+    clienti = Cliente.objects.filter(pk__in=clienti_ids).order_by('ragione_sociale')
+    
+    if not clienti.exists():
+        clienti = Cliente.objects.filter(stato='ATTIVO').order_by('ragione_sociale')[:20]
+    
+    keyboard = []
+    row = []
+    for c in clienti:
+        nome_corto = c.ragione_sociale[:25]
+        row.append({'text': nome_corto, 'callback_data': f'ore_cliente_{c.pk}'})
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([{'text': 'Menu Principale', 'callback_data': 'menu_start'}])
+    return {'inline_keyboard': keyboard}
+
+
+# Stato conversazione multi-step (in memoria)
+_TELEGRAM_STATE = {}
+
+
 def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     """
-    Logica principale:
-    1. Identifica Dipendente
-    2. Identifica Cliente e Ore
-    3. Registra TimeTracking
+    Logica principale con supporto comandi e menu interattivo.
+    Ritorna stringa o dict con text + reply_markup.
     """
-    # 1. Identifica Dipendente
-    # Cerchiamo per ID esatto
     dipendenti = Dipendente.objects.filter(telegram_chat_id=telegram_chat_id, stato='ATTIVO')
     
     if not dipendenti.exists():
-        return f"🚫 Ciao {sender_name}, non ti conosco! Il tuo ID Telegram è: {telegram_chat_id}\nInvialo all'amministratore per farti abilitare."
+        return f"Non ti conosco! Il tuo ID Telegram e': {telegram_chat_id}\nInvialo all'amministratore per farti abilitare."
     
     dipendente = dipendenti.first()
-
-    # --- NUOVI COMANDI ---
     clean_text = normalize_text(text)
     
-    # MALATTIA
-    if 'malattia' in clean_text:
-        # Registra malattia per oggi
+    # COMANDI /start e /menu
+    if clean_text in ('/start', '/menu', 'menu', 'start'):
+        return {
+            'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
+            'reply_markup': get_main_menu()
+        }
+    
+    # COMANDO /ore
+    if clean_text == '/ore':
+        return {
+            'text': "Seleziona il cliente:",
+            'reply_markup': get_clienti_keyboard(dipendente)
+        }
+    
+    # COMANDO /malattia
+    if clean_text in ('/malattia', 'malattia'):
         today = timezone.now().date()
         from .models import Assenza
         Assenza.objects.create(
-            dipendente=dipendente,
-            tipo='MALATTIA',
-            data_inizio=today,
-            data_fine=today,
-            note=f"Segnalata via Telegram: {text}",
-            source='TELEGRAM'
+            dipendente=dipendente, tipo='MALATTIA',
+            data_inizio=today, data_fine=today,
+            note=f"Via Telegram: {text}", source='TELEGRAM'
         )
-        return f"d'oh! 🤒 Mi dispiace che stai male {dipendente.nome}. Ho registrato la MALATTIA per oggi ({today.strftime('%d/%m')}). Riposati!"
+        return {
+            'text': f"Registrata MALATTIA per oggi ({today.strftime('%d/%m')}). Riposati {dipendente.nome}!",
+            'reply_markup': get_main_menu()
+        }
 
-    # FERIE
-    if 'ferie' in clean_text:
+    # COMANDO /ferie
+    if clean_text in ('/ferie', 'ferie'):
         today = timezone.now().date()
         from .models import Assenza
-        # Logica semplice: Ferie per oggi. In futuro parsing date.
         Assenza.objects.create(
-            dipendente=dipendente,
-            tipo='FERIE',
-            data_inizio=today,
-            data_fine=today,
-            note=f"Richiesta via Telegram: {text}",
-            source='TELEGRAM'
+            dipendente=dipendente, tipo='FERIE',
+            data_inizio=today, data_fine=today,
+            note=f"Via Telegram: {text}", source='TELEGRAM'
         )
-        return f"🏖️ Ferie registrate per oggi ({today.strftime('%d/%m')}). Goditi il relax {dipendente.nome}!"
+        return {
+            'text': f"Ferie registrate per oggi ({today.strftime('%d/%m')}). Buon relax {dipendente.nome}!",
+            'reply_markup': get_main_menu()
+        }
 
-    # PERMESSO
-    if 'permesso' in clean_text:
+    # COMANDO /permesso
+    if clean_text in ('/permesso', 'permesso'):
         today = timezone.now().date()
         from .models import Assenza
         Assenza.objects.create(
-            dipendente=dipendente,
-            tipo='PERMESSO',
-            data_inizio=today,
-            data_fine=today,
-            note=f"Richiesta via Telegram: {text}",
-            source='TELEGRAM'
+            dipendente=dipendente, tipo='PERMESSO',
+            data_inizio=today, data_fine=today,
+            note=f"Via Telegram: {text}", source='TELEGRAM'
         )
-        return f"ok, {dipendente.nome}. Ho segnato un PERMESSO per oggi."
+        return {
+            'text': f"Permesso registrato per oggi ({today.strftime('%d/%m')}).",
+            'reply_markup': get_main_menu()
+        }
 
     # SEGNALAZIONE
-    if clean_text.startswith('segnalazione'):
+    if clean_text.startswith('/segnalazione') or clean_text.startswith('segnalazione'):
         from .models import Segnalazione
-        # Rimuovi la parola chiave
-        contenuto = text.lower().replace('segnalazione', '', 1).strip()
+        contenuto = text.lower().replace('/segnalazione', '').replace('segnalazione', '').strip()
         if not contenuto:
-            contenuto = "Generica"
+            _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
+            return "Scrivi il testo della segnalazione:"
+        Segnalazione.objects.create(dipendente=dipendente, testo=contenuto)
+        return {
+            'text': f"Segnalazione registrata: '{contenuto}'",
+            'reply_markup': get_main_menu()
+        }
+    
+    # Controlla stato conversazione (attesa input)
+    state = _TELEGRAM_STATE.get(telegram_chat_id)
+    if state:
+        action = state.get('action')
+        
+        # Attesa ore per un cliente specifico
+        if action == 'attesa_ore':
+            cliente_id = state.get('cliente_id')
+            del _TELEGRAM_STATE[telegram_chat_id]
             
-        Segnalazione.objects.create(
-            dipendente=dipendente,
-            testo=contenuto
-        )
-        return f"📝 Grazie {dipendente.nome}, ho preso nota della tua segnalazione: '{contenuto}'. L'amministrazione verificherà."
+            try:
+                hours = float(clean_text.replace(',', '.').replace(':', '.'))
+            except ValueError:
+                return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
+            
+            try:
+                cliente = Cliente.objects.get(pk=cliente_id)
+            except Cliente.DoesNotExist:
+                return "Cliente non trovato."
+            
+            return _salva_ore(dipendente, cliente, hours, text)
         
-    # --- FINE NUOVI COMANDI ---
-        
+        # Attesa testo segnalazione
+        if action == 'segnalazione':
+            del _TELEGRAM_STATE[telegram_chat_id]
+            from .models import Segnalazione
+            Segnalazione.objects.create(dipendente=dipendente, testo=text.strip())
+            return {
+                'text': f"Segnalazione registrata: '{text.strip()}'",
+                'reply_markup': get_main_menu()
+            }
+    
+    # Tentativo parsing classico: "NomeCliente Ore"
     client_name, hours = parse_message(text)
     
-    if not client_name or not hours:
-        return f"👋 Ciao {dipendente.nome}!\nPuoi scrivermi:\n- 'NomeCliente Ore' (es: 'Hotel Roma 8')\n- 'Malattia', 'Ferie', 'Permesso'\n- 'Segnalazione: testo...'"
-        
-    cliente = fuzzy_find_cliente(client_name)
+    if client_name and hours:
+        cliente = fuzzy_find_cliente(client_name)
+        if not cliente:
+            return f"Non ho trovato nessun cliente simile a '{client_name}'. Riprova."
+        return _salva_ore(dipendente, cliente, hours, text)
     
-    if not cliente:
-        return f"❌ Non ho trovato nessun cliente simile a '{client_name}'. Riprova."
+    # Nessun comando riconosciuto: mostra menu
+    return {
+        'text': f"Ciao {dipendente.nome}! Usa i bottoni o scrivi:\n- 'NomeCliente Ore' (es: Hotel Roma 8)\n- /malattia, /ferie, /permesso\n- /segnalazione testo",
+        'reply_markup': get_main_menu()
+    }
+
+
+def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utente"):
+    """Gestisce i bottoni inline premuti dall'utente."""
+    dipendenti = Dipendente.objects.filter(telegram_chat_id=telegram_chat_id, stato='ATTIVO')
+    
+    if not dipendenti.exists():
+        return {'text': f"Non ti conosco! ID: {telegram_chat_id}"}
+    
+    dipendente = dipendenti.first()
+    
+    # Menu principale
+    if callback_data == 'menu_start':
+        return {
+            'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
+            'reply_markup': get_main_menu()
+        }
+    
+    # Registra Ore -> mostra lista clienti
+    if callback_data == 'menu_ore':
+        return {
+            'text': "Seleziona il cliente per cui hai lavorato:",
+            'reply_markup': get_clienti_keyboard(dipendente)
+        }
+    
+    # Malattia
+    if callback_data == 'menu_malattia':
+        today = timezone.now().date()
+        from .models import Assenza
+        Assenza.objects.create(
+            dipendente=dipendente, tipo='MALATTIA',
+            data_inizio=today, data_fine=today,
+            note="Via bottone Telegram", source='TELEGRAM'
+        )
+        return {
+            'text': f"Registrata MALATTIA per oggi ({today.strftime('%d/%m')}). Riposati!",
+            'reply_markup': get_main_menu()
+        }
+    
+    # Ferie
+    if callback_data == 'menu_ferie':
+        today = timezone.now().date()
+        from .models import Assenza
+        Assenza.objects.create(
+            dipendente=dipendente, tipo='FERIE',
+            data_inizio=today, data_fine=today,
+            note="Via bottone Telegram", source='TELEGRAM'
+        )
+        return {
+            'text': f"Ferie registrate per oggi ({today.strftime('%d/%m')}). Buon relax!",
+            'reply_markup': get_main_menu()
+        }
+    
+    # Permesso
+    if callback_data == 'menu_permesso':
+        today = timezone.now().date()
+        from .models import Assenza
+        Assenza.objects.create(
+            dipendente=dipendente, tipo='PERMESSO',
+            data_inizio=today, data_fine=today,
+            note="Via bottone Telegram", source='TELEGRAM'
+        )
+        return {
+            'text': f"Permesso registrato per oggi ({today.strftime('%d/%m')}).",
+            'reply_markup': get_main_menu()
+        }
+    
+    # Segnalazione -> chiedi testo
+    if callback_data == 'menu_segnalazione':
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
+        return {'text': "Scrivi il testo della segnalazione:"}
+    
+    # Cliente selezionato per ore
+    if callback_data.startswith('ore_cliente_'):
+        cliente_id = callback_data.replace('ore_cliente_', '')
+        try:
+            cliente = Cliente.objects.get(pk=cliente_id)
+        except Cliente.DoesNotExist:
+            return {'text': "Cliente non trovato."}
         
-    # -- Logica di Salvataggio --
-    # Cerchiamo se esiste già un'assegnazione/turno per OGGI per questo dipendente/cliente
+        _TELEGRAM_STATE[telegram_chat_id] = {
+            'action': 'attesa_ore',
+            'cliente_id': int(cliente_id)
+        }
+        return {'text': f"Quante ore hai lavorato per {cliente.ragione_sociale}?\n(Scrivi il numero, es: 8 o 7.5)"}
+    
+    return {'text': "Comando non riconosciuto.", 'reply_markup': get_main_menu()}
+
+
+def _salva_ore(dipendente, cliente, hours, original_text):
+    """Salva le ore lavorate e ritorna messaggio di conferma con menu."""
     today = timezone.now().date()
-    # Per semplicità nel MVP, creiamo un TimeTracking 'volante' collegato a un Turno Fittizio o esistente?
-    # Modello attuale: TimeTracking -> AssegnazioneTurno -> Turno
-    # Dobbiamo trovare o creare un Turno e un'AssegnazioneTurno.
     
-    # Cerchiamo Assegnazione esistente
     assegnazione = AssegnazioneTurno.objects.filter(
         turno__data=today,
         turno__squadra__componenti=dipendente,
         cliente=cliente
     ).first()
     
+    end_dt = timezone.now()
+    start_dt = end_dt - timedelta(hours=hours)
+    msg_extra = ""
+    
     if not assegnazione:
-        # Fallback: Creiamo un'assegnazione 'recuperata'?
-        # Questo è complesso per il MVP. Per ora cerchiamo Assegnazione generica su quel cliente,
-        # o creiamo turno ad-hoc?
-        # Semplificazione MVP: Se non c'è turno pianificato, ERRORE o SALVATAGGIO su Turno 'Jolly/Recupero'.
-        
-        # PROVIAMO A CREARE REGOLE PIU' LASCHE: Cerchiamo un turno qualsiasi di oggi dove il dipendente è presente
-        # Se non c'è, creiamo Turno 'Smart' (Squadra automatica o fittizia?)
-        # Creiamo una 'Squadra Personale' se non esiste?
-        
-        # Meglio: Troviamo un turno di oggi qualsiasi del dipendente.
         user_turni = Turno.objects.filter(data=today, squadra__componenti=dipendente)
         
         if user_turni.exists():
             turno = user_turni.first()
         else:
-            # Creiamo Turno ad-hoc per 'Segnalazioni Telegram'
-            # Serve una Squadra... usiamo una squadra fittizia o cerchiamo la squadra abituale del dipendente
             squadra = dipendente.squadre_appartenenza.first()
             if not squadra:
-                 return "❌ Non appartieni a nessuna squadra, impossibile creare il turno."
-                 
+                return "Non appartieni a nessuna squadra."
             turno = Turno.objects.create(data=today, squadra=squadra)
-            
-        # Creiamo Assegnazione su questo Turno per questo Cliente
-        # Orari stimati (es. ora attuale - ore lavorate -> ora attuale)
-        end_dt = timezone.now()
-        start_dt = end_dt - timedelta(hours=hours)
         
         assegnazione = AssegnazioneTurno.objects.create(
-            turno=turno,
-            cliente=cliente,
+            turno=turno, cliente=cliente,
             orario_inizio_previsto=start_dt.time(),
             orario_fine_previsto=end_dt.time(),
-            mansione_svolta="Segnalazione via Telegram"
+            mansione_svolta="Via Telegram"
         )
-        msg_extra = " (Turno creato automaticamente)"
-    else:
-        # Assegnazione esistente trovata
-        # Aggiorniamo orari reali? O creiamo TimeTracking separato?
-        # Creiamo TimeTracking
-        # Stimiamo orari check-in/out basati su 'hours' e ora attuale come fine
-        end_dt = timezone.now()
-        start_dt = end_dt - timedelta(hours=hours)
-        msg_extra = ""
-
+        msg_extra = " (turno creato)"
+    
     TimeTracking.objects.create(
         dipendente=dipendente,
         assegnazione=assegnazione,
         check_in=start_dt,
         check_out=end_dt,
         source='TELEGRAM',
-        note=f"Messaggio originale: {text}"
+        note=f"Messaggio: {original_text}"
     )
     
-    return f"✅ Salvato! {hours}h per {cliente.ragione_sociale}.{msg_extra}"
+    return {
+        'text': f"Salvato! {hours}h per {cliente.ragione_sociale}.{msg_extra}",
+        'reply_markup': get_main_menu()
+    }
+
 
 def send_telegram_message(chat_id, text):
-    """
-    Invia un messaggio proattivo a una specifica chat_id.
-    Ritorna True se successo, False altrimenti.
-    """
-    import requests
+    """Invia un messaggio proattivo a una specifica chat_id."""
     from django.conf import settings
-    
     token = settings.TELEGRAM_BOT_TOKEN
     if not token:
         return False
-        
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
     
+    import requests
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
-        response = requests.post(
-            url,
-            json={'chat_id': chat_id, 'text': text},
-            timeout=10
-        )
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Error sending telegram message: {e}")
+        r = requests.post(url, json={'chat_id': chat_id, 'text': text})
+        return r.status_code == 200
+    except Exception:
         return False
 
+
 def calculate_distance(lat1, lon1, lat2, lon2):
-    """
-    Calcola la distanza tra due punti GPS usando la formula di Haversine.
-    Ritorna la distanza in metri.
-    """
-    from math import radians, cos, sin, asin, sqrt
-    
-    # Raggio della Terra in metri
+    """Calcola la distanza tra due punti GPS usando Haversine. Ritorna metri."""
+    import math
     R = 6371000
-    
-    # Converti in radianti
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-    
-    # Formula di Haversine
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
-    c = 2 * asin(sqrt(a))
-    distance = R * c
-    
-    return distance
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
 
 def check_proximity(dipendente, lat, lon):
-    """
-    Controlla la prossimità del dipendente a tutti i clienti.
-    Aggiorna ProximityLog e ritorna eventi di entrata/uscita.
-    """
-    from core.models import Cliente, ProximityLog
-    from django.utils import timezone
-    
-    PROXIMITY_THRESHOLD = 1000  # 1km in metri
+    """Controlla la prossimita del dipendente a tutti i clienti."""
+    from .models import ProximityLog
+    clienti = Cliente.objects.exclude(latitudine__isnull=True).exclude(longitudine__isnull=True)
     events = []
     
-    # Ottieni tutti i clienti con coordinate
-    clienti = Cliente.objects.filter(latitudine__isnull=False, longitudine__isnull=False)
-    
     for cliente in clienti:
-        distance = calculate_distance(lat, lon, cliente.latitudine, cliente.longitudine)
+        dist = calculate_distance(lat, lon, float(cliente.latitudine), float(cliente.longitudine))
+        raggio = float(cliente.raggio_prossimita) if cliente.raggio_prossimita else 100
+        is_inside = dist <= raggio
         
-        # Ottieni o crea il log di prossimità
-        log, created = ProximityLog.objects.get_or_create(
-            dipendente=dipendente,
-            cliente=cliente,
-            defaults={'is_near': False}
-        )
+        last_log = ProximityLog.objects.filter(
+            dipendente=dipendente, cliente=cliente
+        ).order_by('-timestamp').first()
         
-        # Controllo entrata (< 1km e non era vicino)
-        if distance < PROXIMITY_THRESHOLD and not log.is_near:
-            log.is_near = True
-            log.entered_at = timezone.now()
-            log.save()
-            events.append({
-                'type': 'entry',
-                'dipendente': dipendente,
-                'cliente': cliente,
-                'distance': distance,
-                'timestamp': log.entered_at
-            })
+        was_inside = last_log.inside if last_log else False
         
-        # Controllo uscita (>= 1km e era vicino)
-        elif distance >= PROXIMITY_THRESHOLD and log.is_near:
-            log.is_near = False
-            log.exited_at = timezone.now()
-            log.save()
-            events.append({
-                'type': 'exit',
-                'dipendente': dipendente,
-                'cliente': cliente,
-                'distance': distance,
-                'timestamp': log.exited_at
-            })
+        if is_inside != was_inside:
+            ProximityLog.objects.create(
+                dipendente=dipendente,
+                cliente=cliente,
+                latitudine=lat,
+                longitudine=lon,
+                distanza=dist,
+                inside=is_inside
+            )
+            if is_inside:
+                events.append(('enter', cliente, dist))
+            else:
+                events.append(('exit', cliente, dist))
     
     return events
-
