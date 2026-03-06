@@ -146,7 +146,7 @@ def generate_shifts_view(request):
 
 # --- Gestione Dati Views ---
 
-from .utils_import import generate_excel_template, import_from_excel, COLUMNS_MAP
+from .utils_import import generate_excel_template, import_from_excel, export_data_excel, COLUMNS_MAP
 
 def data_management_view(request):
     if not request.user.is_staff:
@@ -168,6 +168,24 @@ def download_template_view(request, model_name):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = f'attachment; filename=modello_{model_name}.xlsx'
+    return response
+
+
+def export_data_view(request, model_name):
+    if not request.user.is_staff:
+        return HttpResponseRedirect('/admin/login/')
+    
+    if model_name not in COLUMNS_MAP:
+        messages.error(request, "Modello non valido.")
+        return HttpResponseRedirect('/data-management/')
+    
+    output = export_data_excel(model_name)
+    
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename=export_{model_name}.xlsx'
     return response
 
 def import_data_view(request):

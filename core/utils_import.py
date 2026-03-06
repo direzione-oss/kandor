@@ -209,3 +209,65 @@ def import_from_excel(model_name, file_obj, mode='UPDATE'):
 def models_validation_check(row, model_name):
     return True
 
+
+def export_data_excel(model_name):
+    """
+    Esporta tutti i dati esistenti di un modello in un file Excel.
+    Usa le stesse colonne di COLUMNS_MAP per compatibilità con l'import.
+    """
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    worksheet = workbook.add_worksheet()
+    
+    cols = COLUMNS_MAP.get(model_name, [])
+    
+    # Header format
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#4472C4',
+        'font_color': 'white',
+        'border': 1
+    })
+    
+    for i, col in enumerate(cols):
+        worksheet.write(0, i, col, header_format)
+        worksheet.set_column(i, i, 22)
+    
+    row_num = 1
+    
+    if model_name == 'dipendente':
+        for dip in Dipendente.objects.all().order_by('cognome', 'nome'):
+            worksheet.write(row_num, 0, dip.nome or '')
+            worksheet.write(row_num, 1, dip.cognome or '')
+            worksheet.write(row_num, 2, dip.codice_fiscale or '')
+            worksheet.write(row_num, 3, dip.data_nascita.strftime('%d/%m/%Y') if dip.data_nascita else '')
+            worksheet.write(row_num, 4, dip.stato or 'ATTIVO')
+            worksheet.write(row_num, 5, dip.email or '')
+            worksheet.write(row_num, 6, dip.telefono or '')
+            worksheet.write(row_num, 7, dip.indirizzo_residenza or '')
+            qualifiche = ', '.join([q.nome for q in dip.qualifiche.all()])
+            worksheet.write(row_num, 8, qualifiche)
+            worksheet.write(row_num, 9, dip.telegram_chat_id or '')
+            row_num += 1
+    
+    elif model_name == 'cliente':
+        for cli in Cliente.objects.all().order_by('ragione_sociale'):
+            worksheet.write(row_num, 0, cli.ragione_sociale or '')
+            worksheet.write(row_num, 1, cli.indirizzo_sede or '')
+            worksheet.write(row_num, 2, '')  # citta (inclusa in indirizzo_sede)
+            worksheet.write(row_num, 3, '')  # telefono
+            worksheet.write(row_num, 4, '')  # email
+            worksheet.write(row_num, 5, cli.partita_iva or '')
+            row_num += 1
+    
+    elif model_name == 'mezzo':
+        for mezzo in Mezzo.objects.all().order_by('targa'):
+            worksheet.write(row_num, 0, mezzo.targa or '')
+            worksheet.write(row_num, 1, mezzo.modello or '')
+            worksheet.write(row_num, 2, mezzo.scadenza_polizza.strftime('%d/%m/%Y') if mezzo.scadenza_polizza else '')
+            worksheet.write(row_num, 3, mezzo.scadenza_bollo.strftime('%d/%m/%Y') if mezzo.scadenza_bollo else '')
+            row_num += 1
+    
+    workbook.close()
+    output.seek(0)
+    return output

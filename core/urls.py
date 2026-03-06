@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     find_jolly_view, reconciliation_view, generate_shifts_view,
     data_management_view, download_template_view, import_data_view,
-    backup_db_view, restore_db_view, manuale_view,
+    export_data_view, backup_db_view, restore_db_view, manuale_view,
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
     extend_contract_view, analisi_contratti_view
 )
@@ -18,6 +18,7 @@ urlpatterns = [
     # Data Management
     path('data-management/', data_management_view, name='data_management'),
     path('data-management/download/<str:model_name>/', download_template_view, name='download_template'),
+    path('data-management/export/<str:model_name>/', export_data_view, name='export_data'),
     path('data-management/import/', import_data_view, name='import_data'),
     path('data-management/backup/', backup_db_view, name='backup_db'),
     path('data-management/restore/', restore_db_view, name='restore_db'),
