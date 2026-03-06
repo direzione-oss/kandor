@@ -539,6 +539,8 @@ def analisi_contratti_view(request):
     
     media_oraria = round(sum(somma_orari) / len(somma_orari), 2) if somma_orari else 0
     
+    ore_header = f'Ore Lavorate<br><small>{MESI_NOMI.get(mese, "")} {anno}</small>'
+    
     context = {
         'analisi': analisi,
         'sotto_soglia': sotto_soglia,
@@ -547,6 +549,7 @@ def analisi_contratti_view(request):
         'mesi': mesi_list,
         'mese_nome': MESI_NOMI.get(mese, ''),
         'anno': anno,
+        'ore_header': ore_header,
         'totale_contratti': len(analisi),
         'totale_fatturato': f"{totale_fatturato:,.2f}",
         'media_oraria': f"{media_oraria:.2f}",
