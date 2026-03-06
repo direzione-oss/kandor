@@ -1,21 +1,32 @@
 <div class="module dashboard-widget"
     style="margin-bottom: 20px; border: 1px solid #cfd8dc; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); font-family: 'Roboto', 'Segoe UI', sans-serif;">
     <h3
-        style="background: #37474f; color: white; margin: 0; padding: 12px 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center;">
+        style="background: #37474f; color: white; margin: 0; padding: 12px 15px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="font-weight: 600;">📅 Settimana: {{ week_range }}</span>
             <div style="background: rgba(255,255,255,0.15); border-radius: 4px; display: flex; overflow: hidden;">
-                <a href="?week={{ prev_week_offset }}"
+                <a href="?week={{ prev_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}"
                     style="color: white; padding: 4px 10px; text-decoration: none; border-right: 1px solid rgba(255,255,255,0.2); font-size: 13px; transition: background 0.2s;">&larr;
                     Prev</a>
-                <a href="?week={{ next_week_offset }}"
+                <a href="?week={{ next_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}"
                     style="color: white; padding: 4px 10px; text-decoration: none; font-size: 13px; transition: background 0.2s;">Next
                     &rarr;</a>
             </div>
         </div>
-        <a href="/admin/core/turno/"
-            style="color: #fff; font-size: 12px; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-weight: 500;">Gestisci
-            Turni &rarr;</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <select id="squadra-filter"
+                onchange="window.location.href='?week={{ current_week_offset }}&squadra=' + this.value"
+                style="padding: 5px 10px; border-radius: 4px; border: none; font-size: 12px; background: rgba(255,255,255,0.9); color: #333; cursor: pointer; min-width: 160px;">
+                <option value="">🏢 Tutte le Squadre</option>
+                {% for sq in squadre %}
+                <option value="{{ sq.id }}" {% if squadra_filter==sq.id|stringformat:"d" %}selected{% endif %}>{{
+                    sq.nome }}</option>
+                {% endfor %}
+            </select>
+            <a href="/admin/core/turno/"
+                style="color: #fff; font-size: 12px; text-decoration: none; background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-weight: 500;">Gestisci
+                Turni &rarr;</a>
+        </div>
     </h3>
 
     <div style="overflow-x: auto; background: #fff;">

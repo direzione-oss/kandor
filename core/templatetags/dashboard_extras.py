@@ -105,18 +105,22 @@ def weekly_schedule_widget(context):
         week_offset = int(request.GET.get('week', 0))
     except (ValueError, TypeError):
         week_offset = 0
+    
+    # Filtro squadra
+    squadra_filter = request.GET.get('squadra', '')
         
-    from core.models import Turno
+    from core.models import Turno, Squadra
     today = timezone.now().date()
     
+    # Lista squadre per il dropdown
+    squadre = Squadra.objects.all().order_by('nome')
+    
     # Calculate start of the week (Monday)
-    # If offset is 0, it's current week. If -1, previous week, etc.
     start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
     
     # Generate 7 days from Monday
     dates = [start_of_week + timedelta(days=i) for i in range(7)]
     
-    # Translate to Italian manually to ensure consistency
     DAYS_MAP = {
         0: 'LUNEDÌ', 1: 'MARTEDÌ', 2: 'MERCOLEDÌ', 3: 'GIOVEDÌ', 4: 'VENERDÌ', 5: 'SABATO', 6: 'DOMENICA'
     }
@@ -126,7 +130,11 @@ def weekly_schedule_widget(context):
 
     schedule = []
     for d in dates:
-        shifts = Turno.objects.filter(data=d).select_related('squadra', 'mezzo').prefetch_related('assegnazioni__cliente')
+        shifts_qs = Turno.objects.filter(data=d).select_related('squadra', 'mezzo').prefetch_related('assegnazioni__cliente')
+        
+        # Filtra per squadra se selezionata
+        if squadra_filter:
+            shifts_qs = shifts_qs.filter(squadra_id=squadra_filter)
         
         day_data = {
             'date_obj': d,
@@ -136,7 +144,7 @@ def weekly_schedule_widget(context):
             'shifts': []
         }
         
-        for shift in shifts:
+        for shift in shifts_qs:
             assignments_data = []
             for assign in shift.assegnazioni.all().order_by('orario_inizio_previsto'):
                 start = assign.orario_inizio_previsto.strftime('%H:%M')
@@ -148,6 +156,7 @@ def weekly_schedule_widget(context):
 
             day_data['shifts'].append({
                 'squadra': shift.squadra.nome,
+                'squadra_id': shift.squadra.id,
                 'mezzo': shift.mezzo.targa if shift.mezzo else 'N/D',
                 'caposquadra': shift.squadra.caposquadra.cognome if shift.squadra.caposquadra else '?',
                 'assignments': assignments_data
@@ -157,6 +166,8 @@ def weekly_schedule_widget(context):
         
     return {
         'schedule': schedule,
+        'squadre': squadre,
+        'squadra_filter': squadra_filter,
         'current_week_offset': week_offset,
         'prev_week_offset': week_offset - 1,
         'next_week_offset': week_offset + 1,
