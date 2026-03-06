@@ -19,7 +19,7 @@
                 style="padding: 5px 10px; border-radius: 4px; border: none; font-size: 12px; background: rgba(255,255,255,0.9); color: #333; cursor: pointer; min-width: 160px;">
                 <option value="">🏢 Tutte le Squadre</option>
                 {% for sq in squadre %}
-                <option value="{{ sq.id }}" {% if squadra_filter==sq.id|stringformat:"d" %}selected{% endif %}>{{
+                <option value="{{ sq.id }}" {{ sq.selected }}>{{
                     sq.nome }}</option>
                 {% endfor %}
             </select>

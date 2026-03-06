@@ -112,8 +112,15 @@ def weekly_schedule_widget(context):
     from core.models import Turno, Squadra
     today = timezone.now().date()
     
-    # Lista squadre per il dropdown
-    squadre = Squadra.objects.all().order_by('nome')
+    # Lista squadre per il dropdown (con attributo selected pre-calcolato)
+    squadre_raw = Squadra.objects.all().order_by('nome')
+    squadre = []
+    for sq in squadre_raw:
+        squadre.append({
+            'id': sq.id,
+            'nome': sq.nome,
+            'selected': 'selected' if str(sq.id) == squadra_filter else '',
+        })
     
     # Calculate start of the week (Monday)
     start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
