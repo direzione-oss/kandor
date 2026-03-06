@@ -12,7 +12,9 @@ COLUMNS_MAP = {
         'qualifiche_nomi', 'telegram_chat_id'
     ],
     'cliente': [
-        'ragione_sociale', 'indirizzo', 'citta', 'telefono', 'email', 'partita_iva'
+        'ragione_sociale', 'partita_iva', 'codice_fiscale', 'indirizzo_sede',
+        'referente_nome', 'referente_ruolo', 'referente_data_nascita',
+        'ore_mensili_contratto', 'importo_mensile_contratto', 'note_mansioni'
     ],
     'mezzo': [
         'targa', 'modello', 'scadenza_assicurazione', 'scadenza_bollo'
@@ -159,21 +161,35 @@ def import_from_excel(model_name, file_obj, mode='UPDATE'):
                 success_count += 1
 
             elif model_name == 'cliente':
-                # ... Cliente logic unchanged (simplified for now) ...
                 rs = row.get('ragione_sociale')
                 if pd.isna(rs): continue
                 
                 defaults = {
-                    'indirizzo_sede': row.get('indirizzo', '') if not pd.isna(row.get('indirizzo')) else '', 
                     'partita_iva': row.get('partita_iva', '') if not pd.isna(row.get('partita_iva')) else '',
-                    'ore_mensili_contratto': 0.00 
+                    'codice_fiscale': row.get('codice_fiscale', '') if not pd.isna(row.get('codice_fiscale')) else '',
+                    'indirizzo_sede': row.get('indirizzo_sede', '') if not pd.isna(row.get('indirizzo_sede')) else '',
+                    'referente_nome': row.get('referente_nome', '') if not pd.isna(row.get('referente_nome')) else '',
+                    'referente_ruolo': row.get('referente_ruolo', '') if not pd.isna(row.get('referente_ruolo')) else '',
+                    'note_mansioni': row.get('note_mansioni', '') if not pd.isna(row.get('note_mansioni')) else '',
                 }
-                 # Combine address
-                addr = row.get('indirizzo', '')
-                city = row.get('citta', '')
-                full_addr = f"{addr} {city}".strip()
-                if full_addr:
-                    defaults['indirizzo_sede'] = full_addr
+                
+                # Ore mensili contratto
+                ore = row.get('ore_mensili_contratto')
+                if not pd.isna(ore):
+                    try: defaults['ore_mensili_contratto'] = float(ore)
+                    except: pass
+                
+                # Importo mensile contratto
+                importo = row.get('importo_mensile_contratto')
+                if not pd.isna(importo):
+                    try: defaults['importo_mensile_contratto'] = float(importo)
+                    except: pass
+                
+                # Data nascita referente
+                ref_nascita = row.get('referente_data_nascita')
+                if not pd.isna(ref_nascita):
+                    try: defaults['referente_data_nascita'] = pd.to_datetime(ref_nascita).date()
+                    except: pass
 
                 obj, created = Cliente.objects.update_or_create(
                     ragione_sociale=rs,
@@ -253,11 +269,15 @@ def export_data_excel(model_name):
     elif model_name == 'cliente':
         for cli in Cliente.objects.all().order_by('ragione_sociale'):
             worksheet.write(row_num, 0, cli.ragione_sociale or '')
-            worksheet.write(row_num, 1, cli.indirizzo_sede or '')
-            worksheet.write(row_num, 2, '')  # citta (inclusa in indirizzo_sede)
-            worksheet.write(row_num, 3, '')  # telefono
-            worksheet.write(row_num, 4, '')  # email
-            worksheet.write(row_num, 5, cli.partita_iva or '')
+            worksheet.write(row_num, 1, cli.partita_iva or '')
+            worksheet.write(row_num, 2, cli.codice_fiscale or '')
+            worksheet.write(row_num, 3, cli.indirizzo_sede or '')
+            worksheet.write(row_num, 4, cli.referente_nome or '')
+            worksheet.write(row_num, 5, cli.referente_ruolo or '')
+            worksheet.write(row_num, 6, cli.referente_data_nascita.strftime('%d/%m/%Y') if cli.referente_data_nascita else '')
+            worksheet.write(row_num, 7, float(cli.ore_mensili_contratto) if cli.ore_mensili_contratto else 0)
+            worksheet.write(row_num, 8, float(cli.importo_mensile_contratto) if cli.importo_mensile_contratto else 0)
+            worksheet.write(row_num, 9, cli.note_mansioni or '')
             row_num += 1
     
     elif model_name == 'mezzo':
