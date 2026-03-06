@@ -194,17 +194,26 @@ def import_data_view(request):
         
     if request.method == 'POST':
         model_name = request.POST.get('model_name')
-        import_mode = request.POST.get('import_mode', 'UPDATE') # Default UPDATE
+        import_mode = request.POST.get('import_mode', 'UPDATE')
+        
+        if 'file' not in request.FILES:
+            messages.error(request, "Nessun file selezionato. Seleziona un file Excel (.xlsx).")
+            return redirect('data_management')
+        
         uploaded_file = request.FILES['file']
+        
+        if not uploaded_file.name.endswith('.xlsx'):
+            messages.error(request, f"Formato file non supportato: {uploaded_file.name}. Usa un file .xlsx.")
+            return redirect('data_management')
         
         try:
             count, errors = import_from_excel(model_name, uploaded_file, mode=import_mode)
             if errors:
-                messages.warning(request, f"Importati {count} record con alcuni errori.")
-                for err in errors:
+                messages.warning(request, f"Importati {count} record con {len(errors)} errori.")
+                for err in errors[:10]:  # Mostra max 10 errori
                     messages.error(request, err)
             else:
-                messages.success(request, f"Importazione completata: {count} record processati.")
+                messages.success(request, f"✅ Importazione completata: {count} record processati con successo!")
         except Exception as e:
             messages.error(request, f"Errore critico durante l'importazione: {str(e)}")
             
