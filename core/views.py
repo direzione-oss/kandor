@@ -646,7 +646,7 @@ def pdf_contratti_sotto_soglia(request):
 
     # Genera PDF
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=20*mm, bottomMargin=15*mm)
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=20*mm, bottomMargin=15*mm, leftMargin=20*mm, rightMargin=20*mm)
     elements = []
     styles = getSampleStyleSheet()
 
