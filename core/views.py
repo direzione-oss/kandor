@@ -589,10 +589,16 @@ def pdf_contratti_sotto_soglia(request):
     }
 
     today = timezone.now().date()
-    try:
-        soglia = float(request.GET.get('soglia', 15.0))
-    except (ValueError, TypeError):
-        soglia = 15.0
+    # Leggi soglia dalla sessione (come fa la vista pagina)
+    soglia_param = request.GET.get('soglia', None)
+    if soglia_param:
+        try:
+            soglia = float(soglia_param)
+            request.session['analisi_soglia'] = soglia
+        except (ValueError, TypeError):
+            soglia = request.session.get('analisi_soglia', 15.0)
+    else:
+        soglia = request.session.get('analisi_soglia', 15.0)
     try:
         mese = int(request.GET.get('mese', today.month))
     except (ValueError, TypeError):
