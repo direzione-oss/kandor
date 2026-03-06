@@ -4,7 +4,8 @@ from .views import (
     data_management_view, download_template_view, import_data_view,
     export_data_view, backup_db_view, restore_db_view, manuale_view,
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
-    extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia
+    extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia,
+    add_turno_ajax, get_squadre_clienti_json
 )
 from django.views.generic import RedirectView
 
@@ -34,4 +35,8 @@ urlpatterns = [
     # Analisi Economica
     path('analisi-contratti/', analisi_contratti_view, name='analisi_contratti'),
     path('analisi-contratti/pdf/', pdf_contratti_sotto_soglia, name='pdf_contratti_sotto_soglia'),
+    
+    # Calendario Turni AJAX
+    path('api/add-turno/', add_turno_ajax, name='add_turno_ajax'),
+    path('api/squadre-clienti/', get_squadre_clienti_json, name='get_squadre_clienti'),
 ]

@@ -147,6 +147,7 @@ def weekly_schedule_widget(context):
             'date_obj': d,
             'day_name': DAYS_MAP[d.weekday()], 
             'day_date': f"{d.day:02d} {MONTHS_MAP[d.month]}", 
+            'iso_date': d.isoformat(),
             'is_today': d == today,
             'shifts': []
         }

@@ -308,6 +308,62 @@ def chat_simulator_view(request):
     })
 
 @csrf_exempt
+def add_turno_ajax(request):
+    """Crea un turno con assegnazione dal calendario via AJAX."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    
+    try:
+        data = json.loads(request.body)
+        from .models import Turno, AssegnazioneTurno, Squadra, Cliente
+        from datetime import time as dt_time
+        
+        squadra_id = data.get('squadra_id')
+        cliente_id = data.get('cliente_id')
+        data_turno = data.get('data')
+        ora_inizio = data.get('ora_inizio', '06:00')
+        ora_fine = data.get('ora_fine', '14:00')
+        
+        if not all([squadra_id, cliente_id, data_turno]):
+            return JsonResponse({'status': 'error', 'error': 'Dati mancanti'})
+        
+        squadra = Squadra.objects.get(pk=squadra_id)
+        cliente = Cliente.objects.get(pk=cliente_id)
+        
+        h1, m1 = map(int, ora_inizio.split(':'))
+        h2, m2 = map(int, ora_fine.split(':'))
+        
+        turno, created = Turno.objects.get_or_create(
+            data=data_turno,
+            squadra=squadra
+        )
+        
+        AssegnazioneTurno.objects.create(
+            turno=turno,
+            cliente=cliente,
+            orario_inizio_previsto=dt_time(h1, m1),
+            orario_fine_previsto=dt_time(h2, m2),
+            mansione_svolta=data.get('note', '')
+        )
+        
+        return JsonResponse({
+            'status': 'ok',
+            'message': f'Turno creato: {squadra.nome} → {cliente.ragione_sociale}'
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+
+def get_squadre_clienti_json(request):
+    """Ritorna JSON con squadre e clienti per la modale del calendario."""
+    from .models import Squadra, Cliente
+    
+    squadre = list(Squadra.objects.all().values('id', 'nome'))
+    clienti = list(Cliente.objects.filter(stato='ATTIVO').order_by('ragione_sociale').values('id', 'ragione_sociale'))
+    
+    return JsonResponse({'squadre': squadre, 'clienti': clienti})
+
+
 def telegram_webhook_view(request):
     """
     Riceve aggiornamenti da Telegram (Webhook).
