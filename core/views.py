@@ -418,6 +418,15 @@ def analisi_contratti_view(request):
     except (ValueError, TypeError):
         anno = today.year
     
+    # Lista mesi per il dropdown con selected pre-calcolato
+    mesi_list = []
+    for num, nome in MESI_NOMI.items():
+        mesi_list.append({
+            'value': num,
+            'nome': nome,
+            'selected': 'selected' if num == mese else '',
+        })
+    
     # Clienti con importo e ore configurati
     clienti = Cliente.objects.filter(
         ore_mensili_contratto__gt=0
@@ -491,6 +500,7 @@ def analisi_contratti_view(request):
         'sotto_soglia': sotto_soglia,
         'soglia': soglia,
         'mese': mese,
+        'mesi': mesi_list,
         'mese_nome': MESI_NOMI.get(mese, ''),
         'anno': anno,
         'totale_contratti': len(analisi),
