@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
@@ -74,6 +74,41 @@ class ClienteAdmin(admin.ModelAdmin):
     list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto')
     search_fields = ('ragione_sociale', 'partita_iva')
     inlines = [ProgrammazioneInline, StraordinarioInline]
+    actions = ['duplica_per_nuova_sede']
+    
+    def duplica_per_nuova_sede(self, request, queryset):
+        """Duplica i clienti selezionati per gestire sedi multiple."""
+        count = 0
+        for cliente in queryset:
+            # Trova un nome univoco con suffisso sede
+            base_name = cliente.ragione_sociale
+            sede_num = 2
+            new_name = f"{base_name} - Sede {sede_num}"
+            while Cliente.objects.filter(ragione_sociale=new_name).exists():
+                sede_num += 1
+                new_name = f"{base_name} - Sede {sede_num}"
+            
+            # Crea il duplicato (senza pk per crearne uno nuovo)
+            Cliente.objects.create(
+                ragione_sociale=new_name,
+                partita_iva='',  # P.IVA vuota per evitare duplicati unique
+                codice_fiscale='',
+                indirizzo_sede=f"INSERIRE INDIRIZZO SEDE {sede_num}",
+                referente_nome=cliente.referente_nome,
+                referente_ruolo=cliente.referente_ruolo,
+                referente_data_nascita=cliente.referente_data_nascita,
+                ore_mensili_contratto=0,
+                importo_mensile_contratto=0,
+                note_mansioni=f"Sede secondaria di: {base_name}",
+            )
+            count += 1
+        
+        self.message_user(
+            request,
+            f"✅ {count} cliente/i duplicato/i. Modifica indirizzo, ore e importo delle nuove sedi.",
+            messages.SUCCESS
+        )
+    duplica_per_nuova_sede.short_description = "📋 Duplica per nuova sede"
 
 @admin.register(Mezzo)
 class MezzoAdmin(admin.ModelAdmin):
