@@ -71,7 +71,7 @@ class StraordinarioInline(admin.TabularInline):
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
-    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto')
+    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto')
     search_fields = ('ragione_sociale', 'partita_iva')
     inlines = [ProgrammazioneInline, StraordinarioInline]
 

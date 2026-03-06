@@ -4,7 +4,7 @@ from .views import (
     data_management_view, download_template_view, import_data_view,
     backup_db_view, restore_db_view, manuale_view,
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
-    extend_contract_view
+    extend_contract_view, analisi_contratti_view
 )
 from django.views.generic import RedirectView
 
@@ -29,4 +29,7 @@ urlpatterns = [
     
     # Proroga Contratti
     path('extend-contract/<int:prog_id>/', extend_contract_view, name='extend_contract'),
+    
+    # Analisi Economica
+    path('analisi-contratti/', analisi_contratti_view, name='analisi_contratti'),
 ]

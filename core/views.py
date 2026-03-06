@@ -386,3 +386,107 @@ def extend_contract_view(request, prog_id):
         messages.warning(request, "Questo contratto non ha una data di fine.")
     
     return redirect('/admin/')
+
+
+def analisi_contratti_view(request):
+    """Analisi economica dei contratti: importo orario, soglia, costi effettivi."""
+    from .models import Cliente, TimeTracking
+    from django.db.models import Sum
+    from decimal import Decimal
+    
+    MESI_NOMI = {
+        1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile',
+        5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto',
+        9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'
+    }
+    
+    today = timezone.now().date()
+    
+    # Parametri dal form
+    try:
+        soglia = float(request.GET.get('soglia', 15.0))
+    except (ValueError, TypeError):
+        soglia = 15.0
+    
+    try:
+        mese = int(request.GET.get('mese', today.month))
+    except (ValueError, TypeError):
+        mese = today.month
+    
+    try:
+        anno = int(request.GET.get('anno', today.year))
+    except (ValueError, TypeError):
+        anno = today.year
+    
+    # Clienti con importo e ore configurati
+    clienti = Cliente.objects.filter(
+        ore_mensili_contratto__gt=0
+    ).order_by('ragione_sociale')
+    
+    analisi = []
+    sotto_soglia = []
+    totale_fatturato = Decimal('0')
+    somma_orari = []
+    
+    for cliente in clienti:
+        importo = float(cliente.importo_mensile_contratto)
+        ore_contratto = float(cliente.ore_mensili_contratto)
+        importo_orario = round(importo / ore_contratto, 2) if ore_contratto > 0 else 0
+        
+        # Ore effettivamente lavorate nel mese selezionato
+        ore_lavorate_qs = TimeTracking.objects.filter(
+            assegnazione__cliente=cliente,
+            check_out__year=anno,
+            check_out__month=mese
+        ).aggregate(total=Sum('durata'))
+        
+        ore_lavorate = float(ore_lavorate_qs['total'] or 0)
+        ore_lavorate = round(ore_lavorate, 1)
+        
+        # Costo effettivo per ora (importo / ore lavorate)
+        costo_effettivo = round(importo / ore_lavorate, 2) if ore_lavorate > 0 else None
+        
+        # Differenza ore
+        diff_ore = round(ore_lavorate - ore_contratto, 1)
+        
+        # Alert: sotto soglia?
+        is_sotto_soglia = importo_orario < soglia and importo > 0
+        
+        # Alert costo effettivo: se ore lavorate supera contratto, il costo/ora effettivo scende
+        costo_effettivo_alert = costo_effettivo is not None and costo_effettivo < soglia
+        
+        row = {
+            'cliente': cliente.ragione_sociale,
+            'cliente_id': cliente.pk,
+            'importo_mensile': f"{importo:,.2f}",
+            'ore_contratto': ore_contratto,
+            'importo_orario': f"{importo_orario:.2f}",
+            'ore_lavorate': ore_lavorate,
+            'costo_effettivo': f"{costo_effettivo:.2f}" if costo_effettivo else None,
+            'diff_ore': diff_ore,
+            'sotto_soglia': is_sotto_soglia,
+            'costo_effettivo_alert': costo_effettivo_alert,
+        }
+        analisi.append(row)
+        
+        if is_sotto_soglia:
+            sotto_soglia.append(row)
+        
+        totale_fatturato += cliente.importo_mensile_contratto
+        if importo_orario > 0:
+            somma_orari.append(importo_orario)
+    
+    media_oraria = round(sum(somma_orari) / len(somma_orari), 2) if somma_orari else 0
+    
+    context = {
+        'analisi': analisi,
+        'sotto_soglia': sotto_soglia,
+        'soglia': soglia,
+        'mese': mese,
+        'mese_nome': MESI_NOMI.get(mese, ''),
+        'anno': anno,
+        'totale_contratti': len(analisi),
+        'totale_fatturato': f"{totale_fatturato:,.2f}",
+        'media_oraria': f"{media_oraria:.2f}",
+    }
+    return render(request, 'core/analisi_contratti.html', context)

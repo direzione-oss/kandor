@@ -88,7 +88,15 @@ class Cliente(models.Model):
 
     # Requisiti
     ore_mensili_contratto = models.DecimalField(max_digits=6, decimal_places=2, default=0.00, help_text="Ore mensili previste da contratto", verbose_name="Ore Mensili Contratto")
+    importo_mensile_contratto = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Importo mensile concordato (EUR)", verbose_name="Importo Mensile Contratto (€)")
     note_mansioni = models.TextField(blank=True, help_text="Mansioni richieste specifiche", verbose_name="Note Mansioni")
+
+    @property
+    def importo_orario(self):
+        """Calcola l'importo orario: importo_mensile / ore_mensili"""
+        if self.ore_mensili_contratto and self.ore_mensili_contratto > 0:
+            return round(float(self.importo_mensile_contratto) / float(self.ore_mensili_contratto), 2)
+        return 0
 
     def __str__(self):
         return self.ragione_sociale
