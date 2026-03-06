@@ -434,13 +434,21 @@ def analisi_contratti_view(request):
         importo_orario = round(importo / ore_contratto, 2) if ore_contratto > 0 else 0
         
         # Ore effettivamente lavorate nel mese selezionato
-        ore_lavorate_qs = TimeTracking.objects.filter(
+        from django.db.models import F, ExpressionWrapper, DurationField
+        
+        tt_records = TimeTracking.objects.filter(
             assegnazione__cliente=cliente,
             check_out__year=anno,
-            check_out__month=mese
-        ).aggregate(total=Sum('durata'))
+            check_out__month=mese,
+            check_in__isnull=False,
+            check_out__isnull=False
+        )
         
-        ore_lavorate = float(ore_lavorate_qs['total'] or 0)
+        ore_lavorate = 0
+        for tt in tt_records:
+            if tt.check_in and tt.check_out:
+                delta = tt.check_out - tt.check_in
+                ore_lavorate += delta.total_seconds() / 3600
         ore_lavorate = round(ore_lavorate, 1)
         
         # Costo effettivo per ora (importo / ore lavorate)
