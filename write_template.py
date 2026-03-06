@@ -1,0 +1,109 @@
+import os
+
+template = r"""{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div style="max-width: 1200px; margin: 0 auto; padding: 20px;">
+
+    <h1 style="color: #1a5276; border-bottom: 3px solid #2980b9; padding-bottom: 10px; margin-bottom: 20px;">Analisi Economica Contratti</h1>
+
+    <div style="background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 20px;">
+        <form method="get" style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+            <div>
+                <label style="font-weight: 600; font-size: 13px; color: #555; display: block; margin-bottom: 4px;">Soglia Minima/ora</label>
+                <input type="number" name="soglia" value="{{ soglia }}" step="0.5" min="0" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; width: 120px;">
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 13px; color: #555; display: block; margin-bottom: 4px;">Mese</label>
+                <select name="mese" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                    {% for m in mesi %}
+                    <option value="{{ m.value }}" {{ m.selected }}>{{ m.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: 600; font-size: 13px; color: #555; display: block; margin-bottom: 4px;">Anno</label>
+                <input type="number" name="anno" value="{{ anno }}" min="2024" max="2030" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; width: 90px;">
+            </div>
+            <div style="align-self: flex-end;">
+                <button type="submit" style="padding: 8px 20px; background: #2980b9; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Analizza</button>
+            </div>
+        </form>
+    </div>
+
+    {% if sotto_soglia %}
+    <div style="background: #fdf2f2; border: 1px solid #e74c3c; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px;">
+        <h3 style="color: #e74c3c; margin: 0;">{{ sotto_soglia|length }} Contratti sotto soglia</h3>
+    </div>
+    {% endif %}
+
+    <div style="background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+                <tr style="background: #1a5276; color: white;">
+                    <th style="padding: 12px 10px; text-align: left;">Cliente</th>
+                    <th style="padding: 12px 10px; text-align: center;">Importo Mensile</th>
+                    <th style="padding: 12px 10px; text-align: center;">Ore Contratto</th>
+                    <th style="padding: 12px 10px; text-align: center;">Ora Contratto</th>
+                    <th style="padding: 12px 10px; text-align: center;">Ore Lavorate<br><small>{{ mese_nome }} {{ anno }}</small></th>
+                    <th style="padding: 12px 10px; text-align: center;">Costo Effettivo/Ora</th>
+                    <th style="padding: 12px 10px; text-align: center;">Diff. Ore</th>
+                    <th style="padding: 12px 10px; text-align: center;">Stato</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in analisi %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 10px; font-weight: 600;">
+                        <a href="/admin/core/cliente/{{ row.cliente_id }}/change/">{{ row.cliente }}</a>
+                    </td>
+                    <td style="padding: 10px; text-align: center;">{{ row.importo_mensile }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ row.ore_contratto }}h</td>
+                    <td style="padding: 10px; text-align: center;">{{ row.importo_orario }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ row.ore_lavorate }}h</td>
+                    <td style="padding: 10px; text-align: center;">{% if row.costo_effettivo %}{{ row.costo_effettivo }}{% else %}&mdash;{% endif %}</td>
+                    <td style="padding: 10px; text-align: center;">{{ row.diff_ore_display }}</td>
+                    <td style="padding: 10px; text-align: center;">{{ row.stato_display }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="padding: 30px; text-align: center; color: #999;">Nessun cliente con importo e ore configurati.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if analisi %}
+    <div style="display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px; background: white; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 3px solid #2980b9;">
+            <div style="font-size: 12px; color: #777; text-transform: uppercase;">Totale Contratti</div>
+            <div style="font-size: 28px; font-weight: 700; color: #1a5276;">{{ totale_contratti }}</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: white; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 3px solid #27ae60;">
+            <div style="font-size: 12px; color: #777; text-transform: uppercase;">Fatturato Mensile</div>
+            <div style="font-size: 28px; font-weight: 700; color: #27ae60;">{{ totale_fatturato }}</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: white; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 3px solid #e74c3c;">
+            <div style="font-size: 12px; color: #777; text-transform: uppercase;">Sotto Soglia</div>
+            <div style="font-size: 28px; font-weight: 700; color: #e74c3c;">{{ sotto_soglia|length }}</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: white; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-top: 3px solid #8e44ad;">
+            <div style="font-size: 12px; color: #777; text-transform: uppercase;">Ora Media</div>
+            <div style="font-size: 28px; font-weight: 700; color: #8e44ad;">{{ media_oraria }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="/admin/" style="background: #2980b9; color: white; padding: 10px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">Torna alla Dashboard</a>
+    </div>
+</div>
+{% endblock %}
+"""
+
+filepath = os.path.join('core', 'templates', 'core', 'analisi_contratti.html')
+with open(filepath, 'w', newline='\n') as f:
+    f.write(template)
+print(f'File written with LF line endings: {filepath}')

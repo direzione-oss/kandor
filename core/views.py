@@ -499,6 +499,21 @@ def analisi_contratti_view(request):
         # Alert costo effettivo: se ore lavorate supera contratto, il costo/ora effettivo scende
         costo_effettivo_alert = costo_effettivo is not None and costo_effettivo < soglia
         
+        # Pre-render display strings per evitare tag template spezzati
+        if diff_ore > 0:
+            diff_ore_display = f'<span style="color: #e67e22; font-weight: 600;">+{diff_ore}h</span>'
+        elif diff_ore < 0:
+            diff_ore_display = f'<span style="color: #e74c3c; font-weight: 600;">{diff_ore}h</span>'
+        else:
+            diff_ore_display = '<span style="color: #27ae60;">0h</span>'
+        
+        if is_sotto_soglia:
+            stato_display = '<span style="background: #e74c3c; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">⚠️ SOTTO SOGLIA</span>'
+        elif costo_effettivo_alert:
+            stato_display = '<span style="background: #e67e22; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">📊 DA VERIFICARE</span>'
+        else:
+            stato_display = '<span style="background: #27ae60; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px;">✅ OK</span>'
+        
         row = {
             'cliente': cliente.ragione_sociale,
             'cliente_id': cliente.pk,
@@ -508,8 +523,10 @@ def analisi_contratti_view(request):
             'ore_lavorate': ore_lavorate,
             'costo_effettivo': f"{costo_effettivo:.2f}" if costo_effettivo else None,
             'diff_ore': diff_ore,
+            'diff_ore_display': diff_ore_display,
             'sotto_soglia': is_sotto_soglia,
             'costo_effettivo_alert': costo_effettivo_alert,
+            'stato_display': stato_display,
         }
         analisi.append(row)
         
