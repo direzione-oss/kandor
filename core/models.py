@@ -100,6 +100,7 @@ class Cliente(models.Model):
 class ProgrammazioneRicorrente(models.Model):
     TIPO_RIPETIZIONE = [
         ('SETTIMANALE', 'Settimanale'),
+        ('BISETTIMANALE', 'Ogni 2 Settimane'),
         ('MENSILE', 'Mensile'),
     ]
     GIORNI_SETTIMANA = [
@@ -124,6 +125,9 @@ class ProgrammazioneRicorrente(models.Model):
     # Per l'automazione dei turni: chi fa questo lavoro di solito?
     squadra_abituale = models.ForeignKey('Squadra', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Squadra Abituale", help_text="Squadra che esegue solitamente questo turno")
     mezzo_abituale = models.ForeignKey('Mezzo', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Mezzo Abituale")
+    
+    # Per bisettimanale: data di riferimento per calcolare settimane pari/dispari
+    data_inizio_ciclo = models.DateField(null=True, blank=True, verbose_name="Data Inizio Ciclo", help_text="Solo per Bisettimanale: data di riferimento della prima settimana attiva")
 
     def save(self, *args, **kwargs):
         # Calcolo automatico ora_fine
@@ -147,6 +151,11 @@ class ProgrammazioneRicorrente(models.Model):
         # Validazione Tipo Ripetizione
         if self.tipo_ripetizione == 'SETTIMANALE' and self.giorno_settimana is None:
             raise ValidationError("Per ripetizione Settimanale devi selezionare un Giorno della Settimana.")
+        if self.tipo_ripetizione == 'BISETTIMANALE':
+            if self.giorno_settimana is None:
+                raise ValidationError("Per ripetizione Bisettimanale devi selezionare un Giorno della Settimana.")
+            if not self.data_inizio_ciclo:
+                raise ValidationError("Per ripetizione Bisettimanale devi inserire la Data Inizio Ciclo.")
         if self.tipo_ripetizione == 'MENSILE' and self.giorno_mese is None:
             raise ValidationError("Per ripetizione Mensile devi inserire un Giorno del Mese.")
 
@@ -164,7 +173,7 @@ class ProgrammazioneRicorrente(models.Model):
         if self.ora_inizio and check_ora_fine and (self.squadra_abituale or self.mezzo_abituale):
             # Filtro base: stessa periodicità
             query = Q(tipo_ripetizione=self.tipo_ripetizione)
-            if self.tipo_ripetizione == 'SETTIMANALE':
+            if self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
                 query &= Q(giorno_settimana=self.giorno_settimana)
             elif self.tipo_ripetizione == 'MENSILE':
                 query &= Q(giorno_mese=self.giorno_mese)

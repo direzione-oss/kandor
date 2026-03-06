@@ -23,7 +23,19 @@ def genera_turni_automatici(days=7):
         match_settimanali = programmazioni.filter(tipo_ripetizione='SETTIMANALE', giorno_settimana=weekday)
         match_mensili = programmazioni.filter(tipo_ripetizione='MENSILE', giorno_mese=day_of_month)
         
-        matches = list(match_settimanali) + list(match_mensili)
+        # Bisettimanale: stesso giorno della settimana, ma solo nelle settimane "attive"
+        match_bisettimanali_candidates = programmazioni.filter(tipo_ripetizione='BISETTIMANALE', giorno_settimana=weekday)
+        match_bisettimanali = []
+        for prog in match_bisettimanali_candidates:
+            if prog.data_inizio_ciclo:
+                # Calcola quante settimane sono passate dalla data_inizio_ciclo
+                delta_days = (current_date - prog.data_inizio_ciclo).days
+                settimane_passate = delta_days // 7
+                # Settimana attiva se il numero di settimane passate è pari (0, 2, 4...)
+                if settimane_passate >= 0 and settimane_passate % 2 == 0:
+                    match_bisettimanali.append(prog)
+        
+        matches = list(match_settimanali) + list(match_mensili) + match_bisettimanali
         
         for prog in matches:
             squadra = prog.squadra_abituale
