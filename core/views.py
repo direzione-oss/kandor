@@ -555,3 +555,131 @@ def analisi_contratti_view(request):
         'media_oraria': f"{media_oraria:.2f}",
     }
     return render(request, 'core/analisi_contratti.html', context)
+
+
+def pdf_contratti_sotto_soglia(request):
+    """Genera PDF con elenco contratti sotto soglia."""
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from .models import Cliente, TimeTracking
+    from decimal import Decimal
+
+    MESI_NOMI = {
+        1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile',
+        5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto',
+        9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'
+    }
+
+    today = timezone.now().date()
+    try:
+        soglia = float(request.GET.get('soglia', 15.0))
+    except (ValueError, TypeError):
+        soglia = 15.0
+    try:
+        mese = int(request.GET.get('mese', today.month))
+    except (ValueError, TypeError):
+        mese = today.month
+    try:
+        anno = int(request.GET.get('anno', today.year))
+    except (ValueError, TypeError):
+        anno = today.year
+
+    # Calcola contratti sotto soglia
+    clienti = Cliente.objects.filter(ore_mensili_contratto__gt=0).order_by('ragione_sociale')
+    sotto_soglia = []
+
+    for cliente in clienti:
+        importo = float(cliente.importo_mensile_contratto)
+        ore_contratto = float(cliente.ore_mensili_contratto)
+        importo_orario = round(importo / ore_contratto, 2) if ore_contratto > 0 else 0
+
+        # Ore lavorate
+        tt_records = TimeTracking.objects.filter(
+            assegnazione__cliente=cliente,
+            check_out__year=anno,
+            check_out__month=mese,
+            check_in__isnull=False,
+            check_out__isnull=False
+        )
+        ore_lavorate = 0
+        for tt in tt_records:
+            if tt.check_in and tt.check_out:
+                delta = tt.check_out - tt.check_in
+                ore_lavorate += delta.total_seconds() / 3600
+        ore_lavorate = round(ore_lavorate, 1)
+
+        costo_effettivo = round(importo / ore_lavorate, 2) if ore_lavorate > 0 else None
+
+        if importo_orario < soglia and importo > 0:
+            sotto_soglia.append({
+                'cliente': cliente.ragione_sociale,
+                'importo': importo,
+                'ore_contratto': ore_contratto,
+                'importo_orario': importo_orario,
+                'ore_lavorate': ore_lavorate,
+                'costo_effettivo': costo_effettivo,
+            })
+
+    # Genera PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=20*mm, bottomMargin=15*mm)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Titolo
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#1a5276'))
+    elements.append(Paragraph('Report Contratti Sotto Soglia', title_style))
+    elements.append(Spacer(1, 5*mm))
+
+    # Info
+    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor('#555'))
+    elements.append(Paragraph(f'Soglia: {soglia:.2f} EUR/ora | Periodo: {MESI_NOMI.get(mese, "")} {anno}', info_style))
+    elements.append(Paragraph(f'Data generazione: {today.strftime("%d/%m/%Y")} | Contratti sotto soglia: {len(sotto_soglia)}', info_style))
+    elements.append(Spacer(1, 8*mm))
+
+    if sotto_soglia:
+        # Header tabella
+        data = [['Cliente', 'Importo Mensile', 'Ore Contratto', 'EUR/Ora', 'Ore Lavorate', 'Costo Effettivo/Ora']]
+
+        for row in sotto_soglia:
+            data.append([
+                row['cliente'],
+                f"{row['importo']:,.2f} EUR",
+                f"{row['ore_contratto']}h",
+                f"{row['importo_orario']:.2f} EUR",
+                f"{row['ore_lavorate']}h",
+                f"{row['costo_effettivo']:.2f} EUR" if row['costo_effettivo'] else '-',
+            ])
+
+        table = Table(data, colWidths=[120*mm, 40*mm, 35*mm, 30*mm, 35*mm, 40*mm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5276')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
+            ('TEXTCOLOR', (3, 1), (3, -1), colors.HexColor('#e74c3c')),
+            ('FONTNAME', (3, 1), (3, -1), 'Helvetica-Bold'),
+        ]))
+        elements.append(table)
+    else:
+        elements.append(Paragraph('Nessun contratto sotto la soglia impostata.', styles['Normal']))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    response = HttpResponse(buffer, content_type='application/pdf')
+    nome_file = f'contratti_sotto_soglia_{MESI_NOMI.get(mese, "")}{anno}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{nome_file}"'
+    return response

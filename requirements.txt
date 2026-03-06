@@ -12,3 +12,4 @@ gunicorn
 whitenoise
 requests
 python-dateutil
+reportlab
