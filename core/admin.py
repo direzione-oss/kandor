@@ -61,7 +61,7 @@ class ProgrammazioneInline(admin.TabularInline):
     model = ProgrammazioneRicorrente
     extra = 1
     # Ordiniamo i campi logicamente: Tipo, Giorni, Ora Inizio, Durata, Ora Fine (calcolata)
-    fields = ('tipo_ripetizione', 'giorno_settimana', 'giorno_mese', 'data_inizio_ciclo', 'ora_inizio', 'durata', 'ora_fine', 'qualifica_richiesta', 'squadra_abituale', 'mezzo_abituale')
+    fields = ('tipo_ripetizione', 'giorno_settimana', 'giorno_mese', 'data_inizio_contratto', 'data_fine_contratto', 'ora_inizio', 'durata', 'ora_fine', 'qualifica_richiesta', 'squadra_abituale', 'mezzo_abituale')
     readonly_fields = ('ora_fine',)
     ordering = ('tipo_ripetizione', 'giorno_settimana', 'ora_inizio')
 

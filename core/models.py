@@ -126,8 +126,9 @@ class ProgrammazioneRicorrente(models.Model):
     squadra_abituale = models.ForeignKey('Squadra', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Squadra Abituale", help_text="Squadra che esegue solitamente questo turno")
     mezzo_abituale = models.ForeignKey('Mezzo', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Mezzo Abituale")
     
-    # Per bisettimanale: data di riferimento per calcolare settimane pari/dispari
-    data_inizio_ciclo = models.DateField(null=True, blank=True, verbose_name="Data Inizio Ciclo", help_text="Solo per Bisettimanale: data di riferimento della prima settimana attiva")
+    # Periodo attivo del contratto
+    data_inizio_contratto = models.DateField(null=True, blank=True, verbose_name="Data Inizio Contratto", help_text="Data dalla quale iniziano i turni")
+    data_fine_contratto = models.DateField(null=True, blank=True, verbose_name="Data Fine Contratto", help_text="Data fino alla quale generare i turni (vuoto = a tempo indeterminato)")
 
     def save(self, *args, **kwargs):
         # Calcolo automatico ora_fine
@@ -149,15 +150,17 @@ class ProgrammazioneRicorrente(models.Model):
         import datetime
         
         # Validazione Tipo Ripetizione
-        if self.tipo_ripetizione == 'SETTIMANALE' and self.giorno_settimana is None:
-            raise ValidationError("Per ripetizione Settimanale devi selezionare un Giorno della Settimana.")
-        if self.tipo_ripetizione == 'BISETTIMANALE':
-            if self.giorno_settimana is None:
-                raise ValidationError("Per ripetizione Bisettimanale devi selezionare un Giorno della Settimana.")
-            if not self.data_inizio_ciclo:
-                raise ValidationError("Per ripetizione Bisettimanale devi inserire la Data Inizio Ciclo.")
+        if self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE') and self.giorno_settimana is None:
+            raise ValidationError("Devi selezionare un Giorno della Settimana.")
+        if self.tipo_ripetizione == 'BISETTIMANALE' and not self.data_inizio_contratto:
+            raise ValidationError("Per ripetizione Bisettimanale devi inserire la Data Inizio Contratto (usata come riferimento ciclo).")
         if self.tipo_ripetizione == 'MENSILE' and self.giorno_mese is None:
             raise ValidationError("Per ripetizione Mensile devi inserire un Giorno del Mese.")
+        
+        # Validazione date contratto
+        if self.data_inizio_contratto and self.data_fine_contratto:
+            if self.data_fine_contratto < self.data_inizio_contratto:
+                raise ValidationError("La Data Fine Contratto non puo' essere precedente alla Data Inizio.")
 
         # Calcolo proiettivo ora_fine per la validazione (se non ancora salvato)
         check_ora_fine = self.ora_fine
@@ -201,11 +204,16 @@ class ProgrammazioneRicorrente(models.Model):
 
     def __str__(self):
         tipo = self.get_tipo_ripetizione_display()
-        if self.tipo_ripetizione == 'SETTIMANALE':
+        if self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
              giorno = self.get_giorno_settimana_display()
         else:
              giorno = f"Giorno {self.giorno_mese}"
-        return f"{self.cliente} - {tipo} {giorno} ({self.ora_inizio} + {self.durata}h)"
+        periodo = ""
+        if self.data_inizio_contratto:
+            periodo = f" dal {self.data_inizio_contratto.strftime('%d/%m/%Y')}"
+        if self.data_fine_contratto:
+            periodo += f" al {self.data_fine_contratto.strftime('%d/%m/%Y')}"
+        return f"{self.cliente} - {tipo} {giorno} ({self.ora_inizio} + {self.durata}h){periodo}"
 
     class Meta:
         verbose_name = "Programmazione Ricorrente"

@@ -4,9 +4,11 @@ from geopy.distance import geodesic
 from django.utils import timezone
 from .models import Dipendente, AssegnazioneTurno, ProgrammazioneRicorrente, RichiestaStraordinaria, Turno, Squadra
 
-def genera_turni_automatici(days=7):
+def genera_turni_automatici(days=365):
     """
-    Genera i turni per i prossimi 'days' giorni basandosi sulla ProgrammazioneRicorrente.
+    Genera i turni per i prossimi 'days' giorni (default 12 mesi = 365)
+    basandosi sulla ProgrammazioneRicorrente.
+    Rispetta le date di inizio/fine contratto.
     Ritorna il numero di assegnazioni create.
     """
     start_date = timezone.now().date()
@@ -27,17 +29,23 @@ def genera_turni_automatici(days=7):
         match_bisettimanali_candidates = programmazioni.filter(tipo_ripetizione='BISETTIMANALE', giorno_settimana=weekday)
         match_bisettimanali = []
         for prog in match_bisettimanali_candidates:
-            if prog.data_inizio_ciclo:
-                # Calcola quante settimane sono passate dalla data_inizio_ciclo
-                delta_days = (current_date - prog.data_inizio_ciclo).days
+            if prog.data_inizio_contratto:
+                # Calcola quante settimane sono passate dalla data_inizio_contratto
+                delta_days = (current_date - prog.data_inizio_contratto).days
                 settimane_passate = delta_days // 7
                 # Settimana attiva se il numero di settimane passate è pari (0, 2, 4...)
-                if settimane_passate >= 0 and settimane_passate % 2 == 0:
+                if delta_days >= 0 and settimane_passate % 2 == 0:
                     match_bisettimanali.append(prog)
         
         matches = list(match_settimanali) + list(match_mensili) + match_bisettimanali
         
         for prog in matches:
+            # Controllo periodo contrattuale
+            if prog.data_inizio_contratto and current_date < prog.data_inizio_contratto:
+                continue  # Non ancora iniziato
+            if prog.data_fine_contratto and current_date > prog.data_fine_contratto:
+                continue  # Contratto scaduto
+            
             squadra = prog.squadra_abituale
             
             # Crea/Recupera Turno
