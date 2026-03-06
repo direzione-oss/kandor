@@ -72,7 +72,7 @@ def get_clienti_keyboard(dipendente):
     clienti = Cliente.objects.filter(pk__in=clienti_ids).order_by('ragione_sociale')
     
     if not clienti.exists():
-        clienti = Cliente.objects.filter(stato='ATTIVO').order_by('ragione_sociale')[:20]
+        clienti = Cliente.objects.all().order_by('ragione_sociale')[:20]
     
     keyboard = []
     row = []

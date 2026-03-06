@@ -359,7 +359,7 @@ def get_squadre_clienti_json(request):
     from .models import Squadra, Cliente
     
     squadre = list(Squadra.objects.all().values('id', 'nome'))
-    clienti = list(Cliente.objects.filter(stato='ATTIVO').order_by('ragione_sociale').values('id', 'ragione_sociale'))
+    clienti = list(Cliente.objects.all().order_by('ragione_sociale').values('id', 'ragione_sociale'))
     
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
 
