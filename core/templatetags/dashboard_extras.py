@@ -191,3 +191,37 @@ def telegram_feed_widget():
         'latest_absences': latest_absences,
         'latest_reports': latest_reports
     }
+
+@register.inclusion_tag('admin/widgets/expiring_contracts_widget.html')
+def expiring_contracts_widget():
+    from core.models import ProgrammazioneRicorrente
+    today = timezone.now().date()
+    threshold = today + timedelta(days=30)
+    
+    # Programmazioni con data_fine_contratto entro 30 giorni o già scadute (ma non troppo vecchie)
+    past_limit = today - timedelta(days=7)  # Mostra scadute fino a 7 giorni fa
+    expiring = ProgrammazioneRicorrente.objects.filter(
+        data_fine_contratto__isnull=False,
+        data_fine_contratto__gte=past_limit,
+        data_fine_contratto__lte=threshold
+    ).select_related('cliente', 'squadra_abituale').order_by('data_fine_contratto')
+    
+    contracts = []
+    for prog in expiring:
+        days_left = (prog.data_fine_contratto - today).days
+        contracts.append({
+            'prog': prog,
+            'cliente': prog.cliente.ragione_sociale,
+            'tipo': prog.get_tipo_ripetizione_display(),
+            'giorno': prog.get_giorno_settimana_display() if prog.giorno_settimana is not None else f"Giorno {prog.giorno_mese}",
+            'data_fine': prog.data_fine_contratto,
+            'days_left': days_left,
+            'is_expired': days_left < 0,
+            'is_urgent': 0 <= days_left <= 7,
+            'prog_id': prog.pk,
+        })
+    
+    return {
+        'contracts': contracts,
+        'has_expiring': bool(contracts),
+    }

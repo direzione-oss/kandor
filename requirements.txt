@@ -11,3 +11,4 @@ python-dotenv
 gunicorn
 whitenoise
 requests
+python-dateutil

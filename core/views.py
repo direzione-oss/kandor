@@ -358,3 +358,31 @@ def toggle_telegram_status(request, model_name, item_id):
 
 def manuale_view(request):
     return render(request, 'core/manuale.html')
+
+def extend_contract_view(request, prog_id):
+    """Prolunga un contratto di 12 mesi e rigenera i turni."""
+    from .models import ProgrammazioneRicorrente
+    from dateutil.relativedelta import relativedelta
+    
+    prog = get_object_or_404(ProgrammazioneRicorrente, pk=prog_id)
+    
+    if prog.data_fine_contratto:
+        old_date = prog.data_fine_contratto
+        # Proroga di 12 mesi dalla data fine attuale
+        prog.data_fine_contratto = old_date + relativedelta(months=12)
+        prog.save()
+        
+        # Rigenera i turni per coprire il nuovo periodo
+        count = genera_turni_automatici()
+        
+        messages.success(
+            request,
+            f"✅ Contratto per '{prog.cliente.ragione_sociale}' prorogato! "
+            f"Nuova scadenza: {prog.data_fine_contratto.strftime('%d/%m/%Y')} "
+            f"(era {old_date.strftime('%d/%m/%Y')}). "
+            f"{count} turni generati/aggiornati."
+        )
+    else:
+        messages.warning(request, "Questo contratto non ha una data di fine.")
+    
+    return redirect('/admin/')
