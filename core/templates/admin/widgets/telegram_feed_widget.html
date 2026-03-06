@@ -94,8 +94,8 @@
                         <strong>{{ item.dipendente }}</strong><br>
                         <span>{{ item.testo|truncatechars:50 }}</span><br>
                         <small>{{ item.data_inserimento|date:"d/m H:i" }}</small>
-                        {% if item.risolto %} <span style="color: green;">✔</span> {% else %} <span
-                            style="color: red;">⚠</span> {% endif %}
+                        {% if item.risolto %}<span style="color: green;">✔</span>{% else %}<span
+                            style="color: red;">⚠</span>{% endif %}
                     </div>
                 </li>
                 {% empty %}
@@ -124,22 +124,20 @@
 
     function toggleStatus(model, id, checkbox) {
         const li = checkbox.closest('li');
-
-        // Optimistic UI update
         if (checkbox.checked) {
             li.classList.add('completed-task');
         } else {
             li.classList.remove('completed-task');
         }
 
-        fetch(`/telegram-toggle/${model}/${id}/`, {
+        fetch('/telegram-toggle/' + model + '/' + id + '/', {
             method: 'POST',
             headers: {
                 'X-CSRFToken': '{{ csrf_token }}'
             }
         })
-            .then(response => response.json())
-            .then(data => {
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
                 if (data.status === 'ok') {
                     checkbox.checked = data.new_state;
                     if (data.new_state) {
@@ -149,25 +147,13 @@
                     }
                 } else {
                     alert('Errore aggiornamento: ' + data.error);
-                    // Revert
                     checkbox.checked = !checkbox.checked;
-                    if (checkbox.checked) {
-                        li.classList.add('completed-task');
-                    } else {
-                        li.classList.remove('completed-task');
-                    }
                 }
             })
-            .catch(error => {
+            .catch(function (error) {
                 console.error('Error:', error);
                 alert('Errore di connessione');
-                // Revert
                 checkbox.checked = !checkbox.checked;
-                if (checkbox.checked) {
-                    li.classList.add('completed-task');
-                } else {
-                    li.classList.remove('completed-task');
-                }
             });
     }
 </script>
