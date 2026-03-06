@@ -2,74 +2,122 @@
 Signals per sincronizzare il calendario turni con le Programmazioni Ricorrenti.
 Quando una ProgrammazioneRicorrente viene modificata o eliminata, 
 i turni futuri collegati vengono cancellati e rigenerati.
+
+OTTIMIZZATO: rigenera solo i turni della specifica programmazione modificata,
+non tutti i 365 giorni di tutte le programmazioni.
 """
 from django.db.models.signals import post_save, pre_delete
 from django.dispatch import receiver
 from django.utils import timezone
+from datetime import timedelta, date, datetime
 
 
-@receiver(pre_delete, sender='core.ProgrammazioneRicorrente')
-def on_programmazione_delete(sender, instance, **kwargs):
-    """
-    Quando una programmazione viene ELIMINATA, cancella tutte
-    le assegnazioni e i turni futuri collegati.
-    """
+def _cleanup_future_assignments(instance):
+    """Rimuove le assegnazioni future collegate a una programmazione specifica."""
     from core.models import AssegnazioneTurno, Turno
     
     today = timezone.now().date()
     
-    # Cancella assegnazioni future collegate a questa programmazione
-    future_assignments = AssegnazioneTurno.objects.filter(
-        programmazione_feriale=instance,
-        turno__data__gte=today
-    )
-    
-    # Raccogli i turni coinvolti prima di cancellare le assegnazioni
-    turno_ids = list(future_assignments.values_list('turno_id', flat=True))
-    
-    deleted_count = future_assignments.count()
-    future_assignments.delete()
-    
-    # Elimina anche i turni rimasti vuoti (senza più assegnazioni)
-    for turno_id in turno_ids:
-        turno = Turno.objects.filter(pk=turno_id).first()
-        if turno and not turno.assegnazioni.exists():
-            turno.delete()
-    
-    print(f"[SYNC] Programmazione eliminata per '{instance.cliente}': "
-          f"{deleted_count} assegnazioni future rimosse.")
-
-
-@receiver(post_save, sender='core.ProgrammazioneRicorrente')
-def on_programmazione_save(sender, instance, **kwargs):
-    """
-    Quando una programmazione viene MODIFICATA, cancella le assegnazioni
-    future collegate e rigenera i turni per tener conto delle modifiche.
-    """
-    from core.models import AssegnazioneTurno, Turno
-    from core.services import genera_turni_automatici
-    
-    today = timezone.now().date()
-    
-    # Cancella assegnazioni future collegate a questa programmazione
     future_assignments = AssegnazioneTurno.objects.filter(
         programmazione_feriale=instance,
         turno__data__gte=today
     )
     
     turno_ids = list(future_assignments.values_list('turno_id', flat=True))
-    
     deleted_count = future_assignments.count()
     future_assignments.delete()
     
     # Elimina turni rimasti vuoti
-    for turno_id in turno_ids:
-        turno = Turno.objects.filter(pk=turno_id).first()
-        if turno and not turno.assegnazioni.exists():
-            turno.delete()
+    Turno.objects.filter(pk__in=turno_ids).exclude(assegnazioni__isnull=False).delete()
     
-    # Rigenera i turni (il servizio creerà solo quelli mancanti)
-    new_count = genera_turni_automatici()
+    return deleted_count
+
+
+def _genera_turni_singola_programmazione(prog, days=365):
+    """
+    Genera turni per UNA SOLA programmazione ricorrente.
+    Molto più veloce di genera_turni_automatici() che scorre TUTTE.
+    """
+    from core.models import Turno, AssegnazioneTurno
     
-    print(f"[SYNC] Programmazione aggiornata per '{instance.cliente}': "
-          f"{deleted_count} vecchie assegnazioni rimosse, {new_count} turni rigenerati.")
+    if not prog.squadra_abituale:
+        return 0
+    
+    today = timezone.now().date()
+    end_date = today + timedelta(days=days)
+    count = 0
+    
+    current_date = today
+    while current_date <= end_date:
+        # Controllo periodo contrattuale
+        if prog.data_inizio_contratto and current_date < prog.data_inizio_contratto:
+            current_date += timedelta(days=1)
+            continue
+        if prog.data_fine_contratto and current_date > prog.data_fine_contratto:
+            break  # Oltre la fine contratto, stop
+        
+        match = False
+        weekday = current_date.weekday()
+        
+        if prog.tipo_ripetizione == 'SETTIMANALE' and prog.giorno_settimana == weekday:
+            match = True
+        elif prog.tipo_ripetizione == 'MENSILE' and prog.giorno_mese == current_date.day:
+            match = True
+        elif prog.tipo_ripetizione == 'BISETTIMANALE' and prog.giorno_settimana == weekday:
+            if prog.data_inizio_contratto:
+                delta_days = (current_date - prog.data_inizio_contratto).days
+                settimane = delta_days // 7
+                if delta_days >= 0 and settimane % 2 == 0:
+                    match = True
+        
+        if match:
+            turno, _ = Turno.objects.get_or_create(
+                data=current_date,
+                squadra=prog.squadra_abituale,
+                defaults={'mezzo': prog.mezzo_abituale}
+            )
+            
+            exists = AssegnazioneTurno.objects.filter(
+                turno=turno,
+                programmazione_feriale=prog
+            ).exists()
+            
+            if not exists:
+                orario_inizio = prog.ora_inizio
+                if prog.durata:
+                    dt_start = datetime.combine(date.today(), orario_inizio)
+                    hours = int(prog.durata)
+                    minutes = int((prog.durata - hours) * 60)
+                    dt_end = dt_start + timedelta(hours=hours, minutes=minutes)
+                    orario_fine = dt_end.time()
+                else:
+                    orario_fine = orario_inizio
+                
+                AssegnazioneTurno.objects.create(
+                    turno=turno,
+                    cliente=prog.cliente,
+                    programmazione_feriale=prog,
+                    orario_inizio_previsto=orario_inizio,
+                    orario_fine_previsto=orario_fine,
+                    mansione_svolta=f"Generato autom. (Qualifica: {prog.qualifica_richiesta})"
+                )
+                count += 1
+        
+        current_date += timedelta(days=1)
+    
+    return count
+
+
+@receiver(pre_delete, sender='core.ProgrammazioneRicorrente')
+def on_programmazione_delete(sender, instance, **kwargs):
+    """Quando eliminata: cancella solo le assegnazioni future di questa programmazione."""
+    deleted = _cleanup_future_assignments(instance)
+    print(f"[SYNC] Eliminata prog. '{instance.cliente}': {deleted} assegnazioni rimosse.")
+
+
+@receiver(post_save, sender='core.ProgrammazioneRicorrente')
+def on_programmazione_save(sender, instance, **kwargs):
+    """Quando modificata: cancella e rigenera SOLO i turni di questa programmazione."""
+    deleted = _cleanup_future_assignments(instance)
+    created = _genera_turni_singola_programmazione(instance)
+    print(f"[SYNC] Aggiornata prog. '{instance.cliente}': {deleted} rimossi, {created} creati.")
