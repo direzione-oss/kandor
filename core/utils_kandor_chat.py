@@ -209,8 +209,8 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     TimeTracking.objects.create(
         dipendente=dipendente,
         assegnazione=assegnazione,
-        check_in=check_in_time,
-        check_out=check_out_time,
+        check_in=start_dt,
+        check_out=end_dt,
         source='TELEGRAM',
         note=f"Messaggio originale: {text}"
     )
