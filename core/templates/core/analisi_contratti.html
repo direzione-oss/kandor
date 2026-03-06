@@ -53,9 +53,8 @@
         <div style="display: flex; flex-wrap: wrap; gap: 10px;">
             {% for c in sotto_soglia %}
             <span
-                style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 15px; font-size: 13px; font-weight: 600;">
-                {{ c.cliente }} — €{{ c.importo_orario }}/h
-            </span>
+                style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 15px; font-size: 13px; font-weight: 600;">{{
+                c.cliente }} — €{{ c.importo_orario }}/h</span>
             {% endfor %}
         </div>
     </div>
@@ -89,13 +88,11 @@
                     <td style="padding: 10px; text-align: center;">{{ row.ore_contratto }}h</td>
                     <td
                         style="padding: 10px; text-align: center; font-weight: 700; {% if row.sotto_soglia %}color: #e74c3c;{% else %}color: #27ae60;{% endif %}">
-                        €{{ row.importo_orario }}
-                    </td>
+                        €{{ row.importo_orario }}</td>
                     <td style="padding: 10px; text-align: center;">{{ row.ore_lavorate }}h</td>
                     <td
                         style="padding: 10px; text-align: center; font-weight: 700; {% if row.costo_effettivo_alert %}color: #e74c3c;{% else %}color: #333;{% endif %}">
-                        {% if row.costo_effettivo %}€{{ row.costo_effettivo }}{% else %}—{% endif %}
-                    </td>
+                        {% if row.costo_effettivo %}€{{ row.costo_effettivo }}{% else %}—{% endif %}</td>
                     <td style="padding: 10px; text-align: center;">
                         {% if row.diff_ore > 0 %}
                         <span style="color: #e67e22; font-weight: 600;">+{{ row.diff_ore }}h</span>
