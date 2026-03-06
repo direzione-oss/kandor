@@ -508,25 +508,25 @@ def analisi_contratti_view(request):
             diff_ore_display = '<span style="color: #27ae60;">0h</span>'
         
         if is_sotto_soglia:
-            stato_display = '<span style="background: #e74c3c; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">⚠️ SOTTO SOGLIA</span>'
+            stato_display = '<span style="background: #e74c3c; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">SOTTO SOGLIA</span>'
         elif costo_effettivo_alert:
-            stato_display = '<span style="background: #e67e22; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">📊 DA VERIFICARE</span>'
+            stato_display = '<span style="background: #e67e22; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">DA VERIFICARE</span>'
         else:
-            stato_display = '<span style="background: #27ae60; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px;">✅ OK</span>'
+            stato_display = '<span style="background: #27ae60; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px;">OK</span>'
+        
+        costo_eff_display = f"&euro;{costo_effettivo}" if costo_effettivo else "&mdash;"
         
         row = {
             'cliente': cliente.ragione_sociale,
             'cliente_id': cliente.pk,
-            'importo_mensile': f"{importo:,.2f}",
-            'ore_contratto': ore_contratto,
-            'importo_orario': f"{importo_orario:.2f}",
-            'ore_lavorate': ore_lavorate,
-            'costo_effettivo': f"{costo_effettivo:.2f}" if costo_effettivo else None,
-            'diff_ore': diff_ore,
+            'importo_mensile': f"&euro;{importo:,.2f}",
+            'ore_contratto': f"{ore_contratto}h",
+            'importo_orario': f"&euro;{importo_orario:.2f}",
+            'ore_lavorate': f"{ore_lavorate}h",
+            'costo_effettivo_display': costo_eff_display,
             'diff_ore_display': diff_ore_display,
-            'sotto_soglia': is_sotto_soglia,
-            'costo_effettivo_alert': costo_effettivo_alert,
             'stato_display': stato_display,
+            'sotto_soglia': is_sotto_soglia,
         }
         analisi.append(row)
         
@@ -541,9 +541,18 @@ def analisi_contratti_view(request):
     
     ore_header = f'Ore Lavorate<br><small>{MESI_NOMI.get(mese, "")} {anno}</small>'
     
+    # Pre-render sotto_soglia badges
+    sotto_soglia_html = ''
+    if sotto_soglia:
+        badges = []
+        for c in sotto_soglia:
+            badges.append(f'<span style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 15px; font-size: 13px;">{c["cliente"]} &mdash; {c["importo_orario"]}/h</span>')
+        sotto_soglia_html = ' '.join(badges)
+    
     context = {
         'analisi': analisi,
         'sotto_soglia': sotto_soglia,
+        'sotto_soglia_html': sotto_soglia_html,
         'soglia': soglia,
         'mese': mese,
         'mesi': mesi_list,
@@ -551,8 +560,8 @@ def analisi_contratti_view(request):
         'anno': anno,
         'ore_header': ore_header,
         'totale_contratti': len(analisi),
-        'totale_fatturato': f"{totale_fatturato:,.2f}",
-        'media_oraria': f"{media_oraria:.2f}",
+        'totale_fatturato': f"&euro;{totale_fatturato:,.2f}",
+        'media_oraria': f"&euro;{media_oraria:.2f}",
     }
     return render(request, 'core/analisi_contratti.html', context)
 
