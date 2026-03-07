@@ -1,110 +1,219 @@
 <style>
-.add-turno-btn {position:absolute;bottom:4px;right:4px;background:#2e7d32;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:16px;cursor:pointer;line-height:24px;text-align:center;opacity:.5;transition:opacity .2s}
-.add-turno-btn:hover {opacity:1}
-.turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;justify-content:center;align-items:center}
-.turno-modal-overlay.active {display:flex}
-.turno-modal {background:#fff;border-radius:8px;padding:25px;width:400px;max-width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
-.turno-modal h3 {margin:0 0 15px;color:#37474f;font-size:16px}
-.turno-modal label {display:block;font-size:12px;color:#666;margin:10px 0 4px;font-weight:600}
-.turno-modal select,.turno-modal input {width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:13px;box-sizing:border-box}
-.turno-modal-actions {display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
-.turno-modal-actions button {padding:8px 20px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px}
-.btn-save-turno {background:#2e7d32;color:#fff}
-.btn-cancel-turno {background:#eee;color:#666}
+    .add-turno-btn {
+        position: absolute;
+        bottom: 4px;
+        right: 4px;
+        background: #2e7d32;
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        font-size: 16px;
+        cursor: pointer;
+        line-height: 24px;
+        text-align: center;
+        opacity: .5;
+        transition: opacity .2s
+    }
+
+    .add-turno-btn:hover {
+        opacity: 1
+    }
+
+    .turno-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, .5);
+        z-index: 9999;
+        justify-content: center;
+        align-items: center
+    }
+
+    .turno-modal-overlay.active {
+        display: flex
+    }
+
+    .turno-modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 25px;
+        width: 400px;
+        max-width: 90%;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, .3)
+    }
+
+    .turno-modal h3 {
+        margin: 0 0 15px;
+        color: #37474f;
+        font-size: 16px
+    }
+
+    .turno-modal label {
+        display: block;
+        font-size: 12px;
+        color: #666;
+        margin: 10px 0 4px;
+        font-weight: 600
+    }
+
+    .turno-modal select,
+    .turno-modal input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        box-sizing: border-box;
+        line-height: 1.4;
+        min-height: 42px;
+        background: #fff;
+        color: #333
+    }
+
+    .turno-modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+        justify-content: flex-end
+    }
+
+    .turno-modal-actions button {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 4px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 13px
+    }
+
+    .btn-save-turno {
+        background: #2e7d32;
+        color: #fff
+    }
+
+    .btn-cancel-turno {
+        background: #eee;
+        color: #666
+    }
 </style>
-<div class="module dashboard-widget" style="margin-bottom:20px;border:1px solid #cfd8dc;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.05)">
-<h3 style="background:#37474f;color:#fff;margin:0;padding:12px 15px;font-size:14px;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-<div style="display:flex;align-items:center;gap:12px">
-<span style="font-weight:600">Settimana: {{ week_range }}</span>
-<div style="background:rgba(255,255,255,.15);border-radius:4px;display:flex;overflow:hidden">
-<a href="?week={{ prev_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#fff;padding:4px 10px;text-decoration:none;border-right:1px solid rgba(255,255,255,.2);font-size:13px">&larr; Prev</a>
-<a href="?week={{ next_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#fff;padding:4px 10px;text-decoration:none;font-size:13px">Next &rarr;</a>
-</div>
-</div>
-<div style="display:flex;align-items:center;gap:10px">
-<select id="squadra-filter" onchange="window.location.href='?week={{ current_week_offset }}&squadra='+this.value" style="padding:5px 10px;border-radius:4px;border:none;font-size:12px;background:rgba(255,255,255,.9);color:#333;cursor:pointer;min-width:160px">
-<option value="">Tutte le Squadre</option>
-{% for sq in squadre %}
-<option value="{{ sq.id }}" {{ sq.selected }}>{{ sq.nome }}</option>
-{% endfor %}
-</select>
-<a href="/admin/core/turno/" style="color:#fff;font-size:12px;text-decoration:none;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:15px;font-weight:500">Gestisci Turni &rarr;</a>
-</div>
-</h3>
-<div style="overflow-x:auto;background:#fff">
-<table style="width:100%;border-collapse:collapse;min-width:1000px;table-layout:fixed">
-<thead>
-<tr style="background:#eceff1;border-bottom:2px solid #cfd8dc">
-{% for day in schedule %}
-<th style="padding:12px 8px;text-align:center;border-right:1px solid #dee2e6;width:14.28%;{% if day.is_today %}background-color:#2e7d32;color:white{% else %}color:#546e7a{% endif %}">
-<div style="font-size:14px;font-weight:700;text-transform:uppercase">{{ day.day_name }}</div>
-<div style="font-size:11px;font-weight:normal;opacity:.9">{{ day.day_date }}</div>
-</th>
-{% endfor %}
-</tr>
-</thead>
-<tbody>
-<tr>
-{% for day in schedule %}
-<td style="padding:8px;vertical-align:top;border-right:1px solid #f0f0f0;background:{% if day.is_today %}#f1f8f3{% else %}#fff{% endif %};height:200px;position:relative">
-{% if day.shifts %}
-<div style="display:flex;flex-direction:column;gap:8px">
-{% for shift in day.shifts %}
-{% if shift.assignments %}
-{% for assign in shift.assignments %}
-<div style="background:#fff;border:1px solid #e0e0e0;border-left:4px solid #0277bd;border-radius:4px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
-<div style="font-weight:700;color:#333;font-size:13px;margin-bottom:4px;line-height:1.3">{{ assign.cliente.ragione_sociale }}</div>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-<span style="background:#e3f2fd;color:#0277bd;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600">{{ shift.squadra }}</span>
-</div>
-<div style="font-size:12px;color:#555;display:flex;align-items:center;gap:4px;border-top:1px solid #f5f5f5;padding-top:4px;margin-top:4px">
-<span style="font-weight:600;color:#37474f">{{ assign.time_range }}</span>
-</div>
-</div>
-{% endfor %}
-{% else %}
-<div style="background:#fff;border:1px solid #e0e0e0;border-left:4px solid #9e9e9e;border-radius:4px;padding:8px">
-<div style="font-weight:600;color:#616161;font-size:12px">{{ shift.squadra }}</div>
-<div style="font-size:11px;color:#9e9e9e;margin-top:2px">No assignments</div>
-</div>
-{% endif %}
-{% endfor %}
-</div>
-{% else %}
-<div style="text-align:center;color:#cfd8dc;font-size:24px;padding-top:30px">&bull;</div>
-{% endif %}
-<button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}')" title="Aggiungi turno">+</button>
-</td>
-{% endfor %}
-</tr>
-</tbody>
-</table>
-</div>
+<div class="module dashboard-widget"
+    style="margin-bottom:20px;border:1px solid #cfd8dc;border-radius:8px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,.05)">
+    <h3
+        style="background:#37474f;color:#fff;margin:0;padding:12px 15px;font-size:14px;text-transform:uppercase;letter-spacing:.5px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-weight:600">Settimana: {{ week_range }}</span>
+            <div style="background:rgba(255,255,255,.15);border-radius:4px;display:flex;overflow:hidden">
+                <a href="?week={{ prev_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}"
+                    style="color:#fff;padding:4px 10px;text-decoration:none;border-right:1px solid rgba(255,255,255,.2);font-size:13px">&larr;
+                    Prev</a>
+                <a href="?week={{ next_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}"
+                    style="color:#fff;padding:4px 10px;text-decoration:none;font-size:13px">Next &rarr;</a>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+            <select id="squadra-filter"
+                onchange="window.location.href='?week={{ current_week_offset }}&squadra='+this.value"
+                style="padding:5px 10px;border-radius:4px;border:none;font-size:12px;background:rgba(255,255,255,.9);color:#333;cursor:pointer;min-width:160px">
+                <option value="">Tutte le Squadre</option>
+                {% for sq in squadre %}
+                <option value="{{ sq.id }}" {{ sq.selected }}>{{ sq.nome }}</option>
+                {% endfor %}
+            </select>
+            <a href="/admin/core/turno/"
+                style="color:#fff;font-size:12px;text-decoration:none;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:15px;font-weight:500">Gestisci
+                Turni &rarr;</a>
+        </div>
+    </h3>
+    <div style="overflow-x:auto;background:#fff">
+        <table style="width:100%;border-collapse:collapse;min-width:1000px;table-layout:fixed">
+            <thead>
+                <tr style="background:#eceff1;border-bottom:2px solid #cfd8dc">
+                    {% for day in schedule %}
+                    <th
+                        style="padding:12px 8px;text-align:center;border-right:1px solid #dee2e6;width:14.28%;{% if day.is_today %}background-color:#2e7d32;color:white{% else %}color:#546e7a{% endif %}">
+                        <div style="font-size:14px;font-weight:700;text-transform:uppercase">{{ day.day_name }}</div>
+                        <div style="font-size:11px;font-weight:normal;opacity:.9">{{ day.day_date }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    {% for day in schedule %}
+                    <td
+                        style="padding:8px;vertical-align:top;border-right:1px solid #f0f0f0;background:{% if day.is_today %}#f1f8f3{% else %}#fff{% endif %};height:200px;position:relative">
+                        {% if day.shifts %}
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            {% for shift in day.shifts %}
+                            {% if shift.assignments %}
+                            {% for assign in shift.assignments %}
+                            <div
+                                style="background:#fff;border:1px solid #e0e0e0;border-left:4px solid #0277bd;border-radius:4px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+                                <div
+                                    style="font-weight:700;color:#333;font-size:13px;margin-bottom:4px;line-height:1.3">
+                                    {{ assign.cliente.ragione_sociale }}</div>
+                                <div
+                                    style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                                    <span
+                                        style="background:#e3f2fd;color:#0277bd;padding:2px 6px;border-radius:3px;font-size:11px;font-weight:600">{{
+                                        shift.squadra }}</span>
+                                </div>
+                                <div
+                                    style="font-size:12px;color:#555;display:flex;align-items:center;gap:4px;border-top:1px solid #f5f5f5;padding-top:4px;margin-top:4px">
+                                    <span style="font-weight:600;color:#37474f">{{ assign.time_range }}</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div
+                                style="background:#fff;border:1px solid #e0e0e0;border-left:4px solid #9e9e9e;border-radius:4px;padding:8px">
+                                <div style="font-weight:600;color:#616161;font-size:12px">{{ shift.squadra }}</div>
+                                <div style="font-size:11px;color:#9e9e9e;margin-top:2px">No assignments</div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="text-align:center;color:#cfd8dc;font-size:24px;padding-top:30px">&bull;</div>
+                        {% endif %}
+                        <button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}')"
+                            title="Aggiungi turno">+</button>
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 <div id="turno-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeAddTurno()">
-<div class="turno-modal">
-<h3>Nuovo Turno</h3>
-<div id="turno-modal-date" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
-<label>Squadra</label>
-<select id="turno-squadra"></select>
-<label>Cliente</label>
-<select id="turno-cliente"></select>
-<div style="display:flex;gap:10px">
-<div style="flex:1"><label>Ora Inizio</label><input type="time" id="turno-inizio" value="06:00"></div>
-<div style="flex:1"><label>Ora Fine</label><input type="time" id="turno-fine" value="14:00"></div>
-</div>
-<label>Note (opzionale)</label>
-<input type="text" id="turno-note" placeholder="Es: pulizie straordinarie">
-<div class="turno-modal-actions">
-<button class="btn-cancel-turno" onclick="closeAddTurno()">Annulla</button>
-<button class="btn-save-turno" onclick="saveTurno()">Salva Turno</button>
-</div>
-</div>
+    <div class="turno-modal">
+        <h3>Nuovo Turno</h3>
+        <div id="turno-modal-date" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
+        <label>Squadra</label>
+        <select id="turno-squadra"></select>
+        <label>Cliente</label>
+        <select id="turno-cliente"></select>
+        <div style="display:flex;gap:10px">
+            <div style="flex:1"><label>Ora Inizio</label><input type="time" id="turno-inizio" value="06:00"></div>
+            <div style="flex:1"><label>Ora Fine</label><input type="time" id="turno-fine" value="14:00"></div>
+        </div>
+        <label>Note (opzionale)</label>
+        <input type="text" id="turno-note" placeholder="Es: pulizie straordinarie">
+        <div class="turno-modal-actions">
+            <button class="btn-cancel-turno" onclick="closeAddTurno()">Annulla</button>
+            <button class="btn-save-turno" onclick="saveTurno()">Salva Turno</button>
+        </div>
+    </div>
 </div>
 <script>
-var _turnoDate='';
-var _dataLoaded=false;
-function openAddTurno(isoDate){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
-function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
-function saveTurno(){var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
+    var _turnoDate = '';
+    var _dataLoaded = false;
+    function openAddTurno(isoDate) { _turnoDate = isoDate; document.getElementById('turno-modal-date').textContent = 'Data: ' + isoDate; document.getElementById('turno-modal-overlay').classList.add('active'); if (!_dataLoaded) { fetch('/api/squadre-clienti/').then(function (r) { return r.json() }).then(function (d) { var ss = document.getElementById('turno-squadra'); ss.innerHTML = ''; d.squadre.forEach(function (s) { var o = document.createElement('option'); o.value = s.id; o.textContent = s.nome; ss.appendChild(o) }); var cs = document.getElementById('turno-cliente'); cs.innerHTML = ''; d.clienti.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.ragione_sociale; cs.appendChild(o) }); _dataLoaded = true }) } }
+    function closeAddTurno() { document.getElementById('turno-modal-overlay').classList.remove('active') }
+    function saveTurno() { var payload = { data: _turnoDate, squadra_id: document.getElementById('turno-squadra').value, cliente_id: document.getElementById('turno-cliente').value, ora_inizio: document.getElementById('turno-inizio').value, ora_fine: document.getElementById('turno-fine').value, note: document.getElementById('turno-note').value }; fetch('/api/add-turno/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(payload) }).then(function (r) { return r.json() }).then(function (d) { if (d.status === 'ok') { closeAddTurno(); location.reload() } else { alert('Errore: ' + d.error) } }).catch(function (e) { alert('Errore di connessione') }) }
 </script>
