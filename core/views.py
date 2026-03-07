@@ -274,26 +274,17 @@ def chat_simulator_view(request):
         return HttpResponseRedirect('/admin/login/')
         
     last_response = None
-    last_message = None
-    selected_employee_id = request.GET.get('employee_id') or None
+    selected_employee_id = None
+    selected_employee = None
     chat_messages = []
-    unread_counts = {}
     
-    # Conteggio messaggi non letti per ogni dipendente
     from .models import MessaggioChat
-    from django.db.models import Count, Q as DQ
-    unread_qs = MessaggioChat.objects.filter(direzione='IN', letto=False).values('dipendente_id').annotate(cnt=Count('id'))
-    for u in unread_qs:
-        unread_counts[u['dipendente_id']] = u['cnt']
     
     if request.method == 'POST':
         emp_id = request.POST.get('employee_id')
         msg = request.POST.get('message')
         
         if emp_id and msg:
-            selected_employee_id = int(emp_id)
-            last_message = msg
-            
             emp = get_object_or_404(Dipendente, pk=emp_id)
             
             # Salva messaggio OUT nel database
@@ -303,39 +294,42 @@ def chat_simulator_view(request):
             
             # Invio reale via Telegram
             from .utils_kandor_chat import send_telegram_message
-            if not emp.telegram_chat_id:
-                last_response = "⚠️ Questo dipendente non ha un Telegram Chat ID."
-            else:
-                success = send_telegram_message(emp.telegram_chat_id, msg)
-                if success:
-                    last_response = f"✅ Inviato a {emp.nome}"
-                else:
-                    last_response = f"❌ Errore invio a {emp.nome}"
+            if emp.telegram_chat_id:
+                send_telegram_message(emp.telegram_chat_id, msg)
+            
+            # Redirect GET per evitare re-submit e aggiornare cronologia
+            return HttpResponseRedirect(f'/chat-simulator/?employee_id={emp_id}')
     
-    # Se selezionato un dipendente (via GET o POST), carica cronologia
+    # Converte employee_id a int
+    raw_id = request.GET.get('employee_id')
+    if raw_id:
+        try:
+            selected_employee_id = int(raw_id)
+        except (ValueError, TypeError):
+            pass
+    
+    # Carica cronologia se selezionato
     if selected_employee_id:
         try:
-            selected_employee_id = int(selected_employee_id)
+            selected_employee = Dipendente.objects.get(pk=selected_employee_id)
             chat_messages = list(MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id
             ).order_by('-timestamp')[:50])
-            chat_messages.reverse()  # Cronologico
+            chat_messages.reverse()
             # Segna come letti
             MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id, direzione='IN', letto=False
             ).update(letto=True)
-        except (ValueError, TypeError):
+        except Dipendente.DoesNotExist:
             pass
 
     employees = Dipendente.objects.filter(stato='ATTIVO')
     
     return render(request, 'core/chat_simulator.html', {
         'employees': employees,
-        'last_response': last_response,
-        'last_message': last_message,
         'selected_employee_id': selected_employee_id,
+        'selected_employee': selected_employee,
         'chat_messages': chat_messages,
-        'unread_counts': unread_counts,
     })
 
 @csrf_exempt

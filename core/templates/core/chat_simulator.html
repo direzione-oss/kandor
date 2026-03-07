@@ -160,9 +160,8 @@
             {% endfor %}
         </div>
         <div class="chat-panel">
-            {% if selected_employee_id %}
-            <div class="chat-header">{% for d in employees %}{% if d.id == selected_employee_id %}{{ d.nome }} {{
-                d.cognome }}{% endif %}{% endfor %}</div>
+            {% if selected_employee %}
+            <div class="chat-header">{{ selected_employee.nome }} {{ selected_employee.cognome }}</div>
             <div class="chat-history" id="chatHistory">
                 {% if not chat_messages %}
                 <div class="msg-status">Nessun messaggio ancora. Inizia la conversazione!</div>
@@ -173,9 +172,6 @@
                     <div class="msg-time">{{ m.timestamp|date:"d/m H:i" }}</div>
                 </div>
                 {% endfor %}
-                {% if last_response %}
-                <div class="msg-status">{{ last_response }}</div>
-                {% endif %}
             </div>
             <div class="chat-input-area">
                 <form method="post">
