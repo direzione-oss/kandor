@@ -547,6 +547,7 @@ def get_squadre_clienti_json(request):
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
 
 
+@csrf_exempt
 def telegram_webhook_view(request):
     """
     Riceve aggiornamenti da Telegram (Webhook).
