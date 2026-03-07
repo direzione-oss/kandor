@@ -224,13 +224,20 @@ def weekly_schedule_widget(context):
                 top_offset = int(sm * 40 / 60)
                 
                 day_data['events'].append({
-                    'cliente_nome': assign.cliente.ragione_sociale[:20],
+                    'assign_id': assign.id,
+                    'turno_id': shift.id,
+                    'cliente_nome': assign.cliente.ragione_sociale[:25],
+                    'cliente_id': assign.cliente.id,
                     'squadra_nome': shift.squadra.nome,
+                    'squadra_id': shift.squadra.id,
                     'start_hour': sh,
                     'height': height,
                     'top_offset': top_offset,
                     'color': squadra_colors[sq_id],
-                    'time_range': f"{start}-{end}"
+                    'time_range': f"{start}-{end}",
+                    'ora_inizio': start,
+                    'ora_fine': end,
+                    'note': assign.mansione_svolta or ''
                 })
 
             day_data['shifts'].append({

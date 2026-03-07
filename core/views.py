@@ -405,6 +405,63 @@ def add_turno_ajax(request):
         return JsonResponse({'status': 'error', 'error': str(e)})
 
 
+@csrf_exempt
+def edit_turno_ajax(request, assign_id):
+    """Modifica un'assegnazione turno via AJAX."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    try:
+        data = json.loads(request.body)
+        from .models import AssegnazioneTurno, Cliente
+        from datetime import time as dt_time
+        
+        assign = AssegnazioneTurno.objects.get(pk=assign_id)
+        
+        if data.get('ora_inizio'):
+            h, m = map(int, data['ora_inizio'].split(':'))
+            assign.orario_inizio_previsto = dt_time(h, m)
+        if data.get('ora_fine'):
+            h, m = map(int, data['ora_fine'].split(':'))
+            assign.orario_fine_previsto = dt_time(h, m)
+        if data.get('cliente_id'):
+            assign.cliente = Cliente.objects.get(pk=data['cliente_id'])
+        if 'note' in data:
+            assign.mansione_svolta = data['note']
+        
+        assign.save()
+        return JsonResponse({'status': 'ok', 'message': 'Turno aggiornato'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+
+@csrf_exempt
+def delete_turno_ajax(request, assign_id):
+    """Elimina un'assegnazione turno via AJAX."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    try:
+        from .models import AssegnazioneTurno, Turno
+        
+        assign = AssegnazioneTurno.objects.get(pk=assign_id)
+        turno = assign.turno
+        
+        # Elimina anche la programmazione/straordinaria collegata se esiste
+        if assign.programmazione_feriale:
+            assign.programmazione_feriale.delete()
+        if assign.richiesta_straordinaria:
+            assign.richiesta_straordinaria.delete()
+        
+        assign.delete()
+        
+        # Se il turno non ha più assegnazioni, eliminalo
+        if not turno.assegnazioni.exists():
+            turno.delete()
+        
+        return JsonResponse({'status': 'ok', 'message': 'Turno eliminato'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+
 def get_squadre_clienti_json(request):
     """Ritorna JSON con squadre e clienti per la modale del calendario."""
     from .models import Squadra, Cliente
