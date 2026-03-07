@@ -135,6 +135,11 @@ def weekly_schedule_widget(context):
         1: 'Gen', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'Mag', 6: 'Giu', 7: 'Lug', 8: 'Ago', 9: 'Set', 10: 'Ott', 11: 'Nov', 12: 'Dic'
     }
 
+    # Colori per squadre
+    COLORS = ['#0277bd', '#2e7d32', '#c62828', '#f57c00', '#6a1b9a', '#00838f', '#ad1457', '#4e342e']
+    squadra_colors = {}
+    color_idx = 0
+
     schedule = []
     for d in dates:
         shifts_qs = Turno.objects.filter(data=d).select_related('squadra', 'mezzo').prefetch_related('assegnazioni__cliente')
@@ -149,10 +154,17 @@ def weekly_schedule_widget(context):
             'day_date': f"{d.day:02d} {MONTHS_MAP[d.month]}", 
             'iso_date': d.isoformat(),
             'is_today': d == today,
-            'shifts': []
+            'shifts': [],
+            'events': []
         }
         
         for shift in shifts_qs:
+            # Assegna colore alla squadra
+            sq_id = shift.squadra.id
+            if sq_id not in squadra_colors:
+                squadra_colors[sq_id] = COLORS[color_idx % len(COLORS)]
+                color_idx += 1
+
             assignments_data = []
             for assign in shift.assegnazioni.all().order_by('orario_inizio_previsto'):
                 start = assign.orario_inizio_previsto.strftime('%H:%M')
@@ -160,6 +172,29 @@ def weekly_schedule_widget(context):
                 assignments_data.append({
                     'cliente': assign.cliente,
                     'time_range': f"{start} - {end}"
+                })
+                
+                # Calcola posizione evento nella griglia
+                sh = assign.orario_inizio_previsto.hour
+                sm = assign.orario_inizio_previsto.minute
+                eh = assign.orario_fine_previsto.hour
+                em = assign.orario_fine_previsto.minute
+                
+                duration_min = (eh * 60 + em) - (sh * 60 + sm)
+                if duration_min <= 0:
+                    duration_min = 60
+                
+                height = max(int(duration_min * 40 / 60), 18)
+                top_offset = int(sm * 40 / 60)
+                
+                day_data['events'].append({
+                    'cliente_nome': assign.cliente.ragione_sociale[:20],
+                    'squadra_nome': shift.squadra.nome,
+                    'start_hour': sh,
+                    'height': height,
+                    'top_offset': top_offset,
+                    'color': squadra_colors[sq_id],
+                    'time_range': f"{start}-{end}"
                 })
 
             day_data['shifts'].append({
@@ -171,9 +206,13 @@ def weekly_schedule_widget(context):
             })
             
         schedule.append(day_data)
+    
+    # Range ore da visualizzare (05:00 - 22:00)
+    hours_range = list(range(5, 23))
         
     return {
         'schedule': schedule,
+        'hours_range': hours_range,
         'squadre': squadre,
         'squadra_filter': squadra_filter,
         'current_week_offset': week_offset,
