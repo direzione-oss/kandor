@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
-{% block title %}Telegram Chat | Kandor{% endblock %}
+{% block title %}Chat Telegram | Kandor{% endblock %}
 
 {% block content %}
 <style>
@@ -216,10 +216,35 @@
         border-radius: 8px;
         margin: 20px
     }
+
+    .search-box {
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.2)
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 16px;
+        font-size: 13px;
+        background: rgba(255, 255, 255, 0.15);
+        color: #ecf0f1;
+        outline: none;
+        box-sizing: border-box
+    }
+
+    .search-box input::placeholder {
+        color: rgba(255, 255, 255, 0.5)
+    }
+
+    .search-box input:focus {
+        background: rgba(255, 255, 255, 0.25)
+    }
 </style>
 
 <div id="content-main">
-    <h1>Telegram Chat</h1>
+    <h1>Chat Telegram</h1>
 
     {% if broadcast_ok %}
     <div class="broadcast-ok">Messaggio inviato a {{ broadcast_ok }} dipendenti{% if sq_name %} della squadra {{ sq_name
@@ -243,13 +268,19 @@
             {% endfor %}
 
             <div class="panel-title">Dipendenti</div>
-            {% for d in employees %}
-            <a href="?employee_id={{ d.id }}" style="text-decoration:none">
-                <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}">
-                    <span class="contact-name">{{ d.nome }} {{ d.cognome }}</span>
-                </div>
-            </a>
-            {% endfor %}
+            <div class="search-box">
+                <input type="text" id="searchEmployees" placeholder="Cerca nome o cognome..." autocomplete="off">
+            </div>
+            <div id="employeesList">
+                {% for d in employees %}
+                <a href="?employee_id={{ d.id }}" style="text-decoration:none" class="emp-link"
+                    data-name="{{ d.nome|lower }} {{ d.cognome|lower }}">
+                    <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}">
+                        <span class="contact-name">{{ d.nome }} {{ d.cognome }}</span>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
         </div>
         <div class="chat-panel">
             {% if selected_employee %}
@@ -313,6 +344,18 @@
     function sendQuick(t) {
         var inp = document.querySelector('input[name="message"]');
         if (inp) { inp.value = t; inp.closest('form').submit(); }
+    }
+    // Ricerca dipendenti
+    var searchInput = document.getElementById("searchEmployees");
+    if (searchInput) {
+        searchInput.addEventListener("input", function () {
+            var q = this.value.toLowerCase().trim();
+            var links = document.querySelectorAll(".emp-link");
+            links.forEach(function (el) {
+                var name = el.getAttribute("data-name") || "";
+                el.style.display = (!q || name.indexOf(q) !== -1) ? "" : "none";
+            });
+        });
     }
 </script>
 {% endblock %}
