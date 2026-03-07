@@ -185,31 +185,29 @@ def weekly_schedule_widget(context):
             pass
     
     # RILEVAMENTO SOVRAPPOSIZIONI: stessa squadra, stesso giorno, orari sovrapposti
-    overlaps = []
-    for d in dates:
-        assegnazioni_giorno = AssegnazioneTurno.objects.filter(
-            turno__data=d
-        ).select_related('turno__squadra', 'cliente')
-        
-        # Raggruppa per squadra
-        from collections import defaultdict
-        per_squadra = defaultdict(list)
-        for a in assegnazioni_giorno:
-            per_squadra[a.turno.squadra.id].append(a)
-        
-        for sq_id, assigns in per_squadra.items():
-            for i in range(len(assigns)):
-                for j in range(i + 1, len(assigns)):
-                    a1, a2 = assigns[i], assigns[j]
-                    # Sovrapposizione: stessa squadra, orari sovrapposti
-                    if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
-                        overlaps.append({
-                            'data': d.strftime('%d/%m'),
-                            'squadra': a1.turno.squadra.nome,
-                            'c1': str(a1.cliente),
-                            'c2': str(a2.cliente),
-                            'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
-                        })
+    # Carica TUTTE le assegnazioni della settimana in una sola query
+    all_assigns = list(AssegnazioneTurno.objects.filter(
+        turno__data__in=dates
+    ).select_related('turno__squadra', 'cliente'))
+    
+    # Raggruppa per (data, squadra)
+    from collections import defaultdict
+    per_day_squadra = defaultdict(list)
+    for a in all_assigns:
+        per_day_squadra[(a.turno.data, a.turno.squadra.id)].append(a)
+    
+    for key, assigns in per_day_squadra.items():
+        for i in range(len(assigns)):
+            for j in range(i + 1, len(assigns)):
+                a1, a2 = assigns[i], assigns[j]
+                if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
+                    overlaps.append({
+                        'data': key[0].strftime('%d/%m'),
+                        'squadra': a1.turno.squadra.nome,
+                        'c1': str(a1.cliente),
+                        'c2': str(a2.cliente),
+                        'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
+                    })
 
     schedule = []
     for d in dates:
