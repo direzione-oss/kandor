@@ -353,16 +353,23 @@ def add_turno_ajax(request):
         richiesta_str = None
         
         if tipo == 'ricorrente':
-            # Crea ProgrammazioneRicorrente (settimanale, stesso giorno)
-            prog_feriale = ProgrammazioneRicorrente.objects.create(
-                cliente=cliente,
-                tipo_ripetizione='SETTIMANALE',
-                giorno_settimana=giorno_settimana,
-                ora_inizio=t_inizio,
-                durata=durata_ore,
-                squadra_abituale=squadra,
-                data_inizio_contratto=parsed_date,
-            )
+            # Disabilita signal per evitare rigenerazione massiva turni (365 giorni)
+            from django.db.models.signals import post_save
+            from .signals import on_programmazione_save
+            post_save.disconnect(on_programmazione_save, sender=ProgrammazioneRicorrente)
+            try:
+                prog_feriale = ProgrammazioneRicorrente(
+                    cliente=cliente,
+                    tipo_ripetizione='SETTIMANALE',
+                    giorno_settimana=giorno_settimana,
+                    ora_inizio=t_inizio,
+                    durata=durata_ore,
+                    squadra_abituale=squadra,
+                    data_inizio_contratto=parsed_date,
+                )
+                prog_feriale.save()
+            finally:
+                post_save.connect(on_programmazione_save, sender=ProgrammazioneRicorrente)
         else:
             # Crea RichiestaStraordinaria
             richiesta_str = RichiestaStraordinaria.objects.create(
