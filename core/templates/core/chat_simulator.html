@@ -300,12 +300,11 @@
                 <div class="msg-status">Nessun messaggio ancora. Inizia la conversazione!</div>
                 {% endif %}
                 {% for m in chat_messages %}
-                <div class="msg {% if m.direzione == 'IN' %}in{% else %}out{% endif %}">
-                    {% if m.foto_url %}<a href="{{ m.foto_url }}" target="_blank"><img src="{{ m.foto_url }}"
+                <div class="msg {% if m.direzione == 'IN' %}in{% else %}out{% endif %}">{% if m.foto_url %}<a
+                        href="{{ m.foto_url }}" target="_blank"><img src="{{ m.foto_url }}"
                             style="max-width:220px;max-height:200px;border-radius:6px;display:block;margin-bottom:4px"></a>{%
-                    endif %}
-                    {% if m.testo %}{{ m.testo }}{% endif %}
-                    <div class="msg-time">{{ m.timestamp|date:"d/m H:i" }}</div>
+                    endif %}{% if m.testo %}{{ m.testo }}{% endif %}<div class="msg-time">{{ m.timestamp|date:"d/m H:i"
+                        }}</div>
                 </div>
                 {% endfor %}
             </div>
