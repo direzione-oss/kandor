@@ -109,7 +109,7 @@ def weekly_schedule_widget(context):
     # Filtro squadra
     squadra_filter = request.GET.get('squadra', '')
         
-    from core.models import Turno, Squadra
+    from core.models import Turno, Squadra, AssegnazioneTurno
     today = timezone.now().date()
     
     # Lista squadre per il dropdown (con attributo selected pre-calcolato)
