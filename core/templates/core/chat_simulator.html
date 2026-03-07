@@ -241,6 +241,21 @@
     .search-box input:focus {
         background: rgba(255, 255, 255, 0.25)
     }
+
+    .unread-badge {
+        background: #e74c3c;
+        color: white;
+        border-radius: 50%;
+        min-width: 18px;
+        height: 18px;
+        font-size: 11px;
+        font-weight: bold;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: auto;
+        padding: 0 4px
+    }
 </style>
 
 <div id="content-main">
@@ -275,8 +290,10 @@
                 {% for d in employees %}
                 <a href="?employee_id={{ d.id }}" style="text-decoration:none" class="emp-link"
                     data-name="{{ d.nome|lower }} {{ d.cognome|lower }}">
-                    <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}">
+                    <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}"
+                        style="display:flex;align-items:center">
                         <span class="contact-name">{{ d.nome }} {{ d.cognome }}</span>
+                        {% if d.unread_count %}<span class="unread-badge">{{ d.unread_count }}</span>{% endif %}
                     </div>
                 </a>
                 {% endfor %}

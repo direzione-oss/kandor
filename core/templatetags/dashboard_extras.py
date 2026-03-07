@@ -6,6 +6,11 @@ from django.db.models import Q
 
 register = template.Library()
 
+@register.simple_tag
+def unread_chat_count():
+    from core.models import MessaggioChat
+    return MessaggioChat.objects.filter(direzione='IN', letto=False).count()
+
 @register.inclusion_tag('admin/widgets/expiring_vehicles_widget.html')
 def expiring_vehicles_widget():
     today = timezone.now().date()

@@ -367,8 +367,12 @@ def chat_simulator_view(request):
         except Squadra.DoesNotExist:
             broadcast_mode = ''
 
-    employees = Dipendente.objects.filter(stato='ATTIVO')
+    from django.db.models import Count, Q
+    employees = Dipendente.objects.filter(stato='ATTIVO').annotate(
+        unread_count=Count('messaggi_chat', filter=Q(messaggi_chat__direzione='IN', messaggi_chat__letto=False))
+    )
     squadre = Squadra.objects.all()
+    total_unread = sum(e.unread_count for e in employees)
     
     return render(request, 'core/chat_simulator.html', {
         'employees': employees,
@@ -380,6 +384,7 @@ def chat_simulator_view(request):
         'sq_name': sq_name,
         'broadcast_mode': broadcast_mode,
         'broadcast_label': broadcast_label,
+        'total_unread': total_unread,
     })
 
 @csrf_exempt
