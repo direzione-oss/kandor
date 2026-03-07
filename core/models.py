@@ -435,7 +435,8 @@ class MessaggioChat(models.Model):
         ('OUT', 'Inviato dall\'admin'),
     ]
     dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='messaggi_chat')
-    testo = models.TextField()
+    testo = models.TextField(blank=True, default='')
+    foto_url = models.URLField(blank=True, default='', verbose_name="URL Foto")
     direzione = models.CharField(max_length=3, choices=DIREZIONE_CHOICES)
     timestamp = models.DateTimeField(auto_now_add=True)
     letto = models.BooleanField(default=False)

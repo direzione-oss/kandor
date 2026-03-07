@@ -588,26 +588,51 @@ def telegram_webhook_view(request):
                 
                 return HttpResponse("OK")
             
-            # Gestione messaggi di testo
+            # Gestione messaggi (testo e foto)
             message = data.get('message', {})
             chat = message.get('chat', {})
             text = message.get('text', '')
+            caption = message.get('caption', '')
             chat_id = str(chat.get('id', ''))
             first_name = chat.get('first_name', 'Utente')
+            photo = message.get('photo')
             
-            if chat_id and text:
+            # Se c'è una foto, scarica l'URL
+            foto_url = ''
+            if photo and chat_id and token:
+                try:
+                    import requests as req
+                    # Prendi la foto più grande (ultima nell'array)
+                    file_id = photo[-1]['file_id']
+                    file_info = req.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}").json()
+                    if file_info.get('ok'):
+                        file_path = file_info['result']['file_path']
+                        foto_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+                except Exception:
+                    pass
+            
+            if chat_id and (text or foto_url):
                 # Salva messaggio ricevuto nel database
                 try:
                     from .models import MessaggioChat, Dipendente
                     dip = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
                     if dip:
                         MessaggioChat.objects.create(
-                            dipendente=dip, testo=text, direzione='IN'
+                            dipendente=dip,
+                            testo=text or caption,
+                            foto_url=foto_url,
+                            direzione='IN'
                         )
                 except Exception:
                     pass
                 
-                response = handle_telegram_message(chat_id, text, sender_name=first_name)
+                # Processa solo messaggi di testo per i comandi bot
+                if text:
+                    response = handle_telegram_message(chat_id, text, sender_name=first_name)
+                elif caption:
+                    response = handle_telegram_message(chat_id, caption, sender_name=first_name)
+                else:
+                    response = {'text': 'Foto ricevuta!', 'reply_markup': None}
                 
                 if response and token:
                     import requests as req
