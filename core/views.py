@@ -309,20 +309,24 @@ def chat_simulator_view(request):
 
 @csrf_exempt
 def add_turno_ajax(request):
-    """Crea un turno con assegnazione dal calendario via AJAX."""
+    """Crea un turno con assegnazione e la relativa programmazione."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     
     try:
         data = json.loads(request.body)
-        from .models import Turno, AssegnazioneTurno, Squadra, Cliente
-        from datetime import time as dt_time
+        from .models import (Turno, AssegnazioneTurno, Squadra, Cliente,
+                             ProgrammazioneRicorrente, RichiestaStraordinaria)
+        from datetime import time as dt_time, date as dt_date
+        from decimal import Decimal
         
         squadra_id = data.get('squadra_id')
         cliente_id = data.get('cliente_id')
-        data_turno = data.get('data')
+        data_turno = data.get('data')  # YYYY-MM-DD
         ora_inizio = data.get('ora_inizio', '06:00')
         ora_fine = data.get('ora_fine', '14:00')
+        tipo = data.get('tipo', 'straordinario')  # 'ricorrente' o 'straordinario'
+        note = data.get('note', '')
         
         if not all([squadra_id, cliente_id, data_turno]):
             return JsonResponse({'status': 'error', 'error': 'Dati mancanti'})
@@ -332,8 +336,45 @@ def add_turno_ajax(request):
         
         h1, m1 = map(int, ora_inizio.split(':'))
         h2, m2 = map(int, ora_fine.split(':'))
+        t_inizio = dt_time(h1, m1)
+        t_fine = dt_time(h2, m2)
         
-        turno, created = Turno.objects.get_or_create(
+        # Calcola durata in ore
+        minuti_tot = (h2 * 60 + m2) - (h1 * 60 + m1)
+        if minuti_tot <= 0:
+            minuti_tot = 60
+        durata_ore = Decimal(str(round(minuti_tot / 60, 2)))
+        
+        # Parse data
+        parsed_date = dt_date.fromisoformat(data_turno)
+        giorno_settimana = parsed_date.weekday()  # 0=Lunedì
+        
+        prog_feriale = None
+        richiesta_str = None
+        
+        if tipo == 'ricorrente':
+            # Crea ProgrammazioneRicorrente (settimanale, stesso giorno)
+            prog_feriale = ProgrammazioneRicorrente.objects.create(
+                cliente=cliente,
+                tipo_ripetizione='SETTIMANALE',
+                giorno_settimana=giorno_settimana,
+                ora_inizio=t_inizio,
+                durata=durata_ore,
+                squadra_abituale=squadra,
+                data_inizio_contratto=parsed_date,
+            )
+        else:
+            # Crea RichiestaStraordinaria
+            richiesta_str = RichiestaStraordinaria.objects.create(
+                cliente=cliente,
+                data_inizio=parsed_date,
+                ora_inizio=t_inizio,
+                ora_fine=t_fine,
+                descrizione=note or f'Turno straordinario {squadra.nome}'
+            )
+        
+        # Crea Turno + AssegnazioneTurno
+        turno, _ = Turno.objects.get_or_create(
             data=data_turno,
             squadra=squadra
         )
@@ -341,14 +382,17 @@ def add_turno_ajax(request):
         AssegnazioneTurno.objects.create(
             turno=turno,
             cliente=cliente,
-            orario_inizio_previsto=dt_time(h1, m1),
-            orario_fine_previsto=dt_time(h2, m2),
-            mansione_svolta=data.get('note', '')
+            programmazione_feriale=prog_feriale,
+            richiesta_straordinaria=richiesta_str,
+            orario_inizio_previsto=t_inizio,
+            orario_fine_previsto=t_fine,
+            mansione_svolta=note
         )
         
+        tipo_label = 'Programmazione Ricorrente' if tipo == 'ricorrente' else 'Straordinario'
         return JsonResponse({
             'status': 'ok',
-            'message': f'Turno creato: {squadra.nome} → {cliente.ragione_sociale}'
+            'message': f'{tipo_label} creato: {squadra.nome} → {cliente.ragione_sociale}'
         })
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)})

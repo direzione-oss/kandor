@@ -257,6 +257,11 @@
     <div class="turno-modal">
         <h3>Nuovo Turno</h3>
         <div id="turno-modal-date" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
+        <label>Tipo</label>
+        <select id="turno-tipo">
+            <option value="ricorrente">Ricorrente (ogni settimana stesso giorno)</option>
+            <option value="straordinario">Straordinario (solo questo giorno)</option>
+        </select>
         <label>Squadra</label>
         <select id="turno-squadra"></select>
         <label>Cliente</label>
@@ -277,5 +282,5 @@
     var _turnoDate = ''; var _dataLoaded = false;
     function openAddTurno(isoDate, hour) { _turnoDate = isoDate; document.getElementById('turno-modal-date').textContent = 'Data: ' + isoDate; document.getElementById('turno-inizio').value = (hour < 10 ? '0' + hour : hour) + ':00'; var endH = parseInt(hour) + 8; if (endH > 23) endH = 23; document.getElementById('turno-fine').value = (endH < 10 ? '0' + endH : endH) + ':00'; document.getElementById('turno-modal-overlay').classList.add('active'); var filtroSquadra = document.getElementById('squadra-filter').value; if (!_dataLoaded) { fetch('/api/squadre-clienti/').then(function (r) { return r.json() }).then(function (d) { var ss = document.getElementById('turno-squadra'); ss.innerHTML = ''; d.squadre.forEach(function (s) { var o = document.createElement('option'); o.value = s.id; o.textContent = s.nome; if (filtroSquadra && s.id == filtroSquadra) o.selected = true; ss.appendChild(o) }); var cs = document.getElementById('turno-cliente'); cs.innerHTML = ''; d.clienti.forEach(function (c) { var o = document.createElement('option'); o.value = c.id; o.textContent = c.ragione_sociale; cs.appendChild(o) }); _dataLoaded = true }) } else { if (filtroSquadra) { document.getElementById('turno-squadra').value = filtroSquadra } } }
     function closeAddTurno() { document.getElementById('turno-modal-overlay').classList.remove('active') }
-    function saveTurno() { var payload = { data: _turnoDate, squadra_id: document.getElementById('turno-squadra').value, cliente_id: document.getElementById('turno-cliente').value, ora_inizio: document.getElementById('turno-inizio').value, ora_fine: document.getElementById('turno-fine').value, note: document.getElementById('turno-note').value }; fetch('/api/add-turno/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(payload) }).then(function (r) { return r.json() }).then(function (d) { if (d.status === 'ok') { closeAddTurno(); location.reload() } else { alert('Errore: ' + d.error) } }).catch(function (e) { alert('Errore di connessione') }) }
+    function saveTurno() { var payload = { data: _turnoDate, squadra_id: document.getElementById('turno-squadra').value, cliente_id: document.getElementById('turno-cliente').value, ora_inizio: document.getElementById('turno-inizio').value, ora_fine: document.getElementById('turno-fine').value, note: document.getElementById('turno-note').value, tipo: document.getElementById('turno-tipo').value }; fetch('/api/add-turno/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify(payload) }).then(function (r) { return r.json() }).then(function (d) { if (d.status === 'ok') { closeAddTurno(); location.reload() } else { alert('Errore: ' + d.error) } }).catch(function (e) { alert('Errore di connessione') }) }
 </script>
