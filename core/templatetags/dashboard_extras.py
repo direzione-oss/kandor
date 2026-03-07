@@ -185,6 +185,7 @@ def weekly_schedule_widget(context):
             pass
     
     # RILEVAMENTO SOVRAPPOSIZIONI: stessa squadra, stesso giorno, orari sovrapposti
+    overlaps = []
     # Carica TUTTE le assegnazioni della settimana in una sola query
     all_assigns = list(AssegnazioneTurno.objects.filter(
         turno__data__in=dates
