@@ -273,34 +273,63 @@ def chat_simulator_view(request):
     if not request.user.is_staff:
         return HttpResponseRedirect('/admin/login/')
         
-    last_response = None
     selected_employee_id = None
     selected_employee = None
     chat_messages = []
+    broadcast_result = None
     
-    from .models import MessaggioChat
+    from .models import MessaggioChat, Squadra
     
     if request.method == 'POST':
-        emp_id = request.POST.get('employee_id')
-        msg = request.POST.get('message')
+        msg = request.POST.get('message', '').strip()
+        broadcast_target = request.POST.get('broadcast_target', '')
+        emp_id = request.POST.get('employee_id', '')
         
-        if emp_id and msg:
-            emp = get_object_or_404(Dipendente, pk=emp_id)
-            
-            # Salva messaggio OUT nel database
-            MessaggioChat.objects.create(
-                dipendente=emp, testo=msg, direzione='OUT'
-            )
-            
-            # Invio reale via Telegram
+        if msg:
             from .utils_kandor_chat import send_telegram_message
-            if emp.telegram_chat_id:
-                send_telegram_message(emp.telegram_chat_id, msg)
             
-            # Redirect GET per evitare re-submit e aggiornare cronologia
-            return HttpResponseRedirect(f'/chat-simulator/?employee_id={emp_id}')
+            if broadcast_target == 'all':
+                # Invio a TUTTI i dipendenti attivi
+                dipendenti = Dipendente.objects.filter(stato='ATTIVO', telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
+                sent = 0
+                for dip in dipendenti:
+                    try:
+                        MessaggioChat.objects.create(dipendente=dip, testo=msg, direzione='OUT')
+                        send_telegram_message(dip.telegram_chat_id, msg)
+                        sent += 1
+                    except Exception:
+                        pass
+                broadcast_result = f"Inviato a {sent} dipendenti"
+                return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}')
+                
+            elif broadcast_target.startswith('squadra_'):
+                # Invio a una SQUADRA
+                sq_id = broadcast_target.replace('squadra_', '')
+                try:
+                    sq = Squadra.objects.get(pk=sq_id)
+                    dipendenti = sq.componenti.filter(stato='ATTIVO', telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
+                    sent = 0
+                    prefix = f"[{sq.nome}] "
+                    for dip in dipendenti:
+                        try:
+                            MessaggioChat.objects.create(dipendente=dip, testo=prefix + msg, direzione='OUT')
+                            send_telegram_message(dip.telegram_chat_id, prefix + msg)
+                            sent += 1
+                        except Exception:
+                            pass
+                    return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}&sq={sq.nome}')
+                except Squadra.DoesNotExist:
+                    pass
+                    
+            elif emp_id:
+                # Invio a SINGOLO dipendente
+                emp = get_object_or_404(Dipendente, pk=emp_id)
+                MessaggioChat.objects.create(dipendente=emp, testo=msg, direzione='OUT')
+                if emp.telegram_chat_id:
+                    send_telegram_message(emp.telegram_chat_id, msg)
+                return HttpResponseRedirect(f'/chat-simulator/?employee_id={emp_id}')
     
-    # Converte employee_id a int
+    # GET params
     raw_id = request.GET.get('employee_id')
     if raw_id:
         try:
@@ -308,7 +337,7 @@ def chat_simulator_view(request):
         except (ValueError, TypeError):
             pass
     
-    # Carica cronologia se selezionato
+    # Carica cronologia se selezionato un dipendente
     if selected_employee_id:
         try:
             selected_employee = Dipendente.objects.get(pk=selected_employee_id)
@@ -316,20 +345,41 @@ def chat_simulator_view(request):
                 dipendente_id=selected_employee_id
             ).order_by('-timestamp')[:50])
             chat_messages.reverse()
-            # Segna come letti
             MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id, direzione='IN', letto=False
             ).update(letto=True)
         except Dipendente.DoesNotExist:
             pass
 
+    # Risultato broadcast
+    broadcast_ok = request.GET.get('broadcast_ok')
+    sq_name = request.GET.get('sq', '')
+    
+    # Modalita broadcast (quando si seleziona dal pannello)
+    broadcast_mode = request.GET.get('broadcast', '')
+    broadcast_label = ''
+    if broadcast_mode == 'all':
+        broadcast_label = 'Tutti i dipendenti'
+    elif broadcast_mode.startswith('squadra_'):
+        try:
+            bsq = Squadra.objects.get(pk=broadcast_mode.replace('squadra_', ''))
+            broadcast_label = f'Squadra {bsq.nome}'
+        except Squadra.DoesNotExist:
+            broadcast_mode = ''
+
     employees = Dipendente.objects.filter(stato='ATTIVO')
+    squadre = Squadra.objects.all()
     
     return render(request, 'core/chat_simulator.html', {
         'employees': employees,
+        'squadre': squadre,
         'selected_employee_id': selected_employee_id,
         'selected_employee': selected_employee,
         'chat_messages': chat_messages,
+        'broadcast_ok': broadcast_ok,
+        'sq_name': sq_name,
+        'broadcast_mode': broadcast_mode,
+        'broadcast_label': broadcast_label,
     })
 
 @csrf_exempt

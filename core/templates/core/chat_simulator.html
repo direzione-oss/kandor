@@ -8,9 +8,9 @@
     .chat-layout {
         display: flex;
         gap: 0;
-        max-width: 900px;
+        max-width: 960px;
         margin: 20px auto;
-        height: 600px;
+        height: 620px;
         border: 1px solid #ccc;
         border-radius: 8px;
         overflow: hidden
@@ -23,14 +23,26 @@
         flex-shrink: 0
     }
 
+    .panel-title {
+        padding: 10px 15px;
+        color: #ecf0f1;
+        font-size: 12px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.15)
+    }
+
     .contact-item {
         display: flex;
         align-items: center;
-        padding: 12px 15px;
+        padding: 10px 15px;
         color: #ecf0f1;
         cursor: pointer;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        transition: background .2s
+        transition: background .2s;
+        text-decoration: none
     }
 
     .contact-item:hover {
@@ -41,9 +53,27 @@
         background: #417690
     }
 
+    .contact-item.broadcast {
+        background: #8e44ad;
+        color: white
+    }
+
+    .contact-item.broadcast:hover {
+        background: #9b59b6
+    }
+
+    .contact-item.squad {
+        background: #27ae60;
+        color: white
+    }
+
+    .contact-item.squad:hover {
+        background: #2ecc71
+    }
+
     .contact-name {
         flex: 1;
-        font-size: 14px
+        font-size: 13px
     }
 
     .chat-panel {
@@ -59,6 +89,10 @@
         color: white;
         font-weight: 600;
         font-size: 15px
+    }
+
+    .chat-header.broadcast-header {
+        background: #8e44ad
     }
 
     .quick-cmds {
@@ -168,15 +202,47 @@
     .no-chat {
         text-align: center;
         color: #999;
-        margin-top: 40%;
-        font-size: 15px
+        margin-top: 30%;
+        font-size: 15px;
+        padding: 20px
+    }
+
+    .broadcast-ok {
+        background: #27ae60;
+        color: white;
+        padding: 12px 20px;
+        text-align: center;
+        font-weight: bold;
+        border-radius: 8px;
+        margin: 20px
     }
 </style>
 
 <div id="content-main">
     <h1>Telegram Chat</h1>
+
+    {% if broadcast_ok %}
+    <div class="broadcast-ok">Messaggio inviato a {{ broadcast_ok }} dipendenti{% if sq_name %} della squadra {{ sq_name
+        }}{% endif %}</div>
+    {% endif %}
+
     <div class="chat-layout">
         <div class="contacts-panel">
+            <div class="panel-title">Broadcast</div>
+            <a href="?broadcast=all" style="text-decoration:none">
+                <div class="contact-item broadcast">
+                    <span class="contact-name">Tutti i dipendenti</span>
+                </div>
+            </a>
+            {% for sq in squadre %}
+            <a href="?broadcast=squadra_{{ sq.id }}" style="text-decoration:none">
+                <div class="contact-item squad">
+                    <span class="contact-name">{{ sq.nome }}</span>
+                </div>
+            </a>
+            {% endfor %}
+
+            <div class="panel-title">Dipendenti</div>
             {% for d in employees %}
             <a href="?employee_id={{ d.id }}" style="text-decoration:none">
                 <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}">
@@ -218,8 +284,24 @@
                     <button type="submit">Invia</button>
                 </form>
             </div>
+
+            {% elif broadcast_mode %}
+            <div class="chat-header broadcast-header">{{ broadcast_label }}</div>
+            <div class="chat-history">
+                <div class="msg-status">Scrivi un messaggio da inviare a {{ broadcast_label }}</div>
+            </div>
+            <div class="chat-input-area">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="broadcast_target" value="{{ broadcast_mode }}">
+                    <input type="text" name="message" placeholder="Messaggio broadcast..." required autocomplete="off"
+                        autofocus>
+                    <button type="submit" style="background:#8e44ad">Invia a tutti</button>
+                </form>
+            </div>
+
             {% else %}
-            <div class="no-chat">Seleziona un dipendente per iniziare la chat</div>
+            <div class="no-chat">Seleziona un dipendente o un gruppo per iniziare</div>
             {% endif %}
         </div>
     </div>
