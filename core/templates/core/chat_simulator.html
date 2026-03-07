@@ -61,6 +61,32 @@
         font-size: 15px
     }
 
+    .quick-cmds {
+        padding: 6px 10px;
+        background: #f8f8f8;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px
+    }
+
+    .quick-cmds button {
+        padding: 4px 10px;
+        font-size: 11px;
+        background: #e8e8e8;
+        border: 1px solid #ccc;
+        border-radius: 12px;
+        cursor: pointer;
+        color: #333;
+        width: auto
+    }
+
+    .quick-cmds button:hover {
+        background: #417690;
+        color: white;
+        border-color: #417690
+    }
+
     .chat-history {
         flex: 1;
         overflow-y: auto;
@@ -162,6 +188,16 @@
         <div class="chat-panel">
             {% if selected_employee %}
             <div class="chat-header">{{ selected_employee.nome }} {{ selected_employee.cognome }}</div>
+            <div class="quick-cmds">
+                <button type="button" onclick="sendQuick('Ciao, come stai?')">Saluto</button>
+                <button type="button" onclick="sendQuick('Quali turni hai oggi?')">Turni oggi</button>
+                <button type="button" onclick="sendQuick('Ricordati di segnare le ore')">Segna ore</button>
+                <button type="button" onclick="sendQuick('/menu')">Menu bot</button>
+                <button type="button" onclick="sendQuick('/malattia')">Malattia</button>
+                <button type="button" onclick="sendQuick('/ferie')">Ferie</button>
+                <button type="button" onclick="sendQuick('/permesso')">Permesso</button>
+                <button type="button" onclick="sendQuick('/segnalazione')">Segnalazione</button>
+            </div>
             <div class="chat-history" id="chatHistory">
                 {% if not chat_messages %}
                 <div class="msg-status">Nessun messaggio ancora. Inizia la conversazione!</div>
@@ -192,5 +228,9 @@
 <script>
     var ch = document.getElementById("chatHistory");
     if (ch) ch.scrollTop = ch.scrollHeight;
+    function sendQuick(t) {
+        var inp = document.querySelector('input[name="message"]');
+        if (inp) { inp.value = t; inp.closest('form').submit(); }
+    }
 </script>
 {% endblock %}
