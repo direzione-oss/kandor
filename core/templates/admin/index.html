@@ -244,9 +244,7 @@
             <h3>💬 Telegram</h3>
             <p>Invia Messaggi</p>
             <a href="{% url 'chat_simulator' %}">Apri</a>
-            {% unread_chat_count as unread %}{% if unread %}<span
-                style="position:absolute;top:8px;right:8px;background:#e74c3c;color:white;border-radius:50%;min-width:20px;height:20px;font-size:12px;font-weight:bold;display:inline-flex;align-items:center;justify-content:center;padding:0 5px">{{
-                unread }}</span>{% endif %}
+            {% unread_chat_badge %}
         </div>
         <div class="quick-card" style="border-color: #e67e22;">
             <h3>💰 Analisi Contratti</h3>
