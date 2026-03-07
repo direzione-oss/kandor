@@ -768,7 +768,7 @@ def pdf_contratti_sotto_soglia(request):
                 f"{row['costo_effettivo']:.2f} EUR" if row['costo_effettivo'] else '-',
             ])
 
-        table = Table(data, colWidths=[120*mm, 40*mm, 35*mm, 30*mm, 35*mm, 40*mm])
+        table = Table(data, colWidths=[95*mm, 35*mm, 30*mm, 25*mm, 30*mm, 35*mm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5276')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
