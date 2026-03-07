@@ -428,6 +428,28 @@ class ProximityLog(models.Model):
         return f"{self.dipendente} @ {self.cliente} - {status}"
 
 
+class MessaggioChat(models.Model):
+    """Messaggio scambiato tra dipendente (Telegram) e admin (Chat Simulator)."""
+    DIREZIONE_CHOICES = [
+        ('IN', 'Ricevuto dal dipendente'),
+        ('OUT', 'Inviato dall\'admin'),
+    ]
+    dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='messaggi_chat')
+    testo = models.TextField()
+    direzione = models.CharField(max_length=3, choices=DIREZIONE_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    letto = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Messaggio Chat"
+        verbose_name_plural = "Messaggi Chat"
+        ordering = ['timestamp']
+
+    def __str__(self):
+        arrow = "←" if self.direzione == 'IN' else "→"
+        return f"{arrow} {self.dipendente.nome}: {self.testo[:50]}"
+
+
 # --- Geocoding Signals ---
 @receiver(pre_save, sender=Dipendente)
 def geocode_dipendente_address(sender, instance, **kwargs):

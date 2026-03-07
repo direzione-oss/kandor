@@ -275,7 +275,16 @@ def chat_simulator_view(request):
         
     last_response = None
     last_message = None
-    selected_employee_id = None
+    selected_employee_id = request.GET.get('employee_id') or None
+    chat_messages = []
+    unread_counts = {}
+    
+    # Conteggio messaggi non letti per ogni dipendente
+    from .models import MessaggioChat
+    from django.db.models import Count, Q as DQ
+    unread_qs = MessaggioChat.objects.filter(direzione='IN', letto=False).values('dipendente_id').annotate(cnt=Count('id'))
+    for u in unread_qs:
+        unread_counts[u['dipendente_id']] = u['cnt']
     
     if request.method == 'POST':
         emp_id = request.POST.get('employee_id')
@@ -287,16 +296,36 @@ def chat_simulator_view(request):
             
             emp = get_object_or_404(Dipendente, pk=emp_id)
             
-            # INVIO REALE (Unica Modalità)
+            # Salva messaggio OUT nel database
+            MessaggioChat.objects.create(
+                dipendente=emp, testo=msg, direzione='OUT'
+            )
+            
+            # Invio reale via Telegram
             from .utils_kandor_chat import send_telegram_message
             if not emp.telegram_chat_id:
-                last_response = "⚠️ ERRORE: Questo dipendente non ha un Telegram Chat ID impostato."
+                last_response = "⚠️ Questo dipendente non ha un Telegram Chat ID."
             else:
                 success = send_telegram_message(emp.telegram_chat_id, msg)
                 if success:
-                    last_response = f"✅ Messaggio inviato con successo a {emp.nome} (ID: {emp.telegram_chat_id})."
+                    last_response = f"✅ Inviato a {emp.nome}"
                 else:
-                    last_response = f"❌ Errore nell'invio del messaggio a {emp.nome}. Controlla il token del bot."
+                    last_response = f"❌ Errore invio a {emp.nome}"
+    
+    # Se selezionato un dipendente (via GET o POST), carica cronologia
+    if selected_employee_id:
+        try:
+            selected_employee_id = int(selected_employee_id)
+            chat_messages = list(MessaggioChat.objects.filter(
+                dipendente_id=selected_employee_id
+            ).order_by('-timestamp')[:50])
+            chat_messages.reverse()  # Cronologico
+            # Segna come letti
+            MessaggioChat.objects.filter(
+                dipendente_id=selected_employee_id, direzione='IN', letto=False
+            ).update(letto=True)
+        except (ValueError, TypeError):
+            pass
 
     employees = Dipendente.objects.filter(stato='ATTIVO')
     
@@ -304,7 +333,9 @@ def chat_simulator_view(request):
         'employees': employees,
         'last_response': last_response,
         'last_message': last_message,
-        'selected_employee_id': selected_employee_id
+        'selected_employee_id': selected_employee_id,
+        'chat_messages': chat_messages,
+        'unread_counts': unread_counts,
     })
 
 @csrf_exempt
@@ -520,6 +551,17 @@ def telegram_webhook_view(request):
             first_name = chat.get('first_name', 'Utente')
             
             if chat_id and text:
+                # Salva messaggio ricevuto nel database
+                try:
+                    from .models import MessaggioChat, Dipendente
+                    dip = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
+                    if dip:
+                        MessaggioChat.objects.create(
+                            dipendente=dip, testo=text, direzione='IN'
+                        )
+                except Exception:
+                    pass
+                
                 response = handle_telegram_message(chat_id, text, sender_name=first_name)
                 
                 if response and token:
