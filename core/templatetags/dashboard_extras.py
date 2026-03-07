@@ -140,17 +140,41 @@ def weekly_schedule_widget(context):
     squadra_colors = {}
     color_idx = 0
 
-    # GENERAZIONE AUTOMATICA: se la settimana visualizzata non ha turni,
-    # genera automaticamente dalla ProgrammazioneRicorrente
+    # GENERAZIONE AUTOMATICA: genera sempre i turni mancanti per la settimana
     end_of_week = dates[-1]
     if end_of_week >= today:  # Solo settimane presenti/future
-        turni_esistenti = Turno.objects.filter(data__gte=start_of_week, data__lte=end_of_week).count()
-        if turni_esistenti == 0:
-            try:
-                from core.services import genera_turni_automatici
-                genera_turni_automatici(days=(end_of_week - today).days + 1)
-            except Exception:
-                pass  # Non bloccare la visualizzazione se la generazione fallisce
+        try:
+            from core.services import genera_turni_automatici
+            genera_turni_automatici(days=(end_of_week - today).days + 1)
+        except Exception:
+            pass  # Non bloccare la visualizzazione se la generazione fallisce
+    
+    # RILEVAMENTO SOVRAPPOSIZIONI: stessa squadra, stesso giorno, orari sovrapposti
+    overlaps = []
+    for d in dates:
+        assegnazioni_giorno = AssegnazioneTurno.objects.filter(
+            turno__data=d
+        ).select_related('turno__squadra', 'cliente')
+        
+        # Raggruppa per squadra
+        from collections import defaultdict
+        per_squadra = defaultdict(list)
+        for a in assegnazioni_giorno:
+            per_squadra[a.turno.squadra.id].append(a)
+        
+        for sq_id, assigns in per_squadra.items():
+            for i in range(len(assigns)):
+                for j in range(i + 1, len(assigns)):
+                    a1, a2 = assigns[i], assigns[j]
+                    # Sovrapposizione: inizio1 < fine2 AND inizio2 < fine1
+                    if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
+                        overlaps.append({
+                            'data': d.strftime('%d/%m'),
+                            'squadra': a1.turno.squadra.nome,
+                            'c1': str(a1.cliente),
+                            'c2': str(a2.cliente),
+                            'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
+                        })
 
     schedule = []
     for d in dates:
@@ -225,6 +249,7 @@ def weekly_schedule_widget(context):
     return {
         'schedule': schedule,
         'hours_range': hours_range,
+        'overlaps': overlaps,
         'squadre': squadre,
         'squadra_filter': squadra_filter,
         'current_week_offset': week_offset,
