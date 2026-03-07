@@ -166,8 +166,8 @@ def weekly_schedule_widget(context):
             for i in range(len(assigns)):
                 for j in range(i + 1, len(assigns)):
                     a1, a2 = assigns[i], assigns[j]
-                    # Sovrapposizione: inizio1 < fine2 AND inizio2 < fine1
-                    if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
+                    # Sovrapposizione: stessa squadra, clienti DIVERSI, orari sovrapposti
+                    if a1.cliente_id != a2.cliente_id and a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
                         overlaps.append({
                             'data': d.strftime('%d/%m'),
                             'squadra': a1.turno.squadra.nome,
