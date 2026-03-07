@@ -140,6 +140,18 @@ def weekly_schedule_widget(context):
     squadra_colors = {}
     color_idx = 0
 
+    # GENERAZIONE AUTOMATICA: se la settimana visualizzata non ha turni,
+    # genera automaticamente dalla ProgrammazioneRicorrente
+    end_of_week = dates[-1]
+    if end_of_week >= today:  # Solo settimane presenti/future
+        turni_esistenti = Turno.objects.filter(data__gte=start_of_week, data__lte=end_of_week).count()
+        if turni_esistenti == 0:
+            try:
+                from core.services import genera_turni_automatici
+                genera_turni_automatici(days=(end_of_week - today).days + 1)
+            except Exception:
+                pass  # Non bloccare la visualizzazione se la generazione fallisce
+
     schedule = []
     for d in dates:
         shifts_qs = Turno.objects.filter(data=d).select_related('squadra', 'mezzo').prefetch_related('assegnazioni__cliente')
