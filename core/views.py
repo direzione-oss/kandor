@@ -1078,6 +1078,7 @@ def pdf_contratti_sotto_soglia(request):
     return response
 
 
+@csrf_exempt
 def verifica_ore_view(request):
     """Dashboard verifica ore mensili: confronto ore lavorate vs contrattuali."""
     from .models import Cliente, TimeTracking, AssegnazioneTurno, Squadra, Dipendente
@@ -1229,6 +1230,7 @@ def verifica_ore_view(request):
     return render(request, 'admin/verifica_ore.html', context)
 
 
+@csrf_exempt
 def pdf_verifica_ore(request):
     """Genera PDF report verifica ore mensili."""
     from .models import Cliente, TimeTracking, AssegnazioneTurno
