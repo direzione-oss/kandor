@@ -370,7 +370,7 @@ def chat_simulator_view(request):
     from django.db.models import Count, Q
     employees = Dipendente.objects.filter(stato='ATTIVO').annotate(
         unread_count=Count('messaggi_chat', filter=Q(messaggi_chat__direzione='IN', messaggi_chat__letto=False))
-    )
+    ).order_by('-unread_count', 'nome', 'cognome')
     squadre = Squadra.objects.all()
     total_unread = sum(e.unread_count for e in employees)
     

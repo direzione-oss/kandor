@@ -269,18 +269,14 @@
     <div class="chat-layout">
         <div class="contacts-panel">
             <div class="panel-title">Broadcast</div>
-            <a href="?broadcast=all" style="text-decoration:none">
-                <div class="contact-item broadcast">
-                    <span class="contact-name">Tutti i dipendenti</span>
-                </div>
-            </a>
-            {% for sq in squadre %}
-            <a href="?broadcast=squadra_{{ sq.id }}" style="text-decoration:none">
-                <div class="contact-item squad">
-                    <span class="contact-name">{{ sq.nome }}</span>
-                </div>
-            </a>
-            {% endfor %}
+            <select id="broadcastSelect" onchange="if(this.value)window.location=this.value"
+                style="width:calc(100% - 24px);margin:4px 12px 8px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#ecf0f1;font-size:13px">
+                <option value="">-- Seleziona destinatario --</option>
+                <option value="?broadcast=all">📢 Tutti i dipendenti</option>
+                {% for sq in squadre %}
+                <option value="?broadcast=squadra_{{ sq.id }}">👥 {{ sq.nome }}</option>
+                {% endfor %}
+            </select>
 
             <div class="panel-title">Dipendenti</div>
             <div class="search-box">
