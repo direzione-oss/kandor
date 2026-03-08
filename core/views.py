@@ -544,20 +544,48 @@ def delete_turno_ajax(request, assign_id):
 
 @csrf_exempt
 def validate_ore_ajax(request, assign_id):
-    """Valida o invalida le ore di un'assegnazione turno via AJAX."""
+    """Valida, invalida o inserisce manualmente le ore di un'assegnazione turno."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     try:
-        from .models import TimeTracking, AssegnazioneTurno
+        from .models import TimeTracking, AssegnazioneTurno, Dipendente
         
-        assign = AssegnazioneTurno.objects.get(pk=assign_id)
+        assign = AssegnazioneTurno.objects.select_related('turno__squadra').get(pk=assign_id)
+        data = json.loads(request.body) if request.body else {}
+        action = data.get('action', 'validate')
+        ore = data.get('ore')
+        
+        # Inserimento ore manuali dall'admin
+        if ore is not None:
+            ore = float(str(ore).replace(',', '.'))
+            validate = data.get('validate', False)
+            
+            # Trova il primo dipendente della squadra per associare le ore
+            squadra = assign.turno.squadra
+            dip = squadra.caposquadra or squadra.componenti.first()
+            if not dip:
+                return JsonResponse({'status': 'error', 'error': 'Nessun dipendente nella squadra'})
+            
+            tt, created = TimeTracking.objects.update_or_create(
+                dipendente=dip,
+                assegnazione=assign,
+                defaults={
+                    'ore_dichiarate': ore,
+                    'source': 'ADMIN',
+                    'is_validated': validate,
+                    'note': 'Inserito manualmente da admin',
+                }
+            )
+            msg = f"{'Creato' if created else 'Aggiornato'}: {ore}h"
+            if validate:
+                msg += " (validato)"
+            return JsonResponse({'status': 'ok', 'message': msg})
+        
+        # Validazione/invalidazione ore esistenti
         tt_list = TimeTracking.objects.filter(assegnazione=assign)
         
         if not tt_list.exists():
             return JsonResponse({'status': 'error', 'error': 'Nessuna ora registrata per questo turno'})
-        
-        data = json.loads(request.body) if request.body else {}
-        action = data.get('action', 'validate')
         
         if action == 'validate':
             tt_list.update(is_validated=True)
