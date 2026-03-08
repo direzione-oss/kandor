@@ -3,6 +3,7 @@ from django.utils import timezone
 from datetime import timedelta
 from core.models import Mezzo
 from django.db.models import Q
+from django.core.cache import cache
 
 register = template.Library()
 
@@ -27,6 +28,9 @@ def unread_chat_badge():
 
 @register.inclusion_tag('admin/widgets/expiring_vehicles_widget.html')
 def expiring_vehicles_widget():
+    cached = cache.get('widget_expiring_vehicles')
+    if cached is not None:
+        return cached
     today = timezone.now().date()
     threshold = today + timedelta(days=45)
     
@@ -76,10 +80,15 @@ def expiring_vehicles_widget():
         any(a['date'] <= threshold_7 for a in v['alerts'])
         for v in processed_vehicles
     )
-    return {'vehicles': processed_vehicles, 'has_urgent_7days': has_urgent_7days}
+    result = {'vehicles': processed_vehicles, 'has_urgent_7days': has_urgent_7days}
+    cache.set('widget_expiring_vehicles', result, 300)  # 5 minuti
+    return result
 
 @register.inclusion_tag('admin/widgets/upcoming_birthdays_widget.html')
 def upcoming_birthdays_widget():
+    cached = cache.get('widget_upcoming_birthdays')
+    if cached is not None:
+        return cached
     from core.models import Dipendente, Cliente
     today = timezone.now().date()
     threshold = today + timedelta(days=20)
@@ -89,44 +98,31 @@ def upcoming_birthdays_widget():
         for obj in objects:
             bday = getattr(obj, date_field)
             if not bday: continue
-            
-            # Next birthday for this year
             next_bday = bday.replace(year=today.year)
-            
-            # If passed this year, check next year
             if next_bday < today:
                 next_bday = bday.replace(year=today.year + 1)
-                
             if today <= next_bday <= threshold:
                 days_until = (next_bday - today).days
                 upcoming_list.append({
-                    'obj': obj,
-                    'date': next_bday,
-                    'days_until': days_until,
-                    'is_today': days_until == 0
+                    'obj': obj, 'date': next_bday,
+                    'days_until': days_until, 'is_today': days_until == 0
                 })
         return upcoming_list
 
-    # Employees
     dipendenti = Dipendente.objects.filter(stato='ATTIVO', data_nascita__isnull=False)
-    employees_birthdays = get_upcoming(dipendenti, 'data_nascita')
-    employees_birthdays.sort(key=lambda x: x['days_until'])
-    
-    # Clients
+    employees_birthdays = sorted(get_upcoming(dipendenti, 'data_nascita'), key=lambda x: x['days_until'])
     clienti = Cliente.objects.filter(referente_data_nascita__isnull=False)
-    clients_birthdays = get_upcoming(clienti, 'referente_data_nascita')
-    clients_birthdays.sort(key=lambda x: x['days_until'])
+    clients_birthdays = sorted(get_upcoming(clienti, 'referente_data_nascita'), key=lambda x: x['days_until'])
+    has_urgent_7days = any(b['days_until'] <= 7 for b in employees_birthdays + clients_birthdays)
     
-    # Flag: ci sono compleanni nei prossimi 7 giorni?
-    has_urgent_7days = any(
-        b['days_until'] <= 7 for b in employees_birthdays + clients_birthdays
-    )
-    return {
+    result = {
         'employees_birthdays': employees_birthdays,
         'clients_birthdays': clients_birthdays,
         'has_birthdays': bool(employees_birthdays or clients_birthdays),
         'has_urgent_7days': has_urgent_7days,
     }
+    cache.set('widget_upcoming_birthdays', result, 600)  # 10 minuti
+    return result
 
 
 
@@ -410,12 +406,13 @@ def telegram_feed_widget():
 
 @register.inclusion_tag('admin/widgets/expiring_contracts_widget.html')
 def expiring_contracts_widget():
+    cached = cache.get('widget_expiring_contracts')
+    if cached is not None:
+        return cached
     from core.models import ProgrammazioneRicorrente
     today = timezone.now().date()
     threshold = today + timedelta(days=30)
-    
-    # Programmazioni con data_fine_contratto entro 30 giorni o già scadute (ma non troppo vecchie)
-    past_limit = today - timedelta(days=7)  # Mostra scadute fino a 7 giorni fa
+    past_limit = today - timedelta(days=7)
     expiring = ProgrammazioneRicorrente.objects.filter(
         data_fine_contratto__isnull=False,
         data_fine_contratto__gte=past_limit,
@@ -437,7 +434,6 @@ def expiring_contracts_widget():
             'prog_id': prog.pk,
         })
     
-    return {
-        'contracts': contracts,
-        'has_expiring': bool(contracts),
-    }
+    result = {'contracts': contracts, 'has_expiring': bool(contracts)}
+    cache.set('widget_expiring_contracts', result, 600)  # 10 minuti
+    return result
