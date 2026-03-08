@@ -542,6 +542,33 @@ def delete_turno_ajax(request, assign_id):
         return JsonResponse({'status': 'error', 'error': str(e)})
 
 
+@csrf_exempt
+def validate_ore_ajax(request, assign_id):
+    """Valida o invalida le ore di un'assegnazione turno via AJAX."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    try:
+        from .models import TimeTracking, AssegnazioneTurno
+        
+        assign = AssegnazioneTurno.objects.get(pk=assign_id)
+        tt_list = TimeTracking.objects.filter(assegnazione=assign)
+        
+        if not tt_list.exists():
+            return JsonResponse({'status': 'error', 'error': 'Nessuna ora registrata per questo turno'})
+        
+        data = json.loads(request.body) if request.body else {}
+        action = data.get('action', 'validate')
+        
+        if action == 'validate':
+            tt_list.update(is_validated=True)
+            return JsonResponse({'status': 'ok', 'message': 'Ore validate', 'validated': True})
+        else:
+            tt_list.update(is_validated=False)
+            return JsonResponse({'status': 'ok', 'message': 'Validazione rimossa', 'validated': False})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+
 def get_squadre_clienti_json(request):
     """Ritorna JSON con squadre e clienti per la modale del calendario."""
     from .models import Squadra, Cliente
