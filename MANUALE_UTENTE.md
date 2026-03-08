@@ -732,4 +732,4 @@ Il dipendente invia un messaggio al bot. Se non registrato, il bot risponde: *"N
 ---
 
 > **Kandor** — Sistema ERP per la gestione operativa aziendale  
-> Sviluppato per Studio Serra — © 2026
+> Sviluppato per Kandor — © 2026

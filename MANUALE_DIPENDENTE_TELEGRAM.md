@@ -155,4 +155,4 @@ Per problemi con il bot o il sistema, contatta l'ufficio amministrativo.
 
 ---
 
-> *Guida creata per i dipendenti di Studio Serra — © 2026*
+> *Guida creata per i dipendenti di Kandor — © 2026*
