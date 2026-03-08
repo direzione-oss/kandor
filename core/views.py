@@ -1228,3 +1228,213 @@ def verifica_ore_view(request):
     }
     return render(request, 'admin/verifica_ore.html', context)
 
+
+def pdf_verifica_ore(request):
+    """Genera PDF report verifica ore mensili."""
+    from .models import Cliente, TimeTracking, AssegnazioneTurno
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    import calendar
+    
+    now = timezone.now()
+    mese = int(request.GET.get('mese', now.month))
+    anno = int(request.GET.get('anno', now.year))
+    
+    primo_giorno = now.replace(year=anno, month=mese, day=1).date()
+    ultimo_giorno_num = calendar.monthrange(anno, mese)[1]
+    ultimo_giorno = primo_giorno.replace(day=ultimo_giorno_num)
+    
+    MESI_IT = {
+        1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile',
+        5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto',
+        9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'
+    }
+    mese_nome = MESI_IT.get(mese, '')
+    
+    # Stessi dati della view HTML
+    tt_mese = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=primo_giorno,
+        assegnazione__turno__data__lte=ultimo_giorno
+    ).select_related('assegnazione__cliente', 'dipendente', 'assegnazione__turno__squadra')
+    
+    # Aggregazione per cliente
+    clienti_data = {}
+    for tt in tt_mese:
+        cliente = tt.assegnazione.cliente
+        cid = cliente.pk
+        if cid not in clienti_data:
+            clienti_data[cid] = {
+                'ragione_sociale': cliente.ragione_sociale,
+                'ore_contratto': float(cliente.ore_mensili_contratto or 0),
+                'importo_contratto': float(cliente.importo_mensile_contratto or 0),
+                'importo_orario': cliente.importo_orario,
+                'ore_lavorate': 0, 'ore_validate': 0,
+            }
+        ore = float(tt.ore_dichiarate or 0)
+        clienti_data[cid]['ore_lavorate'] += ore
+        if tt.is_validated:
+            clienti_data[cid]['ore_validate'] += ore
+    
+    for cl in Cliente.objects.filter(ore_mensili_contratto__gt=0):
+        if cl.pk not in clienti_data:
+            clienti_data[cl.pk] = {
+                'ragione_sociale': cl.ragione_sociale,
+                'ore_contratto': float(cl.ore_mensili_contratto or 0),
+                'importo_contratto': float(cl.importo_mensile_contratto or 0),
+                'importo_orario': cl.importo_orario,
+                'ore_lavorate': 0, 'ore_validate': 0,
+            }
+    
+    for cd in clienti_data.values():
+        cd['ore_lavorate'] = round(cd['ore_lavorate'], 1)
+        cd['ore_validate'] = round(cd['ore_validate'], 1)
+        cd['diff'] = round(cd['ore_lavorate'] - cd['ore_contratto'], 1)
+        cd['importo_calcolato'] = round(cd['ore_validate'] * cd['importo_orario'], 2) if cd['importo_orario'] else 0
+    
+    clienti_list = sorted(clienti_data.values(), key=lambda x: x['ragione_sociale'])
+    
+    # Aggregazione per squadra/dipendente
+    squadre_data = {}
+    for tt in tt_mese:
+        dip = tt.dipendente
+        squadra = tt.assegnazione.turno.squadra
+        cliente = tt.assegnazione.cliente
+        ore = float(tt.ore_dichiarate or 0)
+        sq_id = squadra.pk if squadra else 0
+        sq_nome = squadra.nome if squadra else 'Senza Squadra'
+        if sq_id not in squadre_data:
+            squadre_data[sq_id] = {'nome': sq_nome, 'dipendenti': {}, 'ore_totali': 0}
+        dip_id = dip.pk
+        if dip_id not in squadre_data[sq_id]['dipendenti']:
+            squadre_data[sq_id]['dipendenti'][dip_id] = {'nome': str(dip), 'ore_totali': 0, 'clienti': {}}
+        squadre_data[sq_id]['dipendenti'][dip_id]['ore_totali'] += ore
+        squadre_data[sq_id]['ore_totali'] += ore
+        cl_nome = cliente.ragione_sociale
+        if cl_nome not in squadre_data[sq_id]['dipendenti'][dip_id]['clienti']:
+            squadre_data[sq_id]['dipendenti'][dip_id]['clienti'][cl_nome] = 0
+        squadre_data[sq_id]['dipendenti'][dip_id]['clienti'][cl_nome] += ore
+    
+    # === Genera PDF ===
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=12*mm, leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    elements = []
+    
+    # Stili custom
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#417690'), spaceAfter=6*mm)
+    subtitle_style = ParagraphStyle('Subtitle', parent=styles['Heading2'], fontSize=13, textColor=colors.HexColor('#417690'), spaceAfter=4*mm, spaceBefore=6*mm)
+    small_style = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8)
+    
+    # Intestazione
+    elements.append(Paragraph(f"Report Verifica Ore — {mese_nome} {anno}", title_style))
+    elements.append(Paragraph(f"Generato il {now.strftime('%d/%m/%Y %H:%M')}", small_style))
+    elements.append(Spacer(1, 6*mm))
+    
+    # === TABELLA CLIENTI ===
+    elements.append(Paragraph("Riepilogo per Cliente", subtitle_style))
+    
+    cl_header = ['Cliente', 'Ore Contratto', 'Ore Lavorate', 'Ore Validate', 'Differenza', '€ Contratto', '€ Calcolato']
+    cl_rows = [cl_header]
+    tot_contr = tot_lav = tot_val = tot_imp_c = tot_imp_calc = 0
+    
+    for c in clienti_list:
+        diff_str = f"+{c['diff']}" if c['diff'] > 0 else str(c['diff'])
+        cl_rows.append([
+            c['ragione_sociale'],
+            f"{c['ore_contratto']:.1f}",
+            f"{c['ore_lavorate']:.1f}",
+            f"{c['ore_validate']:.1f}",
+            diff_str,
+            f"€{c['importo_contratto']:.2f}",
+            f"€{c['importo_calcolato']:.2f}",
+        ])
+        tot_contr += c['ore_contratto']
+        tot_lav += c['ore_lavorate']
+        tot_val += c['ore_validate']
+        tot_imp_c += c['importo_contratto']
+        tot_imp_calc += c['importo_calcolato']
+    
+    tot_diff = round(tot_lav - tot_contr, 1)
+    diff_tot_str = f"+{tot_diff}" if tot_diff > 0 else str(tot_diff)
+    cl_rows.append(['TOTALE', f"{tot_contr:.1f}", f"{tot_lav:.1f}", f"{tot_val:.1f}", diff_tot_str, f"€{tot_imp_c:.2f}", f"€{tot_imp_calc:.2f}"])
+    
+    col_widths = [160, 80, 80, 80, 70, 90, 90]
+    cl_table = Table(cl_rows, colWidths=col_widths)
+    
+    cl_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#417690')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dddddd')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f8f9fa')]),
+        # Riga totale
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#e8f0f5')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]
+    
+    # Colora differenze
+    for i, c in enumerate(clienti_list, start=1):
+        if c['diff'] < 0:
+            cl_style.append(('TEXTCOLOR', (4, i), (4, i), colors.HexColor('#e74c3c')))
+        elif c['diff'] > 0:
+            cl_style.append(('TEXTCOLOR', (4, i), (4, i), colors.HexColor('#27ae60')))
+    
+    cl_table.setStyle(TableStyle(cl_style))
+    elements.append(cl_table)
+    elements.append(Spacer(1, 8*mm))
+    
+    # === TABELLA SQUADRE/DIPENDENTI ===
+    elements.append(Paragraph("Riepilogo per Squadra e Dipendente", subtitle_style))
+    
+    sq_header = ['Squadra / Dipendente', 'Ore Totali', 'Dettaglio Clienti']
+    sq_rows = [sq_header]
+    
+    for sq in sorted(squadre_data.values(), key=lambda x: x['nome']):
+        sq_rows.append([f"▸ {sq['nome']}", f"{round(sq['ore_totali'],1)}h", ''])
+        for d in sorted(sq['dipendenti'].values(), key=lambda x: x['nome']):
+            cl_str = ', '.join(f"{n} ({round(o,1)}h)" for n, o in sorted(d['clienti'].items()))
+            sq_rows.append([f"    {d['nome']}", f"{round(d['ore_totali'],1)}h", Paragraph(cl_str, small_style)])
+    
+    sq_col_widths = [180, 80, 420]
+    sq_table = Table(sq_rows, colWidths=sq_col_widths)
+    
+    sq_style_rules = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#417690')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dddddd')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]
+    
+    # Evidenzia righe squadra
+    row_idx = 1
+    for sq in sorted(squadre_data.values(), key=lambda x: x['nome']):
+        sq_style_rules.append(('BACKGROUND', (0, row_idx), (-1, row_idx), colors.HexColor('#e8f0f5')))
+        sq_style_rules.append(('FONTNAME', (0, row_idx), (-1, row_idx), 'Helvetica-Bold'))
+        row_idx += 1
+        row_idx += len(sq['dipendenti'])
+    
+    sq_table.setStyle(TableStyle(sq_style_rules))
+    elements.append(sq_table)
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    response = HttpResponse(buffer, content_type='application/pdf')
+    nome_file = f'verifica_ore_{mese_nome}_{anno}.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{nome_file}"'
+    return response
+

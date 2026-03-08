@@ -218,6 +218,7 @@
                 {% endfor %}
             </select>
             <button onclick="cambiaFiltro()">Aggiorna</button>
+            <button onclick="scaricaPdf()" style="background:#c0392b">🖨 Scarica PDF</button>
         </div>
     </div>
 
@@ -353,6 +354,11 @@
         var m = document.getElementById('sel-mese').value;
         var a = document.getElementById('sel-anno').value;
         window.location.href = '/verifica-ore/?mese=' + m + '&anno=' + a;
+    }
+    function scaricaPdf() {
+        var m = document.getElementById('sel-mese').value;
+        var a = document.getElementById('sel-anno').value;
+        window.open('/pdf-verifica-ore/?mese=' + m + '&anno=' + a, '_blank');
     }
 </script>
 {% endblock %}
