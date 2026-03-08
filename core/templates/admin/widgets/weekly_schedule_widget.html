@@ -307,9 +307,37 @@
             <button id="btn-validate-ore"
                 style="background:#27ae60;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;display:none"
                 onclick="validateOre()">✅ Valida Ore</button>
+            <button id="btn-trova-sostituto"
+                style="background:#ff6f00;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:13px"
+                onclick="trovaSostituto()">🔄 Trova Sostituto</button>
             <button style="background:#c62828;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer"
                 onclick="deleteTurno()">🗑 Elimina</button>
             <button class="btn-save-turno" onclick="editTurno()">💾 Salva Modifiche</button>
+        </div>
+        <!-- Panel Sostituti -->
+        <div id="sostituti-panel" style="display:none;margin-top:12px;border-top:2px solid #ff6f00;padding-top:10px">
+            <h4 style="color:#ff6f00;margin-bottom:8px">🔄 Sostituti Disponibili</h4>
+            <div id="sostituti-list" style="max-height:200px;overflow-y:auto"></div>
+            <div style="margin-top:8px;background:#fff3e0;padding:8px;border-radius:6px">
+                <label style="font-size:12px;font-weight:bold">Motivo assenza:</label>
+                <select id="sost-motivo"
+                    style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px;margin-left:6px">
+                    <option value="MALATTIA">Malattia</option>
+                    <option value="FERIE">Ferie</option>
+                    <option value="PERMESSO">Permesso</option>
+                    <option value="104">Legge 104</option>
+                    <option value="ALTRO">Altro</option>
+                </select>
+                <label style="font-size:12px;font-weight:bold;margin-left:10px">Dipendente assente:</label>
+                <select id="sost-assente"
+                    style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px;margin-left:6px"></select>
+            </div>
+            <div style="margin-top:8px;text-align:right">
+                <button onclick="inviaRichiestaSostituzione()"
+                    style="background:#ff6f00;color:#fff;border:none;padding:8px 18px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold">
+                    📩 Invia Richiesta al Responsabile Area
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -350,4 +378,69 @@
     function deleteTurno() { if (!confirm('Sei sicuro di voler eliminare questo turno?')) return; fetch('/api/delete-turno/' + _currentAssignId + '/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify({}) }).then(function (r) { return r.json() }).then(function (d) { if (d.status === 'ok') { closeEventDetail(); location.reload() } else { alert('Errore: ' + d.error) } }).catch(function (e) { alert('Errore di connessione') }) }
     function validateOre() { var btn = document.getElementById('btn-validate-ore'); var action = btn.textContent.indexOf('Rimuovi') >= 0 ? 'invalidate' : 'validate'; fetch('/api/validate-ore/' + _currentAssignId + '/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify({ action: action }) }).then(function (r) { return r.json() }).then(function (d) { if (d.status === 'ok') { closeEventDetail(); location.reload() } else { alert('Errore: ' + d.error) } }).catch(function (e) { alert('Errore di connessione') }) }
     function saveOreAdmin() { var ore = document.getElementById('ev-input-ore').value; if (!ore || parseFloat(ore) <= 0) { alert('Inserisci un numero di ore valido'); return; } var valida = document.getElementById('ev-input-valida').checked; fetch('/api/validate-ore/' + _currentAssignId + '/', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' }, body: JSON.stringify({ ore: parseFloat(ore), validate: valida }) }).then(function (r) { return r.json() }).then(function (d) { if (d.status === 'ok') { closeEventDetail(); location.reload() } else { alert('Errore: ' + d.error) } }).catch(function (e) { alert('Errore di connessione') }) }
+    function trovaSostituto() {
+        var panel = document.getElementById('sostituti-panel');
+        var listDiv = document.getElementById('sostituti-list');
+        listDiv.innerHTML = '<div style="text-align:center;padding:10px;color:#666">⏳ Ricerca sostituti...</div>';
+        panel.style.display = 'block';
+        fetch('/api/trova-sostituti/?assign_id=' + _currentAssignId)
+            .then(function (r) { return r.json() })
+            .then(function (d) {
+                if (d.ok && d.sostituti.length > 0) {
+                    var html = '<table style="width:100%;font-size:12px;border-collapse:collapse">';
+                    html += '<tr style="background:#ff6f00;color:#fff"><th style="padding:4px 6px;text-align:left">Nome</th><th style="padding:4px 6px">Distanza</th><th style="padding:4px 6px">Qualifiche</th><th style="padding:4px 6px">Telefono</th></tr>';
+                    d.sostituti.forEach(function (s) {
+                        html += '<tr style="border-bottom:1px solid #eee">';
+                        html += '<td style="padding:4px 6px;font-weight:bold">' + s.nome + '</td>';
+                        html += '<td style="padding:4px 6px;text-align:center">' + s.distanza_km + ' km</td>';
+                        html += '<td style="padding:4px 6px">' + (s.qualifiche.join(', ') || '-') + '</td>';
+                        html += '<td style="padding:4px 6px">' + (s.telefono || '-') + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+                    listDiv.innerHTML = html;
+                    // Popola select assente con i componenti della squadra
+                    var selAssente = document.getElementById('sost-assente');
+                    fetch('/api/squadre-clienti/').then(function (r) { return r.json() }).then(function (dd) {
+                        // Prenderemo i dipendenti dal text della squadra corrente
+                        selAssente.innerHTML = '<option value="">-- Seleziona --</option>';
+                        dd.squadre.forEach(function (sq) {
+                            if (sq.componenti) {
+                                sq.componenti.forEach(function (c) {
+                                    var o = document.createElement('option');
+                                    o.value = c.id; o.textContent = c.nome;
+                                    selAssente.appendChild(o);
+                                });
+                            }
+                        });
+                    });
+                } else {
+                    listDiv.innerHTML = '<div style="text-align:center;padding:10px;color:#c62828">❌ Nessun sostituto disponibile</div>';
+                }
+            })
+            .catch(function (e) {
+                listDiv.innerHTML = '<div style="text-align:center;padding:10px;color:#c62828">Errore nel caricamento</div>';
+            });
+    }
+    function inviaRichiestaSostituzione() {
+        var assenteId = document.getElementById('sost-assente').value;
+        var motivo = document.getElementById('sost-motivo').value;
+        if (!assenteId) { alert('Seleziona il dipendente assente'); return; }
+        if (!confirm('Vuoi inviare la richiesta di sostituzione al Responsabile Area?')) return;
+        fetch('/api/richiesta-sostituzione/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ assign_id: _currentAssignId, dipendente_id: parseInt(assenteId), motivo: motivo })
+        })
+            .then(function (r) { return r.json() })
+            .then(function (d) {
+                if (d.ok) {
+                    alert('✅ ' + d.messaggio);
+                    closeEventDetail();
+                } else {
+                    alert('❌ Errore: ' + (d.error || 'Sconosciuto'));
+                }
+            })
+            .catch(function (e) { alert('Errore di connessione'); });
+    }
 </script>

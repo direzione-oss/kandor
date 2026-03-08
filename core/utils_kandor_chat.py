@@ -366,6 +366,73 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
                        f"Data: {data_str} ({inizio}-{fine})\n\n"
                        f"Quante ore hai lavorato?\n(Scrivi il numero, es: 8 o 7.5)"}
     
+    # ===== GESTIONE SOSTITUTI =====
+    
+    # Responsabile Area approva la richiesta di sostituzione
+    if callback_data.startswith('approva_sost_'):
+        richiesta_id = callback_data.replace('approva_sost_', '')
+        try:
+            from .models import RichiestaSostituzione
+            from .services import approva_e_invia_sostituto
+            richiesta = RichiestaSostituzione.objects.get(pk=richiesta_id)
+            richiesta.stato = 'APPROVATA_RA'
+            richiesta.approvata_ra_il = timezone.now()
+            richiesta.save()
+            approva_e_invia_sostituto(richiesta.pk)
+            return {
+                'text': f"✅ Richiesta approvata!\n"
+                        f"Sostituzione per {richiesta.dipendente_assente} inviata al primo sostituto disponibile.\n"
+                        f"Candidati nella coda: {len(richiesta.sostituti_candidati)}"
+            }
+        except Exception as e:
+            return {'text': f"❌ Errore nell'approvazione: {e}"}
+    
+    # Responsabile Area rifiuta la sostituzione
+    if callback_data.startswith('rifiuta_sost_ra_'):
+        richiesta_id = callback_data.replace('rifiuta_sost_ra_', '')
+        try:
+            from .models import RichiestaSostituzione
+            richiesta = RichiestaSostituzione.objects.get(pk=richiesta_id)
+            richiesta.stato = 'ANNULLATA'
+            richiesta.note += '\nRifiutata dal Responsabile Area.'
+            richiesta.save()
+            return {'text': "❌ Richiesta di sostituzione annullata."}
+        except Exception as e:
+            return {'text': f"❌ Errore: {e}"}
+    
+    # Sostituto accetta la richiesta
+    if callback_data.startswith('accetta_sost_'):
+        richiesta_id = callback_data.replace('accetta_sost_', '')
+        try:
+            from .services import gestisci_risposta_sostituto
+            risultato = gestisci_risposta_sostituto(int(richiesta_id), accettato=True)
+            if risultato and risultato.stato == 'COMPLETATA':
+                assegn = risultato.assegnazione_originale
+                return {
+                    'text': f"✅ Sostituzione CONFERMATA!\n\n"
+                            f"📍 Cliente: {assegn.cliente.ragione_sociale}\n"
+                            f"📅 Data: {assegn.turno.data.strftime('%d/%m/%Y')}\n"
+                            f"🕐 Orario: {assegn.orario_inizio_previsto.strftime('%H:%M')}-"
+                            f"{assegn.orario_fine_previsto.strftime('%H:%M')}\n\n"
+                            f"Grazie per la disponibilità! 👍"
+                }
+            return {'text': "⚠️ Errore nel confermare la sostituzione."}
+        except Exception as e:
+            return {'text': f"❌ Errore: {e}"}
+    
+    # Sostituto rifiuta la richiesta
+    if callback_data.startswith('rifiuta_sost_'):
+        richiesta_id = callback_data.replace('rifiuta_sost_', '')
+        try:
+            from .services import gestisci_risposta_sostituto
+            risultato = gestisci_risposta_sostituto(int(richiesta_id), accettato=False)
+            if risultato:
+                return {'text': "Ok, richiesta passata al prossimo sostituto disponibile."}
+            else:
+                return {'text': "Richiesta rifiutata. Nessun altro sostituto disponibile."}
+        except Exception as e:
+            return {'text': f"❌ Errore: {e}"}
+    
     return {'text': "Comando non riconosciuto.", 'reply_markup': get_main_menu()}
 
 

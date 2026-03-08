@@ -601,7 +601,14 @@ def get_squadre_clienti_json(request):
     """Ritorna JSON con squadre e clienti per la modale del calendario."""
     from .models import Squadra, Cliente
     
-    squadre = list(Squadra.objects.all().values('id', 'nome'))
+    squadre_qs = Squadra.objects.all().prefetch_related('componenti')
+    squadre = []
+    for sq in squadre_qs:
+        componenti = [{'id': c.id, 'nome': f"{c.cognome} {c.nome}"} for c in sq.componenti.all()]
+        if sq.caposquadra:
+            componenti.insert(0, {'id': sq.caposquadra.id, 'nome': f"{sq.caposquadra.cognome} {sq.caposquadra.nome} (CS)"})
+        squadre.append({'id': sq.id, 'nome': sq.nome, 'componenti': componenti})
+    
     clienti = list(Cliente.objects.all().order_by('ragione_sociale').values('id', 'ragione_sociale'))
     
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
