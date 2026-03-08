@@ -451,4 +451,48 @@ def _notifica_completamento(richiesta):
             )
         except Exception:
             pass
+    
+    # Notifica Titolari
+    notifica_titolari(f"✅ Sostituzione confermata: {richiesta.sostituto} copre {richiesta.dipendente_assente} "
+                      f"({assegnazione.cliente.ragione_sociale} - {assegnazione.turno.data.strftime('%d/%m')})")
+
+
+def notifica_titolari(messaggio, solo_attivi=True):
+    """Invia un messaggio Telegram a tutti i titolari configurati."""
+    import requests
+    from django.conf import settings
+    from .models import Titolare
+    
+    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if not bot_token:
+        return
+    
+    qs = Titolare.objects.filter(telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
+    if solo_attivi:
+        qs = qs.filter(notifiche_attive=True)
+    
+    for titolare in qs:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": titolare.telegram_chat_id, "text": messaggio, "parse_mode": "HTML"},
+                timeout=10
+            )
+        except Exception:
+            pass
+
+
+def notifica_titolari_sostituzione_fallita(richiesta):
+    """Alert ai titolari quando tutti i sostituti disponibili hanno rifiutato."""
+    assegnazione = richiesta.assegnazione_originale
+    msg = (
+        f"🚨 <b>ALERT: TURNO SCOPERTO</b>\n\n"
+        f"Assente: {richiesta.dipendente_assente} ({richiesta.motivo_assenza})\n"
+        f"Cliente: {assegnazione.cliente.ragione_sociale}\n"
+        f"Data: {assegnazione.turno.data.strftime('%d/%m/%Y')}\n"
+        f"Orario: {assegnazione.orario_inizio_previsto.strftime('%H:%M') if assegnazione.orario_inizio_previsto else '?'}"
+        f"-{assegnazione.orario_fine_previsto.strftime('%H:%M') if assegnazione.orario_fine_previsto else '?'}\n\n"
+        f"❌ Nessun sostituto disponibile. Intervento manuale richiesto."
+    )
+    notifica_titolari(msg)
 

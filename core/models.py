@@ -470,6 +470,22 @@ class ResponsabileArea(models.Model):
         verbose_name_plural = "Responsabili Area"
 
 
+class Titolare(models.Model):
+    """Titolare/proprietario con accesso alla dashboard di supervisione."""
+    from django.contrib.auth.models import User as AuthUser
+    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='profilo_titolare', verbose_name="Utente Django")
+    nome = models.CharField(max_length=100, verbose_name="Nome Completo")
+    telegram_chat_id = models.CharField(max_length=50, blank=True, verbose_name="Telegram Chat ID", help_text="ID per ricevere notifiche strategiche e riepilogo settimanale")
+    notifiche_attive = models.BooleanField(default=True, verbose_name="Notifiche Telegram Attive")
+
+    def __str__(self):
+        return f"Titolare: {self.nome}"
+
+    class Meta:
+        verbose_name = "Titolare"
+        verbose_name_plural = "Titolari"
+
+
 class RichiestaSostituzione(models.Model):
     STATO_RICHIESTA = [
         ('APERTA', 'Aperta'),

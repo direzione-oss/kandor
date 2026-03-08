@@ -3,8 +3,27 @@ from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
     ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
-    ResponsabileArea, RichiestaSostituzione
+    ResponsabileArea, RichiestaSostituzione, Titolare
 )
+
+@admin.register(Titolare)
+class TitolareAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'user', 'telegram_chat_id', 'notifiche_attive')
+    list_editable = ('notifiche_attive',)
+    search_fields = ('nome', 'user__username')
+    actions = ['invia_test_notifica', 'invia_riepilogo_ora']
+
+    def invia_test_notifica(self, request, queryset):
+        from .services import notifica_titolari
+        notifica_titolari('🔔 Test notifica Kandor — sistema operativo!')
+        self.message_user(request, 'Notifica di test inviata.')
+    invia_test_notifica.short_description = 'Invia notifica di test'
+
+    def invia_riepilogo_ora(self, request, queryset):
+        from django.core.management import call_command
+        call_command('riepilogo_settimanale')
+        self.message_user(request, 'Riepilogo settimanale inviato ora.')
+    invia_riepilogo_ora.short_description = 'Invia riepilogo settimanale adesso'
 
 @admin.register(Assenza)
 class AssenzaAdmin(admin.ModelAdmin):

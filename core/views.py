@@ -767,6 +767,130 @@ def manuale_view(request):
     return render(request, 'core/manuale.html')
 
 
+def titolari_dashboard_view(request):
+    """Dashboard di supervisione per i titolari."""
+    if not request.user.is_staff:
+        return HttpResponseRedirect('/admin/login/')
+    
+    from .models import (
+        Dipendente, AssegnazioneTurno, TimeTracking,
+        Assenza, RichiestaSostituzione
+    )
+    from django.db.models import Q, Sum
+    
+    oggi = timezone.now().date()
+    lun = oggi - timedelta(days=oggi.weekday())
+    ven = lun + timedelta(days=4)
+    
+    # --- Dipendenti ---
+    n_dipendenti = Dipendente.objects.filter(stato='ATTIVO').count()
+    n_sostituti = Dipendente.objects.filter(stato='ATTIVO', is_sostituto=True).count()
+    assenti_oggi = Assenza.objects.filter(data_inizio__lte=oggi, data_fine__gte=oggi)
+    n_assenti_oggi = assenti_oggi.count()
+    
+    # --- Turni di oggi ---
+    assegn_oggi = AssegnazioneTurno.objects.filter(turno__data=oggi)
+    turni_oggi = assegn_oggi.count()
+    turni_compilati_oggi = TimeTracking.objects.filter(
+        assegnazione__turno__data=oggi
+    ).values('assegnazione').distinct().count()
+    turni_scoperti_oggi = max(0, turni_oggi - turni_compilati_oggi)
+    
+    # --- Sostituzioni ---
+    sost_aperte = RichiestaSostituzione.objects.filter(stato='APERTA').count()
+    sost_inviate = RichiestaSostituzione.objects.filter(stato='INVIATA').count()
+    sost_fallite = RichiestaSostituzione.objects.filter(stato='ANNULLATA', creata_il__date=oggi).count()
+    
+    # --- Settimana ---
+    ore_r = TimeTracking.objects.filter(
+        timestamp__date__gte=lun, timestamp__date__lte=ven
+    ).aggregate(tot=Sum('ore_lavorate'))
+    ore_settimana = round(ore_r['tot'] or 0, 1)
+    
+    turni_sett_tot = AssegnazioneTurno.objects.filter(
+        turno__data__gte=lun, turno__data__lte=ven
+    ).count()
+    turni_sett_compilati = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=lun,
+        assegnazione__turno__data__lte=ven
+    ).values('assegnazione').distinct().count()
+    
+    ass_sett = Assenza.objects.filter(
+        Q(data_inizio__lte=ven) & Q(data_fine__gte=lun)
+    )
+    ass_malattia = ass_sett.filter(tipo='MALATTIA').count()
+    ass_ferie = ass_sett.filter(tipo='FERIE').count()
+    ass_permesso = ass_sett.filter(tipo='PERMESSO').count()
+    
+    sost_sett = RichiestaSostituzione.objects.filter(
+        creata_il__date__gte=lun, creata_il__date__lte=ven
+    )
+    sost_sett_ok = sost_sett.filter(stato='COMPLETATA').count()
+    sost_sett_fail = sost_sett.filter(stato='ANNULLATA').count()
+    sost_sett_corso = sost_sett.filter(stato__in=['APERTA', 'INVIATA', 'APPROVATA_RA']).count()
+    
+    # --- Alert economici ---
+    from .models import ProgrammazioneRicorrente, Cliente
+    soglia_default = 12.0
+    try:
+        n_sotto_soglia = 0
+        for prog in ProgrammazioneRicorrente.objects.filter(attiva=True).select_related('cliente'):
+            if prog.cliente and prog.cliente.importo_mensile and prog.ore_mensili_stimate:
+                if prog.ore_mensili_stimate > 0:
+                    val = float(prog.cliente.importo_mensile) / float(prog.ore_mensili_stimate)
+                    if val < soglia_default:
+                        n_sotto_soglia += 1
+    except Exception:
+        n_sotto_soglia = 0
+    
+    # --- Alert lista ---
+    alerts = []
+    if turni_scoperti_oggi > 0:
+        alerts.append({'msg': f'⚠️ {turni_scoperti_oggi} turno/i di oggi senza ore registrate', 'critico': False})
+    if sost_aperte > 0:
+        alerts.append({'msg': f'🔄 {sost_aperte} richiesta/e di sostituzione in attesa di approvazione RA', 'critico': False})
+    open_fallite = RichiestaSostituzione.objects.filter(stato='ANNULLATA', creata_il__date=oggi)
+    if open_fallite.exists():
+        alerts.append({'msg': f'🚨 {open_fallite.count()} sostituzione/i fallite oggi — nessun sostituto disponibile!', 'critico': True})
+    if n_sotto_soglia > 0:
+        alerts.append({'msg': f'💰 {n_sotto_soglia} contratto/i sotto la soglia di {soglia_default}€/ora', 'critico': False})
+    
+    return render(request, 'core/titolari_dashboard.html', {
+        'oggi': oggi, 'lun': lun, 'ven': ven,
+        'n_dipendenti': n_dipendenti, 'n_sostituti': n_sostituti, 'n_assenti_oggi': n_assenti_oggi,
+        'turni_oggi': turni_oggi, 'turni_compilati_oggi': turni_compilati_oggi, 'turni_scoperti_oggi': turni_scoperti_oggi,
+        'sost_aperte': sost_aperte, 'sost_inviate': sost_inviate, 'sost_fallite': sost_fallite,
+        'ore_settimana': ore_settimana, 'turni_sett_tot': turni_sett_tot, 'turni_sett_compilati': turni_sett_compilati,
+        'ass_malattia': ass_malattia, 'ass_ferie': ass_ferie, 'ass_permesso': ass_permesso,
+        'sost_sett_ok': sost_sett_ok, 'sost_sett_fail': sost_sett_fail, 'sost_sett_corso': sost_sett_corso,
+        'n_sotto_soglia': n_sotto_soglia, 'soglia_default': soglia_default,
+        'alerts': alerts,
+    })
+
+
+@csrf_exempt
+def titolari_riepilogo_view(request):
+    """Endpoint per trigger esterno del riepilogo settimanale (cron-job.org).
+    Chiamare con GET /titolari/riepilogo/?token=SECRET
+    Configurare SECRET in settings come RIEPILOGO_TOKEN.
+    """
+    from django.conf import settings
+    token_atteso = getattr(settings, 'RIEPILOGO_TOKEN', '')
+    token_ricevuto = request.GET.get('token', '')
+    
+    if not token_atteso or token_ricevuto != token_atteso:
+        return JsonResponse({'errore': 'Non autorizzato'}, status=403)
+    
+    # Solo venerdì (weekday 4) o forzato con ?force=1
+    from django.utils import timezone
+    if timezone.now().weekday() != 4 and request.GET.get('force') != '1':
+        return JsonResponse({'stato': 'non è venerdì, usa ?force=1 per forzare'})
+    
+    from django.core.management import call_command
+    call_command('riepilogo_settimanale')
+    return JsonResponse({'stato': 'riepilogo inviato', 'timestamp': str(timezone.now())})
+
+
 def manuale_dipendente_view(request):
     """Serve il manuale dipendente come pagina HTML leggibile."""
     import os
