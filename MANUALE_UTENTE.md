@@ -96,7 +96,7 @@ La homepage del pannello mostra la scritta **"Benvenuto in Kandor"** e si divide
 | **Riconciliazione** | Confronta ore previste vs lavorate |
 | **Analisi Contratti** | Analisi economica contratti sotto soglia |
 | **Gestione Dati** | Import/Export dati Excel |
-| **Chat Simulator** | Testa messaggi Telegram |
+| **Centro Messaggi** | Chat diretta con i dipendenti via Telegram |
 | **Genera Turni** | Genera turni automatici per 7 giorni |
 | **Vedi Report** | Report verifica ore mensili con PDF |
 | **Manuale** | Apri questo manuale |
@@ -611,12 +611,23 @@ I **Sostituti** ricevono proposte dettagliate con bottoni **"✅ Accetto"** / **
 
 ---
 
-## 22. Simulatore Chat
+## 22. Centro Messaggi Telegram
 
 ### Accesso
-**Dashboard** → **Chat Simulator** oppure URL: `/chat-simulator/`
+**Dashboard** → **Centro Messaggi** oppure URL: `/chat-simulator/`
 
-Permette di inviare messaggi Telegram direttamente dalla piattaforma web a singoli dipendenti.
+Il Centro Messaggi è una vera **chat bidirezionale** che permette di comunicare con i dipendenti via Telegram direttamente dalla piattaforma web.
+
+### Funzionalità
+
+| Funzione | Descrizione |
+|----------|-------------|
+| **Chat individuale** | Seleziona un dipendente dal pannello sinistro per vedere la cronologia dei messaggi e inviarne di nuovi |
+| **Messaggi non letti** | Badge rosso sul nome di chi ha messaggi non letti |
+| **Broadcast a tutti** | Invia un messaggio a tutti i dipendenti attivi con Telegram configurato |
+| **Invio per squadra** | Seleziona una squadra e invia il messaggio a tutti i componenti |
+| **Foto** | Supporto alla visualizzazione di foto inviate dai dipendenti |
+| **Cronologia** | Ultimi 50 messaggi per ogni conversazione (IN e OUT) |
 
 ---
 
