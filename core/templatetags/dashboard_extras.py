@@ -11,10 +11,19 @@ def unread_chat_count():
     from core.models import MessaggioChat
     return MessaggioChat.objects.filter(direzione='IN', letto=False).count()
 
-@register.inclusion_tag('admin/widgets/unread_chat_badge.html')
+@register.simple_tag
 def unread_chat_badge():
     from core.models import MessaggioChat
-    return {'count': MessaggioChat.objects.filter(direzione='IN', letto=False).count()}
+    from django.utils.safestring import mark_safe
+    count = MessaggioChat.objects.filter(direzione='IN', letto=False).count()
+    if not count:
+        return ''
+    return mark_safe(
+        f'<span style="position:absolute;top:8px;right:8px;background:#e74c3c;color:white;'
+        f'border-radius:50%;min-width:20px;height:20px;font-size:12px;font-weight:bold;'
+        f'display:inline-flex;align-items:center;justify-content:center;padding:0 5px">'
+        f'{count}</span>'
+    )
 
 @register.inclusion_tag('admin/widgets/expiring_vehicles_widget.html')
 def expiring_vehicles_widget():
