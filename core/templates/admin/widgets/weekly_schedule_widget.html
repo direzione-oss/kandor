@@ -250,10 +250,11 @@
                 {% if ev.start_hour == hour %}
                 <div class="schedule-event"
                     onclick="openEventDetail({{ ev.assign_id }},'{{ ev.cliente_nome|escapejs }}',{{ ev.cliente_id }},'{{ ev.squadra_nome|escapejs }}',{{ ev.squadra_id }},'{{ ev.ora_inizio }}','{{ ev.ora_fine }}','{{ ev.note|escapejs }}')"
-                    style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }};cursor:pointer"
+                    style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }};cursor:pointer;position:relative"
                     title="Clicca per dettagli">
                     <div class="ev-cliente">{{ ev.cliente_nome }}</div>
                     <div class="ev-squadra">{{ ev.squadra_nome }}</div>
+                    {{ ev.ore_badge_html|safe }}
                 </div>
                 {% endif %}
                 {% endfor %}

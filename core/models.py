@@ -330,6 +330,7 @@ class TimeTracking(models.Model):
     
     check_in = models.DateTimeField(null=True, blank=True)
     check_out = models.DateTimeField(null=True, blank=True)
+    ore_dichiarate = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True, verbose_name="Ore Dichiarate", help_text="Ore inserite dal dipendente")
     
     note = models.TextField(blank=True)
     
@@ -343,6 +344,8 @@ class TimeTracking(models.Model):
 
     @property
     def durata_ore(self):
+        if self.ore_dichiarate:
+            return float(self.ore_dichiarate)
         if self.check_in and self.check_out:
             diff = self.check_out - self.check_in
             return diff.total_seconds() / 3600

@@ -169,7 +169,31 @@ class TurnoAdmin(admin.ModelAdmin):
 
 admin.site.register(Qualifica)
 admin.site.register(AssegnazioneTurno)
-admin.site.register(TimeTracking)
+
+@admin.register(TimeTracking)
+class TimeTrackingAdmin(admin.ModelAdmin):
+    list_display = ('dipendente', 'get_cliente', 'get_data', 'ore_dichiarate', 'source', 'is_validated')
+    list_filter = ('is_validated', 'source', 'assegnazione__turno__data')
+    search_fields = ('dipendente__cognome', 'dipendente__nome', 'assegnazione__cliente__ragione_sociale')
+    list_editable = ('is_validated',)
+    list_per_page = 50
+    ordering = ('-assegnazione__turno__data',)
+    actions = ['valida_ore']
+
+    def get_cliente(self, obj):
+        return obj.assegnazione.cliente.ragione_sociale
+    get_cliente.short_description = 'Cliente'
+    get_cliente.admin_order_field = 'assegnazione__cliente__ragione_sociale'
+
+    def get_data(self, obj):
+        return obj.assegnazione.turno.data
+    get_data.short_description = 'Data'
+    get_data.admin_order_field = 'assegnazione__turno__data'
+
+    @admin.action(description="Valida ore selezionate")
+    def valida_ore(self, request, queryset):
+        updated = queryset.update(is_validated=True)
+        self.message_user(request, f"{updated} ore validate.", messages.SUCCESS)
 
 from .models import MessaggioProgrammato
 @admin.register(MessaggioProgrammato)

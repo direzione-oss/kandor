@@ -319,8 +319,6 @@ def _salva_ore(dipendente, cliente, hours, original_text):
         cliente=cliente
     ).first()
     
-    end_dt = timezone.now()
-    start_dt = end_dt - timedelta(hours=hours)
     msg_extra = ""
     
     if not assegnazione:
@@ -334,25 +332,30 @@ def _salva_ore(dipendente, cliente, hours, original_text):
                 return "Non appartieni a nessuna squadra."
             turno = Turno.objects.create(data=today, squadra=squadra)
         
+        now = timezone.now()
         assegnazione = AssegnazioneTurno.objects.create(
             turno=turno, cliente=cliente,
-            orario_inizio_previsto=start_dt.time(),
-            orario_fine_previsto=end_dt.time(),
+            orario_inizio_previsto=now.time(),
+            orario_fine_previsto=now.time(),
             mansione_svolta="Via Telegram"
         )
         msg_extra = " (turno creato)"
     
-    TimeTracking.objects.create(
+    # Aggiorna se esiste già un TimeTracking per oggi/assegnazione, altrimenti crea
+    tt, created = TimeTracking.objects.update_or_create(
         dipendente=dipendente,
         assegnazione=assegnazione,
-        check_in=start_dt,
-        check_out=end_dt,
-        source='TELEGRAM',
-        note=f"Messaggio: {original_text}"
+        defaults={
+            'ore_dichiarate': hours,
+            'source': 'TELEGRAM',
+            'note': f"Messaggio: {original_text}",
+            'is_validated': False,
+        }
     )
     
+    action = "Salvato" if created else "Aggiornato"
     return {
-        'text': f"Salvato! {hours}h per {cliente.ragione_sociale}.{msg_extra}",
+        'text': f"{action}! {hours}h per {cliente.ragione_sociale}.{msg_extra}",
         'reply_markup': get_main_menu()
     }
 
