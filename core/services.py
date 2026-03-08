@@ -467,15 +467,16 @@ def notifica_titolari(messaggio, solo_attivi=True):
     if not bot_token:
         return
     
-    qs = Titolare.objects.filter(telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
-    if solo_attivi:
-        qs = qs.filter(notifiche_attive=True)
+    qs = Titolare.objects.filter(notifiche_attive=True) if solo_attivi else Titolare.objects.all()
     
     for titolare in qs:
+        chat_id = titolare.get_chat_id()
+        if not chat_id:
+            continue
         try:
             requests.post(
                 f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={"chat_id": titolare.telegram_chat_id, "text": messaggio, "parse_mode": "HTML"},
+                json={"chat_id": chat_id, "text": messaggio, "parse_mode": "HTML"},
                 timeout=10
             )
         except Exception:

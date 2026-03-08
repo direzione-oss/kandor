@@ -471,14 +471,33 @@ class ResponsabileArea(models.Model):
 
 
 class Titolare(models.Model):
-    """Titolare/proprietario con accesso alla dashboard di supervisione."""
+    """Titolare/proprietario con accesso alla dashboard di supervisione.
+    Può essere collegato a un Dipendente esistente (se il titolare lavora anche in organico).
+    In quel caso il telegram_chat_id viene preso automaticamente dal Dipendente collegato.
+    """
     from django.contrib.auth.models import User as AuthUser
     user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='profilo_titolare', verbose_name="Utente Django")
     nome = models.CharField(max_length=100, verbose_name="Nome Completo")
-    telegram_chat_id = models.CharField(max_length=50, blank=True, verbose_name="Telegram Chat ID", help_text="ID per ricevere notifiche strategiche e riepilogo settimanale")
+    dipendente = models.OneToOneField(
+        'Dipendente', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='profilo_titolare', verbose_name="Dipendente collegato",
+        help_text="Se il titolare è anche un dipendente in organico, collegalo qui. Il Chat ID Telegram verrà preso dal dipendente."
+    )
+    telegram_chat_id = models.CharField(
+        max_length=50, blank=True, verbose_name="Telegram Chat ID",
+        help_text="Lascia vuoto se hai collegato un Dipendente (verrà usato il suo Chat ID)"
+    )
     notifiche_attive = models.BooleanField(default=True, verbose_name="Notifiche Telegram Attive")
 
+    def get_chat_id(self):
+        """Restituisce il Chat ID: dal Dipendente collegato se presente, altrimenti dal campo diretto."""
+        if self.dipendente and self.dipendente.telegram_chat_id:
+            return self.dipendente.telegram_chat_id
+        return self.telegram_chat_id
+
     def __str__(self):
+        if self.dipendente:
+            return f"Titolare: {self.nome} (dip. {self.dipendente})"
         return f"Titolare: {self.nome}"
 
     class Meta:
