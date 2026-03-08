@@ -220,9 +220,15 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
             
             try:
-                assegnazione = AssegnazioneTurno.objects.select_related('cliente').get(pk=assegnazione_id)
-            except AssegnazioneTurno.DoesNotExist:
-                return "Turno non trovato."
+                assegnazione = AssegnazioneTurno.objects.filter(
+                    pk=assegnazione_id
+                ).filter(
+                    Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+                ).select_related('cliente', 'turno').distinct().first()
+                if not assegnazione:
+                    return {"text": "Turno non trovato o non appartiene alla tua squadra.", "reply_markup": get_main_menu()}
+            except Exception:
+                return {"text": "Errore nel recupero del turno.", "reply_markup": get_main_menu()}
             
             return _salva_ore_turno(dipendente, assegnazione, hours, text)
         
@@ -324,9 +330,15 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     if callback_data.startswith('ore_turno_'):
         assegnazione_id = callback_data.replace('ore_turno_', '')
         try:
-            assegnazione = AssegnazioneTurno.objects.select_related('cliente', 'turno').get(pk=assegnazione_id)
-        except AssegnazioneTurno.DoesNotExist:
-            return {'text': "Turno non trovato."}
+            assegnazione = AssegnazioneTurno.objects.filter(
+                pk=assegnazione_id
+            ).filter(
+                Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+            ).select_related('cliente', 'turno').distinct().first()
+            if not assegnazione:
+                return {'text': "Turno non trovato o non appartiene alla tua squadra.", 'reply_markup': get_main_menu()}
+        except Exception:
+            return {'text': "Errore nel recupero del turno.", 'reply_markup': get_main_menu()}
         
         data_str = assegnazione.turno.data.strftime('%d/%m')
         inizio = assegnazione.orario_inizio_previsto.strftime('%H:%M')
@@ -334,7 +346,7 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         
         _TELEGRAM_STATE[telegram_chat_id] = {
             'action': 'attesa_ore',
-            'assegnazione_id': int(assegnazione_id)
+            'assegnazione_id': assegnazione.pk
         }
         return {'text': f"Turno: {assegnazione.cliente.ragione_sociale}\n"
                        f"Data: {data_str} ({inizio}-{fine})\n\n"
