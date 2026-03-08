@@ -562,7 +562,10 @@ Analizza i contratti sotto soglia economica, mostrando:
 
 ### Configurazione Iniziale
 
-1. Ogni dipendente deve avviare una conversazione con il bot Telegram azienda
+Il bot Telegram aziendale si chiama **Kandor Assistente** (`@kandor_gestionale_bot`).  
+Link diretto: [t.me/kandor_gestionale_bot](https://t.me/kandor_gestionale_bot)
+
+1. Ogni dipendente deve cercare **Kandor Assistente** su Telegram o cliccare il link sopra
 2. Il bot comunicherà il proprio **Chat ID**
 3. L'amministratore inserisce il Chat ID nella scheda del dipendente
 

@@ -11,7 +11,8 @@
 Scarica l'app **Telegram** dal Play Store (Android) o App Store (iPhone) se non ce l'hai già.
 
 ### 2. Avvia il Bot
-Il tuo responsabile ti fornirà il **link diretto** al bot aziendale. Cliccalo e premi **"Avvia"** (o **"Start"**).
+Cerca su Telegram il bot **Kandor Assistente** (`@kandor_gestionale_bot`) oppure clicca il link diretto: [t.me/kandor_gestionale_bot](https://t.me/kandor_gestionale_bot).
+Premi **"Avvia"** (o **"Start"**).
 
 ### 3. Registra il tuo ID
 Quando invii il primo messaggio, il bot ti risponderà con: *"Non ti conosco! Il tuo ID Telegram è: XXXXXXX"*.  
