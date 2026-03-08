@@ -1332,6 +1332,58 @@ def verifica_ore_view(request):
         sq['ore_totali'] = round(sq['ore_totali'], 1)
         squadre_list.append(sq)
     
+    # === SEZIONE ASSENZE PER DIPENDENTE ===
+    from .models import Assenza
+    from django.db.models import Q
+    
+    dipendenti_attivi = Dipendente.objects.filter(stato='ATTIVO').order_by('cognome', 'nome')
+    
+    assenze_mese = Assenza.objects.filter(
+        Q(data_inizio__lte=ultimo_giorno) & Q(data_fine__gte=primo_giorno),
+        dipendente__stato='ATTIVO'
+    ).select_related('dipendente')
+    
+    # Calcola giorni di assenza per dipendente
+    assenze_per_dip = {}
+    for assenza in assenze_mese:
+        dip_id = assenza.dipendente.pk
+        if dip_id not in assenze_per_dip:
+            assenze_per_dip[dip_id] = {
+                'dipendente': assenza.dipendente,
+                'nome': f"{assenza.dipendente.cognome} {assenza.dipendente.nome}",
+                'MALATTIA': 0, 'FERIE': 0, 'PERMESSO': 0, '104': 0, 'ALTRO': 0,
+                'totale_giorni': 0,
+                'dettagli': [],
+            }
+        
+        # Calcola giorni effettivi nel mese
+        inizio_eff = max(assenza.data_inizio, primo_giorno)
+        fine_eff = min(assenza.data_fine, ultimo_giorno)
+        giorni = (fine_eff - inizio_eff).days + 1
+        
+        tipo = assenza.tipo if assenza.tipo in assenze_per_dip[dip_id] else 'ALTRO'
+        assenze_per_dip[dip_id][tipo] += giorni
+        assenze_per_dip[dip_id]['totale_giorni'] += giorni
+        assenze_per_dip[dip_id]['dettagli'].append({
+            'tipo': assenza.tipo,
+            'inizio': assenza.data_inizio.strftime('%d/%m'),
+            'fine': assenza.data_fine.strftime('%d/%m'),
+            'giorni': giorni,
+            'note': assenza.note,
+        })
+    
+    assenze_list = sorted(assenze_per_dip.values(), key=lambda x: x['nome'])
+    
+    # Totali assenze
+    totale_assenze = {
+        'MALATTIA': sum(a['MALATTIA'] for a in assenze_list),
+        'FERIE': sum(a['FERIE'] for a in assenze_list),
+        'PERMESSO': sum(a['PERMESSO'] for a in assenze_list),
+        '104': sum(a['104'] for a in assenze_list),
+        'ALTRO': sum(a['ALTRO'] for a in assenze_list),
+        'totale_giorni': sum(a['totale_giorni'] for a in assenze_list),
+    }
+    
     # Opzioni mesi per selettore
     mesi_options = []
     for m in range(1, 13):
@@ -1344,6 +1396,8 @@ def verifica_ore_view(request):
         'clienti_list': clienti_list,
         'totale_clienti': totale_clienti,
         'squadre_list': squadre_list,
+        'assenze_list': assenze_list,
+        'totale_assenze': totale_assenze,
         'mese': mese,
         'anno': anno,
         'mese_nome': MESI_IT.get(mese, ''),
@@ -1554,6 +1608,84 @@ def pdf_verifica_ore(request):
     
     sq_table.setStyle(TableStyle(sq_style_rules))
     elements.append(sq_table)
+    elements.append(Spacer(1, 8*mm))
+    
+    # === TABELLA ASSENZE ===
+    from .models import Assenza
+    from django.db.models import Q
+    
+    assenze_mese = Assenza.objects.filter(
+        Q(data_inizio__lte=ultimo_giorno) & Q(data_fine__gte=primo_giorno),
+        dipendente__stato='ATTIVO'
+    ).select_related('dipendente')
+    
+    assenze_per_dip = {}
+    for assenza in assenze_mese:
+        dip_id = assenza.dipendente.pk
+        if dip_id not in assenze_per_dip:
+            assenze_per_dip[dip_id] = {
+                'nome': f"{assenza.dipendente.cognome} {assenza.dipendente.nome}",
+                'MALATTIA': 0, 'FERIE': 0, 'PERMESSO': 0, '104': 0, 'ALTRO': 0,
+                'totale_giorni': 0, 'dettagli': [],
+            }
+        inizio_eff = max(assenza.data_inizio, primo_giorno)
+        fine_eff = min(assenza.data_fine, ultimo_giorno)
+        giorni = (fine_eff - inizio_eff).days + 1
+        tipo = assenza.tipo if assenza.tipo in assenze_per_dip[dip_id] else 'ALTRO'
+        assenze_per_dip[dip_id][tipo] += giorni
+        assenze_per_dip[dip_id]['totale_giorni'] += giorni
+        assenze_per_dip[dip_id]['dettagli'].append(
+            f"{assenza.tipo}: {assenza.data_inizio.strftime('%d/%m')}-{assenza.data_fine.strftime('%d/%m')} ({giorni}gg)"
+        )
+    
+    if assenze_per_dip:
+        elements.append(Paragraph("Riepilogo Assenze del Mese", subtitle_style))
+        
+        ass_header = ['Dipendente', 'Malattia', 'Ferie', 'Permesso', 'L.104', 'Altro', 'Totale gg', 'Dettaglio']
+        ass_rows = [ass_header]
+        
+        tot_mal = tot_fer = tot_per = tot_104 = tot_alt = tot_gg = 0
+        for a in sorted(assenze_per_dip.values(), key=lambda x: x['nome']):
+            det_str = '; '.join(a['dettagli'])
+            ass_rows.append([
+                a['nome'],
+                str(a['MALATTIA']) if a['MALATTIA'] else '-',
+                str(a['FERIE']) if a['FERIE'] else '-',
+                str(a['PERMESSO']) if a['PERMESSO'] else '-',
+                str(a['104']) if a['104'] else '-',
+                str(a['ALTRO']) if a['ALTRO'] else '-',
+                str(a['totale_giorni']),
+                Paragraph(det_str, small_style),
+            ])
+            tot_mal += a['MALATTIA']
+            tot_fer += a['FERIE']
+            tot_per += a['PERMESSO']
+            tot_104 += a['104']
+            tot_alt += a['ALTRO']
+            tot_gg += a['totale_giorni']
+        
+        ass_rows.append(['TOTALE', str(tot_mal), str(tot_fer), str(tot_per), str(tot_104), str(tot_alt), str(tot_gg), ''])
+        
+        ass_col_widths = [130, 55, 55, 55, 45, 45, 55, 240]
+        ass_table = Table(ass_rows, colWidths=ass_col_widths)
+        
+        ass_style = [
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e65100')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (1, 0), (6, -1), 'CENTER'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dddddd')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#fef3e8')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#fce4cc')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]
+        ass_table.setStyle(TableStyle(ass_style))
+        elements.append(ass_table)
     
     doc.build(elements)
     buffer.seek(0)

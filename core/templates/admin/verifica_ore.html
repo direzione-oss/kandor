@@ -217,7 +217,7 @@
             </select>
             <select id="sel-anno">
                 {% for a in anni_options %}
-                <option value="{{ a }}" {% if a == anno %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a }}" {% if a==anno %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
             </select>
             <button onclick="cambiaFiltro()">Aggiorna</button>
@@ -347,6 +347,62 @@
                     <td colspan="3" style="text-align:center;color:#999;padding:20px">Nessun dato per questo mese</td>
                 </tr>
                 {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- TABELLA ASSENZE PER DIPENDENTE -->
+    <div class="vo-section">
+        <h2>📋 Riepilogo Assenze del Mese</h2>
+        <table class="vo-table">
+            <thead>
+                <tr>
+                    <th>Dipendente</th>
+                    <th class="num">🤒 Malattia</th>
+                    <th class="num">🏖️ Ferie</th>
+                    <th class="num">📝 Permesso</th>
+                    <th class="num">📄 L.104</th>
+                    <th class="num">❓ Altro</th>
+                    <th class="num">📊 Totale gg</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assenze_list %}
+                <tr class="sq-header" style="cursor:pointer"
+                    onclick="var rows=document.querySelectorAll('.assenza-detail-{{ forloop.counter }}');rows.forEach(function(r){r.style.display=r.style.display==='none'?'table-row':'none'})">
+                    <td>👤 {{ a.nome }}</td>
+                    <td class="num">{% if a.MALATTIA %}{{ a.MALATTIA }}{% else %}-{% endif %}</td>
+                    <td class="num">{% if a.FERIE %}{{ a.FERIE }}{% else %}-{% endif %}</td>
+                    <td class="num">{% if a.PERMESSO %}{{ a.PERMESSO }}{% else %}-{% endif %}</td>
+                    <td class="num">{% if a.104 %}{{ a.104 }}{% else %}-{% endif %}</td>
+                    <td class="num">{% if a.ALTRO %}{{ a.ALTRO }}{% else %}-{% endif %}</td>
+                    <td class="num"><strong>{{ a.totale_giorni }}</strong></td>
+                </tr>
+                {% for det in a.dettagli %}
+                <tr class="assenza-detail-{{ forloop.parentloop.counter }}"
+                    style="display:none;background:#f9f1e8;font-size:12px">
+                    <td style="padding-left:30px">↳ {{ det.tipo }}: {{ det.inizio }} — {{ det.fine }}</td>
+                    <td class="num" colspan="5" style="color:#666">{{ det.note|default:"-" }}</td>
+                    <td class="num">{{ det.giorni }} gg</td>
+                </tr>
+                {% endfor %}
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align:center;color:#999;padding:20px">Nessuna assenza registrata nel
+                        mese</td>
+                </tr>
+                {% endfor %}
+                {% if assenze_list %}
+                <tr style="background:#e8f0f5;font-weight:bold;border-top:2px solid #417690">
+                    <td>TOTALE</td>
+                    <td class="num">{{ totale_assenze.MALATTIA }}</td>
+                    <td class="num">{{ totale_assenze.FERIE }}</td>
+                    <td class="num">{{ totale_assenze.PERMESSO }}</td>
+                    <td class="num">{{ totale_assenze.104 }}</td>
+                    <td class="num">{{ totale_assenze.ALTRO }}</td>
+                    <td class="num"><strong>{{ totale_assenze.totale_giorni }}</strong></td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
