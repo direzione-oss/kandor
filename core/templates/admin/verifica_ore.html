@@ -214,7 +214,7 @@
             </select>
             <select id="sel-anno">
                 {% for a in anni_options %}
-                <option value="{{ a }}" {% if a==anno %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a }}" {% if a == anno %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
             </select>
             <button onclick="cambiaFiltro()">Aggiorna</button>
