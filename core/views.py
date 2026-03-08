@@ -1076,3 +1076,155 @@ def pdf_contratti_sotto_soglia(request):
     nome_file = f'contratti_sotto_soglia_{MESI_NOMI.get(mese, "")}{anno}.pdf'
     response['Content-Disposition'] = f'attachment; filename="{nome_file}"'
     return response
+
+
+def verifica_ore_view(request):
+    """Dashboard verifica ore mensili: confronto ore lavorate vs contrattuali."""
+    from .models import Cliente, TimeTracking, AssegnazioneTurno, Squadra, Dipendente
+    from django.db.models import Sum, Q, DecimalField
+    from django.db.models.functions import Coalesce
+    from decimal import Decimal
+    import calendar
+    
+    # Mese selezionato (default: mese corrente)
+    now = timezone.now()
+    mese = int(request.GET.get('mese', now.month))
+    anno = int(request.GET.get('anno', now.year))
+    
+    # Range date del mese
+    primo_giorno = now.replace(year=anno, month=mese, day=1).date()
+    ultimo_giorno_num = calendar.monthrange(anno, mese)[1]
+    ultimo_giorno = primo_giorno.replace(day=ultimo_giorno_num)
+    
+    MESI_IT = {
+        1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile',
+        5: 'Maggio', 6: 'Giugno', 7: 'Luglio', 8: 'Agosto',
+        9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'
+    }
+    
+    # === SEZIONE PER CLIENTE ===
+    tt_mese = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=primo_giorno,
+        assegnazione__turno__data__lte=ultimo_giorno
+    ).select_related('assegnazione__cliente', 'dipendente', 'assegnazione__turno__squadra')
+    
+    # Aggregazione per cliente
+    clienti_data = {}
+    for tt in tt_mese:
+        cliente = tt.assegnazione.cliente
+        cid = cliente.pk
+        if cid not in clienti_data:
+            clienti_data[cid] = {
+                'cliente': cliente,
+                'ragione_sociale': cliente.ragione_sociale,
+                'ore_contratto': float(cliente.ore_mensili_contratto or 0),
+                'importo_contratto': float(cliente.importo_mensile_contratto or 0),
+                'importo_orario': cliente.importo_orario,
+                'ore_lavorate': 0,
+                'ore_validate': 0,
+            }
+        ore = float(tt.ore_dichiarate or 0)
+        clienti_data[cid]['ore_lavorate'] += ore
+        if tt.is_validated:
+            clienti_data[cid]['ore_validate'] += ore
+    
+    # Aggiungi clienti senza ore ma con contratto
+    for cl in Cliente.objects.filter(ore_mensili_contratto__gt=0):
+        if cl.pk not in clienti_data:
+            clienti_data[cl.pk] = {
+                'cliente': cl,
+                'ragione_sociale': cl.ragione_sociale,
+                'ore_contratto': float(cl.ore_mensili_contratto or 0),
+                'importo_contratto': float(cl.importo_mensile_contratto or 0),
+                'importo_orario': cl.importo_orario,
+                'ore_lavorate': 0,
+                'ore_validate': 0,
+            }
+    
+    # Calcoli derivati per cliente
+    for cd in clienti_data.values():
+        cd['ore_lavorate'] = round(cd['ore_lavorate'], 1)
+        cd['ore_validate'] = round(cd['ore_validate'], 1)
+        cd['diff'] = round(cd['ore_lavorate'] - cd['ore_contratto'], 1)
+        cd['importo_calcolato'] = round(cd['ore_validate'] * cd['importo_orario'], 2) if cd['importo_orario'] else 0
+        cd['ore_non_validate'] = round(cd['ore_lavorate'] - cd['ore_validate'], 1)
+    
+    clienti_list = sorted(clienti_data.values(), key=lambda x: x['ragione_sociale'])
+    
+    # Totali clienti
+    totale_clienti = {
+        'ore_contratto': sum(c['ore_contratto'] for c in clienti_list),
+        'ore_lavorate': sum(c['ore_lavorate'] for c in clienti_list),
+        'ore_validate': sum(c['ore_validate'] for c in clienti_list),
+        'importo_contratto': sum(c['importo_contratto'] for c in clienti_list),
+        'importo_calcolato': sum(c['importo_calcolato'] for c in clienti_list),
+    }
+    totale_clienti['diff'] = round(totale_clienti['ore_lavorate'] - totale_clienti['ore_contratto'], 1)
+    
+    # === SEZIONE PER SQUADRA/DIPENDENTE ===
+    squadre_data = {}
+    for tt in tt_mese:
+        dip = tt.dipendente
+        squadra = tt.assegnazione.turno.squadra
+        cliente = tt.assegnazione.cliente
+        ore = float(tt.ore_dichiarate or 0)
+        
+        sq_id = squadra.pk if squadra else 0
+        sq_nome = squadra.nome if squadra else 'Senza Squadra'
+        
+        if sq_id not in squadre_data:
+            squadre_data[sq_id] = {
+                'nome': sq_nome,
+                'dipendenti': {},
+                'ore_totali': 0,
+            }
+        
+        dip_id = dip.pk
+        if dip_id not in squadre_data[sq_id]['dipendenti']:
+            squadre_data[sq_id]['dipendenti'][dip_id] = {
+                'nome': str(dip),
+                'ore_totali': 0,
+                'clienti': {},
+            }
+        
+        squadre_data[sq_id]['dipendenti'][dip_id]['ore_totali'] += ore
+        squadre_data[sq_id]['ore_totali'] += ore
+        
+        cl_nome = cliente.ragione_sociale
+        if cl_nome not in squadre_data[sq_id]['dipendenti'][dip_id]['clienti']:
+            squadre_data[sq_id]['dipendenti'][dip_id]['clienti'][cl_nome] = 0
+        squadre_data[sq_id]['dipendenti'][dip_id]['clienti'][cl_nome] += ore
+    
+    # Prepara per template
+    squadre_list = []
+    for sq in sorted(squadre_data.values(), key=lambda x: x['nome']):
+        dip_list = []
+        for d in sorted(sq['dipendenti'].values(), key=lambda x: x['nome']):
+            d['ore_totali'] = round(d['ore_totali'], 1)
+            cl_str = ', '.join(f"{n} ({round(o,1)}h)" for n, o in sorted(d['clienti'].items()))
+            d['clienti_str'] = cl_str
+            dip_list.append(d)
+        sq['dipendenti_list'] = dip_list
+        sq['ore_totali'] = round(sq['ore_totali'], 1)
+        squadre_list.append(sq)
+    
+    # Opzioni mesi per selettore
+    mesi_options = []
+    for m in range(1, 13):
+        mesi_options.append({'numero': m, 'nome': MESI_IT[m], 'selected': m == mese})
+    
+    # Opzioni anni
+    anni_options = list(range(anno - 2, anno + 2))
+    
+    context = {
+        'clienti_list': clienti_list,
+        'totale_clienti': totale_clienti,
+        'squadre_list': squadre_list,
+        'mese': mese,
+        'anno': anno,
+        'mese_nome': MESI_IT.get(mese, ''),
+        'mesi_options': mesi_options,
+        'anni_options': anni_options,
+    }
+    return render(request, 'admin/verifica_ore.html', context)
+

@@ -1,0 +1,358 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Verifica Ore - {{ mese_nome }} {{ anno }}{% endblock %}
+
+{% block content %}
+<style>
+    .vo-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: 'Segoe UI', Tahoma, sans-serif;
+    }
+
+    .vo-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .vo-header h1 {
+        margin: 0;
+        font-size: 24px;
+        color: #333;
+    }
+
+    .vo-selector {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .vo-selector select {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 14px;
+        background: #fff;
+    }
+
+    .vo-selector button {
+        padding: 8px 18px;
+        background: #417690;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .vo-selector button:hover {
+        background: #205067;
+    }
+
+    .vo-section {
+        margin-bottom: 30px;
+    }
+
+    .vo-section h2 {
+        font-size: 18px;
+        color: #417690;
+        border-bottom: 2px solid #417690;
+        padding-bottom: 6px;
+        margin-bottom: 14px;
+    }
+
+    .vo-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .vo-table th {
+        background: #f0f4f7;
+        padding: 10px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #555;
+        border-bottom: 2px solid #ddd;
+        white-space: nowrap;
+    }
+
+    .vo-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .vo-table tr:hover {
+        background: #f9fbfc;
+    }
+
+    .vo-table .num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .vo-table .totale-row {
+        background: #f0f4f7;
+        font-weight: 700;
+        border-top: 2px solid #417690;
+    }
+
+    .vo-table .totale-row td {
+        padding: 12px;
+    }
+
+    .badge-diff {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .badge-pos {
+        background: #27ae60;
+        color: #fff;
+    }
+
+    .badge-neg {
+        background: #e74c3c;
+        color: #fff;
+    }
+
+    .badge-zero {
+        background: #95a5a6;
+        color: #fff;
+    }
+
+    .badge-warn {
+        background: #f39c12;
+        color: #fff;
+    }
+
+    .sq-header {
+        background: #e8f0f5 !important;
+        cursor: pointer;
+    }
+
+    .sq-header td {
+        font-weight: 700;
+        color: #417690;
+        padding: 10px 12px;
+    }
+
+    .sq-header:hover {
+        background: #dce8ef !important;
+    }
+
+    .dip-row td {
+        padding-left: 30px !important;
+    }
+
+    .dip-row .clienti-detail {
+        color: #888;
+        font-size: 12px;
+    }
+
+    .vo-summary {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    .vo-card {
+        flex: 1;
+        min-width: 180px;
+        background: linear-gradient(135deg, #f0f4f7, #fff);
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 16px;
+        text-align: center;
+    }
+
+    .vo-card .big {
+        font-size: 28px;
+        font-weight: 700;
+        color: #333;
+    }
+
+    .vo-card .label {
+        font-size: 12px;
+        color: #888;
+        text-transform: uppercase;
+    }
+
+    .back-link {
+        display: inline-block;
+        margin-bottom: 16px;
+        color: #417690;
+        text-decoration: none;
+        font-size: 14px;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="vo-container">
+    <a href="/admin/" class="back-link">← Torna alla Home</a>
+
+    <div class="vo-header">
+        <h1>📊 Verifica Ore — {{ mese_nome }} {{ anno }}</h1>
+        <div class="vo-selector">
+            <select id="sel-mese">
+                {% for m in mesi_options %}
+                <option value="{{ m.numero }}" {% if m.selected %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+            </select>
+            <select id="sel-anno">
+                {% for a in anni_options %}
+                <option value="{{ a }}" {% if a==anno %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+            </select>
+            <button onclick="cambiaFiltro()">Aggiorna</button>
+        </div>
+    </div>
+
+    <!-- CARDS RIEPILOGO -->
+    <div class="vo-summary">
+        <div class="vo-card">
+            <div class="big">{{ totale_clienti.ore_contratto|floatformat:0 }}h</div>
+            <div class="label">Ore Contratto</div>
+        </div>
+        <div class="vo-card">
+            <div class="big">{{ totale_clienti.ore_lavorate|floatformat:0 }}h</div>
+            <div class="label">Ore Lavorate</div>
+        </div>
+        <div class="vo-card">
+            <div class="big">{{ totale_clienti.ore_validate|floatformat:0 }}h</div>
+            <div class="label">Ore Validate</div>
+        </div>
+        <div class="vo-card">
+            <div class="big" style="{% if totale_clienti.diff >= 0 %}color:#27ae60{% else %}color:#e74c3c{% endif %}">
+                {% if totale_clienti.diff >= 0 %}+{% endif %}{{ totale_clienti.diff|floatformat:1 }}h
+            </div>
+            <div class="label">Differenza</div>
+        </div>
+        <div class="vo-card">
+            <div class="big" style="color:#417690">€{{ totale_clienti.importo_calcolato|floatformat:2 }}</div>
+            <div class="label">Importo (validate)</div>
+        </div>
+    </div>
+
+    <!-- TABELLA PER CLIENTE -->
+    <div class="vo-section">
+        <h2>📋 Riepilogo per Cliente</h2>
+        <table class="vo-table">
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th class="num">Ore Contratto</th>
+                    <th class="num">Ore Lavorate</th>
+                    <th class="num">Ore Validate</th>
+                    <th class="num">Da Validare</th>
+                    <th class="num">Differenza</th>
+                    <th class="num">€ Contratto</th>
+                    <th class="num">€ Calcolato</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in clienti_list %}
+                <tr>
+                    <td><strong>{{ c.ragione_sociale }}</strong></td>
+                    <td class="num">{{ c.ore_contratto|floatformat:1 }}</td>
+                    <td class="num">{{ c.ore_lavorate|floatformat:1 }}</td>
+                    <td class="num">{{ c.ore_validate|floatformat:1 }}</td>
+                    <td class="num">
+                        {% if c.ore_non_validate > 0 %}
+                        <span class="badge-diff badge-warn">{{ c.ore_non_validate|floatformat:1 }}</span>
+                        {% else %}
+                        <span style="color:#ccc">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="num">
+                        <span
+                            class="badge-diff {% if c.diff > 0 %}badge-pos{% elif c.diff < 0 %}badge-neg{% else %}badge-zero{% endif %}">
+                            {% if c.diff > 0 %}+{% endif %}{{ c.diff|floatformat:1 }}
+                        </span>
+                    </td>
+                    <td class="num">€{{ c.importo_contratto|floatformat:2 }}</td>
+                    <td class="num">€{{ c.importo_calcolato|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align:center;color:#999;padding:20px">Nessun dato per questo mese</td>
+                </tr>
+                {% endfor %}
+                {% if clienti_list %}
+                <tr class="totale-row">
+                    <td>TOTALE</td>
+                    <td class="num">{{ totale_clienti.ore_contratto|floatformat:1 }}</td>
+                    <td class="num">{{ totale_clienti.ore_lavorate|floatformat:1 }}</td>
+                    <td class="num">{{ totale_clienti.ore_validate|floatformat:1 }}</td>
+                    <td class="num"></td>
+                    <td class="num">
+                        <span
+                            class="badge-diff {% if totale_clienti.diff > 0 %}badge-pos{% elif totale_clienti.diff < 0 %}badge-neg{% else %}badge-zero{% endif %}">
+                            {% if totale_clienti.diff > 0 %}+{% endif %}{{ totale_clienti.diff|floatformat:1 }}
+                        </span>
+                    </td>
+                    <td class="num">€{{ totale_clienti.importo_contratto|floatformat:2 }}</td>
+                    <td class="num">€{{ totale_clienti.importo_calcolato|floatformat:2 }}</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- TABELLA PER SQUADRA / DIPENDENTE -->
+    <div class="vo-section">
+        <h2>👷 Riepilogo per Squadra e Dipendente</h2>
+        <table class="vo-table">
+            <thead>
+                <tr>
+                    <th>Squadra / Dipendente</th>
+                    <th class="num">Ore Totali</th>
+                    <th>Dettaglio Clienti</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sq in squadre_list %}
+                <tr class="sq-header"
+                    onclick="this.classList.toggle('collapsed');var el=this;while(el.nextElementSibling && el.nextElementSibling.classList.contains('dip-row')){el=el.nextElementSibling;el.style.display=el.style.display==='none'?'table-row':'none'}">
+                    <td>📁 {{ sq.nome }}</td>
+                    <td class="num"><strong>{{ sq.ore_totali|floatformat:1 }}h</strong></td>
+                    <td style="color:#999;font-size:12px">▼ Clicca per espandere</td>
+                </tr>
+                {% for d in sq.dipendenti_list %}
+                <tr class="dip-row">
+                    <td>👤 {{ d.nome }}</td>
+                    <td class="num">{{ d.ore_totali|floatformat:1 }}h</td>
+                    <td class="clienti-detail">{{ d.clienti_str }}</td>
+                </tr>
+                {% endfor %}
+                {% empty %}
+                <tr>
+                    <td colspan="3" style="text-align:center;color:#999;padding:20px">Nessun dato per questo mese</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    function cambiaFiltro() {
+        var m = document.getElementById('sel-mese').value;
+        var a = document.getElementById('sel-anno').value;
+        window.location.href = '/verifica-ore/?mese=' + m + '&anno=' + a;
+    }
+</script>
+{% endblock %}

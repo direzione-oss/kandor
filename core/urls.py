@@ -6,7 +6,7 @@ from .views import (
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
     extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia,
     add_turno_ajax, edit_turno_ajax, delete_turno_ajax, get_squadre_clienti_json,
-    validate_ore_ajax
+    validate_ore_ajax, verifica_ore_view
 )
 from django.views.generic import RedirectView
 
@@ -43,4 +43,5 @@ urlpatterns = [
     path('api/delete-turno/<int:assign_id>/', delete_turno_ajax, name='delete_turno_ajax'),
     path('api/squadre-clienti/', get_squadre_clienti_json, name='get_squadre_clienti'),
     path('api/validate-ore/<int:assign_id>/', validate_ore_ajax, name='validate_ore_ajax'),
+    path('verifica-ore/', verifica_ore_view, name='verifica_ore'),
 ]
