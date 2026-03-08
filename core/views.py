@@ -766,6 +766,108 @@ def toggle_telegram_status(request, model_name, item_id):
 def manuale_view(request):
     return render(request, 'core/manuale.html')
 
+
+def manuale_dipendente_view(request):
+    """Serve il manuale dipendente come pagina HTML leggibile."""
+    import os
+    md_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'MANUALE_DIPENDENTE_TELEGRAM.md')
+    
+    try:
+        with open(md_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except FileNotFoundError:
+        content = "# Manuale non trovato\n\nIl file MANUALE_DIPENDENTE_TELEGRAM.md non è presente."
+    
+    # Conversione markdown → HTML semplice
+    import re
+    html = content
+    # Headers
+    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+    # Bold
+    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+    # Italic
+    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+    # Blockquotes
+    html = re.sub(r'^> (.+)$', r'<blockquote>\1</blockquote>', html, flags=re.MULTILINE)
+    # Code inline
+    html = re.sub(r'`(.+?)`', r'<code>\1</code>', html)
+    # Tables
+    lines = html.split('\n')
+    in_table = False
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('|') and stripped.endswith('|'):
+            cells = [c.strip() for c in stripped.split('|')[1:-1]]
+            if all(c.replace('-', '').replace(':', '') == '' for c in cells):
+                continue  # Skip separator row
+            if not in_table:
+                new_lines.append('<table class="md-table"><thead><tr>')
+                for c in cells:
+                    new_lines.append(f'<th>{c}</th>')
+                new_lines.append('</tr></thead><tbody>')
+                in_table = True
+            else:
+                new_lines.append('<tr>')
+                for c in cells:
+                    new_lines.append(f'<td>{c}</td>')
+                new_lines.append('</tr>')
+        else:
+            if in_table:
+                new_lines.append('</tbody></table>')
+                in_table = False
+            # List items
+            if stripped.startswith('- '):
+                new_lines.append(f'<li>{stripped[2:]}</li>')
+            elif stripped.startswith('1. ') or re.match(r'^\d+\. ', stripped):
+                text = re.sub(r'^\d+\. ', '', stripped)
+                new_lines.append(f'<li>{text}</li>')
+            elif stripped == '---':
+                new_lines.append('<hr>')
+            elif stripped == '':
+                new_lines.append('<br>')
+            else:
+                new_lines.append(f'<p>{line}</p>')
+    if in_table:
+        new_lines.append('</tbody></table>')
+    
+    body_html = '\n'.join(new_lines)
+    
+    page_html = f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guida Dipendente — Bot Telegram Kandor</title>
+    <style>
+        body {{ font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }}
+        h1 {{ color: #ff6f00; border-bottom: 3px solid #ff6f00; padding-bottom: 10px; }}
+        h2 {{ color: #e65100; margin-top: 30px; border-left: 4px solid #ff6f00; padding-left: 10px; }}
+        h3 {{ color: #333; margin-top: 20px; }}
+        .md-table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+        .md-table th {{ background: #ff6f00; color: white; padding: 10px; text-align: left; }}
+        .md-table td {{ padding: 8px 10px; border-bottom: 1px solid #ddd; }}
+        .md-table tr:nth-child(even) {{ background: #fff3e0; }}
+        blockquote {{ background: #fff3e0; border-left: 4px solid #ff6f00; padding: 10px 15px; margin: 10px 0; border-radius: 4px; }}
+        code {{ background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 14px; }}
+        li {{ margin: 5px 0; }}
+        hr {{ border: none; border-top: 2px solid #eee; margin: 20px 0; }}
+        strong {{ color: #e65100; }}
+        .print-btn {{ position: fixed; bottom: 20px; right: 20px; background: #ff6f00; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }}
+        .print-btn:hover {{ background: #e65100; }}
+        @media print {{ .print-btn {{ display: none; }} body {{ background: white; }} }}
+    </style>
+</head>
+<body>
+{body_html}
+<button class="print-btn" onclick="window.print()">🖨️ Stampa / PDF</button>
+</body>
+</html>"""
+    
+    return HttpResponse(page_html)
+
 def extend_contract_view(request, prog_id):
     """Prolunga un contratto di 12 mesi e rigenera i turni."""
     from .models import ProgrammazioneRicorrente

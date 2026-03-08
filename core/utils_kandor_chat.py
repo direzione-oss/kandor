@@ -61,6 +61,7 @@ def get_main_menu():
              {'text': 'Ferie', 'callback_data': 'menu_ferie'}],
             [{'text': 'Permesso', 'callback_data': 'menu_permesso'},
              {'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}],
+            [{'text': '📖 Guida', 'url': 'https://kandor.onrender.com/manuale-dipendente/'}],
         ]
     }
 
