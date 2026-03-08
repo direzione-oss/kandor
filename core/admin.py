@@ -118,10 +118,15 @@ class MezzoAdmin(admin.ModelAdmin):
 
 @admin.register(Squadra)
 class SquadraAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'caposquadra')
-    filter_horizontal = ('componenti',) # Migliora la selezione dei dipendenti per la squadra
+    list_display = ('nome', 'caposquadra', 'get_responsabile_area')
+    filter_horizontal = ('componenti',)
     search_fields = ('nome',)
     actions = ['send_team_message_action']
+
+    def get_responsabile_area(self, obj):
+        ra = obj.responsabile_area.first()
+        return f"{ra.dipendente} ({ra.nome_area})" if ra else "—"
+    get_responsabile_area.short_description = "Responsabile Area"
 
     @admin.action(description='💬 Invia Messaggio alla Squadra')
     def send_team_message_action(self, request, queryset):
