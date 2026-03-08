@@ -66,56 +66,70 @@ def get_main_menu():
 
 def get_turni_oggi_keyboard(dipendente):
     """Ritorna tastiera inline con i turni di OGGI del dipendente."""
-    today = timezone.now().date()
-    assegnazioni = AssegnazioneTurno.objects.filter(
-        turno__data=today
-    ).filter(
-        Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
-    ).select_related('cliente', 'turno').distinct()
-    
-    keyboard = []
-    for a in assegnazioni:
-        inizio = a.orario_inizio_previsto.strftime('%H:%M')
-        fine = a.orario_fine_previsto.strftime('%H:%M')
-        label = f"{a.cliente.ragione_sociale[:20]} ({inizio}-{fine})"
-        # Controlla se già compilato
-        has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
-        if has_tt:
-            label = f"✅ {label}"
-        keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
-    
-    if not keyboard:
-        keyboard.append([{'text': '— Nessun turno oggi —', 'callback_data': 'menu_start'}])
-    keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
-    return {'inline_keyboard': keyboard}
+    try:
+        today = timezone.now().date()
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data=today
+        ).filter(
+            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).select_related('cliente', 'turno').distinct()
+        
+        keyboard = []
+        for a in assegnazioni:
+            inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
+            fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
+            cliente_nome = a.cliente.ragione_sociale[:20] if a.cliente else 'N/D'
+            label = f"{cliente_nome} ({inizio}-{fine})"
+            # Controlla se già compilato
+            has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
+            if has_tt:
+                label = f"✅ {label}"
+            keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
+        
+        if not keyboard:
+            keyboard.append([{'text': '— Nessun turno oggi —', 'callback_data': 'menu_start'}])
+        keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+        return {'inline_keyboard': keyboard}
+    except Exception as e:
+        return {'inline_keyboard': [
+            [{'text': f'Errore: {str(e)[:40]}', 'callback_data': 'menu_start'}],
+            [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+        ]}
 
 def get_turni_non_compilati_keyboard(dipendente):
     """Ritorna tastiera con turni passati senza ore compilate (ultimi 7 giorni)."""
-    from datetime import timedelta as td
-    today = timezone.now().date()
-    sette_giorni_fa = today - td(days=7)
-    
-    assegnazioni = AssegnazioneTurno.objects.filter(
-        turno__data__gte=sette_giorni_fa,
-        turno__data__lte=today,
-    ).filter(
-        Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
-    ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
-    
-    keyboard = []
-    for a in assegnazioni:
-        has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
-        if not has_tt:
-            data_str = a.turno.data.strftime('%d/%m')
-            inizio = a.orario_inizio_previsto.strftime('%H:%M')
-            fine = a.orario_fine_previsto.strftime('%H:%M')
-            label = f"🔴 {data_str} {a.cliente.ragione_sociale[:18]} ({inizio}-{fine})"
-            keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
-    
-    if not keyboard:
-        keyboard.append([{'text': '✅ Tutto compilato!', 'callback_data': 'menu_start'}])
-    keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
-    return {'inline_keyboard': keyboard}
+    try:
+        from datetime import timedelta as td
+        today = timezone.now().date()
+        sette_giorni_fa = today - td(days=7)
+        
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data__gte=sette_giorni_fa,
+            turno__data__lte=today,
+        ).filter(
+            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
+        
+        keyboard = []
+        for a in assegnazioni:
+            has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
+            if not has_tt:
+                data_str = a.turno.data.strftime('%d/%m')
+                inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
+                fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
+                cliente_nome = a.cliente.ragione_sociale[:18] if a.cliente else 'N/D'
+                label = f"🔴 {data_str} {cliente_nome} ({inizio}-{fine})"
+                keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
+        
+        if not keyboard:
+            keyboard.append([{'text': '✅ Tutto compilato!', 'callback_data': 'menu_start'}])
+        keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+        return {'inline_keyboard': keyboard}
+    except Exception as e:
+        return {'inline_keyboard': [
+            [{'text': f'Errore: {str(e)[:40]}', 'callback_data': 'menu_start'}],
+            [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+        ]}
 
 
 # Stato conversazione multi-step (in memoria)
