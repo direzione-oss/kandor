@@ -17,6 +17,7 @@
 7. [Gestione Mezzi Aziendali](#7-gestione-mezzi-aziendali)
 8. [Gestione Squadre](#8-gestione-squadre)
 9. [Responsabili Area](#9-responsabili-area)
+9b. [Titolari e Supervisione](#9b-titolari-e-supervisione)
 10. [Pianificazione Turni e Calendario](#10-pianificazione-turni-e-calendario)
 11. [Programmazione Ricorrente](#11-programmazione-ricorrente)
 12. [Richieste Straordinarie](#12-richieste-straordinarie)
@@ -293,6 +294,68 @@ Quando viene creata una richiesta di sostituzione per una squadra, il sistema:
 4. Solo dopo l'approvazione il sostituto viene contattato
 
 ---
+
+## 9b. Titolari e Supervisione
+
+### Accesso
+**Dashboard** → **👁 Supervisione** oppure URL: `/titolari/`
+
+I **Titolari** sono i proprietari/responsabili dell'azienda che vogliono avere una visione d'insieme senza entrare nel dettaglio operativo quotidiano.
+
+### Cos'è un "Account di Accesso"?
+
+Per creare un Titolare occorre prima creare un **account di accesso** al portale (username + password). Questo account è ciò che il titolare usa per fare login su `kandor.onrender.com`.
+
+**Come crearlo:**
+1. **Admin** → **Autenticazione e Autorizzazione** → **Utenti** → **Aggiungi Utente**
+2. Scegli username e password
+3. Salva e poi torna su **Core** → **Titolari** → **Aggiungi Titolare**
+4. Collega l'utente appena creato e inserisci il **Telegram Chat ID** del titolare
+
+### Campi del Titolare
+
+| Campo | Descrizione |
+|-------|-------------|
+| **Utente Django** | Account di accesso al portale (username + password) |
+| **Nome Completo** | Nome del titolare |
+| **Telegram Chat ID** | ID Telegram per ricevere notifiche e riepilogo settimanale |
+| **Notifiche Attive** | Abilita/disabilita i messaggi Telegram |
+
+### Dashboard di Supervisione `/titolari/`
+
+La dashboard mostra in tempo reale:
+
+| Sezione | Contenuto |
+|---------|-----------|
+| **👥 Dipendenti** | Totale attivi, assenti oggi, sostituti abilitati |
+| **📋 Turni di Oggi** | Pianificati, compilati, scoperti |
+| **🔄 Sostituzioni** | Aperte in attesa RA, inviate, fallite oggi |
+| **⚠️ Alert Economici** | Contratti sotto la soglia €/ora |
+| **📆 Settimana** | Ore totali, turni, assenze, sostituzioni |
+
+### Notifiche Telegram Automatiche
+
+Il sistema invia notifiche ai titolari automaticamente:
+- ✅ **Sostituzione confermata** — quando un sostituto accetta il turno
+- 🚨 **Alert turno scoperto** — quando tutti i sostituti hanno rifiutato e il turno è rimasto scoperto
+
+### Riepilogo Settimanale — Venerdì 18:00
+
+Ogni venerdì alle 18:00 i titolari ricevono via Telegram un messaggio con:
+- Dipendenti attivi, turni della settimana, ore registrate
+- Assenze (malattia, ferie, permessi)
+- Sostituzioni gestite
+- Contratti sotto soglia
+
+**Per inviarlo manualmente:**
+1. **Admin** → **Titolari** → seleziona almeno un titolare
+2. Azione → **"Invia riepilogo settimanale adesso"**
+
+**Per il trigger automatico:** configurare [cron-job.org](https://cron-job.org) (gratuito) con:
+- URL: `https://kandor.onrender.com/titolari/riepilogo/?token=TUA_CHIAVE`
+- Giorno: ogni venerdì — Ora: 18:00
+- Aggiungere `RIEPILOGO_TOKEN = "TUA_CHIAVE"` nelle variabili ambiente di Render
+
 
 ## 10. Pianificazione Turni e Calendario
 
