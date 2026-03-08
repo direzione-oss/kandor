@@ -67,11 +67,11 @@ Se non puoi lavorare oggi, premi il bottone corrispondente:
 
 | Situazione | Bottone da premere | Cosa succede |
 |------------|-------------------|--------------|
-| Sei malato | **🤒 Malattia** | Viene registrata l'assenza per malattia di oggi |
-| Hai ferie | **🏖️ Ferie** | Vengono registrate le ferie per oggi |
-| Hai un permesso | **📝 Permesso** | Viene registrato il permesso per oggi |
+| Sei malato | **🤒 Malattia** | Registrata assenza + verifica turni del giorno |
+| Hai ferie | **🏖️ Ferie** | Registrate ferie + verifica turni del giorno |
+| Hai un permesso | **📝 Permesso** | Registrato permesso + verifica turni del giorno |
 
-Il bot conferma immediatamente: *"Registrata MALATTIA per oggi (08/03). Riposati!"*
+Il sistema verifica automaticamente se hai turni oggi: se s�, avvia la procedura di sostituzione e notifica il Responsabile Area.
 
 > 💡 **Consiglio**: Comunica l'assenza il prima possibile, idealmente al mattino presto così l'ufficio può organizzare un sostituto.
 

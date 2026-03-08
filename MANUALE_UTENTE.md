@@ -29,7 +29,7 @@
 19. [Analisi Economica Contratti](#19-analisi-economica-contratti)
 20. [Integrazione Telegram](#20-integrazione-telegram)
 21. [Messaggi Programmati](#21-messaggi-programmati)
-22. [Simulatore Chat](#22-simulatore-chat)
+22. [Centro Messaggi Telegram](#22-centro-messaggi-telegram)
 23. [Gestione Dati (Import/Export)](#23-gestione-dati-importexport)
 24. [Backup e Ripristino](#24-backup-e-ripristino)
 25. [Widget Dashboard](#25-widget-dashboard)
@@ -465,30 +465,46 @@ Nell'evento del calendario: campo "Inserisci ore lavorate" con checkbox "Valida 
 ### Accesso
 **Dashboard** → **Vedi Report** (nelle Operazioni Frequenti) oppure URL: `/verifica-ore/`
 
-Questa pagina mostra un report dettagliato delle ore lavorate per ciascun dipendente in un dato mese.
+Questa pagina mostra un report dettagliato delle ore lavorate per ciascun dipendente e le assenze del mese.
 
 ### Come Usarlo
 
 1. Seleziona **Mese** e **Anno** dai menu a tendina
 2. Clicca **"Aggiorna"**
 
-### Informazioni Mostrate
+### Sezioni del Report
 
-Per ogni dipendente:
-- **Ore Contrattuali** (somma delle ore previste dai turni del mese)
-- **Ore Lavorate** (solo ore **validate** — badge verde)
-- **Differenza** (Lavorate − Contrattuali, positiva o negativa)
+#### 1. Riepilogo per Cliente
+Per ogni cliente con contratto attivo:
+- **Ore Contratto** — ore mensili previste
+- **Ore Lavorate** — ore registrate nel mese
+- **Ore Validate** — solo le ore confermate (badge verde)
+- **Differenza** — Lavorate − Contratto (verde = surplus, rosso = deficit)
+- **€ Contratto / € Calcolato** — importi mensili
 
-### Card Riepilogative
+#### 2. Riepilogo per Squadra e Dipendente
+Raggruppato per squadra, con le ore per ogni dipendente e il dettaglio dei clienti serviti. Cliccabile per espandere/chiudere.
 
-| Card | Descrizione |
-|------|-------------|
-| **Differenza** | Totale ore in più o in meno rispetto al contratto |
-| **Importo (Validate)** | Totale importo basato sulle ore validate |
+#### 3. Riepilogo Assenze del Mese *(NUOVO)*
+Tabella con tutte le assenze dei dipendenti nel mese selezionato:
+
+| Colonna | Descrizione |
+|---------|-------------|
+| **Malattia** | Giorni di malattia |
+| **Ferie** | Giorni di ferie |
+| **Permesso** | Giorni di permesso |
+| **L.104** | Giorni Legge 104 |
+| **Altro** | Altre assenze |
+| **Totale gg** | Somma giorni assenza |
+
+Cliccando sul nome di un dipendente si espandono i dettagli delle singole assenze (date, tipo, note).
 
 ### Stampa PDF
 
-Clicca **"📄 Scarica PDF"** per generare un report PDF da passare all'ufficio amministrativo per fatture e stipendi. Il PDF contiene la tabella completa per il mese selezionato.
+Clicca **"🖨 Scarica PDF"** per generare il report completo in PDF:
+- Tabella per cliente con ore e importi
+- Tabella per squadra/dipendente
+- Tabella assenze del mese (con dettaglio per dipendente)
 
 > ⚠️ **Importante**: Nel report vengono contabilizzate **solo le ore validate** (badge verde nel calendario).
 
@@ -509,9 +525,23 @@ Clicca **"📄 Scarica PDF"** per generare un report PDF da passare all'ufficio 
 | **Origine** | Manuale o Telegram |
 | **Processato** | Checkbox per conferma amministrativa |
 
-### Registrazione via Telegram
+### Registrazione via Telegram (assenza immediata)
 
-I dipendenti possono comunicare assenze tramite i **bottoni inline** del bot Telegram: Malattia, Ferie, Permesso.
+I dipendenti comunicano l'assenza tramite i **bottoni inline** del bot (Malattia, Ferie, Permesso). Il sistema:
+1. Registra l'assenza
+2. **Verifica automaticamente** se il dipendente ha turni nella giornata
+3. Per ogni turno scoperto: **avvia la procedura di sostituzione** (notifica al Responsabile Area)
+4. Il dipendente riceve conferma con l'elenco dei turni interessati
+
+### Ferie Programmate con Sostituzione Automatica *(NUOVO)*
+
+Quando si crea un'assenza dall'Admin con date future (es. ferie 15→20 marzo), il sistema:
+1. Al salvataggio, cerca tutti i turni del dipendente nel range di date
+2. Per ogni turno trovato, crea automaticamente una **RichiestaSostituzione**
+3. Il Responsabile Area riceve la notifica Telegram per approvare i sostituti
+4. I sostituti vengono contattati in ordine di distanza e disponibilità
+
+> 💡 **Anti-duplicati**: se esiste già una richiesta attiva per quel turno, non ne crea un'altra.
 
 ---
 
