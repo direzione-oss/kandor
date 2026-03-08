@@ -68,6 +68,8 @@ def expiring_vehicles_widget():
                 'obj': mezzo,
                 'alerts': relevant_alerts
             })
+    # Ordina per scadenza più vicina
+    processed_vehicles.sort(key=lambda v: min(a['date'] for a in v['alerts']))
     # Flag: ci sono scadenze nei prossimi 7 giorni o già scadute?
     threshold_7 = today + timedelta(days=7)
     has_urgent_7days = any(
