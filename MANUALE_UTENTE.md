@@ -351,10 +351,22 @@ Ogni venerdì alle 18:00 i titolari ricevono via Telegram un messaggio con:
 1. **Admin** → **Titolari** → seleziona almeno un titolare
 2. Azione → **"Invia riepilogo settimanale adesso"**
 
-**Per il trigger automatico:** configurare [cron-job.org](https://cron-job.org) (gratuito) con:
-- URL: `https://kandor.onrender.com/titolari/riepilogo/?token=TUA_CHIAVE`
-- Giorno: ogni venerdì — Ora: 18:00
-- Aggiungere `RIEPILOGO_TOKEN = "TUA_CHIAVE"` nelle variabili ambiente di Render
+### Trigger Automatico — Configurazione già attiva ✅
+
+Il trigger automatico è stato configurato su **cron-job.org** e viene eseguito ogni **venerdì alle 18:00**.
+
+| Parametro | Valore |
+|-----------|--------|
+| **Servizio** | [cron-job.org](https://console.cron-job.org) |
+| **Account email** | serra@serrastudio.it |
+| **Password account** | iMy*K9YYEij+j?+ |
+| **Nome job** | Riepilogo Settimanale Kandor |
+| **URL chiamata** | `https://kandor.onrender.com/titolari/riepilogo/?token=h2YuhTURg41RZvnZLC38qClYLwVt4AnM` |
+| **Token sicurezza** | `h2YuhTURg41RZvnZLC38qClYLwVt4AnM` |
+| **Pianificazione** | ogni venerdì alle 18:00 |
+| **Prossima esecuzione** | venerdì prossimo alle 18:00 |
+
+> 💡 Per modificare o disabilitare il job: accedi su [console.cron-job.org](https://console.cron-job.org) con le credenziali sopra.
 
 
 ## 10. Pianificazione Turni e Calendario
