@@ -818,8 +818,14 @@ def manuale_dipendente_view(request):
             if in_table:
                 new_lines.append('</tbody></table>')
                 in_table = False
+            # Images ![alt](src)
+            img_match = re.match(r'^!\[(.+?)\]\((.+?)\)$', stripped)
+            if img_match:
+                alt = img_match.group(1)
+                src = img_match.group(2)
+                new_lines.append(f'<div style="text-align:center;margin:15px 0"><img src="{src}" alt="{alt}" style="max-width:250px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15)"></div>')
             # List items
-            if stripped.startswith('- '):
+            elif stripped.startswith('- '):
                 new_lines.append(f'<li>{stripped[2:]}</li>')
             elif stripped.startswith('1. ') or re.match(r'^\d+\. ', stripped):
                 text = re.sub(r'^\d+\. ', '', stripped)

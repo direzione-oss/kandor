@@ -14,6 +14,10 @@ Scarica l'app **Telegram** dal Play Store (Android) o App Store (iPhone) se non 
 Cerca su Telegram il bot **Kandor Assistente** (`@kandor_gestionale_bot`) oppure clicca il link diretto: [t.me/kandor_gestionale_bot](https://t.me/kandor_gestionale_bot).
 Premi **"Avvia"** (o **"Start"**).
 
+Puoi anche scansionare il QR Code qui sotto con la fotocamera del telefono:
+
+![QR Code Bot Telegram Kandor](/static/core/img/qr_bot_telegram.png)
+
 ### 3. Registra il tuo ID
 Quando invii il primo messaggio, il bot ti risponderà con: *"Non ti conosco! Il tuo ID Telegram è: XXXXXXX"*.  
 **Comunica questo numero al tuo responsabile**, che lo inserirà nel sistema. Da quel momento sarai operativo!
