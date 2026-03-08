@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from datetime import datetime, timedelta
 from .models import Cliente, Qualifica, Dipendente
-from .services import trova_jolly, genera_turni_automatici
+from .services import trova_jolly, trova_sostituti, genera_turni_automatici
 from django.db.models import Sum, F
 from django.db.models.functions import Coalesce
 from django.contrib import messages
@@ -1078,6 +1078,122 @@ def pdf_contratti_sotto_soglia(request):
     return response
 
 
+@csrf_exempt
+def richiesta_sostituzione_api(request):
+    """API per creare una richiesta di sostituzione dalla UI del calendario."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Metodo non consentito'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        assign_id = data.get('assign_id')
+        dipendente_id = data.get('dipendente_id')
+        motivo = data.get('motivo', 'MALATTIA')
+        note = data.get('note', '')
+    except (json.JSONDecodeError, KeyError):
+        return JsonResponse({'error': 'Dati non validi'}, status=400)
+    
+    from .models import AssegnazioneTurno
+    from .services import crea_richiesta_sostituzione
+    
+    try:
+        assegnazione = AssegnazioneTurno.objects.get(pk=assign_id)
+    except AssegnazioneTurno.DoesNotExist:
+        return JsonResponse({'error': 'Assegnazione non trovata'}, status=404)
+    
+    try:
+        dipendente = Dipendente.objects.get(pk=dipendente_id)
+    except Dipendente.DoesNotExist:
+        return JsonResponse({'error': 'Dipendente non trovato'}, status=404)
+    
+    richiesta = crea_richiesta_sostituzione(assegnazione, dipendente, motivo, note)
+    
+    return JsonResponse({
+        'ok': True,
+        'richiesta_id': richiesta.pk,
+        'stato': richiesta.stato,
+        'candidati': len(richiesta.sostituti_candidati),
+        'messaggio': f'Richiesta creata con {len(richiesta.sostituti_candidati)} sostituti candidati.'
+    })
+
+
+@csrf_exempt
+def risposta_sostituto_api(request, richiesta_id):
+    """API per gestire la risposta del sostituto (accetta/rifiuta)."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Metodo non consentito'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        accettato = data.get('accettato', False)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Dati non validi'}, status=400)
+    
+    from .services import gestisci_risposta_sostituto
+    
+    risultato = gestisci_risposta_sostituto(richiesta_id, accettato)
+    
+    if risultato:
+        return JsonResponse({
+            'ok': True,
+            'stato': risultato.stato,
+            'sostituto': str(risultato.sostituto) if risultato.sostituto else None
+        })
+    else:
+        return JsonResponse({
+            'ok': False,
+            'messaggio': 'Nessun sostituto disponibile ha accettato.'
+        })
+
+
+@csrf_exempt
+def trova_sostituti_api(request):
+    """API per mostrare lista sostituti disponibili senza creare la richiesta."""
+    assign_id = request.GET.get('assign_id')
+    if not assign_id:
+        return JsonResponse({'error': 'assign_id richiesto'}, status=400)
+    
+    from .models import AssegnazioneTurno
+    
+    try:
+        assegnazione = AssegnazioneTurno.objects.get(pk=assign_id)
+    except AssegnazioneTurno.DoesNotExist:
+        return JsonResponse({'error': 'Assegnazione non trovata'}, status=404)
+    
+    cliente = assegnazione.cliente
+    turno = assegnazione.turno
+    squadra = turno.squadra
+    
+    qualifica = None
+    if assegnazione.programmazione_feriale and assegnazione.programmazione_feriale.qualifica_richiesta:
+        qualifica = assegnazione.programmazione_feriale.qualifica_richiesta
+    
+    componenti_ids = list(squadra.componenti.values_list('id', flat=True))
+    if squadra.caposquadra:
+        componenti_ids.append(squadra.caposquadra.id)
+    
+    risultati = trova_sostituti(
+        cliente=cliente,
+        data=turno.data,
+        ora_inizio=assegnazione.orario_inizio_previsto,
+        ora_fine=assegnazione.orario_fine_previsto,
+        escludi_dipendenti_ids=componenti_ids,
+        qualifica_richiesta=qualifica
+    )
+    
+    sostituti_list = []
+    for r in risultati:
+        dip = r['dipendente']
+        dist = f"{r['distanza_km']:.1f}" if r['distanza_km'] != float('inf') else 'N/D'
+        sostituti_list.append({
+            'id': dip.id,
+            'nome': f"{dip.cognome} {dip.nome}",
+            'distanza_km': dist,
+            'qualifiche': r['skills'],
+            'telefono': dip.telefono or '',
+        })
+    
+    return JsonResponse({'ok': True, 'sostituti': sostituti_list})
 @csrf_exempt
 def verifica_ore_view(request):
     """Dashboard verifica ore mensili: confronto ore lavorate vs contrattuali."""

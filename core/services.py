@@ -88,20 +88,20 @@ def genera_turni_automatici(days=365):
     
     return count
 
-def trova_jolly(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=None, qualifica_richiesta=None):
+def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=None, qualifica_richiesta=None):
     """
-    Trova un elenco compatibile di dipendenti per una copertura improvvisa (Jolly).
+    Trova un elenco compatibile di dipendenti sostituti per una copertura improvvisa.
     Filtri:
-    1. Stato ATTIVO
+    1. Stato ATTIVO e is_sostituto=True
     2. Non in Ferie/Malattia/Permesso in quella data
-    3. Non già impegnati in un Turno coincidente (controllo sovrapposizione oraria)
+    3. Non già impegnati in un Turno coincidente
+    4. Qualifica compatibile (se specificata)
     
-    Ranking:
-    - Distanza geografica casa-lavoro (se coordinate disponibili)
+    Ranking: Distanza geografica casa-cliente (crescente)
     """
     
-    # 1. Filtro Dipendenti Attivi
-    candidati = Dipendente.objects.filter(stato='ATTIVO')
+    # 1. Filtro Dipendenti Attivi e Sostituti
+    candidati = Dipendente.objects.filter(stato='ATTIVO', is_sostituto=True)
 
     # Filtro opzionale per Qualifica
     if qualifica_richiesta:
@@ -111,7 +111,6 @@ def trova_jolly(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=None
         candidati = candidati.exclude(id__in=escludi_dipendenti_ids)
 
     # 2. Escludi Assenze
-    # Converti datetime in date se necessario
     data_check = data
     if isinstance(data, datetime):
         data_check = data.date()
@@ -156,3 +155,300 @@ def trova_jolly(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=None
     risultati.sort(key=lambda x: x['distanza_km'])
     
     return risultati
+
+
+# Manteniamo compatibilità con il vecchio nome
+trova_jolly = trova_sostituti
+
+
+def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note=''):
+    """
+    Crea una richiesta di sostituzione:
+    1. Trova il Responsabile Area della squadra
+    2. Calcola lista sostituti ordinata per distanza
+    3. Crea RichiestaSostituzione con stato APERTA
+    4. Invia notifica Telegram al Responsabile Area per approvazione
+    """
+    from .models import ResponsabileArea, RichiestaSostituzione
+    import requests
+    from django.conf import settings
+    
+    cliente = assegnazione.cliente
+    turno = assegnazione.turno
+    squadra = turno.squadra
+    
+    # Trova qualifica richiesta (se esiste programmazione collegata)
+    qualifica = None
+    if assegnazione.programmazione_feriale and assegnazione.programmazione_feriale.qualifica_richiesta:
+        qualifica = assegnazione.programmazione_feriale.qualifica_richiesta
+    
+    # Trova sostituti disponibili
+    componenti_ids = list(squadra.componenti.values_list('id', flat=True))
+    if squadra.caposquadra:
+        componenti_ids.append(squadra.caposquadra.id)
+    
+    sostituti = trova_sostituti(
+        cliente=cliente,
+        data=turno.data,
+        ora_inizio=assegnazione.orario_inizio_previsto,
+        ora_fine=assegnazione.orario_fine_previsto,
+        escludi_dipendenti_ids=componenti_ids,
+        qualifica_richiesta=qualifica
+    )
+    
+    sostituti_ids = [s['dipendente'].id for s in sostituti]
+    
+    # Trova Responsabile Area
+    ra = None
+    try:
+        ra = ResponsabileArea.objects.filter(squadre=squadra).first()
+    except Exception:
+        pass
+    
+    # Crea la richiesta
+    richiesta = RichiestaSostituzione.objects.create(
+        assegnazione_originale=assegnazione,
+        dipendente_assente=dipendente_assente,
+        motivo_assenza=motivo,
+        responsabile_area=ra,
+        stato='APERTA',
+        sostituti_candidati=sostituti_ids,
+        note=note,
+    )
+    
+    # Notifica Responsabile Area via Telegram
+    if ra and ra.dipendente.telegram_chat_id:
+        bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+        if bot_token:
+            primo_sost = sostituti[0] if sostituti else None
+            sost_info = ''
+            if primo_sost:
+                dist = f"{primo_sost['distanza_km']:.1f} km" if primo_sost['distanza_km'] != float('inf') else "N/D"
+                sost_info = f"\nPrimo sostituto proposto: {primo_sost['dipendente']} ({dist})"
+            
+            msg = (
+                f"⚠️ RICHIESTA SOSTITUZIONE\n"
+                f"Dipendente: {dipendente_assente} ({motivo})\n"
+                f"Turno: {turno.data.strftime('%d/%m/%Y')} - "
+                f"{assegnazione.orario_inizio_previsto.strftime('%H:%M')}-"
+                f"{assegnazione.orario_fine_previsto.strftime('%H:%M')}\n"
+                f"Cliente: {cliente.ragione_sociale}\n"
+                f"Squadra: {squadra.nome}"
+                f"{sost_info}\n\n"
+                f"Candidati disponibili: {len(sostituti)}"
+            )
+            
+            keyboard = {
+                "inline_keyboard": [[
+                    {"text": "✅ Approva", "callback_data": f"approva_sost_{richiesta.pk}"},
+                    {"text": "❌ Rifiuta", "callback_data": f"rifiuta_sost_ra_{richiesta.pk}"}
+                ]]
+            }
+            
+            try:
+                import json
+                requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={
+                        "chat_id": ra.dipendente.telegram_chat_id,
+                        "text": msg,
+                        "reply_markup": json.dumps(keyboard)
+                    },
+                    timeout=10
+                )
+            except Exception:
+                pass
+    else:
+        # Se non c'è RA, approva automaticamente
+        richiesta.stato = 'APPROVATA_RA'
+        richiesta.approvata_ra_il = timezone.now()
+        richiesta.save()
+        approva_e_invia_sostituto(richiesta.pk)
+    
+    return richiesta
+
+
+def approva_e_invia_sostituto(richiesta_id):
+    """
+    Dopo approvazione del RA, invia la richiesta al sostituto corrente nella coda.
+    Include: cliente, turno, orari, compagni di squadra con contatti.
+    """
+    from .models import RichiestaSostituzione, Dipendente
+    import requests, json
+    from django.conf import settings
+    
+    try:
+        richiesta = RichiestaSostituzione.objects.get(pk=richiesta_id)
+    except RichiestaSostituzione.DoesNotExist:
+        return None
+    
+    candidati = richiesta.sostituti_candidati
+    idx = richiesta.sostituto_corrente_idx
+    
+    if idx >= len(candidati):
+        richiesta.stato = 'ANNULLATA'
+        richiesta.note += '\nNessun sostituto disponibile ha accettato.'
+        richiesta.save()
+        return None
+    
+    sostituto_id = candidati[idx]
+    try:
+        sostituto = Dipendente.objects.get(pk=sostituto_id)
+    except Dipendente.DoesNotExist:
+        # Passa al successivo
+        richiesta.sostituto_corrente_idx = idx + 1
+        richiesta.save()
+        return approva_e_invia_sostituto(richiesta_id)
+    
+    richiesta.sostituto = sostituto
+    richiesta.stato = 'INVIATA'
+    richiesta.inviata_sostituto_il = timezone.now()
+    
+    # Calcola distanza
+    assegnazione = richiesta.assegnazione_originale
+    cliente = assegnazione.cliente
+    if sostituto.latitudine and sostituto.longitudine and cliente.latitudine and cliente.longitudine:
+        richiesta.distanza_km = geodesic(
+            (sostituto.latitudine, sostituto.longitudine),
+            (cliente.latitudine, cliente.longitudine)
+        ).km
+    
+    richiesta.save()
+    
+    # Prepara info compagni di squadra
+    squadra = assegnazione.turno.squadra
+    compagni = []
+    if squadra:
+        for comp in squadra.componenti.exclude(id=richiesta.dipendente_assente.id):
+            tel = comp.telefono or 'N/D'
+            compagni.append(f"  • {comp.nome} {comp.cognome} (tel: {tel})")
+        if squadra.caposquadra and squadra.caposquadra.id != richiesta.dipendente_assente.id:
+            tel = squadra.caposquadra.telefono or 'N/D'
+            compagni.append(f"  • {squadra.caposquadra.nome} {squadra.caposquadra.cognome} (Caposquadra, tel: {tel})")
+    
+    compagni_str = '\n'.join(compagni) if compagni else '  Nessun compagno'
+    dist_str = f"{richiesta.distanza_km:.1f} km" if richiesta.distanza_km else "N/D"
+    
+    msg = (
+        f"🔔 RICHIESTA DI SOSTITUZIONE\n\n"
+        f"📍 Cliente: {cliente.ragione_sociale}\n"
+        f"📫 Indirizzo: {cliente.indirizzo_sede}\n"
+        f"📅 Data: {assegnazione.turno.data.strftime('%d/%m/%Y')}\n"
+        f"🕐 Orario: {assegnazione.orario_inizio_previsto.strftime('%H:%M')}-"
+        f"{assegnazione.orario_fine_previsto.strftime('%H:%M')}\n"
+        f"📏 Distanza da casa tua: {dist_str}\n\n"
+        f"👥 Squadra: {squadra.nome if squadra else 'N/D'}\n"
+        f"Compagni:\n{compagni_str}\n\n"
+        f"⏰ Hai 1 ora per rispondere."
+    )
+    
+    # Invia via Telegram
+    if sostituto.telegram_chat_id:
+        bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+        if bot_token:
+            keyboard = {
+                "inline_keyboard": [[
+                    {"text": "✅ Accetto", "callback_data": f"accetta_sost_{richiesta.pk}"},
+                    {"text": "❌ Rifiuto", "callback_data": f"rifiuta_sost_{richiesta.pk}"}
+                ]]
+            }
+            try:
+                requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={
+                        "chat_id": sostituto.telegram_chat_id,
+                        "text": msg,
+                        "reply_markup": json.dumps(keyboard)
+                    },
+                    timeout=10
+                )
+            except Exception:
+                pass
+    
+    return richiesta
+
+
+def gestisci_risposta_sostituto(richiesta_id, accettato):
+    """
+    Gestisce la risposta del sostituto.
+    Se accettato: assegna al turno, stato COMPLETATA.
+    Se rifiutato/scaduto: passa al prossimo sostituto.
+    """
+    from .models import RichiestaSostituzione
+    
+    try:
+        richiesta = RichiestaSostituzione.objects.get(pk=richiesta_id)
+    except RichiestaSostituzione.DoesNotExist:
+        return None
+    
+    richiesta.risposta_sostituto_il = timezone.now()
+    
+    if accettato:
+        richiesta.stato = 'COMPLETATA'
+        richiesta.save()
+        
+        # Notifica il RA e l'admin
+        _notifica_completamento(richiesta)
+        return richiesta
+    else:
+        richiesta.stato = 'RIFIUTATA'
+        richiesta.sostituto_corrente_idx += 1
+        richiesta.sostituto = None
+        richiesta.save()
+        
+        # Prova il prossimo sostituto
+        return approva_e_invia_sostituto(richiesta.pk)
+
+
+def verifica_timeout_sostituzioni():
+    """
+    Da chiamare periodicamente (es. ogni 15 min via cron/management command).
+    Verifica le richieste INVIATA con timeout > 1h e passa al sostituto successivo.
+    """
+    from .models import RichiestaSostituzione
+    
+    scadenza = timezone.now() - timedelta(hours=1)
+    richieste_scadute = RichiestaSostituzione.objects.filter(
+        stato='INVIATA',
+        inviata_sostituto_il__lt=scadenza
+    )
+    
+    for richiesta in richieste_scadute:
+        richiesta.stato = 'SCADUTA'
+        richiesta.sostituto_corrente_idx += 1
+        richiesta.sostituto = None
+        richiesta.save()
+        approva_e_invia_sostituto(richiesta.pk)
+
+
+def _notifica_completamento(richiesta):
+    """Notifica il RA e l'admin che la sostituzione è stata accettata."""
+    import requests, json
+    from django.conf import settings
+    
+    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if not bot_token:
+        return
+    
+    assegnazione = richiesta.assegnazione_originale
+    msg = (
+        f"✅ SOSTITUZIONE CONFERMATA\n\n"
+        f"Sostituto: {richiesta.sostituto}\n"
+        f"Cliente: {assegnazione.cliente.ragione_sociale}\n"
+        f"Data: {assegnazione.turno.data.strftime('%d/%m/%Y')}\n"
+        f"Orario: {assegnazione.orario_inizio_previsto.strftime('%H:%M')}-"
+        f"{assegnazione.orario_fine_previsto.strftime('%H:%M')}\n"
+        f"Sostituisce: {richiesta.dipendente_assente} ({richiesta.motivo_assenza})"
+    )
+    
+    # Notifica RA
+    if richiesta.responsabile_area and richiesta.responsabile_area.dipendente.telegram_chat_id:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": richiesta.responsabile_area.dipendente.telegram_chat_id, "text": msg},
+                timeout=10
+            )
+        except Exception:
+            pass
+

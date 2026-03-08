@@ -2,7 +2,8 @@ from django.contrib import admin, messages
 from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
-    ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza
+    ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
+    ResponsabileArea, RichiestaSostituzione
 )
 
 @admin.register(Assenza)
@@ -18,9 +19,9 @@ admin.site.index_title = "Benvenuto in Kandor"
 
 @admin.register(Dipendente)
 class DipendenteAdmin(admin.ModelAdmin):
-    list_display = ('cognome', 'nome', 'stato', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('cognome', 'nome', 'stato', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
-    list_filter = ('stato', 'qualifiche')
+    list_filter = ('stato', 'is_sostituto', 'qualifiche')
     filter_horizontal = ('qualifiche',) # Migliora la selezione multipla
     actions = ['send_telegram_message_action']
     
@@ -203,3 +204,42 @@ class MessaggioProgrammatoAdmin(admin.ModelAdmin):
     search_fields = ('titolo', 'testo')
     filter_horizontal = ('destinatari',)
     date_hierarchy = 'data_programmata'
+
+
+@admin.register(ResponsabileArea)
+class ResponsabileAreaAdmin(admin.ModelAdmin):
+    list_display = ('dipendente', 'nome_area')
+    search_fields = ('dipendente__cognome', 'dipendente__nome', 'nome_area')
+    filter_horizontal = ('squadre',)
+
+
+@admin.register(RichiestaSostituzione)
+class RichiestaSostituzioneAdmin(admin.ModelAdmin):
+    list_display = ('creata_il', 'get_data_turno', 'get_cliente', 'dipendente_assente', 'motivo_assenza', 'sostituto', 'stato', 'distanza_km')
+    list_filter = ('stato', 'motivo_assenza')
+    search_fields = ('dipendente_assente__cognome', 'sostituto__cognome', 'assegnazione_originale__cliente__ragione_sociale')
+    readonly_fields = ('creata_il', 'approvata_ra_il', 'inviata_sostituto_il', 'risposta_sostituto_il', 'sostituti_candidati', 'sostituto_corrente_idx')
+    date_hierarchy = 'creata_il'
+    actions = ['approva_selezionate']
+
+    def get_data_turno(self, obj):
+        return obj.assegnazione_originale.turno.data
+    get_data_turno.short_description = 'Data Turno'
+    get_data_turno.admin_order_field = 'assegnazione_originale__turno__data'
+
+    def get_cliente(self, obj):
+        return obj.assegnazione_originale.cliente.ragione_sociale
+    get_cliente.short_description = 'Cliente'
+
+    def approva_selezionate(self, request, queryset):
+        from .services import approva_e_invia_sostituto
+        count = 0
+        for richiesta in queryset.filter(stato='APERTA'):
+            from django.utils import timezone
+            richiesta.stato = 'APPROVATA_RA'
+            richiesta.approvata_ra_il = timezone.now()
+            richiesta.save()
+            approva_e_invia_sostituto(richiesta.pk)
+            count += 1
+        self.message_user(request, f"{count} richieste approvate e inviate.", messages.SUCCESS)
+    approva_selezionate.short_description = "✅ Approva e invia ai sostituti"

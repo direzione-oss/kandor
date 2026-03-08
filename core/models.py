@@ -53,6 +53,9 @@ class Dipendente(models.Model):
     
     # Stato
     stato = models.CharField(max_length=20, choices=STATO_CHOICES, default='ATTIVO')
+    
+    # Sostituto
+    is_sostituto = models.BooleanField(default=False, verbose_name="Disponibile come Sostituto", help_text="Se attivo, questo dipendente può essere chiamato per sostituzioni")
 
     def save(self, *args, **kwargs):
         # Auto-calculate data_nascita from CF if missing
@@ -452,6 +455,68 @@ class MessaggioChat(models.Model):
     def __str__(self):
         arrow = "←" if self.direzione == 'IN' else "→"
         return f"{arrow} {self.dipendente.nome}: {self.testo[:50]}"
+
+
+class ResponsabileArea(models.Model):
+    dipendente = models.OneToOneField(Dipendente, on_delete=models.CASCADE, related_name='ruolo_responsabile')
+    nome_area = models.CharField(max_length=100, verbose_name="Nome Area")
+    squadre = models.ManyToManyField('Squadra', related_name='responsabile_area', blank=True, verbose_name="Squadre Supervisionate")
+
+    def __str__(self):
+        return f"{self.dipendente} - {self.nome_area}"
+
+    class Meta:
+        verbose_name = "Responsabile Area"
+        verbose_name_plural = "Responsabili Area"
+
+
+class RichiestaSostituzione(models.Model):
+    STATO_RICHIESTA = [
+        ('APERTA', 'Aperta'),
+        ('APPROVATA_RA', 'Approvata dal Responsabile'),
+        ('INVIATA', 'Inviata al Sostituto'),
+        ('ACCETTATA', 'Accettata'),
+        ('RIFIUTATA', 'Rifiutata'),
+        ('SCADUTA', 'Scaduta (timeout 1h)'),
+        ('COMPLETATA', 'Completata'),
+        ('ANNULLATA', 'Annullata'),
+    ]
+
+    # Turno da coprire
+    assegnazione_originale = models.ForeignKey(AssegnazioneTurno, on_delete=models.CASCADE, related_name='richieste_sostituzione')
+    dipendente_assente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='sostituzioni_assente')
+    motivo_assenza = models.CharField(max_length=20, verbose_name="Motivo Assenza")
+
+    # Sostituto selezionato
+    sostituto = models.ForeignKey(Dipendente, on_delete=models.SET_NULL, null=True, blank=True, related_name='sostituzioni_effettuate', verbose_name="Sostituto Assegnato")
+
+    # Responsabile Area
+    responsabile_area = models.ForeignKey(ResponsabileArea, on_delete=models.SET_NULL, null=True, blank=True)
+
+    # Stato e timing
+    stato = models.CharField(max_length=20, choices=STATO_RICHIESTA, default='APERTA')
+    creata_il = models.DateTimeField(auto_now_add=True)
+    approvata_ra_il = models.DateTimeField(null=True, blank=True, verbose_name="Approvata RA il")
+    inviata_sostituto_il = models.DateTimeField(null=True, blank=True, verbose_name="Inviata al Sostituto il")
+    risposta_sostituto_il = models.DateTimeField(null=True, blank=True, verbose_name="Risposta Sostituto il")
+
+    # Coda sostituti (ordine di contatto)
+    sostituti_candidati = models.JSONField(default=list, blank=True, help_text="Lista ordinata ID sostituti da contattare")
+    sostituto_corrente_idx = models.IntegerField(default=0, verbose_name="Indice Sostituto Corrente")
+
+    # Distanza
+    distanza_km = models.FloatField(null=True, blank=True, verbose_name="Distanza km")
+
+    note = models.TextField(blank=True)
+
+    def __str__(self):
+        data = self.assegnazione_originale.turno.data
+        return f"Sost. {self.dipendente_assente} → {self.sostituto or '?'} ({data}) [{self.stato}]"
+
+    class Meta:
+        verbose_name = "Richiesta Sostituzione"
+        verbose_name_plural = "Richieste Sostituzione"
+        ordering = ['-creata_il']
 
 
 # --- Geocoding Signals ---

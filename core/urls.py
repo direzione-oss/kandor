@@ -6,7 +6,8 @@ from .views import (
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
     extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia,
     add_turno_ajax, edit_turno_ajax, delete_turno_ajax, get_squadre_clienti_json,
-    validate_ore_ajax, verifica_ore_view, pdf_verifica_ore
+    validate_ore_ajax, verifica_ore_view, pdf_verifica_ore,
+    richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api
 )
 from django.views.generic import RedirectView
 
@@ -45,4 +46,9 @@ urlpatterns = [
     path('api/validate-ore/<int:assign_id>/', validate_ore_ajax, name='validate_ore_ajax'),
     path('verifica-ore/', verifica_ore_view, name='verifica_ore'),
     path('pdf-verifica-ore/', pdf_verifica_ore, name='pdf_verifica_ore'),
+    
+    # Gestione Sostituti
+    path('api/richiesta-sostituzione/', richiesta_sostituzione_api, name='richiesta_sostituzione'),
+    path('api/risposta-sostituto/<int:richiesta_id>/', risposta_sostituto_api, name='risposta_sostituto'),
+    path('api/trova-sostituti/', trova_sostituti_api, name='trova_sostituti'),
 ]
