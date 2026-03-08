@@ -68,9 +68,10 @@ def get_turni_oggi_keyboard(dipendente):
     """Ritorna tastiera inline con i turni di OGGI del dipendente."""
     today = timezone.now().date()
     assegnazioni = AssegnazioneTurno.objects.filter(
-        turno__data=today,
-        turno__squadra__componenti=dipendente
-    ).select_related('cliente', 'turno')
+        turno__data=today
+    ).filter(
+        Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+    ).select_related('cliente', 'turno').distinct()
     
     keyboard = []
     for a in assegnazioni:
@@ -97,8 +98,9 @@ def get_turni_non_compilati_keyboard(dipendente):
     assegnazioni = AssegnazioneTurno.objects.filter(
         turno__data__gte=sette_giorni_fa,
         turno__data__lte=today,
-        turno__squadra__componenti=dipendente
-    ).select_related('cliente', 'turno').order_by('-turno__data')
+    ).filter(
+        Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+    ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
     
     keyboard = []
     for a in assegnazioni:
