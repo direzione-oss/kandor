@@ -68,7 +68,13 @@ def expiring_vehicles_widget():
                 'obj': mezzo,
                 'alerts': relevant_alerts
             })
-    return {'vehicles': processed_vehicles}
+    # Flag: ci sono scadenze nei prossimi 7 giorni o già scadute?
+    threshold_7 = today + timedelta(days=7)
+    has_urgent_7days = any(
+        any(a['date'] <= threshold_7 for a in v['alerts'])
+        for v in processed_vehicles
+    )
+    return {'vehicles': processed_vehicles, 'has_urgent_7days': has_urgent_7days}
 
 @register.inclusion_tag('admin/widgets/upcoming_birthdays_widget.html')
 def upcoming_birthdays_widget():
@@ -109,10 +115,15 @@ def upcoming_birthdays_widget():
     clients_birthdays = get_upcoming(clienti, 'referente_data_nascita')
     clients_birthdays.sort(key=lambda x: x['days_until'])
     
+    # Flag: ci sono compleanni nei prossimi 7 giorni?
+    has_urgent_7days = any(
+        b['days_until'] <= 7 for b in employees_birthdays + clients_birthdays
+    )
     return {
         'employees_birthdays': employees_birthdays,
         'clients_birthdays': clients_birthdays,
-        'has_birthdays': bool(employees_birthdays or clients_birthdays)
+        'has_birthdays': bool(employees_birthdays or clients_birthdays),
+        'has_urgent_7days': has_urgent_7days,
     }
 
 

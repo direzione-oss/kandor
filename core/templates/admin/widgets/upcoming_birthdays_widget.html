@@ -4,9 +4,9 @@
     <h3 style="background: #79aec8; color: white; margin: 0; padding: 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
         onclick="toggleWidget('birthdays-content', this)">
         <span>🎂 Compleanni in Arrivo (20 giorni)</span>
-        <span style="font-size: 12px;">▼</span>
+        <span style="font-size: 12px;">{% if has_urgent_7days %}▼{% else %}▶{% endif %}</span>
     </h3>
-    <div id="birthdays-content" style="padding: 0;">
+    <div id="birthdays-content" style="padding: 0; {% if not has_urgent_7days %}display: none;{% endif %}">
         <table style="width: 100%; border-collapse: collapse;">
             <tbody>
                 <!-- DIPENDENTI -->
@@ -73,15 +73,17 @@
 </div>
 
 <script>
-    function toggleWidget(id, header) {
-        var content = document.getElementById(id);
-        var icon = header.querySelector('span:last-child');
-        if (content.style.display === "none") {
-            content.style.display = "block";
-            icon.innerText = "▼";
-        } else {
-            content.style.display = "none";
-            icon.innerText = "▲";
+    if (typeof toggleWidget === 'undefined') {
+        function toggleWidget(id, header) {
+            var content = document.getElementById(id);
+            var icon = header.querySelector('span:last-child');
+            if (content.style.display === "none") {
+                content.style.display = "block";
+                icon.innerText = "▼";
+            } else {
+                content.style.display = "none";
+                icon.innerText = "▶";
+            }
         }
     }
 </script>
