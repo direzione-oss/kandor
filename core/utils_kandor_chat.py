@@ -55,7 +55,8 @@ def get_main_menu():
     """Ritorna il menu principale con bottoni inline."""
     return {
         'inline_keyboard': [
-            [{'text': 'Registra Ore', 'callback_data': 'menu_ore'}],
+            [{'text': '⏱ Registra Ore', 'callback_data': 'menu_ore'}],
+            [{'text': '📋 Turni da compilare', 'callback_data': 'menu_turni_mancanti'}],
             [{'text': 'Malattia', 'callback_data': 'menu_malattia'},
              {'text': 'Ferie', 'callback_data': 'menu_ferie'}],
             [{'text': 'Permesso', 'callback_data': 'menu_permesso'},
@@ -63,28 +64,55 @@ def get_main_menu():
         ]
     }
 
-def get_clienti_keyboard(dipendente):
-    """Ritorna tastiera inline con i clienti assegnati al dipendente."""
-    clienti_ids = AssegnazioneTurno.objects.filter(
+def get_turni_oggi_keyboard(dipendente):
+    """Ritorna tastiera inline con i turni di OGGI del dipendente."""
+    today = timezone.now().date()
+    assegnazioni = AssegnazioneTurno.objects.filter(
+        turno__data=today,
         turno__squadra__componenti=dipendente
-    ).values_list('cliente_id', flat=True).distinct()
-    
-    clienti = Cliente.objects.filter(pk__in=clienti_ids).order_by('ragione_sociale')
-    
-    if not clienti.exists():
-        clienti = Cliente.objects.all().order_by('ragione_sociale')[:20]
+    ).select_related('cliente', 'turno')
     
     keyboard = []
-    row = []
-    for c in clienti:
-        nome_corto = c.ragione_sociale[:25]
-        row.append({'text': nome_corto, 'callback_data': f'ore_cliente_{c.pk}'})
-        if len(row) == 2:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-    keyboard.append([{'text': 'Menu Principale', 'callback_data': 'menu_start'}])
+    for a in assegnazioni:
+        inizio = a.orario_inizio_previsto.strftime('%H:%M')
+        fine = a.orario_fine_previsto.strftime('%H:%M')
+        label = f"{a.cliente.ragione_sociale[:20]} ({inizio}-{fine})"
+        # Controlla se già compilato
+        has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
+        if has_tt:
+            label = f"✅ {label}"
+        keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
+    
+    if not keyboard:
+        keyboard.append([{'text': '— Nessun turno oggi —', 'callback_data': 'menu_start'}])
+    keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+    return {'inline_keyboard': keyboard}
+
+def get_turni_non_compilati_keyboard(dipendente):
+    """Ritorna tastiera con turni passati senza ore compilate (ultimi 7 giorni)."""
+    from datetime import timedelta as td
+    today = timezone.now().date()
+    sette_giorni_fa = today - td(days=7)
+    
+    assegnazioni = AssegnazioneTurno.objects.filter(
+        turno__data__gte=sette_giorni_fa,
+        turno__data__lte=today,
+        turno__squadra__componenti=dipendente
+    ).select_related('cliente', 'turno').order_by('-turno__data')
+    
+    keyboard = []
+    for a in assegnazioni:
+        has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
+        if not has_tt:
+            data_str = a.turno.data.strftime('%d/%m')
+            inizio = a.orario_inizio_previsto.strftime('%H:%M')
+            fine = a.orario_fine_previsto.strftime('%H:%M')
+            label = f"🔴 {data_str} {a.cliente.ragione_sociale[:18]} ({inizio}-{fine})"
+            keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
+    
+    if not keyboard:
+        keyboard.append([{'text': '✅ Tutto compilato!', 'callback_data': 'menu_start'}])
+    keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
     return {'inline_keyboard': keyboard}
 
 
@@ -115,8 +143,8 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     # COMANDO /ore
     if clean_text == '/ore':
         return {
-            'text': "Seleziona il cliente:",
-            'reply_markup': get_clienti_keyboard(dipendente)
+            'text': "Seleziona il turno di oggi per cui registrare le ore:",
+            'reply_markup': get_turni_oggi_keyboard(dipendente)
         }
     
     # COMANDO /malattia
@@ -179,9 +207,9 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     if state:
         action = state.get('action')
         
-        # Attesa ore per un cliente specifico
+        # Attesa ore per un turno specifico
         if action == 'attesa_ore':
-            cliente_id = state.get('cliente_id')
+            assegnazione_id = state.get('assegnazione_id')
             del _TELEGRAM_STATE[telegram_chat_id]
             
             try:
@@ -190,11 +218,11 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
             
             try:
-                cliente = Cliente.objects.get(pk=cliente_id)
-            except Cliente.DoesNotExist:
-                return "Cliente non trovato."
+                assegnazione = AssegnazioneTurno.objects.select_related('cliente').get(pk=assegnazione_id)
+            except AssegnazioneTurno.DoesNotExist:
+                return "Turno non trovato."
             
-            return _salva_ore(dipendente, cliente, hours, text)
+            return _salva_ore_turno(dipendente, assegnazione, hours, text)
         
         # Attesa testo segnalazione
         if action == 'segnalazione':
@@ -206,18 +234,9 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 'reply_markup': get_main_menu()
             }
     
-    # Tentativo parsing classico: "NomeCliente Ore"
-    client_name, hours = parse_message(text)
-    
-    if client_name and hours:
-        cliente = fuzzy_find_cliente(client_name)
-        if not cliente:
-            return f"Non ho trovato nessun cliente simile a '{client_name}'. Riprova."
-        return _salva_ore(dipendente, cliente, hours, text)
-    
     # Nessun comando riconosciuto: mostra menu
     return {
-        'text': f"Ciao {dipendente.nome}! Usa i bottoni o scrivi:\n- 'NomeCliente Ore' (es: Hotel Roma 8)\n- /malattia, /ferie, /permesso\n- /segnalazione testo",
+        'text': f"Ciao {dipendente.nome}! Usa i bottoni per navigare il menu.\nPuoi anche scrivere:\n- /ore — registra ore\n- /malattia, /ferie, /permesso\n- /segnalazione testo",
         'reply_markup': get_main_menu()
     }
 
@@ -241,8 +260,15 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     # Registra Ore -> mostra lista clienti
     if callback_data == 'menu_ore':
         return {
-            'text': "Seleziona il cliente per cui hai lavorato:",
-            'reply_markup': get_clienti_keyboard(dipendente)
+            'text': "Seleziona il turno di oggi per cui registrare le ore:",
+            'reply_markup': get_turni_oggi_keyboard(dipendente)
+        }
+    
+    # Turni da compilare
+    if callback_data == 'menu_turni_mancanti':
+        return {
+            'text': "Turni senza ore (ultimi 7 giorni):\nSeleziona per inserire le ore.",
+            'reply_markup': get_turni_non_compilati_keyboard(dipendente)
         }
     
     # Malattia
@@ -292,56 +318,32 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
         return {'text': "Scrivi il testo della segnalazione:"}
     
-    # Cliente selezionato per ore
-    if callback_data.startswith('ore_cliente_'):
-        cliente_id = callback_data.replace('ore_cliente_', '')
+    # Turno selezionato per ore
+    if callback_data.startswith('ore_turno_'):
+        assegnazione_id = callback_data.replace('ore_turno_', '')
         try:
-            cliente = Cliente.objects.get(pk=cliente_id)
-        except Cliente.DoesNotExist:
-            return {'text': "Cliente non trovato."}
+            assegnazione = AssegnazioneTurno.objects.select_related('cliente', 'turno').get(pk=assegnazione_id)
+        except AssegnazioneTurno.DoesNotExist:
+            return {'text': "Turno non trovato."}
+        
+        data_str = assegnazione.turno.data.strftime('%d/%m')
+        inizio = assegnazione.orario_inizio_previsto.strftime('%H:%M')
+        fine = assegnazione.orario_fine_previsto.strftime('%H:%M')
         
         _TELEGRAM_STATE[telegram_chat_id] = {
             'action': 'attesa_ore',
-            'cliente_id': int(cliente_id)
+            'assegnazione_id': int(assegnazione_id)
         }
-        return {'text': f"Quante ore hai lavorato per {cliente.ragione_sociale}?\n(Scrivi il numero, es: 8 o 7.5)"}
+        return {'text': f"Turno: {assegnazione.cliente.ragione_sociale}\n"
+                       f"Data: {data_str} ({inizio}-{fine})\n\n"
+                       f"Quante ore hai lavorato?\n(Scrivi il numero, es: 8 o 7.5)"}
     
     return {'text': "Comando non riconosciuto.", 'reply_markup': get_main_menu()}
 
 
-def _salva_ore(dipendente, cliente, hours, original_text):
-    """Salva le ore lavorate e ritorna messaggio di conferma con menu."""
-    today = timezone.now().date()
-    
-    assegnazione = AssegnazioneTurno.objects.filter(
-        turno__data=today,
-        turno__squadra__componenti=dipendente,
-        cliente=cliente
-    ).first()
-    
-    msg_extra = ""
-    
-    if not assegnazione:
-        user_turni = Turno.objects.filter(data=today, squadra__componenti=dipendente)
-        
-        if user_turni.exists():
-            turno = user_turni.first()
-        else:
-            squadra = dipendente.squadre_appartenenza.first()
-            if not squadra:
-                return "Non appartieni a nessuna squadra."
-            turno = Turno.objects.create(data=today, squadra=squadra)
-        
-        now = timezone.now()
-        assegnazione = AssegnazioneTurno.objects.create(
-            turno=turno, cliente=cliente,
-            orario_inizio_previsto=now.time(),
-            orario_fine_previsto=now.time(),
-            mansione_svolta="Via Telegram"
-        )
-        msg_extra = " (turno creato)"
-    
-    # Aggiorna se esiste già un TimeTracking per oggi/assegnazione, altrimenti crea
+def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
+    """Salva le ore lavorate per una specifica assegnazione turno."""
+    # Aggiorna se esiste già un TimeTracking, altrimenti crea
     tt, created = TimeTracking.objects.update_or_create(
         dipendente=dipendente,
         assegnazione=assegnazione,
@@ -353,9 +355,10 @@ def _salva_ore(dipendente, cliente, hours, original_text):
         }
     )
     
+    data_str = assegnazione.turno.data.strftime('%d/%m')
     action = "Salvato" if created else "Aggiornato"
     return {
-        'text': f"{action}! {hours}h per {cliente.ragione_sociale}.{msg_extra}",
+        'text': f"{action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).",
         'reply_markup': get_main_menu()
     }
 
