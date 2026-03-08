@@ -263,6 +263,98 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     }
 
 
+def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, msg_aggiuntivo):
+    """
+    Registra l'assenza e verifica se il dipendente aveva turni oggi.
+    Se sì, avvia automaticamente la procedura di sostituzione per ogni turno.
+    """
+    today = timezone.now().date()
+    from .models import Assenza, AssegnazioneTurno, Squadra
+    from django.db.models import Q
+    
+    # 1. Registra l'assenza
+    Assenza.objects.create(
+        dipendente=dipendente, tipo=tipo_assenza,
+        data_inizio=today, data_fine=today,
+        note="Via bottone Telegram", source='TELEGRAM'
+    )
+    
+    # 2. Cerca turni di oggi dove il dipendente è coinvolto (come componente o caposquadra)
+    squadre_dipendente = Squadra.objects.filter(
+        Q(componenti=dipendente) | Q(caposquadra=dipendente)
+    ).distinct()
+    
+    assegnazioni_oggi = AssegnazioneTurno.objects.filter(
+        turno__data=today,
+        turno__squadra__in=squadre_dipendente
+    ).select_related('turno', 'turno__squadra', 'cliente')
+    
+    turni_scoperti = list(assegnazioni_oggi)
+    
+    # 3. Componi messaggio base
+    testo = f"{msg_conferma} per oggi ({today.strftime('%d/%m')})."
+    if msg_aggiuntivo:
+        testo += f" {msg_aggiuntivo}"
+    
+    # 4. Se ci sono turni, avvia la sostituzione automatica
+    if turni_scoperti:
+        testo += f"\n\n⚠️ ATTENZIONE: Hai {len(turni_scoperti)} turno/i oggi!\n"
+        
+        richieste_create = 0
+        for assegnazione in turni_scoperti:
+            testo += f"  • {assegnazione.cliente.ragione_sociale} ({assegnazione.orario_inizio_previsto.strftime('%H:%M')}-{assegnazione.orario_fine_previsto.strftime('%H:%M')})\n"
+            
+            try:
+                from .services import crea_richiesta_sostituzione
+                motivo_map = {
+                    'MALATTIA': 'MALATTIA',
+                    'FERIE': 'FERIE',
+                    'PERMESSO': 'PERMESSO',
+                }
+                crea_richiesta_sostituzione(
+                    assegnazione, 
+                    dipendente, 
+                    motivo_map.get(tipo_assenza, 'ALTRO'),
+                    f"Comunicato via Telegram"
+                )
+                richieste_create += 1
+            except Exception as e:
+                print(f"[Sostituzione Auto] Errore per assegnazione {assegnazione.pk}: {e}")
+        
+        if richieste_create > 0:
+            testo += f"\n🔄 Procedura sostituzione avviata per {richieste_create} turno/i."
+            testo += "\nIl Responsabile Area è stato notificato."
+        
+        # Notifica anche l'admin via Telegram (se configurato)
+        try:
+            from django.conf import settings
+            admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
+            if admin_chat_id:
+                token = settings.TELEGRAM_BOT_TOKEN
+                alert_msg = (
+                    f"🚨 ALERT ASSENZA\n\n"
+                    f"👤 {dipendente.cognome} {dipendente.nome} ha comunicato {tipo_assenza}\n"
+                    f"📅 Data: {today.strftime('%d/%m/%Y')}\n"
+                    f"⚠️ Turni scoperti: {len(turni_scoperti)}\n"
+                )
+                for a in turni_scoperti:
+                    alert_msg += f"  • {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')}) — Squadra: {a.turno.squadra.nome}\n"
+                alert_msg += "\n🔄 Procedura sostituzione avviata automaticamente."
+                
+                import requests as req
+                req.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={'chat_id': admin_chat_id, 'text': alert_msg}
+                )
+        except Exception:
+            pass
+    
+    return {
+        'text': testo,
+        'reply_markup': get_main_menu()
+    }
+
+
 def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utente"):
     """Gestisce i bottoni inline premuti dall'utente."""
     dipendenti = Dipendente.objects.filter(telegram_chat_id=telegram_chat_id, stato='ATTIVO')
@@ -295,45 +387,15 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     
     # Malattia
     if callback_data == 'menu_malattia':
-        today = timezone.now().date()
-        from .models import Assenza
-        Assenza.objects.create(
-            dipendente=dipendente, tipo='MALATTIA',
-            data_inizio=today, data_fine=today,
-            note="Via bottone Telegram", source='TELEGRAM'
-        )
-        return {
-            'text': f"Registrata MALATTIA per oggi ({today.strftime('%d/%m')}). Riposati!",
-            'reply_markup': get_main_menu()
-        }
+        return _gestisci_assenza_con_sostituzione(dipendente, 'MALATTIA', 'Registrata MALATTIA', 'Riposati!')
     
     # Ferie
     if callback_data == 'menu_ferie':
-        today = timezone.now().date()
-        from .models import Assenza
-        Assenza.objects.create(
-            dipendente=dipendente, tipo='FERIE',
-            data_inizio=today, data_fine=today,
-            note="Via bottone Telegram", source='TELEGRAM'
-        )
-        return {
-            'text': f"Ferie registrate per oggi ({today.strftime('%d/%m')}). Buon relax!",
-            'reply_markup': get_main_menu()
-        }
+        return _gestisci_assenza_con_sostituzione(dipendente, 'FERIE', 'Ferie registrate', 'Buon relax!')
     
     # Permesso
     if callback_data == 'menu_permesso':
-        today = timezone.now().date()
-        from .models import Assenza
-        Assenza.objects.create(
-            dipendente=dipendente, tipo='PERMESSO',
-            data_inizio=today, data_fine=today,
-            note="Via bottone Telegram", source='TELEGRAM'
-        )
-        return {
-            'text': f"Permesso registrato per oggi ({today.strftime('%d/%m')}).",
-            'reply_markup': get_main_menu()
-        }
+        return _gestisci_assenza_con_sostituzione(dipendente, 'PERMESSO', 'Permesso registrato', '')
     
     # Segnalazione -> chiedi testo
     if callback_data == 'menu_segnalazione':
