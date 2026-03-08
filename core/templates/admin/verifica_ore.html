@@ -39,6 +39,9 @@
         border-radius: 6px;
         font-size: 14px;
         background: #fff;
+        color: #333;
+        font-weight: 500;
+        min-width: 140px;
     }
 
     .vo-selector button {
@@ -214,7 +217,7 @@
             </select>
             <select id="sel-anno">
                 {% for a in anni_options %}
-                <option value="{{ a }}" {% if a == anno %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a }}" {% if a==anno %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
             </select>
             <button onclick="cambiaFiltro()">Aggiorna</button>
