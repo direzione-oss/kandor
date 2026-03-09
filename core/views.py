@@ -637,7 +637,7 @@ def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
 
         # Nome file nel bucket
         file_name = f"dipendente_{dipendente_id}.jpg"
-        bucket = "avatars"
+        bucket = "avatar"
         upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
 
         # Upload su Supabase (upsert = sovrascrive se esiste già)
