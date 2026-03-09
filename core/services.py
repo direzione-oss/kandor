@@ -457,6 +457,80 @@ def _notifica_completamento(richiesta):
                       f"({assegnazione.cliente.ragione_sociale} - {assegnazione.turno.data.strftime('%d/%m')})")
 
 
+def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
+    """Notifica admin, RA della squadra e titolari quando arriva un messaggio da un dipendente."""
+    import requests
+    from django.conf import settings
+    
+    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if not bot_token:
+        return
+    
+    # Ignora messaggi di comando automatici
+    if testo and testo.startswith('/'):
+        return
+    
+    # Tronca testo lungo
+    anteprima = (testo or '📷 Foto')[:120]
+    if testo and len(testo) > 120:
+        anteprima += '…'
+    
+    squadra = None
+    try:
+        from django.utils import timezone as tz
+        assegnazione_oggi = dipendente.assegnazioni.filter(
+            turno__data=tz.now().date()
+        ).select_related('turno__squadra').first()
+        if assegnazione_oggi:
+            squadra = assegnazione_oggi.turno.squadra
+    except Exception:
+        pass
+    
+    msg = (
+        f"💬 <b>Nuovo messaggio da {dipendente}</b>\n"
+        f"{anteprima}\n\n"
+        f"🔗 <a href='https://kandor.onrender.com/centro-messaggi/'>Rispondi nel Centro Messaggi</a>"
+    )
+    
+    destinatari = set()
+    
+    # Admin
+    admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', '')
+    if admin_chat_id:
+        destinatari.add(admin_chat_id)
+    
+    # RA della squadra del dipendente
+    if squadra:
+        try:
+            from .models import ResponsabileArea
+            ra = ResponsabileArea.objects.filter(squadre=squadra).select_related('dipendente').first()
+            if ra and ra.dipendente.telegram_chat_id:
+                destinatari.add(ra.dipendente.telegram_chat_id)
+        except Exception:
+            pass
+    
+    # Titolari
+    try:
+        from .models import Titolare
+        for titolare in Titolare.objects.filter(notifiche_attive=True):
+            cid = titolare.get_chat_id()
+            if cid:
+                destinatari.add(cid)
+    except Exception:
+        pass
+    
+    for chat_id in destinatari:
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML",
+                      "disable_notification": False},
+                timeout=5
+            )
+        except Exception:
+            pass
+
+
 def notifica_titolari(messaggio, solo_attivi=True):
     """Invia un messaggio Telegram a tutti i titolari configurati."""
     import requests
