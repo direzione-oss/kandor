@@ -123,15 +123,26 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
     
     candidati = candidati.exclude(id__in=dipendenti_assenti)
 
-    # 3. Escludi chi è già occupato in un altro turno
+    # 3. Escludi chi è già occupato in un turno sovrapposto (per squadra O individualmente)
     assegnazioni_concomitanti = AssegnazioneTurno.objects.filter(
-        turno__data=data,
+        turno__data=data_check,
         orario_inizio_previsto__lt=ora_fine,
         orario_fine_previsto__gt=ora_inizio
     )
     
+    # Escludi per squadra di appartenenza
     squadre_impegnate_ids = assegnazioni_concomitanti.values_list('turno__squadra_id', flat=True)
     candidati = candidati.exclude(squadre_appartenenza__id__in=squadre_impegnate_ids)
+    
+    # Escludi chi ha un turno individuale sovrapposto (anche fuori dalla propria squadra)
+    # Cerca dipendenti che hanno un'assegnazione diretta in quella squadra/turno
+    dipendenti_con_turno = AssegnazioneTurno.objects.filter(
+        turno__data=data_check,
+        orario_inizio_previsto__lt=ora_fine,
+        orario_fine_previsto__gt=ora_inizio,
+        turno__squadra__componenti__isnull=False  # ha dipendenti assegnati
+    ).values_list('turno__squadra__componenti__id', flat=True).distinct()
+    candidati = candidati.exclude(id__in=dipendenti_con_turno)
 
     # 4. Calcolo Distanza e Ranking
     risultati = []
