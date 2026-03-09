@@ -10,9 +10,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='dipendente',
-            name='riceve_notifiche_messaggi',
+        # Rimuovi riceve_notifiche_messaggi solo se esiste (gestisce DB dove non era mai stata creata)
+        migrations.RunSQL(
+            sql="ALTER TABLE core_dipendente DROP COLUMN IF EXISTS riceve_notifiche_messaggi;",
+            reverse_sql="ALTER TABLE core_dipendente ADD COLUMN riceve_notifiche_messaggi boolean NOT NULL DEFAULT true;",
         ),
         migrations.AddField(
             model_name='dipendente',
