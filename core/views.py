@@ -614,6 +614,55 @@ def get_squadre_clienti_json(request):
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
 
 
+def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
+    """
+    Scarica la foto da Telegram e la carica su Supabase Storage (bucket 'avatars').
+    Ritorna l'URL pubblico permanente, o None se fallisce.
+    """
+    try:
+        import requests as req
+        from django.conf import settings
+
+        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
+        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
+
+        if not supabase_url or not supabase_key:
+            return None
+
+        # Scarica la foto da Telegram
+        resp = req.get(telegram_foto_url, timeout=15)
+        if not resp.ok:
+            return None
+        foto_bytes = resp.content
+
+        # Nome file nel bucket
+        file_name = f"dipendente_{dipendente_id}.jpg"
+        bucket = "avatars"
+        upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
+
+        # Upload su Supabase (upsert = sovrascrive se esiste già)
+        upload_resp = req.post(
+            upload_url,
+            data=foto_bytes,
+            headers={
+                "Authorization": f"Bearer {supabase_key}",
+                "Content-Type": "image/jpeg",
+                "x-upsert": "true",
+            },
+            timeout=20
+        )
+
+        if upload_resp.status_code in (200, 201):
+            # URL pubblico
+            public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
+            return public_url
+
+    except Exception as e:
+        print(f"[SupabaseUpload] Errore upload foto profilo: {e}")
+
+    return None
+
+
 @csrf_exempt
 def telegram_webhook_view(request):
     """
@@ -705,10 +754,11 @@ def telegram_webhook_view(request):
                         from .models import Dipendente
                         dip_check = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
                         if dip_check and cache.get(f'pending_foto_profilo_{chat_id}'):
-                            dip_check.foto_profilo_url = foto_url
+                            # Prova upload permanente su Supabase Storage
+                            url_finale = _upload_foto_profilo_supabase(foto_url, dip_check.pk) or foto_url
+                            dip_check.foto_profilo_url = url_finale
                             dip_check.save(update_fields=['foto_profilo_url'])
                             cache.delete(f'pending_foto_profilo_{chat_id}')
-                            # Rispondi con conferma
                             if token:
                                 import requests as req
                                 req.post(
@@ -722,6 +772,7 @@ def telegram_webhook_view(request):
                             return HttpResponse("OK")
                     except Exception:
                         pass
+
 
                 # Salva messaggio ricevuto nel database
                 try:
