@@ -930,8 +930,12 @@ def manuale_dipendente_view(request):
     md_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'MANUALE_DIPENDENTE_TELEGRAM.md')
     
     try:
-        with open(md_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        try:
+            with open(md_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+        except Exception:
+            with open(md_path, 'r', encoding='latin-1') as f:
+                content = f.read()
     except FileNotFoundError:
         content = "# Manuale non trovato\n\nIl file MANUALE_DIPENDENTE_TELEGRAM.md non è presente."
     

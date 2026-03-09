@@ -79,6 +79,7 @@ class Dipendente(models.Model):
 
     class Meta:
         verbose_name_plural = "Dipendenti"
+        ordering = ['cognome', 'nome']
 
 class Cliente(models.Model):
     ragione_sociale = models.CharField(max_length=200, verbose_name="Ragione Sociale")
@@ -114,6 +115,7 @@ class Cliente(models.Model):
     class Meta:
         verbose_name = "Cliente"
         verbose_name_plural = "Clienti"
+        ordering = ['ragione_sociale']
 
 class ProgrammazioneRicorrente(models.Model):
     TIPO_RIPETIZIONE = [
@@ -255,6 +257,7 @@ class RichiestaStraordinaria(models.Model):
 
     class Meta:
         verbose_name_plural = "Richieste Straordinarie"
+        ordering = ['-data_inizio', 'ora_inizio']
 
 class Mezzo(models.Model):
     STATO_MEZZO = [
@@ -275,6 +278,7 @@ class Mezzo(models.Model):
 
     class Meta:
         verbose_name_plural = "Mezzi Aziendali"
+        ordering = ['modello', 'targa']
 
 class Squadra(models.Model):
     nome = models.CharField(max_length=100)
@@ -286,6 +290,7 @@ class Squadra(models.Model):
 
     class Meta:
         verbose_name_plural = "Squadre"
+        ordering = ['nome']
 
 class Turno(models.Model):
     data = models.DateField(verbose_name="Data Turno")
@@ -475,6 +480,7 @@ class ResponsabileArea(models.Model):
     class Meta:
         verbose_name = "Responsabile Area"
         verbose_name_plural = "Responsabili Area"
+        ordering = ['nome_area']
 
 
 class Titolare(models.Model):
