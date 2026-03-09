@@ -841,36 +841,36 @@ def manuale_dipendente_view(request):
     
     body_html = '\n'.join(new_lines)
     
-    page_html = f"""<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guida Dipendente — Bot Telegram Kandor</title>
-    <style>
-        body {{ font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }}
-        h1 {{ color: #ff6f00; border-bottom: 3px solid #ff6f00; padding-bottom: 10px; }}
-        h2 {{ color: #e65100; margin-top: 30px; border-left: 4px solid #ff6f00; padding-left: 10px; }}
-        h3 {{ color: #333; margin-top: 20px; }}
-        .md-table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
-        .md-table th {{ background: #ff6f00; color: white; padding: 10px; text-align: left; }}
-        .md-table td {{ padding: 8px 10px; border-bottom: 1px solid #ddd; }}
-        .md-table tr:nth-child(even) {{ background: #fff3e0; }}
-        blockquote {{ background: #fff3e0; border-left: 4px solid #ff6f00; padding: 10px 15px; margin: 10px 0; border-radius: 4px; }}
-        code {{ background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 14px; }}
-        li {{ margin: 5px 0; }}
-        hr {{ border: none; border-top: 2px solid #eee; margin: 20px 0; }}
-        strong {{ color: #e65100; }}
-        .print-btn {{ position: fixed; bottom: 20px; right: 20px; background: #ff6f00; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }}
-        .print-btn:hover {{ background: #e65100; }}
-        @media print {{ .print-btn {{ display: none; }} body {{ background: white; }} }}
-    </style>
-</head>
-<body>
-{body_html}
-<button class="print-btn" onclick="window.print()">🖨️ Stampa / PDF</button>
-</body>
-</html>"""
+    css = """
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }
+        h1 { color: #ff6f00; border-bottom: 3px solid #ff6f00; padding-bottom: 10px; }
+        h2 { color: #e65100; margin-top: 30px; border-left: 4px solid #ff6f00; padding-left: 10px; }
+        h3 { color: #333; margin-top: 20px; }
+        .md-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .md-table th { background: #ff6f00; color: white; padding: 10px; text-align: left; }
+        .md-table td { padding: 8px 10px; border-bottom: 1px solid #ddd; }
+        .md-table tr:nth-child(even) { background: #fff3e0; }
+        blockquote { background: #fff3e0; border-left: 4px solid #ff6f00; padding: 10px 15px; margin: 10px 0; border-radius: 4px; }
+        code { background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
+        li { margin: 5px 0; }
+        hr { border: none; border-top: 2px solid #eee; margin: 20px 0; }
+        strong { color: #e65100; }
+        img { max-width: 250px; border-radius: 12px; display: block; margin: 15px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .print-btn { position: fixed; bottom: 20px; right: 20px; background: #ff6f00; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .print-btn:hover { background: #e65100; }
+        @media print { .print-btn { display: none; } body { background: white; } }
+    """
+    page_html = (
+        '<!DOCTYPE html><html lang="it"><head>'
+        '<meta charset="UTF-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+        '<title>Guida Dipendente \u2014 Bot Telegram Kandor</title>'
+        '<style>' + css + '</style>'
+        '</head><body>'
+        + body_html +
+        '<button class="print-btn" onclick="window.print()">\U0001f5a8\ufe0f Stampa / PDF</button>'
+        '</body></html>'
+    )
     
     return HttpResponse(page_html)
 

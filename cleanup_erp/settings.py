@@ -152,6 +152,10 @@ STORAGES = {
     },
 }
 
+# Media files (foto profilo, contratti, ecc.)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
 # Cache - usa memoria locale per velocizzare
 CACHES = {
     'default': {
