@@ -6,14 +6,10 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0031_dipendente_foto'),
+        ('core', '0033_dipendente_foto'),
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name='dipendente',
-            name='riceve_notifiche_messaggi',
-        ),
         migrations.AddField(
             model_name='dipendente',
             name='foto_url',

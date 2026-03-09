@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0030_riceve_notifiche_messaggi'),
+        ('core', '0031_swap_nome_cognome'),
     ]
 
     operations = [
