@@ -123,26 +123,15 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
     
     candidati = candidati.exclude(id__in=dipendenti_assenti)
 
-    # 3. Escludi chi è già occupato in un turno sovrapposto (per squadra O individualmente)
+    # 3. Escludi chi è già occupato in un altro turno
     assegnazioni_concomitanti = AssegnazioneTurno.objects.filter(
-        turno__data=data_check,
+        turno__data=data,
         orario_inizio_previsto__lt=ora_fine,
         orario_fine_previsto__gt=ora_inizio
     )
     
-    # Escludi per squadra di appartenenza
     squadre_impegnate_ids = assegnazioni_concomitanti.values_list('turno__squadra_id', flat=True)
     candidati = candidati.exclude(squadre_appartenenza__id__in=squadre_impegnate_ids)
-    
-    # Escludi chi ha un turno individuale sovrapposto (anche fuori dalla propria squadra)
-    # Cerca dipendenti che hanno un'assegnazione diretta in quella squadra/turno
-    dipendenti_con_turno = AssegnazioneTurno.objects.filter(
-        turno__data=data_check,
-        orario_inizio_previsto__lt=ora_fine,
-        orario_fine_previsto__gt=ora_inizio,
-        turno__squadra__componenti__isnull=False  # ha dipendenti assegnati
-    ).values_list('turno__squadra__componenti__id', flat=True).distinct()
-    candidati = candidati.exclude(id__in=dipendenti_con_turno)
 
     # 4. Calcolo Distanza e Ranking
     risultati = []
@@ -462,90 +451,4 @@ def _notifica_completamento(richiesta):
             )
         except Exception:
             pass
-    
-    # Notifica Titolari
-    notifica_titolari(f"✅ Sostituzione confermata: {richiesta.sostituto} copre {richiesta.dipendente_assente} "
-                      f"({assegnazione.cliente.ragione_sociale} - {assegnazione.turno.data.strftime('%d/%m')})")
-
-
-def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
-    """Notifica via Telegram tutti i dipendenti con spunta 'riceve_notifiche_messaggi'."""
-    import requests
-    from django.conf import settings
-    from .models import Dipendente
-    
-    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
-    if not bot_token:
-        return
-    
-    # Ignora comandi automatici del bot
-    if testo and testo.startswith('/'):
-        return
-    
-    anteprima = (testo or '📷 Foto')[:120]
-    if testo and len(testo) > 120:
-        anteprima += '…'
-    
-    msg = (
-        f"💬 <b>Nuovo messaggio da {dipendente}</b>\n"
-        f"{anteprima}\n\n"
-        f"🔗 <a href='https://kandor.onrender.com/centro-messaggi/'>Rispondi nel Centro Messaggi</a>"
-    )
-    
-    referenti = Dipendente.objects.filter(
-        riceve_notifiche_messaggi=True,
-        telegram_chat_id__isnull=False
-    ).exclude(telegram_chat_id='').exclude(pk=dipendente.pk)
-    
-    for ref in referenti:
-        try:
-            requests.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={"chat_id": ref.telegram_chat_id, "text": msg, "parse_mode": "HTML"},
-                timeout=5
-            )
-        except Exception:
-            pass
-
-
-
-def notifica_titolari(messaggio, solo_attivi=True):
-    """Invia un messaggio Telegram a tutti i titolari configurati."""
-    import requests
-    from django.conf import settings
-    from .models import Titolare
-    
-    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
-    if not bot_token:
-        return
-    
-    qs = Titolare.objects.filter(notifiche_attive=True) if solo_attivi else Titolare.objects.all()
-    
-    for titolare in qs:
-        chat_id = titolare.get_chat_id()
-        if not chat_id:
-            continue
-        try:
-            requests.post(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={"chat_id": chat_id, "text": messaggio, "parse_mode": "HTML"},
-                timeout=10
-            )
-        except Exception:
-            pass
-
-
-def notifica_titolari_sostituzione_fallita(richiesta):
-    """Alert ai titolari quando tutti i sostituti disponibili hanno rifiutato."""
-    assegnazione = richiesta.assegnazione_originale
-    msg = (
-        f"🚨 <b>ALERT: TURNO SCOPERTO</b>\n\n"
-        f"Assente: {richiesta.dipendente_assente} ({richiesta.motivo_assenza})\n"
-        f"Cliente: {assegnazione.cliente.ragione_sociale}\n"
-        f"Data: {assegnazione.turno.data.strftime('%d/%m/%Y')}\n"
-        f"Orario: {assegnazione.orario_inizio_previsto.strftime('%H:%M') if assegnazione.orario_inizio_previsto else '?'}"
-        f"-{assegnazione.orario_fine_previsto.strftime('%H:%M') if assegnazione.orario_fine_previsto else '?'}\n\n"
-        f"❌ Nessun sostituto disponibile. Intervento manuale richiesto."
-    )
-    notifica_titolari(msg)
 

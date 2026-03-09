@@ -50,7 +50,6 @@ class Dipendente(models.Model):
     
     # Integrazione Chat
     telegram_chat_id = models.CharField(max_length=64, blank=True, null=True, help_text="ID Chat Telegram per invio ore", verbose_name="Telegram Chat ID")
-    foto_profilo_url = models.URLField(blank=True, null=True, verbose_name="Foto Profilo", help_text="URL foto profilo (inviata via bot Telegram)")
     
     # Stato
     stato = models.CharField(max_length=20, choices=STATO_CHOICES, default='ATTIVO')
@@ -58,12 +57,8 @@ class Dipendente(models.Model):
     # Sostituto
     is_sostituto = models.BooleanField(default=False, verbose_name="Disponibile come Sostituto", help_text="Se attivo, questo dipendente può essere chiamato per sostituzioni")
 
-    # Notifiche messaggi
-    riceve_notifiche_messaggi = models.BooleanField(
-        default=False,
-        verbose_name="Riceve notifiche messaggi",
-        help_text="Se attivo, questo utente/referente riceve una notifica Telegram quando arriva un messaggio da un dipendente nel Centro Messaggi"
-    )
+    # Foto profilo
+    foto = models.ImageField(upload_to='foto_dipendenti/', null=True, blank=True, verbose_name="Foto Profilo")
 
     def save(self, *args, **kwargs):
         # Auto-calculate data_nascita from CF if missing
@@ -80,7 +75,6 @@ class Dipendente(models.Model):
 
     class Meta:
         verbose_name_plural = "Dipendenti"
-        ordering = ['cognome', 'nome']
 
 class Cliente(models.Model):
     ragione_sociale = models.CharField(max_length=200, verbose_name="Ragione Sociale")
@@ -116,7 +110,6 @@ class Cliente(models.Model):
     class Meta:
         verbose_name = "Cliente"
         verbose_name_plural = "Clienti"
-        ordering = ['ragione_sociale']
 
 class ProgrammazioneRicorrente(models.Model):
     TIPO_RIPETIZIONE = [
@@ -258,7 +251,6 @@ class RichiestaStraordinaria(models.Model):
 
     class Meta:
         verbose_name_plural = "Richieste Straordinarie"
-        ordering = ['-data_inizio', 'ora_inizio']
 
 class Mezzo(models.Model):
     STATO_MEZZO = [
@@ -279,7 +271,6 @@ class Mezzo(models.Model):
 
     class Meta:
         verbose_name_plural = "Mezzi Aziendali"
-        ordering = ['modello', 'targa']
 
 class Squadra(models.Model):
     nome = models.CharField(max_length=100)
@@ -291,7 +282,6 @@ class Squadra(models.Model):
 
     class Meta:
         verbose_name_plural = "Squadre"
-        ordering = ['nome']
 
 class Turno(models.Model):
     data = models.DateField(verbose_name="Data Turno")
@@ -481,42 +471,6 @@ class ResponsabileArea(models.Model):
     class Meta:
         verbose_name = "Responsabile Area"
         verbose_name_plural = "Responsabili Area"
-        ordering = ['nome_area']
-
-
-class Titolare(models.Model):
-    """Titolare/proprietario con accesso alla dashboard di supervisione.
-    Può essere collegato a un Dipendente esistente (se il titolare lavora anche in organico).
-    In quel caso il telegram_chat_id viene preso automaticamente dal Dipendente collegato.
-    """
-    from django.contrib.auth.models import User as AuthUser
-    user = models.OneToOneField('auth.User', on_delete=models.CASCADE, related_name='profilo_titolare', verbose_name="Utente Django")
-    nome = models.CharField(max_length=100, verbose_name="Nome Completo")
-    dipendente = models.OneToOneField(
-        'Dipendente', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='profilo_titolare', verbose_name="Dipendente collegato",
-        help_text="Se il titolare è anche un dipendente in organico, collegalo qui. Il Chat ID Telegram verrà preso dal dipendente."
-    )
-    telegram_chat_id = models.CharField(
-        max_length=50, blank=True, verbose_name="Telegram Chat ID",
-        help_text="Lascia vuoto se hai collegato un Dipendente (verrà usato il suo Chat ID)"
-    )
-    notifiche_attive = models.BooleanField(default=True, verbose_name="Notifiche Telegram Attive")
-
-    def get_chat_id(self):
-        """Restituisce il Chat ID: dal Dipendente collegato se presente, altrimenti dal campo diretto."""
-        if self.dipendente and self.dipendente.telegram_chat_id:
-            return self.dipendente.telegram_chat_id
-        return self.telegram_chat_id
-
-    def __str__(self):
-        if self.dipendente:
-            return f"Titolare: {self.nome} (dip. {self.dipendente})"
-        return f"Titolare: {self.nome}"
-
-    class Meta:
-        verbose_name = "Titolare"
-        verbose_name_plural = "Titolari"
 
 
 class RichiestaSostituzione(models.Model):

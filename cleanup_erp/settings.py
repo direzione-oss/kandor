@@ -167,6 +167,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Telegram Integration
 # Ottieni il token da @BotFather su Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
-
-# Token sicuro per il trigger esterno del riepilogo settimanale (cron-job.org)
-RIEPILOGO_TOKEN = os.environ.get('RIEPILOGO_TOKEN', 'h2YuhTURg41RZvnZLC38qClYLwVt4AnM')

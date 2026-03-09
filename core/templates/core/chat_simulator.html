@@ -256,6 +256,55 @@
         margin-left: auto;
         padding: 0 4px
     }
+
+    .avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 8px;
+        flex-shrink: 0;
+        border: 2px solid rgba(255, 255, 255, 0.2)
+    }
+
+    .avatar-placeholder {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        background: #417690;
+        color: white;
+        font-size: 13px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 8px;
+        flex-shrink: 0;
+        border: 2px solid rgba(255, 255, 255, 0.2)
+    }
+
+    .avatar-lg {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.4)
+    }
+
+    .avatar-placeholder-lg {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.25);
+        color: white;
+        font-size: 14px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 10px;
+    }
 </style>
 
 <div id="content-main">
@@ -289,6 +338,11 @@
                     data-name="{{ d.nome|lower }} {{ d.cognome|lower }}">
                     <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}"
                         style="display:flex;align-items:center">
+                        {% if d.foto %}
+                        <img src="{{ d.foto.url }}" alt="{{ d.nome }}" class="avatar">
+                        {% else %}
+                        <div class="avatar-placeholder">{{ d.nome|first|upper }}{{ d.cognome|first|upper }}</div>
+                        {% endif %}
                         <span class="contact-name">{{ d.nome }} {{ d.cognome }}</span>
                         {% if d.unread_count %}<span class="unread-badge">{{ d.unread_count }}</span>{% endif %}
                     </div>
@@ -298,7 +352,15 @@
         </div>
         <div class="chat-panel">
             {% if selected_employee %}
-            <div class="chat-header">{{ selected_employee.nome }} {{ selected_employee.cognome }}</div>
+            <div class="chat-header" style="display:flex;align-items:center">
+                {% if selected_employee.foto %}
+                <img src="{{ selected_employee.foto.url }}" alt="{{ selected_employee.nome }}" class="avatar-lg">
+                {% else %}
+                <div class="avatar-placeholder-lg">{{ selected_employee.nome|first|upper }}{{
+                    selected_employee.cognome|first|upper }}</div>
+                {% endif %}
+                {{ selected_employee.nome }} {{ selected_employee.cognome }}
+            </div>
             <div class="quick-cmds">
                 <button type="button" onclick="sendQuick('Ciao, come stai?')">Saluto</button>
                 <button type="button" onclick="sendQuick('Quali turni hai oggi?')">Turni oggi</button>

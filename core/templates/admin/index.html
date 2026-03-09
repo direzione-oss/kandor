@@ -241,14 +241,9 @@
             <a href="{% url 'manuale_utente' %}">📖 Admin</a>
             <a href="{% url 'manuale_dipendente' %}" target="_blank" style="margin-left:6px">📱 Dipendente</a>
         </div>
-        <div class="quick-card" style="border-color: #8e44ad;">
-            <h3>👁 Supervisione</h3>
-            <p>Dashboard titolari</p>
-            <a href="{% url 'titolari_dashboard' %}">Apri</a>
-        </div>
         <div class="quick-card" style="border-color: #9b59b6; position:relative">
-            <h3>💬 Centro Messaggi</h3>
-            <p>Storico chat dipendenti</p>
+            <h3>💬 Telegram</h3>
+            <p>Invia Messaggi</p>
             <a href="{% url 'chat_simulator' %}">Apri</a>
             {% unread_chat_badge %}
         </div>
