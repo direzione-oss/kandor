@@ -27,9 +27,53 @@ class TitolareAdmin(admin.ModelAdmin):
 
 @admin.register(Assenza)
 class AssenzaAdmin(admin.ModelAdmin):
-    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine')
-    list_filter = ('tipo', 'data_inizio')
-    search_fields = ('dipendente__cognome',)
+    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine', 'is_processed')
+    list_filter = ('tipo', 'data_inizio', 'is_processed')
+    search_fields = ('dipendente__cognome', 'dipendente__nome')
+    actions = ['gestisci_sostituti_periodo']
+
+    @admin.action(description='🔄 Gestisci sostituti per il periodo (tutti i turni)')
+    def gestisci_sostituti_periodo(self, request, queryset):
+        from .models import AssegnazioneTurno, RichiestaSostituzione
+        from .services import crea_richiesta_sostituzione
+        import datetime
+
+        totale_turni = 0
+        totale_create = 0
+        totale_skip = 0
+
+        for assenza in queryset:
+            dip = assenza.dipendente
+            data = assenza.data_inizio
+            while data <= assenza.data_fine:
+                # Trova tutti i turni del dipendente in questo giorno
+                assegnazioni = AssegnazioneTurno.objects.filter(
+                    turno__data=data,
+                    turno__squadra__componenti=dip
+                ).select_related('turno', 'turno__squadra', 'turno__squadra__caposquadra')
+
+                for assegnazione in assegnazioni:
+                    totale_turni += 1
+                    # Verifica se esiste già una richiesta per questa assegnazione
+                    gia_presente = RichiestaSostituzione.objects.filter(
+                        assegnazione=assegnazione,
+                        dipendente_assente=dip
+                    ).exists()
+                    if gia_presente:
+                        totale_skip += 1
+                        continue
+                    try:
+                        crea_richiesta_sostituzione(assegnazione, dip, assenza.tipo, assenza.note)
+                        totale_create += 1
+                    except Exception as e:
+                        self.message_user(request, f'Errore su {dip} - {data}: {e}', level='error')
+
+                data += datetime.timedelta(days=1)
+
+        self.message_user(
+            request,
+            f'✅ {totale_turni} turni trovati nel periodo: {totale_create} richieste create, {totale_skip} già esistenti.'
+        )
 
 # -- Branding Configuration --
 admin.site.site_header = "Kandor Administration"
