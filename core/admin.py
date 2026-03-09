@@ -19,12 +19,31 @@ admin.site.index_title = "Benvenuto in Kandor"
 
 @admin.register(Dipendente)
 class DipendenteAdmin(admin.ModelAdmin):
-    list_display = ('cognome', 'nome', 'stato', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
     list_filter = ('stato', 'is_sostituto', 'qualifiche')
-    filter_horizontal = ('qualifiche',) # Migliora la selezione multipla
+    filter_horizontal = ('qualifiche',)
     actions = ['send_telegram_message_action']
-    
+
+    def foto_avatar(self, obj):
+        from django.utils.html import format_html
+        url = obj.foto_profilo_url or (obj.foto_url if obj.foto_url else None)
+        if obj.foto:
+            url = obj.foto.url
+        if url:
+            return format_html(
+                '<img src="{}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #ff6f00;" />',
+                url
+            )
+        initials = (obj.nome[0] if obj.nome else '') + (obj.cognome[0] if obj.cognome else '')
+        return format_html(
+            '<div style="width:36px;height:36px;border-radius:50%;background:#ff6f00;color:#fff;'
+            'display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;">{}\u200b</div>',
+            initials.upper()
+        )
+    foto_avatar.short_description = '📸'
+    foto_avatar.allow_tags = True
+
     def category_protetta_display(self, obj):
         return obj.categoria_protetta
     category_protetta_display.boolean = True
