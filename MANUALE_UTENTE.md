@@ -1,6 +1,6 @@
 # 📘 KANDOR — Manuale d'Uso Completo
 
-> **Versione**: 2.0  
+> **Versione**: 2.1  
 > **Ultimo aggiornamento**: Marzo 2026  
 > **URL**: [kandor.onrender.com](https://kandor.onrender.com)
 
@@ -17,7 +17,6 @@
 7. [Gestione Mezzi Aziendali](#7-gestione-mezzi-aziendali)
 8. [Gestione Squadre](#8-gestione-squadre)
 9. [Responsabili Area](#9-responsabili-area)
-9b. [Titolari e Supervisione](#9b-titolari-e-supervisione)
 10. [Pianificazione Turni e Calendario](#10-pianificazione-turni-e-calendario)
 11. [Programmazione Ricorrente](#11-programmazione-ricorrente)
 12. [Richieste Straordinarie](#12-richieste-straordinarie)
@@ -97,6 +96,7 @@ La homepage del pannello mostra la scritta **"Benvenuto in Kandor"** e si divide
 | **Riconciliazione** | Confronta ore previste vs lavorate |
 | **Analisi Contratti** | Analisi economica contratti sotto soglia |
 | **Gestione Dati** | Import/Export dati Excel |
+| **Guide** | Manuali (Admin + Dipendente) |
 | **Centro Messaggi** | Chat diretta con i dipendenti via Telegram |
 | **Genera Turni** | Genera turni automatici per 7 giorni |
 | **Vedi Report** | Report verifica ore mensili con PDF |
@@ -144,9 +144,8 @@ Vedi la sezione [Widget Dashboard](#25-widget-dashboard) per i dettagli.
 
 #### Integrazione Telegram
 | Campo | Descrizione |
-|-------|--------------|
+|-------|-------------|
 | **Telegram Chat ID** | ID univoco della chat Telegram del dipendente |
-| **Riceve notifiche messaggi** | ✅ Se attivo, riceve una notifica Telegram ogni volta che un dipendente scrive nel Centro Messaggi (utile per referenti e responsabili) |
 
 #### Stato
 | Stato | Significato |
@@ -295,80 +294,6 @@ Quando viene creata una richiesta di sostituzione per una squadra, il sistema:
 4. Solo dopo l'approvazione il sostituto viene contattato
 
 ---
-
-## 9b. Titolari e Supervisione
-
-### Accesso
-**Dashboard** → **👁 Supervisione** oppure URL: `/titolari/`
-
-I **Titolari** sono i proprietari/responsabili dell'azienda che vogliono avere una visione d'insieme senza entrare nel dettaglio operativo quotidiano.
-
-### Cos'è un "Account di Accesso"?
-
-Per creare un Titolare occorre prima creare un **account di accesso** al portale (username + password). Questo account è ciò che il titolare usa per fare login su `kandor.onrender.com`.
-
-**Come crearlo:**
-1. **Admin** → **Autenticazione e Autorizzazione** → **Utenti** → **Aggiungi Utente**
-2. Scegli username e password
-3. Salva e poi torna su **Core** → **Titolari** → **Aggiungi Titolare**
-4. Collega l'utente appena creato e inserisci il **Telegram Chat ID** del titolare
-
-### Campi del Titolare
-
-| Campo | Descrizione |
-|-------|-------------|
-| **Utente Django** | Account di accesso al portale (username + password) |
-| **Nome Completo** | Nome del titolare |
-| **Telegram Chat ID** | ID Telegram per ricevere notifiche e riepilogo settimanale |
-| **Notifiche Attive** | Abilita/disabilita i messaggi Telegram |
-
-### Dashboard di Supervisione `/titolari/`
-
-La dashboard mostra in tempo reale:
-
-| Sezione | Contenuto |
-|---------|-----------|
-| **👥 Dipendenti** | Totale attivi, assenti oggi, sostituti abilitati |
-| **📋 Turni di Oggi** | Pianificati, compilati, scoperti |
-| **🔄 Sostituzioni** | Aperte in attesa RA, inviate, fallite oggi |
-| **⚠️ Alert Economici** | Contratti sotto la soglia €/ora |
-| **📆 Settimana** | Ore totali, turni, assenze, sostituzioni |
-
-### Notifiche Telegram Automatiche
-
-Il sistema invia notifiche ai titolari automaticamente:
-- ✅ **Sostituzione confermata** — quando un sostituto accetta il turno
-- 🚨 **Alert turno scoperto** — quando tutti i sostituti hanno rifiutato e il turno è rimasto scoperto
-
-### Riepilogo Settimanale — Venerdì 18:00
-
-Ogni venerdì alle 18:00 i titolari ricevono via Telegram un messaggio con:
-- Dipendenti attivi, turni della settimana, ore registrate
-- Assenze (malattia, ferie, permessi)
-- Sostituzioni gestite
-- Contratti sotto soglia
-
-**Per inviarlo manualmente:**
-1. **Admin** → **Titolari** → seleziona almeno un titolare
-2. Azione → **"Invia riepilogo settimanale adesso"**
-
-### Trigger Automatico — Configurazione già attiva ✅
-
-Il trigger automatico è stato configurato su **cron-job.org** e viene eseguito ogni **venerdì alle 18:00**.
-
-| Parametro | Valore |
-|-----------|--------|
-| **Servizio** | [cron-job.org](https://console.cron-job.org) |
-| **Account email** | serra@serrastudio.it |
-| **Password account** | iMy*K9YYEij+j?+ |
-| **Nome job** | Riepilogo Settimanale Kandor |
-| **URL chiamata** | `https://kandor.onrender.com/titolari/riepilogo/?token=h2YuhTURg41RZvnZLC38qClYLwVt4AnM` |
-| **Token sicurezza** | `h2YuhTURg41RZvnZLC38qClYLwVt4AnM` |
-| **Pianificazione** | ogni venerdì alle 18:00 |
-| **Prossima esecuzione** | venerdì prossimo alle 18:00 |
-
-> 💡 Per modificare o disabilitare il job: accedi su [console.cron-job.org](https://console.cron-job.org) con le credenziali sopra.
-
 
 ## 10. Pianificazione Turni e Calendario
 
@@ -541,46 +466,45 @@ Nell'evento del calendario: campo "Inserisci ore lavorate" con checkbox "Valida 
 ### Accesso
 **Dashboard** → **Vedi Report** (nelle Operazioni Frequenti) oppure URL: `/verifica-ore/`
 
-Questa pagina mostra un report dettagliato delle ore lavorate per ciascun dipendente e le assenze del mese.
+Questa pagina mostra un report dettagliato delle ore lavorate per ciascun dipendente in un dato mese.
 
 ### Come Usarlo
 
 1. Seleziona **Mese** e **Anno** dai menu a tendina
 2. Clicca **"Aggiorna"**
 
-### Sezioni del Report
+### Informazioni Mostrate
 
-#### 1. Riepilogo per Cliente
-Per ogni cliente con contratto attivo:
-- **Ore Contratto** — ore mensili previste
-- **Ore Lavorate** — ore registrate nel mese
-- **Ore Validate** — solo le ore confermate (badge verde)
-- **Differenza** — Lavorate − Contratto (verde = surplus, rosso = deficit)
-- **€ Contratto / € Calcolato** — importi mensili
+Per ogni dipendente:
+- **Ore Contrattuali** (somma delle ore previste dai turni del mese)
+- **Ore Lavorate** (solo ore **validate** — badge verde)
+- **Differenza** (Lavorate − Contrattuali, positiva o negativa)
 
-#### 2. Riepilogo per Squadra e Dipendente
-Raggruppato per squadra, con le ore per ogni dipendente e il dettaglio dei clienti serviti. Cliccabile per espandere/chiudere.
+### Struttura del Report
 
-#### 3. Riepilogo Assenze del Mese *(NUOVO)*
-Tabella con tutte le assenze dei dipendenti nel mese selezionato:
+Il report mensile è suddiviso in **tre tabelle**:
+
+1. **Riepilogo per Cliente** — ore contratto, ore lavorate, ore validate, differenza, importo
+2. **Riepilogo per Squadra e Dipendente** — ore totali per squadra con dettaglio per dipendente
+3. **Riepilogo Assenze del Mese** — tabella con i giorni di assenza per ogni dipendente suddivisi per tipo
+
+### Tabella Assenze nel Report
 
 | Colonna | Descrizione |
 |---------|-------------|
-| **Malattia** | Giorni di malattia |
-| **Ferie** | Giorni di ferie |
+| **Dipendente** | Nome e cognome |
+| **Malattia** | Giorni di malattia nel mese |
+| **Ferie** | Giorni di ferie nel mese |
 | **Permesso** | Giorni di permesso |
 | **L.104** | Giorni Legge 104 |
-| **Altro** | Altre assenze |
-| **Totale gg** | Somma giorni assenza |
+| **Altro** | Altre tipologie |
+| **Totale gg** | Totale giorni assenza |
 
-Cliccando sul nome di un dipendente si espandono i dettagli delle singole assenze (date, tipo, note).
+> 💡 Clicca sul nome di un dipendente nella tabella assenze per espandere il **dettaglio** di ogni singola assenza (date, tipo, note).
 
 ### Stampa PDF
 
-Clicca **"🖨 Scarica PDF"** per generare il report completo in PDF:
-- Tabella per cliente con ore e importi
-- Tabella per squadra/dipendente
-- Tabella assenze del mese (con dettaglio per dipendente)
+Clicca **"📄 Scarica PDF"** — il PDF contiene tutte e tre le tabelle, incluse le assenze del mese.
 
 > ⚠️ **Importante**: Nel report vengono contabilizzate **solo le ore validate** (badge verde nel calendario).
 
@@ -601,23 +525,42 @@ Clicca **"🖨 Scarica PDF"** per generare il report completo in PDF:
 | **Origine** | Manuale o Telegram |
 | **Processato** | Checkbox per conferma amministrativa |
 
-### Registrazione via Telegram (assenza immediata)
+### 🚨 Alert Automatico Assenza → Sostituzione
 
-I dipendenti comunicano l'assenza tramite i **bottoni inline** del bot (Malattia, Ferie, Permesso). Il sistema:
+Quando un dipendente comunica **Malattia, Ferie o Permesso** tramite Telegram, il sistema:
+
 1. Registra l'assenza
-2. **Verifica automaticamente** se il dipendente ha turni nella giornata
-3. Per ogni turno scoperto: **avvia la procedura di sostituzione** (notifica al Responsabile Area)
-4. Il dipendente riceve conferma con l'elenco dei turni interessati
+2. **Verifica automaticamente** se il dipendente ha turni nella giornata corrente
+3. Se trova turni scoperti, **avvia la procedura di sostituzione** per ciascuno
+4. Notifica il **Responsabile Area** via Telegram
+5. Il dipendente riceve una conferma con il numero di turni scoperti
 
-### Ferie Programmate con Sostituzione Automatica *(NUOVO)*
+Esempio di risposta al dipendente:
+```
+Registrata MALATTIA per oggi (08/03). Riposati!
 
-Quando si crea un'assenza dall'Admin con date future (es. ferie 15→20 marzo), il sistema:
-1. Al salvataggio, cerca tutti i turni del dipendente nel range di date
-2. Per ogni turno trovato, crea automaticamente una **RichiestaSostituzione**
-3. Il Responsabile Area riceve la notifica Telegram per approvare i sostituti
-4. I sostituti vengono contattati in ordine di distanza e disponibilità
+⚠️ ATTENZIONE: Hai 2 turno/i oggi!
+  • Hotel Roma (06:00-14:00)
+  • Centro Pulizie (14:30-18:00)
 
-> 💡 **Anti-duplicati**: se esiste già una richiesta attiva per quel turno, non ne crea un'altra.
+🔄 Procedura sostituzione avviata per 2 turno/i.
+Il Responsabile Area è stato notificato.
+```
+
+### 📅 Ferie Programmate (date future)
+
+Quando si crea un'assenza dall'admin per **date future** (anche su più giorni), il sistema:
+
+1. Cerca tutti i turni del dipendente nel range di date dell'assenza
+2. Per ogni turno trovato, crea automaticamente una `RichiestaSostituzione`
+3. Notifica il **Responsabile Area** per ciascun turno
+4. L'admin riceve un riepilogo completo via Telegram (se `TELEGRAM_ADMIN_CHAT_ID` è configurato)
+
+> 💡 **Anti-duplicati**: se per quel turno esiste già una richiesta di sostituzione attiva, non viene creata una nuova.
+
+### Registrazione via Telegram
+
+I dipendenti possono comunicare assenze tramite i **bottoni inline** del bot Telegram: Malattia, Ferie, Permesso. Il sistema attiverà automaticamente l'alert sostituzione se ci sono turni.
 
 ---
 
@@ -736,21 +679,7 @@ Il Centro Messaggi è una vera **chat bidirezionale** che permette di comunicare
 | **Broadcast a tutti** | Invia un messaggio a tutti i dipendenti attivi con Telegram configurato |
 | **Invio per squadra** | Seleziona una squadra e invia il messaggio a tutti i componenti |
 | **Foto** | Supporto alla visualizzazione di foto inviate dai dipendenti |
-| **Storico completo** | Ultimi **100 messaggi** per ogni conversazione — incluse scelte del menu bot e risposte automatiche |
-
-### Notifiche ai Referenti
-
-Quando un dipendente invia un messaggio, i **referenti configurati** ricevono una notifica Telegram immediata con:
-- Nome del mittente
-- Anteprima del messaggio (max 120 caratteri)
-- Link diretto al Centro Messaggi per rispondere
-
-**Per attivare le notifiche su un referente:**
-1. **Admin** → **Dipendenti** → apri la scheda del referente
-2. Attiva la spunta **"Riceve notifiche messaggi"**
-3. Verifica che il campo **Telegram Chat ID** sia compilato
-
-> 💡 Puoi configurare più referenti: ad es. responsabile operativo + titolare. Ogni dipendente con la spunta attiva riceverà la notifica.
+| **Cronologia** | Ultimi 50 messaggi per ogni conversazione (IN e OUT) |
 
 ---
 
