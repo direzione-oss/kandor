@@ -144,8 +144,9 @@ Vedi la sezione [Widget Dashboard](#25-widget-dashboard) per i dettagli.
 
 #### Integrazione Telegram
 | Campo | Descrizione |
-|-------|-------------|
+|-------|--------------|
 | **Telegram Chat ID** | ID univoco della chat Telegram del dipendente |
+| **Riceve notifiche messaggi** | ✅ Se attivo, riceve una notifica Telegram ogni volta che un dipendente scrive nel Centro Messaggi (utile per referenti e responsabili) |
 
 #### Stato
 | Stato | Significato |
@@ -735,7 +736,21 @@ Il Centro Messaggi è una vera **chat bidirezionale** che permette di comunicare
 | **Broadcast a tutti** | Invia un messaggio a tutti i dipendenti attivi con Telegram configurato |
 | **Invio per squadra** | Seleziona una squadra e invia il messaggio a tutti i componenti |
 | **Foto** | Supporto alla visualizzazione di foto inviate dai dipendenti |
-| **Cronologia** | Ultimi 50 messaggi per ogni conversazione (IN e OUT) |
+| **Storico completo** | Ultimi **100 messaggi** per ogni conversazione — incluse scelte del menu bot e risposte automatiche |
+
+### Notifiche ai Referenti
+
+Quando un dipendente invia un messaggio, i **referenti configurati** ricevono una notifica Telegram immediata con:
+- Nome del mittente
+- Anteprima del messaggio (max 120 caratteri)
+- Link diretto al Centro Messaggi per rispondere
+
+**Per attivare le notifiche su un referente:**
+1. **Admin** → **Dipendenti** → apri la scheda del referente
+2. Attiva la spunta **"Riceve notifiche messaggi"**
+3. Verifica che il campo **Telegram Chat ID** sia compilato
+
+> 💡 Puoi configurare più referenti: ad es. responsabile operativo + titolare. Ogni dipendente con la spunta attiva riceverà la notifica.
 
 ---
 
