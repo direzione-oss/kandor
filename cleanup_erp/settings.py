@@ -171,3 +171,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Telegram Integration
 # Ottieni il token da @BotFather su Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+
+# Supabase Storage (per foto profilo e allegati)
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'kandor-media')

@@ -338,7 +338,9 @@
                     data-name="{{ d.nome|lower }} {{ d.cognome|lower }}">
                     <div class="contact-item {% if selected_employee_id == d.id %}active{% endif %}"
                         style="display:flex;align-items:center">
-                        {% if d.foto %}
+                        {% if d.foto_url %}
+                        <img src="{{ d.foto_url }}" alt="{{ d.nome }}" class="avatar">
+                        {% elif d.foto %}
                         <img src="{{ d.foto.url }}" alt="{{ d.nome }}" class="avatar">
                         {% else %}
                         <div class="avatar-placeholder">{{ d.nome|first|upper }}{{ d.cognome|first|upper }}</div>
@@ -353,7 +355,9 @@
         <div class="chat-panel">
             {% if selected_employee %}
             <div class="chat-header" style="display:flex;align-items:center">
-                {% if selected_employee.foto %}
+                {% if selected_employee.foto_url %}
+                <img src="{{ selected_employee.foto_url }}" alt="{{ selected_employee.nome }}" class="avatar-lg">
+                {% elif selected_employee.foto %}
                 <img src="{{ selected_employee.foto.url }}" alt="{{ selected_employee.nome }}" class="avatar-lg">
                 {% else %}
                 <div class="avatar-placeholder-lg">{{ selected_employee.nome|first|upper }}{{

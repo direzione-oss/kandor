@@ -222,3 +222,45 @@ def on_assenza_save(sender, instance, created, **kwargs):
         except Exception:
             pass
 
+
+@receiver(post_save, sender='core.Dipendente')
+def upload_foto_supabase(sender, instance, **kwargs):
+    """
+    Quando viene salvato un dipendente con una nuova foto,
+    carica il file su Supabase Storage e salva l'URL pubblico in foto_url.
+    """
+    if not instance.foto:
+        return
+    # Salta se foto_url è già popolato per la stessa foto
+    expected_filename = f"dipendenti/{instance.pk}_{instance.foto.name.split('/')[-1]}"
+    if instance.foto_url and expected_filename.split('_', 1)[-1] in instance.foto_url:
+        return
+    try:
+        from django.conf import settings
+        import requests as req
+        supabase_url = getattr(settings, 'SUPABASE_URL', '')
+        service_key = getattr(settings, 'SUPABASE_SERVICE_KEY', '')
+        bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'kandor-media')
+        if not supabase_url or not service_key:
+            return
+        # Leggi il file
+        instance.foto.open('rb')
+        file_data = instance.foto.read()
+        instance.foto.close()
+        # Nome file univoco
+        ext = instance.foto.name.split('.')[-1].lower()
+        remote_path = f"dipendenti/{instance.pk}.{ext}"
+        # Upload su Supabase Storage (upsert)
+        upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{remote_path}"
+        headers = {
+            'Authorization': f'Bearer {service_key}',
+            'Content-Type': f'image/{ext}',
+            'x-upsert': 'true',
+        }
+        resp = req.put(upload_url, headers=headers, data=file_data, timeout=15)
+        if resp.status_code in (200, 201):
+            public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{remote_path}"
+            # Salva foto_url senza ritriggerare questo signal
+            sender.objects.filter(pk=instance.pk).update(foto_url=public_url)
+    except Exception:
+        pass
