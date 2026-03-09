@@ -343,7 +343,7 @@ def chat_simulator_view(request):
             selected_employee = Dipendente.objects.get(pk=selected_employee_id)
             chat_messages = list(MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id
-            ).order_by('-timestamp')[:50])
+            ).order_by('-timestamp')[:100])
             chat_messages.reverse()
             MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id, direzione='IN', letto=False
@@ -642,6 +642,25 @@ def telegram_webhook_view(request):
                 from .utils_kandor_chat import handle_telegram_callback
                 response = handle_telegram_callback(chat_id, cb_data, sender_name=first_name)
                 
+                # Salva la scelta del menu come messaggio IN
+                try:
+                    from .models import MessaggioChat, Dipendente
+                    dip_cb = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
+                    if dip_cb:
+                        testo_cb = cb_data.replace('_', ' ').title()
+                        MessaggioChat.objects.create(
+                            dipendente=dip_cb, testo=f"[ Menu: {testo_cb} ]", direzione='IN'
+                        )
+                        # Salva risposta bot
+                        if response:
+                            testo_risposta = response.get('text', '') if isinstance(response, dict) else str(response)
+                            if testo_risposta:
+                                MessaggioChat.objects.create(
+                                    dipendente=dip_cb, testo=testo_risposta, direzione='OUT'
+                                )
+                except Exception:
+                    pass
+
                 if response and token:
                     import requests as req
                     send_url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -715,11 +734,19 @@ def telegram_webhook_view(request):
                         payload = {'chat_id': chat_id, 'text': response['text']}
                         if response.get('reply_markup'):
                             payload['reply_markup'] = response['reply_markup']
+                        testo_out = response['text']
                     else:
                         payload = {'chat_id': chat_id, 'text': response}
+                        testo_out = str(response)
                     
                     try:
                         req.post(send_url, json=payload)
+                        # Salva risposta bot nello storico
+                        if dip and testo_out:
+                            from .models import MessaggioChat
+                            MessaggioChat.objects.create(
+                                dipendente=dip, testo=testo_out, direzione='OUT'
+                            )
                     except Exception as e:
                         print(f"[Telegram Error] Send Failed: {e}")
 
