@@ -61,6 +61,7 @@ def get_main_menu():
              {'text': 'Ferie', 'callback_data': 'menu_ferie'}],
             [{'text': 'Permesso', 'callback_data': 'menu_permesso'},
              {'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}],
+            [{'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}],
             [{'text': '📖 Guida', 'url': 'https://kandor.onrender.com/manuale-dipendente/'}],
         ]
     }
@@ -402,6 +403,19 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     if callback_data == 'menu_segnalazione':
         _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
         return {'text': "Scrivi il testo della segnalazione:"}
+
+    # Foto Profilo -> metti in attesa foto
+    if callback_data == 'menu_foto_profilo':
+        from django.core.cache import cache
+        cache.set(f'pending_foto_profilo_{telegram_chat_id}', True, 300)  # 5 minuti
+        return {
+            'text': (
+                "📸 Perfetto! Ora scatta una foto (o scegline una dalla galleria) "
+                "e inviamela qui in chat.\n\n"
+                "Diventerà la tua foto profilo nell'app Kandor. ✅\n"
+                "Hai 5 minuti per inviarla."
+            )
+        }
     
     # Turno selezionato per ore
     if callback_data.startswith('ore_turno_'):

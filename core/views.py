@@ -698,6 +698,31 @@ def telegram_webhook_view(request):
                     pass
             
             if chat_id and (text or foto_url):
+                # ---- Gestione Foto Profilo ----
+                if foto_url and not text and not caption:
+                    try:
+                        from django.core.cache import cache
+                        from .models import Dipendente
+                        dip_check = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
+                        if dip_check and cache.get(f'pending_foto_profilo_{chat_id}'):
+                            dip_check.foto_profilo_url = foto_url
+                            dip_check.save(update_fields=['foto_profilo_url'])
+                            cache.delete(f'pending_foto_profilo_{chat_id}')
+                            # Rispondi con conferma
+                            if token:
+                                import requests as req
+                                req.post(
+                                    f"https://api.telegram.org/bot{token}/sendMessage",
+                                    json={
+                                        "chat_id": chat_id,
+                                        "text": f"✅ Foto profilo aggiornata, {dip_check.nome}! Ora ti riconosciamo nell'app. 😊",
+                                    },
+                                    timeout=5
+                                )
+                            return HttpResponse("OK")
+                    except Exception:
+                        pass
+
                 # Salva messaggio ricevuto nel database
                 try:
                     from .models import MessaggioChat, Dipendente

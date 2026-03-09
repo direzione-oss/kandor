@@ -50,6 +50,7 @@ class Dipendente(models.Model):
     
     # Integrazione Chat
     telegram_chat_id = models.CharField(max_length=64, blank=True, null=True, help_text="ID Chat Telegram per invio ore", verbose_name="Telegram Chat ID")
+    foto_profilo_url = models.URLField(blank=True, null=True, verbose_name="Foto Profilo", help_text="URL foto profilo (inviata via bot Telegram)")
     
     # Stato
     stato = models.CharField(max_length=20, choices=STATO_CHOICES, default='ATTIVO')
