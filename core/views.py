@@ -511,8 +511,14 @@ def edit_turno_ajax(request, assign_id):
         if 'ore_previste' in data:
             ore_p = data['ore_previste']
             assign.ore_previste_contratto = float(str(ore_p).replace(',','.')) if ore_p else None
-        
+
         assign.save()
+
+        # Gestione dipendenti esclusi (M2M)
+        if 'dipendenti_esclusi' in data:
+            esclusi = data['dipendenti_esclusi']  # lista di ID
+            assign.dipendenti_esclusi.set(esclusi if esclusi else [])
+
         return JsonResponse({'status': 'ok', 'message': 'Turno aggiornato'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)})
@@ -663,6 +669,30 @@ def get_squadre_clienti_json(request):
     clienti = list(Cliente.objects.all().order_by('ragione_sociale').values('id', 'ragione_sociale'))
     
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
+
+
+def get_assegnazione_componenti_json(request, assign_id):
+    """Per una specifica assegnazione: restituisce i componenti della squadra e gli ID degli esclusi."""
+    try:
+        from .models import AssegnazioneTurno
+        assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
+        squadra = assign.turno.squadra
+        esclusi_ids = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
+
+        componenti = []
+        if squadra.caposquadra:
+            componenti.append({'id': squadra.caposquadra.pk,
+                               'nome': f"{squadra.caposquadra.cognome} {squadra.caposquadra.nome}",
+                               'ruolo': 'Caposquadra',
+                               'escluso': squadra.caposquadra.pk in esclusi_ids})
+        for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+            componenti.append({'id': c.pk,
+                               'nome': f"{c.cognome} {c.nome}",
+                               'ruolo': 'Componente',
+                               'escluso': c.pk in esclusi_ids})
+        return JsonResponse({'componenti': componenti, 'esclusi_ids': esclusi_ids})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
 
 
 def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):

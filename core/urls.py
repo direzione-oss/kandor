@@ -6,7 +6,7 @@ from .views import (
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
     extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia,
     add_turno_ajax, edit_turno_ajax, delete_turno_ajax, get_squadre_clienti_json,
-    copy_move_turno_ajax,
+    copy_move_turno_ajax, get_assegnazione_componenti_json,
     validate_ore_ajax, verifica_ore_view, pdf_verifica_ore,
     richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
     titolari_dashboard_view, titolari_riepilogo_view
@@ -48,6 +48,7 @@ urlpatterns = [
     path('api/squadre-clienti/', get_squadre_clienti_json, name='get_squadre_clienti'),
     path('api/validate-ore/<int:assign_id>/', validate_ore_ajax, name='validate_ore_ajax'),
     path('api/copy-move-turno/<int:assign_id>/', copy_move_turno_ajax, name='copy_move_turno_ajax'),
+    path('api/assegnazione-componenti/<int:assign_id>/', get_assegnazione_componenti_json, name='get_assegnazione_componenti'),
     path('verifica-ore/', verifica_ore_view, name='verifica_ore'),
     path('pdf-verifica-ore/', pdf_verifica_ore, name='pdf_verifica_ore'),
     

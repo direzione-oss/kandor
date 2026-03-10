@@ -324,8 +324,33 @@ class AssegnazioneTurno(models.Model):
         verbose_name="Ore previste (contratto)",
         help_text="Ore contrattuali previste per questo turno. Possono differire dalla durata orario inizio-fine."
     )
+    dipendenti_esclusi = models.ManyToManyField(
+        'Dipendente',
+        blank=True,
+        related_name='turni_escluso',
+        verbose_name="Dipendenti esclusi",
+        help_text="Dipendenti della squadra NON presenti in questo turno (es. lavoro da soli)."
+    )
     
     mansione_svolta = models.TextField(blank=True)
+
+    @property
+    def dipendenti_presenti(self):
+        """Restituisce i dipendenti della squadra effettivamente presenti (squadra - esclusi)."""
+        squadra = self.turno.squadra
+        esclusi = self.dipendenti_esclusi.values_list('pk', flat=True)
+        from django.db.models import Q
+        presenti = []
+        if squadra.caposquadra and squadra.caposquadra.pk not in esclusi:
+            presenti.append(squadra.caposquadra)
+        for c in squadra.componenti.exclude(pk__in=esclusi):
+            if c not in presenti:
+                presenti.append(c)
+        return presenti
+
+    @property
+    def n_presenti(self):
+        return len(self.dipendenti_presenti)
 
     def clean(self):
         from django.core.exceptions import ValidationError
