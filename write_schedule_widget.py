@@ -305,10 +305,11 @@ function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,ore
     if(!d.componenti||!d.componenti.length){listEl.innerHTML='<span style="font-size:11px;color:#999">Nessun componente</span>';return;}
     d.componenti.forEach(function(c){
       var lbl=document.createElement('label');
-      lbl.style.cssText='display:flex;align-items:center;gap:5px;background:'+(c.escluso?'#ffeaea':'#f0fff4')+';padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid '+(c.escluso?'#f5c6cb':'#c3e6cb');
+      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+(c.escluso?'#ffeaea':'#f0fff4')+';padding:3px 8px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+(c.escluso?'#f5c6cb':'#c3e6cb');
       var chk=document.createElement('input');
       chk.type='checkbox';chk.value=c.id;chk.dataset.dipId=c.id;chk.className='comp-check';
       chk.checked=!c.escluso;
+      chk.style.transform='scale(0.85)';
       chk.onchange=function(){lbl.style.background=this.checked?'#f0fff4':'#ffeaea';lbl.style.borderColor=this.checked?'#c3e6cb':'#f5c6cb';};
       lbl.appendChild(chk);
       lbl.appendChild(document.createTextNode(c.nome+(c.ruolo==='Caposquadra'?' \u2B50':'')));
