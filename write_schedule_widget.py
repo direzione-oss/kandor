@@ -62,7 +62,9 @@ template = r'''<style>
 <div class="schedule-cell {% if day.is_today %}today-col{% endif %}" data-date="{{ day.iso_date }}" data-hour="{{ hour }}">
 {% for ev in day.events %}
 {% if ev.start_hour == hour %}
-<div class="schedule-event" style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }}" title="{{ ev.time_range }}">
+<div class="schedule-event" style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }}" title="Clicca per modificare"
+  onclick="openEditTurno({{ ev.assign_id }},'{{ ev.cliente_id }}','{{ ev.squadra_nome }}','{{ ev.ora_inizio }}','{{ ev.ora_fine }}','{{ ev.note|escapejs }}')"
+  data-assign="{{ ev.assign_id }}">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
@@ -77,6 +79,8 @@ template = r'''<style>
 </div>
 </div>
 </div>
+
+<!-- Modal NUOVO Turno -->
 <div id="turno-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeAddTurno()">
 <div class="turno-modal">
 <h3>Nuovo Turno</h3>
@@ -97,13 +101,59 @@ template = r'''<style>
 </div>
 </div>
 </div>
+
+<!-- Modal MODIFICA Turno -->
+<div id="edit-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeEditTurno()">
+<div class="turno-modal">
+<h3 style="color:#e65100">✏️ Modifica Turno</h3>
+<div id="edit-squadra-label" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
+<label>Cliente</label>
+<select id="edit-cliente"></select>
+<div style="display:flex;gap:10px">
+<div style="flex:1"><label>Ora Inizio</label><input type="time" id="edit-inizio"></div>
+<div style="flex:1"><label>Ora Fine</label><input type="time" id="edit-fine"></div>
+</div>
+<label>Note</label>
+<input type="text" id="edit-note" placeholder="Note sul turno">
+<div class="turno-modal-actions">
+<button class="btn-cancel-turno" onclick="closeEditTurno()">Annulla</button>
+<button style="background:#c62828;color:#fff;padding:8px 20px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px" onclick="confirmDeleteEdit()">🗑️ Elimina</button>
+<button class="btn-save-turno" onclick="saveEditTurno()">💾 Salva</button>
+</div>
+</div>
+</div>
+
 <script>
-var _turnoDate='';var _dataLoaded=false;
+var _turnoDate='';var _dataLoaded=false;var _editId=null;
+
 function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo turno?'))return;fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
+
+function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note){
+  _editId=assignId;
+  document.getElementById('edit-squadra-label').textContent='Squadra: '+squadraNome;
+  document.getElementById('edit-inizio').value=oraInizio;
+  document.getElementById('edit-fine').value=oraFine;
+  document.getElementById('edit-note').value=note||'';
+  var overlay=document.getElementById('edit-modal-overlay');
+  overlay.classList.add('active');
+  fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){
+    var cs=document.getElementById('edit-cliente');cs.innerHTML='';
+    d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;if(String(c.id)===String(clienteId))o.selected=true;cs.appendChild(o)})
+  })
+}
+function closeEditTurno(){document.getElementById('edit-modal-overlay').classList.remove('active');_editId=null}
+function saveEditTurno(){
+  if(!_editId)return;
+  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value};
+  fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
+}
+function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
+
 function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
 function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
 function saveTurno(){var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
 </script>
+
 '''
 
 filepath = os.path.join('core', 'templates', 'admin', 'widgets', 'weekly_schedule_widget.html')
