@@ -3,14 +3,77 @@ from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
     ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
-    ResponsabileArea, RichiestaSostituzione
+    ResponsabileArea, RichiestaSostituzione, Titolare
 )
+
+@admin.register(Titolare)
+class TitolareAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'user', 'telegram_chat_id', 'notifiche_attive')
+    list_editable = ('notifiche_attive',)
+    search_fields = ('nome', 'user__username')
+    actions = ['invia_test_notifica', 'invia_riepilogo_ora']
+
+    def invia_test_notifica(self, request, queryset):
+        from .services import notifica_titolari
+        notifica_titolari('🔔 Test notifica Kandor — sistema operativo!')
+        self.message_user(request, 'Notifica di test inviata.')
+    invia_test_notifica.short_description = 'Invia notifica di test'
+
+    def invia_riepilogo_ora(self, request, queryset):
+        from django.core.management import call_command
+        call_command('riepilogo_settimanale')
+        self.message_user(request, 'Riepilogo settimanale inviato ora.')
+    invia_riepilogo_ora.short_description = 'Invia riepilogo settimanale adesso'
 
 @admin.register(Assenza)
 class AssenzaAdmin(admin.ModelAdmin):
-    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine')
-    list_filter = ('tipo', 'data_inizio')
-    search_fields = ('dipendente__cognome',)
+    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine', 'is_processed')
+    list_filter = ('tipo', 'data_inizio', 'is_processed')
+    search_fields = ('dipendente__cognome', 'dipendente__nome')
+    actions = ['gestisci_sostituti_periodo']
+
+    @admin.action(description='🔄 Gestisci sostituti per il periodo (tutti i turni)')
+    def gestisci_sostituti_periodo(self, request, queryset):
+        from .models import AssegnazioneTurno, RichiestaSostituzione
+        from .services import crea_richiesta_sostituzione
+        import datetime
+
+        totale_turni = 0
+        totale_create = 0
+        totale_skip = 0
+
+        for assenza in queryset:
+            dip = assenza.dipendente
+            data = assenza.data_inizio
+            while data <= assenza.data_fine:
+                # Trova tutti i turni del dipendente in questo giorno
+                assegnazioni = AssegnazioneTurno.objects.filter(
+                    turno__data=data,
+                    turno__squadra__componenti=dip
+                ).select_related('turno', 'turno__squadra', 'turno__squadra__caposquadra')
+
+                for assegnazione in assegnazioni:
+                    totale_turni += 1
+                    # Verifica se esiste già una richiesta per questa assegnazione
+                    gia_presente = RichiestaSostituzione.objects.filter(
+                        assegnazione=assegnazione,
+                        dipendente_assente=dip
+                    ).exists()
+                    if gia_presente:
+                        totale_skip += 1
+                        continue
+                    try:
+                        crea_richiesta_sostituzione(assegnazione, dip, assenza.tipo, assenza.note)
+                        totale_create += 1
+                    except Exception as e:
+                        self.message_user(request, f'Errore su {dip} - {data}: {e}', level='error')
+
+                data += datetime.timedelta(days=1)
+
+        self.message_user(
+            request,
+            f'✅ {totale_turni} turni trovati nel periodo: {totale_create} richieste create, {totale_skip} già esistenti.'
+        )
 
 # -- Branding Configuration --
 admin.site.site_header = "Kandor Administration"
@@ -21,24 +84,22 @@ admin.site.index_title = "Benvenuto in Kandor"
 class DipendenteAdmin(admin.ModelAdmin):
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
-    list_filter = ('stato', 'is_sostituto', 'qualifiche')
+    list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
     actions = ['send_telegram_message_action']
-
+    
     def foto_avatar(self, obj):
         from django.utils.html import format_html
-        url = obj.foto_profilo_url or (obj.foto_url if obj.foto_url else None)
-        if obj.foto:
-            url = obj.foto.url
-        if url:
+        if obj.foto_profilo_url:
             return format_html(
                 '<img src="{}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #ff6f00;" />',
-                url
+                obj.foto_profilo_url
             )
         initials = (obj.nome[0] if obj.nome else '') + (obj.cognome[0] if obj.cognome else '')
         return format_html(
             '<div style="width:36px;height:36px;border-radius:50%;background:#ff6f00;color:#fff;'
-            'display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;">{}\u200b</div>',
+            'display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;'
+            'line-height:1;">{}</div>',
             initials.upper()
         )
     foto_avatar.short_description = '📸'

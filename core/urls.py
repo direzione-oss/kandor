@@ -7,7 +7,8 @@ from .views import (
     extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia,
     add_turno_ajax, edit_turno_ajax, delete_turno_ajax, get_squadre_clienti_json,
     validate_ore_ajax, verifica_ore_view, pdf_verifica_ore,
-    richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api
+    richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
+    titolari_dashboard_view, titolari_riepilogo_view
 )
 from django.views.generic import RedirectView
 
@@ -52,4 +53,8 @@ urlpatterns = [
     path('api/richiesta-sostituzione/', richiesta_sostituzione_api, name='richiesta_sostituzione'),
     path('api/risposta-sostituto/<int:richiesta_id>/', risposta_sostituto_api, name='risposta_sostituto'),
     path('api/trova-sostituti/', trova_sostituti_api, name='trova_sostituti'),
+
+    # Dashboard Titolari
+    path('titolari/', titolari_dashboard_view, name='titolari_dashboard'),
+    path('titolari/riepilogo/', titolari_riepilogo_view, name='titolari_riepilogo'),
 ]

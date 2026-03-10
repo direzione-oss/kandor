@@ -343,7 +343,7 @@ def chat_simulator_view(request):
             selected_employee = Dipendente.objects.get(pk=selected_employee_id)
             chat_messages = list(MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id
-            ).order_by('-timestamp')[:50])
+            ).order_by('-timestamp')[:100])
             chat_messages.reverse()
             MessaggioChat.objects.filter(
                 dipendente_id=selected_employee_id, direzione='IN', letto=False
@@ -614,6 +614,55 @@ def get_squadre_clienti_json(request):
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
 
 
+def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
+    """
+    Scarica la foto da Telegram e la carica su Supabase Storage (bucket 'avatars').
+    Ritorna l'URL pubblico permanente, o None se fallisce.
+    """
+    try:
+        import requests as req
+        from django.conf import settings
+
+        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
+        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
+
+        if not supabase_url or not supabase_key:
+            return None
+
+        # Scarica la foto da Telegram
+        resp = req.get(telegram_foto_url, timeout=15)
+        if not resp.ok:
+            return None
+        foto_bytes = resp.content
+
+        # Nome file nel bucket
+        file_name = f"dipendente_{dipendente_id}.jpg"
+        bucket = "avatar"
+        upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
+
+        # Upload su Supabase (upsert = sovrascrive se esiste già)
+        upload_resp = req.post(
+            upload_url,
+            data=foto_bytes,
+            headers={
+                "Authorization": f"Bearer {supabase_key}",
+                "Content-Type": "image/jpeg",
+                "x-upsert": "true",
+            },
+            timeout=20
+        )
+
+        if upload_resp.status_code in (200, 201):
+            # URL pubblico
+            public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
+            return public_url
+
+    except Exception as e:
+        print(f"[SupabaseUpload] Errore upload foto profilo: {e}")
+
+    return None
+
+
 @csrf_exempt
 def telegram_webhook_view(request):
     """
@@ -642,6 +691,25 @@ def telegram_webhook_view(request):
                 from .utils_kandor_chat import handle_telegram_callback
                 response = handle_telegram_callback(chat_id, cb_data, sender_name=first_name)
                 
+                # Salva la scelta del menu come messaggio IN
+                try:
+                    from .models import MessaggioChat, Dipendente
+                    dip_cb = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
+                    if dip_cb:
+                        testo_cb = cb_data.replace('_', ' ').title()
+                        MessaggioChat.objects.create(
+                            dipendente=dip_cb, testo=f"[ Menu: {testo_cb} ]", direzione='IN'
+                        )
+                        # Salva risposta bot
+                        if response:
+                            testo_risposta = response.get('text', '') if isinstance(response, dict) else str(response)
+                            if testo_risposta:
+                                MessaggioChat.objects.create(
+                                    dipendente=dip_cb, testo=testo_risposta, direzione='OUT'
+                                )
+                except Exception:
+                    pass
+
                 if response and token:
                     import requests as req
                     send_url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -679,6 +747,33 @@ def telegram_webhook_view(request):
                     pass
             
             if chat_id and (text or foto_url):
+                # ---- Gestione Foto Profilo ----
+                if foto_url and not text and not caption:
+                    try:
+                        from django.core.cache import cache
+                        from .models import Dipendente
+                        dip_check = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
+                        if dip_check and cache.get(f'pending_foto_profilo_{chat_id}'):
+                            # Prova upload permanente su Supabase Storage
+                            url_finale = _upload_foto_profilo_supabase(foto_url, dip_check.pk) or foto_url
+                            dip_check.foto_profilo_url = url_finale
+                            dip_check.save(update_fields=['foto_profilo_url'])
+                            cache.delete(f'pending_foto_profilo_{chat_id}')
+                            if token:
+                                import requests as req
+                                req.post(
+                                    f"https://api.telegram.org/bot{token}/sendMessage",
+                                    json={
+                                        "chat_id": chat_id,
+                                        "text": f"✅ Foto profilo aggiornata, {dip_check.nome}! Ora ti riconosciamo nell'app. 😊",
+                                    },
+                                    timeout=5
+                                )
+                            return HttpResponse("OK")
+                    except Exception:
+                        pass
+
+
                 # Salva messaggio ricevuto nel database
                 try:
                     from .models import MessaggioChat, Dipendente
@@ -690,6 +785,12 @@ def telegram_webhook_view(request):
                             foto_url=foto_url,
                             direzione='IN'
                         )
+                        # Notifica admin, RA e titolari del nuovo messaggio
+                        try:
+                            from .services import notifica_nuovo_messaggio
+                            notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=foto_url)
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 
@@ -709,11 +810,19 @@ def telegram_webhook_view(request):
                         payload = {'chat_id': chat_id, 'text': response['text']}
                         if response.get('reply_markup'):
                             payload['reply_markup'] = response['reply_markup']
+                        testo_out = response['text']
                     else:
                         payload = {'chat_id': chat_id, 'text': response}
+                        testo_out = str(response)
                     
                     try:
                         req.post(send_url, json=payload)
+                        # Salva risposta bot nello storico
+                        if dip and testo_out:
+                            from .models import MessaggioChat
+                            MessaggioChat.objects.create(
+                                dipendente=dip, testo=testo_out, direzione='OUT'
+                            )
                     except Exception as e:
                         print(f"[Telegram Error] Send Failed: {e}")
 
@@ -767,14 +876,142 @@ def manuale_view(request):
     return render(request, 'core/manuale.html')
 
 
+def titolari_dashboard_view(request):
+    """Dashboard di supervisione per i titolari."""
+    if not request.user.is_staff:
+        return HttpResponseRedirect('/admin/login/')
+    
+    from .models import (
+        Dipendente, AssegnazioneTurno, TimeTracking,
+        Assenza, RichiestaSostituzione
+    )
+    from django.db.models import Q, Sum
+    
+    oggi = timezone.now().date()
+    lun = oggi - timedelta(days=oggi.weekday())
+    ven = lun + timedelta(days=4)
+    
+    # --- Dipendenti ---
+    n_dipendenti = Dipendente.objects.filter(stato='ATTIVO').count()
+    n_sostituti = Dipendente.objects.filter(stato='ATTIVO', is_sostituto=True).count()
+    assenti_oggi = Assenza.objects.filter(data_inizio__lte=oggi, data_fine__gte=oggi)
+    n_assenti_oggi = assenti_oggi.count()
+    
+    # --- Turni di oggi ---
+    assegn_oggi = AssegnazioneTurno.objects.filter(turno__data=oggi)
+    turni_oggi = assegn_oggi.count()
+    turni_compilati_oggi = TimeTracking.objects.filter(
+        assegnazione__turno__data=oggi
+    ).values('assegnazione').distinct().count()
+    turni_scoperti_oggi = max(0, turni_oggi - turni_compilati_oggi)
+    
+    # --- Sostituzioni ---
+    sost_aperte = RichiestaSostituzione.objects.filter(stato='APERTA').count()
+    sost_inviate = RichiestaSostituzione.objects.filter(stato='INVIATA').count()
+    sost_fallite = RichiestaSostituzione.objects.filter(stato='ANNULLATA', creata_il__date=oggi).count()
+    
+    # --- Settimana ---
+    ore_r = TimeTracking.objects.filter(
+        timestamp__date__gte=lun, timestamp__date__lte=ven
+    ).aggregate(tot=Sum('ore_lavorate'))
+    ore_settimana = round(ore_r['tot'] or 0, 1)
+    
+    turni_sett_tot = AssegnazioneTurno.objects.filter(
+        turno__data__gte=lun, turno__data__lte=ven
+    ).count()
+    turni_sett_compilati = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=lun,
+        assegnazione__turno__data__lte=ven
+    ).values('assegnazione').distinct().count()
+    
+    ass_sett = Assenza.objects.filter(
+        Q(data_inizio__lte=ven) & Q(data_fine__gte=lun)
+    )
+    ass_malattia = ass_sett.filter(tipo='MALATTIA').count()
+    ass_ferie = ass_sett.filter(tipo='FERIE').count()
+    ass_permesso = ass_sett.filter(tipo='PERMESSO').count()
+    
+    sost_sett = RichiestaSostituzione.objects.filter(
+        creata_il__date__gte=lun, creata_il__date__lte=ven
+    )
+    sost_sett_ok = sost_sett.filter(stato='COMPLETATA').count()
+    sost_sett_fail = sost_sett.filter(stato='ANNULLATA').count()
+    sost_sett_corso = sost_sett.filter(stato__in=['APERTA', 'INVIATA', 'APPROVATA_RA']).count()
+    
+    # --- Alert economici ---
+    from .models import ProgrammazioneRicorrente, Cliente
+    soglia_default = 12.0
+    try:
+        n_sotto_soglia = 0
+        for prog in ProgrammazioneRicorrente.objects.filter(attiva=True).select_related('cliente'):
+            if prog.cliente and prog.cliente.importo_mensile and prog.ore_mensili_stimate:
+                if prog.ore_mensili_stimate > 0:
+                    val = float(prog.cliente.importo_mensile) / float(prog.ore_mensili_stimate)
+                    if val < soglia_default:
+                        n_sotto_soglia += 1
+    except Exception:
+        n_sotto_soglia = 0
+    
+    # --- Alert lista ---
+    alerts = []
+    if turni_scoperti_oggi > 0:
+        alerts.append({'msg': f'⚠️ {turni_scoperti_oggi} turno/i di oggi senza ore registrate', 'critico': False})
+    if sost_aperte > 0:
+        alerts.append({'msg': f'🔄 {sost_aperte} richiesta/e di sostituzione in attesa di approvazione RA', 'critico': False})
+    open_fallite = RichiestaSostituzione.objects.filter(stato='ANNULLATA', creata_il__date=oggi)
+    if open_fallite.exists():
+        alerts.append({'msg': f'🚨 {open_fallite.count()} sostituzione/i fallite oggi — nessun sostituto disponibile!', 'critico': True})
+    if n_sotto_soglia > 0:
+        alerts.append({'msg': f'💰 {n_sotto_soglia} contratto/i sotto la soglia di {soglia_default}€/ora', 'critico': False})
+    
+    return render(request, 'core/titolari_dashboard.html', {
+        'oggi': oggi, 'lun': lun, 'ven': ven,
+        'n_dipendenti': n_dipendenti, 'n_sostituti': n_sostituti, 'n_assenti_oggi': n_assenti_oggi,
+        'turni_oggi': turni_oggi, 'turni_compilati_oggi': turni_compilati_oggi, 'turni_scoperti_oggi': turni_scoperti_oggi,
+        'sost_aperte': sost_aperte, 'sost_inviate': sost_inviate, 'sost_fallite': sost_fallite,
+        'ore_settimana': ore_settimana, 'turni_sett_tot': turni_sett_tot, 'turni_sett_compilati': turni_sett_compilati,
+        'ass_malattia': ass_malattia, 'ass_ferie': ass_ferie, 'ass_permesso': ass_permesso,
+        'sost_sett_ok': sost_sett_ok, 'sost_sett_fail': sost_sett_fail, 'sost_sett_corso': sost_sett_corso,
+        'n_sotto_soglia': n_sotto_soglia, 'soglia_default': soglia_default,
+        'alerts': alerts,
+    })
+
+
+@csrf_exempt
+def titolari_riepilogo_view(request):
+    """Endpoint per trigger esterno del riepilogo settimanale (cron-job.org).
+    Chiamare con GET /titolari/riepilogo/?token=SECRET
+    Configurare SECRET in settings come RIEPILOGO_TOKEN.
+    """
+    from django.conf import settings
+    token_atteso = getattr(settings, 'RIEPILOGO_TOKEN', '')
+    token_ricevuto = request.GET.get('token', '')
+    
+    if not token_atteso or token_ricevuto != token_atteso:
+        return JsonResponse({'errore': 'Non autorizzato'}, status=403)
+    
+    # Solo venerdì (weekday 4) o forzato con ?force=1
+    from django.utils import timezone
+    if timezone.now().weekday() != 4 and request.GET.get('force') != '1':
+        return JsonResponse({'stato': 'non è venerdì, usa ?force=1 per forzare'})
+    
+    from django.core.management import call_command
+    call_command('riepilogo_settimanale')
+    return JsonResponse({'stato': 'riepilogo inviato', 'timestamp': str(timezone.now())})
+
+
 def manuale_dipendente_view(request):
     """Serve il manuale dipendente come pagina HTML leggibile."""
     import os
     md_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'MANUALE_DIPENDENTE_TELEGRAM.md')
     
     try:
-        with open(md_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        try:
+            with open(md_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+        except Exception:
+            with open(md_path, 'r', encoding='latin-1') as f:
+                content = f.read()
     except FileNotFoundError:
         content = "# Manuale non trovato\n\nIl file MANUALE_DIPENDENTE_TELEGRAM.md non è presente."
     
@@ -841,36 +1078,36 @@ def manuale_dipendente_view(request):
     
     body_html = '\n'.join(new_lines)
     
-    css = """
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }
-        h1 { color: #ff6f00; border-bottom: 3px solid #ff6f00; padding-bottom: 10px; }
-        h2 { color: #e65100; margin-top: 30px; border-left: 4px solid #ff6f00; padding-left: 10px; }
-        h3 { color: #333; margin-top: 20px; }
-        .md-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-        .md-table th { background: #ff6f00; color: white; padding: 10px; text-align: left; }
-        .md-table td { padding: 8px 10px; border-bottom: 1px solid #ddd; }
-        .md-table tr:nth-child(even) { background: #fff3e0; }
-        blockquote { background: #fff3e0; border-left: 4px solid #ff6f00; padding: 10px 15px; margin: 10px 0; border-radius: 4px; }
-        code { background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
-        li { margin: 5px 0; }
-        hr { border: none; border-top: 2px solid #eee; margin: 20px 0; }
-        strong { color: #e65100; }
-        img { max-width: 250px; border-radius: 12px; display: block; margin: 15px auto; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-        .print-btn { position: fixed; bottom: 20px; right: 20px; background: #ff6f00; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .print-btn:hover { background: #e65100; }
-        @media print { .print-btn { display: none; } body { background: white; } }
-    """
-    page_html = (
-        '<!DOCTYPE html><html lang="it"><head>'
-        '<meta charset="UTF-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
-        '<title>Guida Dipendente \u2014 Bot Telegram Kandor</title>'
-        '<style>' + css + '</style>'
-        '</head><body>'
-        + body_html +
-        '<button class="print-btn" onclick="window.print()">\U0001f5a8\ufe0f Stampa / PDF</button>'
-        '</body></html>'
-    )
+    page_html = f"""<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guida Dipendente — Bot Telegram Kandor</title>
+    <style>
+        body {{ font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }}
+        h1 {{ color: #ff6f00; border-bottom: 3px solid #ff6f00; padding-bottom: 10px; }}
+        h2 {{ color: #e65100; margin-top: 30px; border-left: 4px solid #ff6f00; padding-left: 10px; }}
+        h3 {{ color: #333; margin-top: 20px; }}
+        .md-table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
+        .md-table th {{ background: #ff6f00; color: white; padding: 10px; text-align: left; }}
+        .md-table td {{ padding: 8px 10px; border-bottom: 1px solid #ddd; }}
+        .md-table tr:nth-child(even) {{ background: #fff3e0; }}
+        blockquote {{ background: #fff3e0; border-left: 4px solid #ff6f00; padding: 10px 15px; margin: 10px 0; border-radius: 4px; }}
+        code {{ background: #eee; padding: 2px 6px; border-radius: 3px; font-size: 14px; }}
+        li {{ margin: 5px 0; }}
+        hr {{ border: none; border-top: 2px solid #eee; margin: 20px 0; }}
+        strong {{ color: #e65100; }}
+        .print-btn {{ position: fixed; bottom: 20px; right: 20px; background: #ff6f00; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }}
+        .print-btn:hover {{ background: #e65100; }}
+        @media print {{ .print-btn {{ display: none; }} body {{ background: white; }} }}
+    </style>
+</head>
+<body>
+{body_html}
+<button class="print-btn" onclick="window.print()">🖨️ Stampa / PDF</button>
+</body>
+</html>"""
     
     return HttpResponse(page_html)
 

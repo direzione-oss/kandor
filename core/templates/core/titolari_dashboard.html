@@ -1,0 +1,202 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+{% block content %}
+<style>
+    #container,
+    #content,
+    #content-main {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    #content-related {
+        display: none !important;
+    }
+
+    .sup-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .sup-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .08);
+        border-top: 4px solid #417690;
+    }
+
+    .sup-card.arancio {
+        border-top-color: #e67e22;
+    }
+
+    .sup-card.verde {
+        border-top-color: #27ae60;
+    }
+
+    .sup-card.rosso {
+        border-top-color: #e74c3c;
+    }
+
+    .sup-card.viola {
+        border-top-color: #9b59b6;
+    }
+
+    .sup-card h3 {
+        margin: 0 0 16px 0;
+        font-size: 14px;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+    }
+
+    .sup-stat {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 14px;
+    }
+
+    .sup-stat:last-child {
+        border-bottom: none;
+    }
+
+    .sup-stat .val {
+        font-weight: 700;
+        font-size: 18px;
+        color: #333;
+    }
+
+    .sup-stat .val.ok {
+        color: #27ae60;
+    }
+
+    .sup-stat .val.warn {
+        color: #e67e22;
+    }
+
+    .sup-stat .val.err {
+        color: #e74c3c;
+    }
+
+    .alert-item {
+        background: #fff3e0;
+        border-left: 4px solid #e67e22;
+        padding: 10px 14px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    .alert-item.critico {
+        background: #fdf2f2;
+        border-left-color: #e74c3c;
+    }
+
+    .title-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .title-bar h1 {
+        margin: 0;
+        color: #333;
+        font-size: 22px;
+    }
+
+    .btn-link {
+        background: #417690;
+        color: white;
+        padding: 8px 18px;
+        text-decoration: none;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+</style>
+
+<div style="padding: 20px;">
+    <div class="title-bar">
+        <h1>📊 Dashboard Supervisione — {{ oggi|date:"l d F Y" }}</h1>
+        <a href="/verifica-ore/" class="btn-link">📋 Report Mensile</a>
+    </div>
+
+    <!-- Oggi -->
+    <h3 style="color:#555; border-bottom: 2px solid #eee; padding-bottom:6px;">📅 Situazione di Oggi</h3>
+    <div class="sup-grid">
+        <div class="sup-card">
+            <h3>👥 Dipendenti</h3>
+            <div class="sup-stat"><span>Attivi</span><span class="val ok">{{ n_dipendenti }}</span></div>
+            <div class="sup-stat"><span>Assenti oggi</span><span
+                    class="val {% if n_assenti_oggi > 0 %}warn{% else %}ok{% endif %}">{{ n_assenti_oggi }}</span></div>
+            <div class="sup-stat"><span>Sostituti abilitati</span><span class="val">{{ n_sostituti }}</span></div>
+        </div>
+        <div class="sup-card arancio">
+            <h3>📋 Turni di Oggi</h3>
+            <div class="sup-stat"><span>Pianificati</span><span class="val">{{ turni_oggi }}</span></div>
+            <div class="sup-stat"><span>Compilati</span><span class="val ok">{{ turni_compilati_oggi }}</span></div>
+            <div class="sup-stat"><span>Scoperti</span><span
+                    class="val {% if turni_scoperti_oggi > 0 %}err{% else %}ok{% endif %}">{{ turni_scoperti_oggi
+                    }}</span></div>
+        </div>
+        <div class="sup-card viola">
+            <h3>🔄 Sostituzioni Aperte</h3>
+            <div class="sup-stat"><span>In attesa RA</span><span class="val warn">{{ sost_aperte }}</span></div>
+            <div class="sup-stat"><span>Inviate al sostituto</span><span class="val">{{ sost_inviate }}</span></div>
+            <div class="sup-stat"><span>Fallite (no sostituto)</span><span
+                    class="val {% if sost_fallite > 0 %}err{% else %}ok{% endif %}">{{ sost_fallite }}</span></div>
+        </div>
+        <div class="sup-card rosso">
+            <h3>⚠️ Alert Economici</h3>
+            <div class="sup-stat"><span>Contratti sotto soglia</span><span
+                    class="val {% if n_sotto_soglia > 0 %}err{% else %}ok{% endif %}">{{ n_sotto_soglia }}</span></div>
+            <div class="sup-stat"><span>Soglia €/ora usata</span><span class="val">{{ soglia_default }}€</span></div>
+            <div class="sup-stat"><span><a href="/analisi-contratti/" style="color:#e74c3c;">→ Analisi
+                        contratti</a></span><span></span></div>
+        </div>
+    </div>
+
+    <!-- Settimana -->
+    <h3 style="color:#555; border-bottom: 2px solid #eee; padding-bottom:6px; margin-top:10px;">📆 Settimana Corrente
+        ({{ lun|date:"d/m" }} – {{ ven|date:"d/m" }})</h3>
+    <div class="sup-grid">
+        <div class="sup-card verde">
+            <h3>⏱ Ore</h3>
+            <div class="sup-stat"><span>Ore registrate</span><span class="val">{{ ore_settimana }}h</span></div>
+            <div class="sup-stat"><span>Turni compilati</span><span class="val ok">{{ turni_sett_compilati }}</span>
+            </div>
+            <div class="sup-stat"><span>Turni totali</span><span class="val">{{ turni_sett_tot }}</span></div>
+        </div>
+        <div class="sup-card">
+            <h3>🤒 Assenze Settimana</h3>
+            <div class="sup-stat"><span>Malattia</span><span class="val">{{ ass_malattia }}</span></div>
+            <div class="sup-stat"><span>Ferie</span><span class="val">{{ ass_ferie }}</span></div>
+            <div class="sup-stat"><span>Permessi</span><span class="val">{{ ass_permesso }}</span></div>
+        </div>
+        <div class="sup-card arancio">
+            <h3>🔄 Sostituzioni Settimana</h3>
+            <div class="sup-stat"><span>Completate</span><span class="val ok">{{ sost_sett_ok }}</span></div>
+            <div class="sup-stat"><span>Fallite</span><span
+                    class="val {% if sost_sett_fail > 0 %}err{% else %}ok{% endif %}">{{ sost_sett_fail }}</span></div>
+            <div class="sup-stat"><span>In corso</span><span class="val">{{ sost_sett_corso }}</span></div>
+        </div>
+    </div>
+
+    <!-- Alert attivi -->
+    {% if alerts %}
+    <h3 style="color:#e74c3c; border-bottom: 2px solid #fcc; padding-bottom:6px; margin-top:10px;">🚨 Alert Attivi</h3>
+    {% for a in alerts %}
+    <div class="alert-item {% if a.critico %}critico{% endif %}">{{ a.msg }}</div>
+    {% endfor %}
+    {% endif %}
+
+    <div style="text-align:right; margin-top:20px;">
+        <a href="/admin/" class="btn-link" style="background:#666">← Dashboard Admin</a>
+    </div>
+</div>
+{% endblock %}
