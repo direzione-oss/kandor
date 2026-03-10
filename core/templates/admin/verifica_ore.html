@@ -171,11 +171,11 @@
 
     .vo-card {
         flex: 1;
-        min-width: 180px;
+        min-width: 220px;
         background: linear-gradient(135deg, #f0f4f7, #fff);
         border: 1px solid #ddd;
         border-radius: 10px;
-        padding: 16px;
+        padding: 16px 20px;
         text-align: center;
     }
 
@@ -217,7 +217,7 @@
             </select>
             <select id="sel-anno">
                 {% for a in anni_options %}
-                <option value="{{ a }}" {% if a == anno %}selected{% endif %}>{{ a }}</option>
+                <option value="{{ a }}" {% if a==anno %}selected{% endif %}>{{ a }}</option>
                 {% endfor %}
             </select>
             <button onclick="cambiaFiltro()">Aggiorna</button>
