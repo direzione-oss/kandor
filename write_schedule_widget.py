@@ -91,7 +91,7 @@ template = r'''<style>
   data-note="{{ ev.note|escapejs }}"
   title="Trascina per spostare • Clicca per modificare">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
-{{ ev.ore_badge_html }}
+{{ ev.ore_badge_html|safe }}
 <button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="Valida ore">✓</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
