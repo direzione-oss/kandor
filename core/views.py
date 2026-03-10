@@ -519,6 +519,53 @@ def edit_turno_ajax(request, assign_id):
 
 
 @csrf_exempt
+def copy_move_turno_ajax(request, assign_id):
+    """Copia o sposta un'assegnazione turno su un altro giorno."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    try:
+        from .models import AssegnazioneTurno, Turno
+        from datetime import date as dt_date
+
+        data = json.loads(request.body)
+        action = data.get('action', 'copy')   # 'copy' o 'move'
+        new_date_str = data.get('new_date')   # YYYY-MM-DD
+
+        if not new_date_str:
+            return JsonResponse({'status': 'error', 'error': 'Data destinazione mancante'})
+
+        assign = AssegnazioneTurno.objects.select_related('turno__squadra').get(pk=assign_id)
+        new_date = dt_date.fromisoformat(new_date_str)
+        old_turno = assign.turno
+        squadra = old_turno.squadra
+
+        # Trova o crea il Turno per la nuova data + squadra
+        new_turno, _ = Turno.objects.get_or_create(data=new_date, squadra=squadra)
+
+        if action == 'copy':
+            AssegnazioneTurno.objects.create(
+                turno=new_turno,
+                cliente=assign.cliente,
+                orario_inizio_previsto=assign.orario_inizio_previsto,
+                orario_fine_previsto=assign.orario_fine_previsto,
+                ore_previste_contratto=assign.ore_previste_contratto,
+                mansione_svolta=assign.mansione_svolta,
+            )
+            return JsonResponse({'status': 'ok', 'message': f'Turno copiato al {new_date.strftime("%d/%m/%Y")}'})
+
+        elif action == 'move':
+            assign.turno = new_turno
+            assign.save(update_fields=['turno'])
+            # Cancella il vecchio turno se rimasto senza assegnazioni
+            if not old_turno.assegnazioni.exists():
+                old_turno.delete()
+            return JsonResponse({'status': 'ok', 'message': f'Turno spostato al {new_date.strftime("%d/%m/%Y")}'})
+
+        return JsonResponse({'status': 'error', 'error': 'Azione non valida (usa copy o move)'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+@csrf_exempt
 def delete_turno_ajax(request, assign_id):
     """Elimina un'assegnazione turno via AJAX."""
     if request.method != 'POST':

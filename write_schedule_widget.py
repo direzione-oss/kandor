@@ -163,6 +163,15 @@ template = r'''<style>
     <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;flex:1">↩ Rimuovi validazione</button>
   </div>
 </div>
+<!-- SEZIONE COPIA / SPOSTA SU ALTRO GIORNO -->
+<div style="margin-top:12px;padding:10px 12px;background:#e8f4fd;border-radius:6px;border-left:4px solid #0277bd">
+  <div style="font-size:12px;font-weight:600;color:#0277bd;margin-bottom:8px">📅 Copia o Sposta su altro giorno</div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input type="date" id="edit-dest-date" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+    <button onclick="submitCopyMove('copy')" style="background:#0277bd;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">📋 Copia</button>
+    <button onclick="submitCopyMove('move')" style="background:#6c757d;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">✂️ Sposta</button>
+  </div>
+</div>
 <div class="turno-modal-actions">
 <button class="btn-cancel-turno" onclick="closeEditTurno()">Annulla</button>
 <button style="background:#c62828;color:#fff;padding:8px 20px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px" onclick="confirmDeleteEdit()">🗑️ Elimina</button>
@@ -308,6 +317,21 @@ function saveEditTurno(){
   fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
 function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
+
+function submitCopyMove(action){
+  if(!_editId)return;
+  var destDate=document.getElementById('edit-dest-date').value;
+  if(!destDate){alert('Seleziona prima la data di destinazione');return;}
+  var label=action==='copy'?'copiato':'spostato';
+  if(!confirm('Turno '+label+' al '+destDate+'?'))return;
+  fetch('/api/copy-move-turno/'+_editId+'/',{method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+    body:JSON.stringify({action:action,new_date:destDate})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.status==='ok'){closeEditTurno();location.reload();}
+    else{alert('Errore: '+(d.error||'impossibile'));}
+  }).catch(function(){alert('Errore di connessione');});
+}
 
 function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
 function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
