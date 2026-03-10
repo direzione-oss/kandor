@@ -89,6 +89,7 @@ template = r'''<style>
   data-inizio="{{ ev.ora_inizio }}"
   data-fine="{{ ev.ora_fine }}"
   data-note="{{ ev.note|escapejs }}"
+  data-ore-previste="{{ ev.ore_previste }}"
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
   title="Trascina per spostare • Clicca per modificare">
@@ -121,6 +122,7 @@ template = r'''<style>
 <div style="display:flex;gap:10px">
 <div style="flex:1"><label>Ora Inizio</label><input type="time" id="turno-inizio" value="06:00"></div>
 <div style="flex:1"><label>Ora Fine</label><input type="time" id="turno-fine" value="14:00"></div>
+<div style="flex:0.7"><label>Ore previste &#x1F4CB;</label><input type="number" id="turno-ore-previste" step="0.5" min="0" max="24" placeholder="es: 7.5" style="min-height:42px"></div>
 </div>
 <label>Note (opzionale)</label>
 <input type="text" id="turno-note" placeholder="Es: pulizie straordinarie">
@@ -141,6 +143,7 @@ template = r'''<style>
 <div style="display:flex;gap:10px">
 <div style="flex:1"><label>Ora Inizio</label><input type="time" id="edit-inizio"></div>
 <div style="flex:1"><label>Ora Fine</label><input type="time" id="edit-fine"></div>
+<div style="flex:0.7"><label>Ore previste &#x1F4CB;</label><input type="number" id="edit-ore-previste" step="0.5" min="0" max="24" placeholder="es: 7.5" style="min-height:42px"></div>
 </div>
 <label>Note</label>
 <input type="text" id="edit-note" placeholder="Note sul turno">
@@ -225,7 +228,8 @@ document.addEventListener('DOMContentLoaded',function(){
         el.getAttribute('data-fine'),
         el.getAttribute('data-note'),
         el.getAttribute('data-ore-stato')||'white',
-        el.getAttribute('data-ore-label')||'—'
+        el.getAttribute('data-ore-label')||'—',
+        el.getAttribute('data-ore-previste')||''
       );
       return;
     }
@@ -254,13 +258,14 @@ function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+
 
 var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
 
-function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,oreStato,oreLabel){
+function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste){
   _editId=assignId;
   document.getElementById('edit-squadra-label').textContent='Squadra: '+squadraNome;
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
   document.getElementById('edit-ore-input').value='';
+  document.getElementById('edit-ore-previste').value=orePreviste||'';
   /* Badge ore */
   var badge=document.getElementById('edit-ore-badge');
   var stato=oreStato||'white';
@@ -298,14 +303,15 @@ function submitValidaOre(action){
 }
 function saveEditTurno(){
   if(!_editId)return;
-  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value};
+  var orePrevEl=document.getElementById('edit-ore-previste').value;
+  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value,ore_previste:orePrevEl?parseFloat(orePrevEl):null};
   fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
 function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
 
 function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
 function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
-function saveTurno(){var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
+function saveTurno(){var orePrev=document.getElementById('turno-ore-previste').value;var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev?parseFloat(orePrev):null};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
 </script>
 
 '''

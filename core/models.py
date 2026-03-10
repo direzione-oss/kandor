@@ -319,6 +319,11 @@ class AssegnazioneTurno(models.Model):
     
     orario_inizio_previsto = models.TimeField()
     orario_fine_previsto = models.TimeField()
+    ore_previste_contratto = models.FloatField(
+        null=True, blank=True,
+        verbose_name="Ore previste (contratto)",
+        help_text="Ore contrattuali previste per questo turno. Possono differire dalla durata orario inizio-fine."
+    )
     
     mansione_svolta = models.TextField(blank=True)
 

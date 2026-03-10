@@ -361,6 +361,7 @@ def weekly_schedule_widget(context):
                     'time_range': f"{start}-{end}",
                     'ora_inizio': start,
                     'ora_fine': end,
+                    'ore_previste': assign.ore_previste_contratto or '',
                     'note': assign.mansione_svolta or '',
                     'ore_stato': ore_stato,
                     'ore_label': ore_label,

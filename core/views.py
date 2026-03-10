@@ -473,6 +473,7 @@ def add_turno_ajax(request):
             richiesta_straordinaria=richiesta_str,
             orario_inizio_previsto=t_inizio,
             orario_fine_previsto=t_fine,
+            ore_previste_contratto=data.get('ore_previste') or None,
             mansione_svolta=note
         )
         
@@ -507,6 +508,9 @@ def edit_turno_ajax(request, assign_id):
             assign.cliente = Cliente.objects.get(pk=data['cliente_id'])
         if 'note' in data:
             assign.mansione_svolta = data['note']
+        if 'ore_previste' in data:
+            ore_p = data['ore_previste']
+            assign.ore_previste_contratto = float(str(ore_p).replace(',','.')) if ore_p else None
         
         assign.save()
         return JsonResponse({'status': 'ok', 'message': 'Turno aggiornato'})

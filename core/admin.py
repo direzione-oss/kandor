@@ -246,6 +246,8 @@ class SquadraAdmin(admin.ModelAdmin):
 class AssegnazioneInline(admin.TabularInline):
     model = AssegnazioneTurno
     extra = 1
+    fields = ('cliente', 'orario_inizio_previsto', 'orario_fine_previsto', 'ore_previste_contratto', 'mansione_svolta')
+    verbose_name_plural = 'Assegnazioni turno (cliente, orari, ore contratto)'
 
 @admin.register(Turno)
 class TurnoAdmin(admin.ModelAdmin):
