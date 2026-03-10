@@ -14,6 +14,11 @@
 .add-turno-btn:hover {opacity:1!important}
 .delete-ev-btn {position:absolute;top:2px;right:2px;background:#c62828;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:11px;cursor:pointer;line-height:16px;text-align:center;opacity:0;transition:opacity .2s;z-index:4;padding:0}
 .schedule-event:hover .delete-ev-btn {opacity:1}
+.validate-ev-btn {position:absolute;top:20px;right:2px;background:#27ae60;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:10px;cursor:pointer;line-height:16px;text-align:center;opacity:0;transition:opacity .2s;z-index:4;padding:0}
+.schedule-event:hover .validate-ev-btn {opacity:.8}
+.validate-ev-btn.ore-green {background:#27ae60;opacity:.3}
+.validate-ev-btn.ore-red {background:#e74c3c;opacity:.8}
+.validate-ev-btn.ore-yellow {background:#f39c12;opacity:.7}
 .turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;justify-content:center;align-items:center}
 .turno-modal-overlay.active {display:flex}
 .turno-modal {background:#fff;border-radius:8px;padding:25px;width:420px;max-width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
@@ -84,10 +89,13 @@
   data-note="{{ ev.note|escapejs }}"
   title="Trascina per spostare • Clicca per modificare">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
+{{ ev.ore_badge_html }}
+<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="Valida ore">✓</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
 <div style="font-size:9px;color:#777;margin-top:2px">{{ ev.time_range }}</div>
 </div>
+
 {% endfor %}
 </div>
 </div>
@@ -220,6 +228,8 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 
 function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo turno?'))return;fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
+
+function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+assignId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify({action:'validate'})}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata per questo turno'))}}).catch(function(){alert('Errore di connessione')})}
 
 function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note){
   _editId=assignId;
