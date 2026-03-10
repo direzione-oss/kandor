@@ -84,7 +84,7 @@ admin.site.index_title = "Benvenuto in Kandor"
 class DipendenteAdmin(admin.ModelAdmin):
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
-    list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
+    list_filter = ('stato', 'is_sostituto', 'qualifiche')
     filter_horizontal = ('qualifiche',)
     actions = ['send_telegram_message_action']
     

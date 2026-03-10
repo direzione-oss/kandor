@@ -469,39 +469,56 @@ def _notifica_completamento(richiesta):
 
 
 def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
-    """Notifica via Telegram tutti i dipendenti con spunta 'riceve_notifiche_messaggi'."""
+    """Notifica via Telegram Titolari e Responsabili Area quando arriva un messaggio nel Centro Messaggi."""
     import requests
     from django.conf import settings
-    from .models import Dipendente
-    
+    from .models import Titolare, ResponsabileArea
+
     bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
     if not bot_token:
         return
-    
+
     # Ignora comandi automatici del bot
     if testo and testo.startswith('/'):
         return
-    
+
     anteprima = (testo or '📷 Foto')[:120]
     if testo and len(testo) > 120:
         anteprima += '…'
-    
+
     msg = (
         f"💬 <b>Nuovo messaggio da {dipendente}</b>\n"
         f"{anteprima}\n\n"
         f"🔗 <a href='https://kandor.onrender.com/centro-messaggi/'>Rispondi nel Centro Messaggi</a>"
     )
-    
-    referenti = Dipendente.objects.filter(
-        riceve_notifiche_messaggi=True,
-        telegram_chat_id__isnull=False
-    ).exclude(telegram_chat_id='').exclude(pk=dipendente.pk)
-    
-    for ref in referenti:
+
+    # Raccoglie tutti i chat_id da notificare (Titolari + ResponsabiliArea)
+    chat_ids = set()
+
+    # 1. Titolari con notifiche attive
+    try:
+        for titolare in Titolare.objects.filter(notifiche_attive=True):
+            cid = titolare.get_chat_id()
+            if cid:
+                chat_ids.add(str(cid))
+    except Exception:
+        pass
+
+    # 2. Dipendenti collegati a un ResponsabileArea (se hanno telegram_chat_id)
+    try:
+        for ra in ResponsabileArea.objects.select_related('dipendente').filter(
+            dipendente__telegram_chat_id__isnull=False
+        ).exclude(dipendente__telegram_chat_id=''):
+            if ra.dipendente and ra.dipendente.pk != dipendente.pk:
+                chat_ids.add(str(ra.dipendente.telegram_chat_id))
+    except Exception:
+        pass
+
+    for chat_id in chat_ids:
         try:
             requests.post(
                 f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                json={"chat_id": ref.telegram_chat_id, "text": msg, "parse_mode": "HTML"},
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "HTML"},
                 timeout=5
             )
         except Exception:
