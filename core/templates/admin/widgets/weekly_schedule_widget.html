@@ -12,6 +12,8 @@
 .add-turno-btn {position:absolute;bottom:2px;right:2px;background:#2e7d32;color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:14px;cursor:pointer;line-height:20px;text-align:center;opacity:0;transition:opacity .2s;z-index:3}
 .schedule-cell:hover .add-turno-btn {opacity:.6}
 .add-turno-btn:hover {opacity:1!important}
+.delete-ev-btn {position:absolute;top:2px;right:2px;background:#c62828;color:#fff;border:none;border-radius:50%;width:16px;height:16px;font-size:11px;cursor:pointer;line-height:16px;text-align:center;opacity:0;transition:opacity .2s;z-index:4;padding:0}
+.schedule-event:hover .delete-ev-btn {opacity:1}
 .turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;justify-content:center;align-items:center}
 .turno-modal-overlay.active {display:flex}
 .turno-modal {background:#fff;border-radius:8px;padding:25px;width:420px;max-width:90%;box-shadow:0 10px 40px rgba(0,0,0,.3)}
@@ -58,9 +60,11 @@
 <div class="schedule-cell {% if day.is_today %}today-col{% endif %}" data-date="{{ day.iso_date }}" data-hour="{{ hour }}">
 {% for ev in day.events %}
 {% if ev.start_hour == hour %}
-<div class="schedule-event" style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }}">
+<div class="schedule-event" style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }}" title="{{ ev.time_range }}">
+<button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
+<div style="font-size:9px;color:#777;margin-top:2px">{{ ev.time_range }}</div>
 </div>
 {% endif %}
 {% endfor %}
@@ -93,6 +97,7 @@
 </div>
 <script>
 var _turnoDate='';var _dataLoaded=false;
+function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo turno?'))return;fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
 function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
 function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
 function saveTurno(){var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
