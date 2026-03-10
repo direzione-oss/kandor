@@ -365,8 +365,7 @@
                 {% elif selected_employee.foto %}
                 <img src="{{ selected_employee.foto.url }}" alt="{{ selected_employee.nome }}" class="avatar-lg">
                 {% else %}
-                <div class="avatar-placeholder-lg">{{ selected_employee.nome|first|upper }}{{
-                    selected_employee.cognome|first|upper }}</div>
+                <div class="avatar-placeholder-lg">{{ selected_employee.nome|first|upper }}{{ selected_employee.cognome|first|upper }}</div>
                 {% endif %}
                 {{ selected_employee.nome }} {{ selected_employee.cognome }}
             </div>
