@@ -148,6 +148,47 @@
 
 {% block content %}
 <div id="content-main">
+    <h4 style="margin-top:0;margin-bottom:0;color:#666;text-transform:uppercase">Operazioni Frequenti</h4>
+    <div class="quick-ops-container" style="margin-top:10px">
+        <div class="quick-card" style="border-color: #417690;">
+            <h3>🏥 Jolly</h3>
+            <p>Trova un sostituto</p>
+            <a href="{% url 'find_jolly' %}">Trova Sostituto</a>
+        </div>
+        <div class="quick-card" style="border-color: #79aec8;">
+            <h3>📊 Report</h3>
+            <p>Verifica ore lavorate</p>
+            <a href="{% url 'verifica_ore' %}">Vedi Report</a>
+        </div>
+        <div class="quick-card" style="border-color: #669966;">
+            <h3>🗓️ Turni</h3>
+            <p>Genera turni prossima settimana</p>
+            <a href="{% url 'generate_shifts' %}">Genera Ora</a>
+        </div>
+        <div class="quick-card" style="border-color: #777;">
+            <h3>💾 Dati</h3>
+            <p>Import/Export/Backup</p>
+            <a href="/data-management/">Gestisci</a>
+        </div>
+        <div class="quick-card" style="border-color: #f1c40f;">
+            <h3>📘 Guide</h3>
+            <p>Manuali d'uso</p>
+            <a href="{% url 'manuale_utente' %}">📖 Admin</a>
+            <a href="{% url 'manuale_dipendente' %}" target="_blank" style="margin-left:6px">📱 Dipendente</a>
+        </div>
+        <div class="quick-card" style="border-color: #9b59b6; position:relative">
+            <h3>💬 Telegram</h3>
+            <p>Invia Messaggi</p>
+            <a href="{% url 'chat_simulator' %}">Apri</a>
+            {% unread_chat_badge %}
+        </div>
+        <div class="quick-card" style="border-color: #e67e22;">
+            <h3>💰 Analisi Contratti</h3>
+            <p>Verifica €/ora</p>
+            <a href="{% url 'analisi_contratti' %}">Analizza</a>
+        </div>
+    </div>
+
     <!-- RIGA SUPERIORE: Scadenze & Compleanni (Affiancati) -->
     <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
         <div style="flex: 1; min-width: 400px;">
@@ -213,46 +254,6 @@
     {% endif %}
     {% endfor %}
 
-    <h4 style="margin-top: 30px; color: #666; text-transform: uppercase;">Operazioni Frequenti</h4>
-    <div class="quick-ops-container">
-        <div class="quick-card" style="border-color: #417690;">
-            <h3>🏥 Jolly</h3>
-            <p>Trova un sostituto</p>
-            <a href="{% url 'find_jolly' %}">Trova Sostituto</a>
-        </div>
-        <div class="quick-card" style="border-color: #79aec8;">
-            <h3>📊 Report</h3>
-            <p>Verifica ore lavorate</p>
-            <a href="{% url 'verifica_ore' %}">Vedi Report</a>
-        </div>
-        <div class="quick-card" style="border-color: #669966;">
-            <h3>🗓️ Turni</h3>
-            <p>Genera turni prossima settimana</p>
-            <a href="{% url 'generate_shifts' %}">Genera Ora</a>
-        </div>
-        <div class="quick-card" style="border-color: #777;">
-            <h3>💾 Dati</h3>
-            <p>Import/Export/Backup</p>
-            <a href="/data-management/">Gestisci</a>
-        </div>
-        <div class="quick-card" style="border-color: #f1c40f;">
-            <h3>📘 Guide</h3>
-            <p>Manuali d'uso</p>
-            <a href="{% url 'manuale_utente' %}">📖 Admin</a>
-            <a href="{% url 'manuale_dipendente' %}" target="_blank" style="margin-left:6px">📱 Dipendente</a>
-        </div>
-        <div class="quick-card" style="border-color: #9b59b6; position:relative">
-            <h3>💬 Telegram</h3>
-            <p>Invia Messaggi</p>
-            <a href="{% url 'chat_simulator' %}">Apri</a>
-            {% unread_chat_badge %}
-        </div>
-        <div class="quick-card" style="border-color: #e67e22;">
-            <h3>💰 Analisi Contratti</h3>
-            <p>Verifica €/ora</p>
-            <a href="{% url 'analisi_contratti' %}">Analizza</a>
-        </div>
-    </div>
 
     <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
         <h4 style="color: #ccc; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; margin-bottom: 15px;">
