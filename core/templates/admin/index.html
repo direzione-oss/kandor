@@ -189,6 +189,9 @@
         </div>
     </div>
 
+    <!-- Widget Telegram Feed -->
+    {% telegram_feed_widget %}
+
     <!-- RIGA SUPERIORE: Scadenze & Compleanni (Affiancati) -->
     <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
         <div style="flex: 1; min-width: 400px;">
@@ -206,8 +209,6 @@
     <!-- Widget Programmazione Settimanale -->
     {% weekly_schedule_widget %}
 
-    <!-- Widget Telegram Feed -->
-    {% telegram_feed_widget %}
 
     {% if app_list %}
     {% for app in app_list %}
