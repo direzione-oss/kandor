@@ -46,36 +46,47 @@
 </div>
 </h3>
 <div style="overflow-x:auto;background:#fff">
-<div class="schedule-grid">
-<div class="schedule-header" style="background:#37474f;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center">ORA</div>
+<div style="display:flex;min-width:1200px">
+<!-- Colonna ORA -->
+<div style="width:60px;flex-shrink:0;border-right:1px solid #eee">
+<div style="height:40px;background:#37474f"></div>
+{% for hour in hours_range %}
+<div class="schedule-hour">{{ hour }}:00</div>
+{% endfor %}
+</div>
+<!-- Colonne giornaliere -->
 {% for day in schedule %}
-<div class="schedule-header {% if day.is_today %}today{% endif %}">
+<div style="flex:1;border-right:1px solid #f0f0f0;min-width:120px">
+<!-- Header giorno -->
+<div class="schedule-header {% if day.is_today %}today{% endif %}" style="height:40px;padding:0;display:flex;flex-direction:column;justify-content:center">
 <div style="font-size:13px;font-weight:700;text-transform:uppercase">{{ day.day_name }}</div>
 <div style="font-size:11px;opacity:.9">{{ day.day_date }}</div>
 </div>
-{% endfor %}
+<!-- Corpo colonna: griglia oraria + eventi -->
+<div style="position:relative;height:{{ total_height }}px;{% if day.is_today %}background:#f1f8f3;{% endif %}">
+<!-- Linee orarie (sfondo) -->
 {% for hour in hours_range %}
-<div class="schedule-hour">{{ hour }}:00</div>
-{% for day in schedule %}
-<div class="schedule-cell {% if day.is_today %}today-col{% endif %}" data-date="{{ day.iso_date }}" data-hour="{{ hour }}">
+<div style="position:absolute;left:0;right:0;top:{{ forloop.counter0|multiply_80 }}px;height:80px;border-bottom:1px solid #f5f5f5"
+     data-date="{{ day.iso_date }}" data-hour="{{ hour }}">
+<button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}','{{ hour }}')" title="Aggiungi turno">+</button>
+</div>
+{% endfor %}
+<!-- Eventi posizionati assolutamente -->
 {% for ev in day.events %}
-{% if ev.start_hour == hour %}
-<div class="schedule-event" style="height:{{ ev.height }}px;top:{{ ev.top_offset }}px;border-left-color:{{ ev.color }}" title="Clicca per modificare"
-  onclick="openEditTurno({{ ev.assign_id }},'{{ ev.cliente_id }}','{{ ev.squadra_nome }}','{{ ev.ora_inizio }}','{{ ev.ora_fine }}','{{ ev.note|escapejs }}')"
-  data-assign="{{ ev.assign_id }}">
+<div class="schedule-event" style="top:{{ ev.top_abs }}px;height:{{ ev.height }}px;left:3px;right:3px;border-left-color:{{ ev.color }}" title="Clicca per modificare"
+  onclick="openEditTurno({{ ev.assign_id }},'{{ ev.cliente_id }}','{{ ev.squadra_nome }}','{{ ev.ora_inizio }}','{{ ev.ora_fine }}','{{ ev.note|escapejs }}')">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
 <div style="font-size:9px;color:#777;margin-top:2px">{{ ev.time_range }}</div>
 </div>
-{% endif %}
-{% endfor %}
-<button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}','{{ hour }}')" title="Aggiungi turno">+</button>
-</div>
-{% endfor %}
 {% endfor %}
 </div>
 </div>
+{% endfor %}
+</div>
+</div>
+
 </div>
 
 <!-- Modal NUOVO Turno -->

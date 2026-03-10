@@ -6,6 +6,14 @@ from django.db.models import Q
 
 register = template.Library()
 
+@register.filter
+def multiply_80(value):
+    """Moltiplica il valore per 80 (pixel per ora nel calendario)."""
+    try:
+        return int(value) * 80
+    except (TypeError, ValueError):
+        return 0
+
 @register.simple_tag
 def unread_chat_count():
     from core.models import MessaggioChat
@@ -331,8 +339,13 @@ def weekly_schedule_widget(context):
                 if duration_min <= 0:
                     duration_min = 60
                 
-                height = max(int(duration_min * 80 / 60), 20)
-                top_offset = int(sm * 80 / 60)
+                HOUR_PX = 80  # pixel per ora
+                # top_abs = posizione assoluta dall'inizio griglia (include ora + minuti)
+                grid_start = 5  # ora di inizio griglia
+                start_total_min = sh * 60 + sm
+                grid_start_min = grid_start * 60
+                top_abs = int((start_total_min - grid_start_min) * HOUR_PX / 60)
+                height = max(int(duration_min * HOUR_PX / 60), 20)
                 
                 day_data['events'].append({
                     'assign_id': assign.id,
@@ -343,7 +356,7 @@ def weekly_schedule_widget(context):
                     'squadra_id': shift.squadra.id,
                     'start_hour': sh,
                     'height': height,
-                    'top_offset': top_offset,
+                    'top_abs': top_abs,
                     'color': squadra_colors[sq_id],
                     'time_range': f"{start}-{end}",
                     'ora_inizio': start,
@@ -365,11 +378,16 @@ def weekly_schedule_widget(context):
         schedule.append(day_data)
     
     # Range ore da visualizzare (05:00 - 22:00)
-    hours_range = list(range(5, 23))
+    grid_start = 5
+    grid_end = 23
+    hours_range = list(range(grid_start, grid_end))
+    total_height = (grid_end - grid_start) * 80
         
     return {
         'schedule': schedule,
         'hours_range': hours_range,
+        'grid_start': grid_start,
+        'total_height': total_height,
         'overlaps': overlaps,
         'squadre': squadre,
         'squadra_filter': squadra_filter,
