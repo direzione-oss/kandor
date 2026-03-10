@@ -469,10 +469,10 @@ def _notifica_completamento(richiesta):
 
 
 def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
-    """Notifica via Telegram Titolari e Responsabili Area quando arriva un messaggio nel Centro Messaggi."""
+    """Notifica via Telegram: dipendenti con flag, Titolari e Responsabili Area."""
     import requests
     from django.conf import settings
-    from .models import Titolare, ResponsabileArea
+    from .models import Dipendente, Titolare, ResponsabileArea
 
     bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
     if not bot_token:
@@ -492,10 +492,19 @@ def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
         f"🔗 <a href='https://kandor.onrender.com/centro-messaggi/'>Rispondi nel Centro Messaggi</a>"
     )
 
-    # Raccoglie tutti i chat_id da notificare (Titolari + ResponsabiliArea)
     chat_ids = set()
 
-    # 1. Titolari con notifiche attive
+    # 1. Dipendenti con flag riceve_notifiche_messaggi
+    try:
+        for ref in Dipendente.objects.filter(
+            riceve_notifiche_messaggi=True,
+            telegram_chat_id__isnull=False
+        ).exclude(telegram_chat_id='').exclude(pk=dipendente.pk):
+            chat_ids.add(str(ref.telegram_chat_id))
+    except Exception:
+        pass
+
+    # 2. Titolari con notifiche attive
     try:
         for titolare in Titolare.objects.filter(notifiche_attive=True):
             cid = titolare.get_chat_id()
@@ -504,7 +513,7 @@ def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
     except Exception:
         pass
 
-    # 2. Dipendenti collegati a un ResponsabileArea (se hanno telegram_chat_id)
+    # 3. Responsabili Area con Telegram collegato
     try:
         for ra in ResponsabileArea.objects.select_related('dipendente').filter(
             dipendente__telegram_chat_id__isnull=False

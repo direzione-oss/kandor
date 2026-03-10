@@ -58,6 +58,13 @@ class Dipendente(models.Model):
     # Sostituto
     is_sostituto = models.BooleanField(default=False, verbose_name="Disponibile come Sostituto", help_text="Se attivo, questo dipendente può essere chiamato per sostituzioni")
 
+    # Notifiche messaggi
+    riceve_notifiche_messaggi = models.BooleanField(
+        default=False,
+        verbose_name="Riceve notifiche messaggi",
+        help_text="Se attivo, questo dipendente/referente riceve una notifica Telegram quando arriva un messaggio nel Centro Messaggi"
+    )
+
     # Foto profilo
     foto = models.ImageField(upload_to='foto_dipendenti/', null=True, blank=True, verbose_name="Foto Profilo")
     foto_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="URL Foto (Supabase)")

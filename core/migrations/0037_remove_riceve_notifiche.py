@@ -8,10 +8,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Rimuovi riceve_notifiche_messaggi se esiste ancora (già rimossa in 0033 su prod, ma non su dev)
+        # Ricrea riceve_notifiche_messaggi (era stata rimossa per errore in 0033)
         migrations.RunSQL(
-            sql="ALTER TABLE core_dipendente DROP COLUMN IF EXISTS riceve_notifiche_messaggi;",
-            reverse_sql="ALTER TABLE core_dipendente ADD COLUMN IF NOT EXISTS riceve_notifiche_messaggi boolean NOT NULL DEFAULT false;",
+            sql="ALTER TABLE core_dipendente ADD COLUMN IF NOT EXISTS riceve_notifiche_messaggi boolean NOT NULL DEFAULT false;",
+            reverse_sql="ALTER TABLE core_dipendente DROP COLUMN IF EXISTS riceve_notifiche_messaggi;",
         ),
         # Aggiungi foto se non esiste già
         migrations.RunSQL(
