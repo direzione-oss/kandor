@@ -10,9 +10,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='dipendente',
-            name='foto_profilo_url',
-            field=models.URLField(blank=True, max_length=500, null=True, verbose_name='URL Foto Profilo (Telegram/Supabase)'),
+        # Aggiungi foto_profilo_url solo se non esiste già
+        migrations.RunSQL(
+            sql="ALTER TABLE core_dipendente ADD COLUMN IF NOT EXISTS foto_profilo_url varchar(500) NULL;",
+            reverse_sql="ALTER TABLE core_dipendente DROP COLUMN IF EXISTS foto_profilo_url;",
         ),
     ]
