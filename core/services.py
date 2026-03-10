@@ -489,7 +489,7 @@ def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
     msg = (
         f"💬 <b>Nuovo messaggio da {dipendente}</b>\n"
         f"{anteprima}\n\n"
-        f"🔗 <a href='https://kandor.onrender.com/centro-messaggi/'>Rispondi nel Centro Messaggi</a>"
+        f"🔗 <a href='https://kandor.onrender.com/chat-simulator/'>Rispondi nel Centro Messaggi</a>"
     )
 
     chat_ids = set()
