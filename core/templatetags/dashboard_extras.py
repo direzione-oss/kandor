@@ -331,8 +331,8 @@ def weekly_schedule_widget(context):
                 if duration_min <= 0:
                     duration_min = 60
                 
-                height = max(int(duration_min * 40 / 60), 18)
-                top_offset = int(sm * 40 / 60)
+                height = max(int(duration_min * 80 / 60), 20)
+                top_offset = int(sm * 80 / 60)
                 
                 day_data['events'].append({
                     'assign_id': assign.id,

@@ -4,8 +4,8 @@ template = r'''<style>
 .schedule-grid {display:grid;grid-template-columns:60px repeat(7,1fr);min-width:1200px;border-collapse:collapse;background:#fff}
 .schedule-header {background:#eceff1;border-bottom:2px solid #cfd8dc;padding:12px 4px;text-align:center;border-right:1px solid #dee2e6}
 .schedule-header.today {background:#2e7d32;color:#fff}
-.schedule-hour {font-size:11px;color:#999;border-right:1px solid #eee;border-bottom:1px solid #f5f5f5;padding:2px 6px;text-align:right;height:40px;line-height:40px}
-.schedule-cell {border-right:1px solid #f0f0f0;border-bottom:1px solid #f5f5f5;position:relative;min-height:40px}
+.schedule-hour {font-size:11px;color:#999;border-right:1px solid #eee;border-bottom:1px solid #f5f5f5;padding:2px 6px;text-align:right;height:80px;line-height:80px}
+.schedule-cell {border-right:1px solid #f0f0f0;border-bottom:1px solid #f5f5f5;position:relative;min-height:80px}
 .schedule-cell.today-col {background:#f1f8f3}
 .schedule-event {position:absolute;left:2px;right:2px;background:#fff;border:1px solid #e0e0e0;border-left:3px solid #0277bd;border-radius:3px;padding:3px 5px;font-size:11px;overflow:hidden;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:default}
 .schedule-event:hover {box-shadow:0 2px 6px rgba(0,0,0,.15)}
