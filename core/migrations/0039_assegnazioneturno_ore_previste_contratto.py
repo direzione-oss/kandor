@@ -15,24 +15,4 @@ class Migration(migrations.Migration):
             name='ore_previste_contratto',
             field=models.FloatField(blank=True, help_text='Ore contrattuali previste per questo turno. Possono differire dalla durata orario inizio-fine.', null=True, verbose_name='Ore previste (contratto)'),
         ),
-        migrations.AddField(
-            model_name='dipendente',
-            name='foto',
-            field=models.ImageField(blank=True, null=True, upload_to='foto_dipendenti/', verbose_name='Foto Profilo'),
-        ),
-        migrations.AddField(
-            model_name='dipendente',
-            name='foto_profilo_url',
-            field=models.URLField(blank=True, max_length=500, null=True, verbose_name='URL Foto Profilo (Telegram/Supabase)'),
-        ),
-        migrations.AddField(
-            model_name='dipendente',
-            name='foto_url',
-            field=models.URLField(blank=True, max_length=500, null=True, verbose_name='URL Foto (Supabase)'),
-        ),
-        migrations.AlterField(
-            model_name='dipendente',
-            name='riceve_notifiche_messaggi',
-            field=models.BooleanField(default=False, help_text='Se attivo, questo dipendente/referente riceve una notifica Telegram quando arriva un messaggio nel Centro Messaggi', verbose_name='Riceve notifiche messaggi'),
-        ),
     ]
