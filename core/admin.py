@@ -198,15 +198,52 @@ class MezzoAdmin(admin.ModelAdmin):
 
 @admin.register(Squadra)
 class SquadraAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'caposquadra', 'get_responsabile_area')
+    list_display = ('nome_con_componenti', 'caposquadra', 'get_responsabile_area')
     filter_horizontal = ('componenti',)
     search_fields = ('nome',)
     actions = ['send_team_message_action']
+
+    class Media:
+        css = {}
+        # CSS iniettato inline via override changelist_view non necessario:
+        # usiamo extrastyle nel template oppure un tag <style> nel campo HTML stesso.
+
+    def nome_con_componenti(self, obj):
+        from django.utils.html import format_html
+        componenti = list(obj.componenti.all().order_by('cognome', 'nome'))
+        if obj.caposquadra and obj.caposquadra not in componenti:
+            componenti.insert(0, obj.caposquadra)
+        if not componenti:
+            return format_html('<strong>{}</strong>', obj.nome)
+        righe = ''.join(
+            f'<div style="padding:3px 0;border-bottom:1px solid #eee;white-space:nowrap">'
+            f'{"\u2b50 " if c == obj.caposquadra else "\u2022 "}{c.cognome} {c.nome}'
+            f'</div>'
+            for c in componenti
+        )
+        tid = f'sq-tt-{obj.pk}'
+        html = (
+            f'<span style="position:relative;display:inline-block"'
+            f' onmouseenter="document.getElementById(\'{tid}\').style.display=\'block\'"'
+            f' onmouseleave="document.getElementById(\'{tid}\').style.display=\'none\'">'
+            f'<strong style="cursor:help;border-bottom:1px dotted #999">{obj.nome}</strong> '
+            f'<span style="font-size:10px;color:#aaa">\U0001f465</span>'
+            f'<div id="{tid}" style="display:none;position:absolute;top:110%;left:0;z-index:9999;'
+            f'background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 12px;'
+            f'min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:12px;line-height:1.6">'
+            f'{righe}'
+            f'</div>'
+            f'</span>'
+        )
+        return format_html(html)
+    nome_con_componenti.short_description = 'Nome'
+    nome_con_componenti.allow_tags = True
 
     def get_responsabile_area(self, obj):
         ra = obj.responsabile_area.first()
         return f"{ra.dipendente} ({ra.nome_area})" if ra else "—"
     get_responsabile_area.short_description = "Responsabile Area"
+
 
     @admin.action(description='💬 Invia Messaggio alla Squadra')
     def send_team_message_action(self, request, queryset):
