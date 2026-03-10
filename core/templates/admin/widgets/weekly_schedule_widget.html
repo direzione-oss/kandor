@@ -65,10 +65,10 @@
 <!-- Corpo colonna: griglia oraria + eventi -->
 <div style="position:relative;height:{{ total_height }}px;{% if day.is_today %}background:#f1f8f3;{% endif %}">
 <!-- Linee orarie (sfondo) -->
-{% for hour in hours_range %}
-<div style="position:absolute;left:0;right:0;top:{{ forloop.counter0|multiply_80 }}px;height:80px;border-bottom:1px solid #f5f5f5"
-     data-date="{{ day.iso_date }}" data-hour="{{ hour }}">
-<button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}','{{ hour }}')" title="Aggiungi turno">+</button>
+{% for slot in hours_with_top %}
+<div style="position:absolute;left:0;right:0;top:{{ slot.top_px }}px;height:80px;border-bottom:1px solid #f5f5f5"
+     data-date="{{ day.iso_date }}" data-hour="{{ slot.hour }}">
+<button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}','{{ slot.hour }}')" title="Aggiungi turno">+</button>
 </div>
 {% endfor %}
 <!-- Eventi posizionati assolutamente -->

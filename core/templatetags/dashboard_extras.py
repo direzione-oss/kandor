@@ -381,11 +381,14 @@ def weekly_schedule_widget(context):
     grid_start = 5
     grid_end = 23
     hours_range = list(range(grid_start, grid_end))
+    # Pre-calcola il top in pixel per ogni ora (evita filtri custom nel template)
+    hours_with_top = [{'hour': h, 'top_px': (h - grid_start) * 80} for h in hours_range]
     total_height = (grid_end - grid_start) * 80
         
     return {
         'schedule': schedule,
         'hours_range': hours_range,
+        'hours_with_top': hours_with_top,
         'grid_start': grid_start,
         'total_height': total_height,
         'overlaps': overlaps,
