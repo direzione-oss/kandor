@@ -5,7 +5,7 @@
 .schedule-hour {font-size:11px;color:#999;border-right:1px solid #eee;border-bottom:1px solid #f5f5f5;padding:2px 6px;text-align:right;height:80px;line-height:80px}
 .schedule-cell {border-right:1px solid #f0f0f0;border-bottom:1px solid #f5f5f5;position:relative;min-height:80px}
 .schedule-cell.today-col {background:#f1f8f3}
-.schedule-event {position:absolute;left:2px;right:2px;background:#fff;border:1px solid #e0e0e0;border-left:3px solid #0277bd;border-radius:3px;padding:3px 5px;font-size:11px;overflow:hidden;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:default}
+.schedule-event {position:absolute;left:2px;right:2px;background:#fff;border:1px solid #e0e0e0;border-left:3px solid #0277bd;border-radius:3px;padding:3px 5px;font-size:11px;overflow:hidden;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.08);cursor:grab;user-select:none}
 .schedule-event:hover {box-shadow:0 2px 6px rgba(0,0,0,.15)}
 .schedule-event .ev-cliente {font-weight:700;color:#333;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .schedule-event .ev-squadra {font-size:10px;color:#0277bd;background:#e3f2fd;padding:1px 4px;border-radius:2px;display:inline-block;margin-top:1px}
@@ -73,8 +73,16 @@
 {% endfor %}
 <!-- Eventi posizionati assolutamente -->
 {% for ev in day.events %}
-<div class="schedule-event" style="top:{{ ev.top_abs }}px;height:{{ ev.height }}px;left:3px;right:3px;border-left-color:{{ ev.color }}" title="Clicca per modificare"
-  onclick="openEditTurno({{ ev.assign_id }},'{{ ev.cliente_id }}','{{ ev.squadra_nome }}','{{ ev.ora_inizio }}','{{ ev.ora_fine }}','{{ ev.note|escapejs }}')">
+<div class="schedule-event"
+  style="top:{{ ev.top_abs }}px;height:{{ ev.height }}px;left:3px;right:3px;border-left-color:{{ ev.color }}"
+  data-assign="{{ ev.assign_id }}"
+  data-duration="{{ ev.height }}"
+  data-cliente-id="{{ ev.cliente_id }}"
+  data-squadra="{{ ev.squadra_nome }}"
+  data-inizio="{{ ev.ora_inizio }}"
+  data-fine="{{ ev.ora_fine }}"
+  data-note="{{ ev.note|escapejs }}"
+  title="Trascina per spostare • Clicca per modificare">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
@@ -134,6 +142,82 @@
 
 <script>
 var _turnoDate='';var _dataLoaded=false;var _editId=null;
+var HOUR_PX=80;var GRID_START=5;
+var _drag={el:null,startY:0,origTop:0,duration:0,moved:false};
+
+function _fmtTime(totalMin){totalMin=Math.max(0,Math.min(totalMin,23*60+59));var h=Math.floor(totalMin/60);var m=totalMin%60;return(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);}
+
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.schedule-event').forEach(function(ev){
+    ev.addEventListener('mousedown',function(e){
+      if(e.target.classList.contains('delete-ev-btn'))return;
+      e.preventDefault();
+      _drag.el=ev;
+      _drag.startY=e.clientY;
+      _drag.origTop=parseInt(ev.style.top)||0;
+      _drag.duration=parseInt(ev.getAttribute('data-duration'))||80;
+      _drag.moved=false;
+      ev.style.zIndex='100';
+    });
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!_drag.el)return;
+    var dy=e.clientY-_drag.startY;
+    if(Math.abs(dy)>5){_drag.moved=true;}
+    if(!_drag.moved)return;
+    var snap=Math.round(HOUR_PX/4); /* 15 min = 20px */
+    var newTop=Math.round((_drag.origTop+dy)/snap)*snap;
+    newTop=Math.max(0,newTop);
+    _drag.el.style.top=newTop+'px';
+    _drag.el.style.opacity='0.75';
+    _drag.el.style.cursor='grabbing';
+    /* Mostra orario in tempo reale */
+    var totalMin=GRID_START*60+Math.round(newTop*60/HOUR_PX);
+    var endMin=totalMin+Math.round(_drag.duration*60/HOUR_PX);
+    var lbl=_drag.el.querySelector('.ev-time-drag');
+    if(!lbl){lbl=document.createElement('div');lbl.className='ev-time-drag';lbl.style.cssText='font-size:10px;font-weight:bold;color:#0277bd;background:#e3f2fd;padding:1px 3px;border-radius:2px;margin-top:2px';_drag.el.appendChild(lbl);}
+    lbl.textContent=_fmtTime(totalMin)+' → '+_fmtTime(endMin);
+  });
+  document.addEventListener('mouseup',function(e){
+    if(!_drag.el)return;
+    var el=_drag.el;
+    var moved=_drag.moved;
+    _drag.el=null;
+    el.style.opacity='1';
+    el.style.cursor='grab';
+    el.style.zIndex='2';
+    var lbl=el.querySelector('.ev-time-drag');
+    if(lbl)lbl.remove();
+    if(!moved){
+      /* Click semplice: apri modal modifica */
+      openEditTurno(
+        el.getAttribute('data-assign'),
+        el.getAttribute('data-cliente-id'),
+        el.getAttribute('data-squadra'),
+        el.getAttribute('data-inizio'),
+        el.getAttribute('data-fine'),
+        el.getAttribute('data-note')
+      );
+      return;
+    }
+    /* Calcola nuovo orario dopo drag */
+    var finalTop=parseInt(el.style.top)||0;
+    var snap=Math.round(HOUR_PX/4);
+    finalTop=Math.round(finalTop/snap)*snap;
+    var startMin=GRID_START*60+Math.round(finalTop*60/HOUR_PX);
+    var endMin=startMin+Math.round(_drag.duration*60/HOUR_PX);
+    var assignId=el.getAttribute('data-assign');
+    var newStart=_fmtTime(startMin);
+    var newEnd=_fmtTime(endMin);
+    fetch('/api/edit-turno/'+assignId+'/',{method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+      body:JSON.stringify({ora_inizio:newStart,ora_fine:newEnd})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.status==='ok'){location.reload();}
+      else{alert('Impossibile spostare: '+(d.error||'errore'));location.reload();}
+    }).catch(function(){alert('Errore di connessione');location.reload();});
+  });
+});
 
 function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo turno?'))return;fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
 
