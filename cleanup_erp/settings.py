@@ -175,4 +175,8 @@ TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 # Supabase Storage (per foto profilo e allegati)
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_KEY = SUPABASE_SERVICE_KEY  # alias usato in views._upload_foto_profilo_supabase
 SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'kandor-media')
+
+# Token per endpoint riepilogo settimanale (cron-job.org → GET /titolari/riepilogo/?token=...)
+RIEPILOGO_TOKEN = os.environ.get('RIEPILOGO_TOKEN', '')
