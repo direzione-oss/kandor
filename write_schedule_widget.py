@@ -89,6 +89,8 @@ template = r'''<style>
   data-inizio="{{ ev.ora_inizio }}"
   data-fine="{{ ev.ora_fine }}"
   data-note="{{ ev.note|escapejs }}"
+  data-ore-stato="{{ ev.ore_stato }}"
+  data-ore-label="{{ ev.ore_label }}"
   title="Trascina per spostare • Clicca per modificare">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
@@ -131,7 +133,7 @@ template = r'''<style>
 
 <!-- Modal MODIFICA Turno -->
 <div id="edit-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeEditTurno()">
-<div class="turno-modal">
+<div class="turno-modal" style="width:460px">
 <h3 style="color:#e65100">✏️ Modifica Turno</h3>
 <div id="edit-squadra-label" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
 <label>Cliente</label>
@@ -142,6 +144,22 @@ template = r'''<style>
 </div>
 <label>Note</label>
 <input type="text" id="edit-note" placeholder="Note sul turno">
+<!-- SEZIONE VALIDAZIONE ORE -->
+<div id="edit-ore-section" style="margin-top:14px;padding:12px;background:#f5f5f5;border-radius:6px;border-left:4px solid #bbb">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate</span>
+    <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:8px">
+    <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 7.5)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+    <button onclick="submitOreManual(false)" style="background:#0277bd;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">💾 Salva ore</button>
+    <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">✔ Salva e valida</button>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button onclick="submitValidaOre('validate')" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;flex:1">✅ Valida ore esistenti</button>
+    <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;flex:1">↩ Rimuovi validazione</button>
+  </div>
+</div>
 <div class="turno-modal-actions">
 <button class="btn-cancel-turno" onclick="closeEditTurno()">Annulla</button>
 <button style="background:#c62828;color:#fff;padding:8px 20px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px" onclick="confirmDeleteEdit()">🗑️ Elimina</button>
@@ -199,14 +217,15 @@ document.addEventListener('DOMContentLoaded',function(){
     var lbl=el.querySelector('.ev-time-drag');
     if(lbl)lbl.remove();
     if(!moved){
-      /* Click semplice: apri modal modifica */
       openEditTurno(
         el.getAttribute('data-assign'),
         el.getAttribute('data-cliente-id'),
         el.getAttribute('data-squadra'),
         el.getAttribute('data-inizio'),
         el.getAttribute('data-fine'),
-        el.getAttribute('data-note')
+        el.getAttribute('data-note'),
+        el.getAttribute('data-ore-stato')||'white',
+        el.getAttribute('data-ore-label')||'—'
       );
       return;
     }
@@ -233,12 +252,24 @@ function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo
 
 function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+assignId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify({action:'validate'})}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata per questo turno'))}}).catch(function(){alert('Errore di connessione')})}
 
-function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note){
+var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
+
+function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,oreStato,oreLabel){
   _editId=assignId;
   document.getElementById('edit-squadra-label').textContent='Squadra: '+squadraNome;
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
+  document.getElementById('edit-ore-input').value='';
+  /* Badge ore */
+  var badge=document.getElementById('edit-ore-badge');
+  var stato=oreStato||'white';
+  var colors=_ORE_BADGE_COLORS[stato]||_ORE_BADGE_COLORS.white;
+  badge.textContent=oreLabel||'—';
+  badge.style.background=colors[0];
+  badge.style.color=colors[1];
+  /* Colore bordo sezione */
+  document.getElementById('edit-ore-section').style.borderLeftColor=colors[0];
   var overlay=document.getElementById('edit-modal-overlay');
   overlay.classList.add('active');
   fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){
@@ -247,6 +278,24 @@ function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note){
   })
 }
 function closeEditTurno(){document.getElementById('edit-modal-overlay').classList.remove('active');_editId=null}
+function submitOreManual(validate){
+  if(!_editId)return;
+  var ore=parseFloat(document.getElementById('edit-ore-input').value);
+  if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido');return;}
+  fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+    body:JSON.stringify({ore:ore,validate:validate})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
+  }).catch(function(){alert('Errore di connessione')})
+}
+function submitValidaOre(action){
+  if(!_editId)return;
+  fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+    body:JSON.stringify({action:action})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata'))}
+  }).catch(function(){alert('Errore di connessione')})
+}
 function saveEditTurno(){
   if(!_editId)return;
   var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value};
