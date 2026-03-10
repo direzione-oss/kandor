@@ -215,22 +215,31 @@ class SquadraAdmin(admin.ModelAdmin):
             componenti.insert(0, obj.caposquadra)
         if not componenti:
             return format_html('<strong>{}</strong>', obj.nome)
-        righe = ''.join(
-            f'<div style="padding:3px 0;border-bottom:1px solid #eee;white-space:nowrap">'
-            f'{"\u2b50 " if c == obj.caposquadra else "\u2022 "}{c.cognome} {c.nome}'
-            f'</div>'
-            for c in componenti
-        )
+        # Costruiamo le righe senza backslash nelle espressioni f-string (Python 3.11)
+        righe_parts = []
+        for c in componenti:
+            icona = '\u2b50 ' if c == obj.caposquadra else '\u2022 '
+            nome_c = f'{c.cognome} {c.nome}'
+            righe_parts.append(
+                f'<div style="padding:3px 0;border-bottom:1px solid #eee;white-space:nowrap">'
+                f'{icona}{nome_c}'
+                f'</div>'
+            )
+        righe = ''.join(righe_parts)
         tid = f'sq-tt-{obj.pk}'
+        # JS senza backslash nelle f-string: uso variabili per i valori con apici
+        show_js = f"document.getElementById('{tid}').style.display='block'"
+        hide_js = f"document.getElementById('{tid}').style.display='none'"
+        nome = obj.nome
         html = (
             f'<span style="position:relative;display:inline-block"'
-            f' onmouseenter="document.getElementById(\'{tid}\').style.display=\'block\'"'
-            f' onmouseleave="document.getElementById(\'{tid}\').style.display=\'none\'">'
-            f'<strong style="cursor:help;border-bottom:1px dotted #999">{obj.nome}</strong> '
+            f' onmouseenter="{show_js}"'
+            f' onmouseleave="{hide_js}">'
+            f'<strong style="cursor:help;border-bottom:1px dotted #999">{nome}</strong> '
             f'<span style="font-size:10px;color:#aaa">\U0001f465</span>'
             f'<div id="{tid}" style="display:none;position:absolute;top:110%;left:0;z-index:9999;'
             f'background:#fff;border:1px solid #ddd;border-radius:6px;padding:8px 12px;'
-            f'min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:12px;line-height:1.6">'
+            f'min-width:200px;box-shadow:0 4px 12px rgba(0,0,0,.2);font-size:12px;line-height:1.6">'
             f'{righe}'
             f'</div>'
             f'</span>'
