@@ -311,17 +311,29 @@ def weekly_schedule_widget(context):
                 end   = assign.orario_fine_previsto.strftime('%H:%M')
 
                 tt = tt_map.get(assign.id)
+                def _fmt_ore(ore_float):
+                    """Converte 7.5 → '7h30'' | 7.0 → '7h' | 0.5 → '30'"""
+                    h = int(ore_float)
+                    m = int(round((ore_float - h) * 60))
+                    if h and m:
+                        return f"{h}h{m:02d}'"
+                    elif h:
+                        return f"{h}h"
+                    else:
+                        return f"{m}'"
+
                 if tt and tt.is_validated:
-                    ore_stato = 'green';  ore_label = f"{tt.durata_ore:.1f}h ✓"
+                    ore_stato = 'green';  ore_label = _fmt_ore(tt.durata_ore) + ' ✓'
                 elif tt and (tt.ore_dichiarate or tt.check_out):
-                    ore_stato = 'yellow'; ore_label = f"{tt.durata_ore:.1f}h"
+                    ore_stato = 'yellow'; ore_label = _fmt_ore(tt.durata_ore)
                 elif d < today:
                     ore_stato = 'red';    ore_label = "!"
                 else:
                     ore_stato = 'white'
                     sh_m = assign.orario_inizio_previsto.hour * 60 + assign.orario_inizio_previsto.minute
                     eh_m = assign.orario_fine_previsto.hour * 60 + assign.orario_fine_previsto.minute
-                    ore_label = f"{max((eh_m - sh_m) / 60, 0):.0f}h"
+                    dur_min = max(eh_m - sh_m, 0)
+                    ore_label = _fmt_ore(dur_min / 60) if dur_min else '—'
 
                 badge_bg = STATO_COLORS.get(ore_stato, '#bdc3c7')
                 badge_fg = '#fff' if ore_stato != 'white' else '#666'
