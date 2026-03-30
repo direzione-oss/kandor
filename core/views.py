@@ -2421,3 +2421,4 @@ def settimana_pdf_view(request):
     nome_file = f"turni_{dates[0].strftime('%d%m')}-{dates[-1].strftime('%d%m%Y')}.pdf"
     resp = HttpResponse(buffer, content_type='application/pdf')
     resp['Content-Disposition'] = f'inline; filename="{nome_file}"'
+    return resp
