@@ -204,7 +204,7 @@ template = r'''<style>
 
 <script>
 var _turnoDate='';var _dataLoaded=false;var _editId=null;
-var HOUR_PX=80;var GRID_START=5;
+var HOUR_PX=80;var GRID_START=4;
 var _drag={el:null,startY:0,origTop:0,duration:0,moved:false};
 
 function _fmtTime(totalMin){totalMin=Math.max(0,Math.min(totalMin,23*60+59));var h=Math.floor(totalMin/60);var m=totalMin%60;return(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);}

@@ -304,7 +304,7 @@ def weekly_schedule_widget(context):
                 'red': '#e74c3c',   'white':  '#bdc3c7',
             }
             HOUR_PX = 80
-            grid_start_min = 5 * 60
+            grid_start_min = 4 * 60
 
             for assign in sorted(shift.assegnazioni.all(), key=lambda a: a.orario_inizio_previsto):
                 start = assign.orario_inizio_previsto.strftime('%H:%M')
@@ -376,8 +376,8 @@ def weekly_schedule_widget(context):
 
         schedule.append(day_data)
     
-    # Range ore da visualizzare (05:00 - 22:00)
-    grid_start = 5
+    # Range ore da visualizzare (04:00 - 23:00)
+    grid_start = 4
     grid_end = 23
     hours_range = list(range(grid_start, grid_end))
     # Pre-calcola il top in pixel per ogni ora (evita filtri custom nel template)
