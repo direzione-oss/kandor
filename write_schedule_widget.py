@@ -123,7 +123,15 @@ template = r'''<style>
 <div style="display:flex;gap:10px">
 <div style="flex:1"><label>Ora Inizio</label><input type="time" id="turno-inizio" value="06:00"></div>
 <div style="flex:1"><label>Ora Fine</label><input type="time" id="turno-fine" value="14:00"></div>
-<div style="flex:0.7"><label>Ore previste &#x1F4CB;</label><input type="number" id="turno-ore-previste" step="0.5" min="0" max="24" placeholder="es: 7.5" style="min-height:42px"></div>
+<div style="flex:0.8">
+<label>Ore previste &#x1F4CB;</label>
+<div style="display:flex;gap:4px;align-items:center">
+<input type="number" id="turno-ore-h" min="0" max="24" value="" placeholder="h" style="width:52px;padding:8px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;text-align:center">
+<span style="font-size:12px;color:#666;white-space:nowrap">h</span>
+<input type="number" id="turno-ore-m" min="0" max="59" value="" placeholder="min" style="width:52px;padding:8px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;text-align:center">
+<span style="font-size:12px;color:#666">min</span>
+</div>
+</div>
 </div>
 <label>Note (opzionale)</label>
 <input type="text" id="turno-note" placeholder="Es: pulizie straordinarie">
@@ -151,7 +159,15 @@ template = r'''<style>
 <div style="display:flex;gap:10px">
 <div style="flex:1"><label>Ora Inizio</label><input type="time" id="edit-inizio"></div>
 <div style="flex:1"><label>Ora Fine</label><input type="time" id="edit-fine"></div>
-<div style="flex:0.7"><label>Ore previste &#x1F4CB;</label><input type="number" id="edit-ore-previste" step="0.5" min="0" max="24" placeholder="es: 7.5" style="min-height:42px"></div>
+<div style="flex:0.8">
+<label>Ore previste &#x1F4CB;</label>
+<div style="display:flex;gap:4px;align-items:center">
+<input type="number" id="edit-ore-h" min="0" max="24" placeholder="h" style="width:52px;padding:8px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;text-align:center">
+<span style="font-size:12px;color:#666;white-space:nowrap">h</span>
+<input type="number" id="edit-ore-m" min="0" max="59" placeholder="min" style="width:52px;padding:8px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;text-align:center">
+<span style="font-size:12px;color:#666">min</span>
+</div>
+</div>
 </div>
 <label>Note</label>
 <input type="text" id="edit-note" placeholder="Note sul turno">
@@ -297,7 +313,10 @@ function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,ore
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
   document.getElementById('edit-ore-input').value='';
-  document.getElementById('edit-ore-previste').value=orePreviste||'';
+  /* Ore previste: converti decimale in h+min */
+  var _op=parseFloat(orePreviste)||0;
+  document.getElementById('edit-ore-h').value=_op?Math.floor(_op):'';
+  document.getElementById('edit-ore-m').value=_op?Math.round((_op%1)*60):'';
   /* Checkbox straordinario: spuntato se NON ricorrente */
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
   /* Badge ore */
@@ -356,12 +375,14 @@ function submitValidaOre(action){
 }
 function saveEditTurno(){
   if(!_editId)return;
-  var orePrevEl=document.getElementById('edit-ore-previste').value;
+  var h=parseInt(document.getElementById('edit-ore-h').value)||0;
+  var m=parseInt(document.getElementById('edit-ore-m').value)||0;
+  var orePrev=(h||m)?Math.round((h+m/60)*100)/100:null;
   var isStr=document.getElementById('edit-straordinario').checked;
   /* Raccogli gli esclusi: checkboxes non spuntati */
   var esclusi=[];
   document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
-  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value,ore_previste:orePrevEl?parseFloat(orePrevEl):null,dipendenti_esclusi:esclusi,tipo:isStr?'straordinario':'ricorrente'};
+  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value,ore_previste:orePrev,dipendenti_esclusi:esclusi,tipo:isStr?'straordinario':'ricorrente'};
   fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
 function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
@@ -383,7 +404,14 @@ function submitCopyMove(action){
 
 function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
 function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
-function saveTurno(){var orePrev=document.getElementById('turno-ore-previste').value;var isStr=document.getElementById('turno-straordinario').checked;var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev?parseFloat(orePrev):null,tipo:isStr?'straordinario':'ricorrente'};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
+function saveTurno(){
+  var h=parseInt(document.getElementById('turno-ore-h').value)||0;
+  var m=parseInt(document.getElementById('turno-ore-m').value)||0;
+  var orePrev=(h||m)?Math.round((h+m/60)*100)/100:null;
+  var isStr=document.getElementById('turno-straordinario').checked;
+  var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev,tipo:isStr?'straordinario':'ricorrente'};
+  fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})
+}
 </script>
 
 '''
