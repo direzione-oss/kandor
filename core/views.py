@@ -2484,3 +2484,230 @@ def settimana_pdf_view(request):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{nome_file}"'
     return response
+
+
+def settimana_pdf_view(request):
+    """
+    Genera PDF A4 landscape con griglia turni della settimana.
+    Layout: colonna ORA a sinistra + 7 colonne giorni. Righe separate da linea.
+    GET params: week (offset), squadra (id opzionale)
+    """
+    from datetime import date, timedelta, time as dt_time
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle,
+        Paragraph, Spacer, HRFlowable
+    )
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from .models import Turno, Squadra
+
+    if not request.user.is_staff:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden()
+
+    week_offset = int(request.GET.get('week', 0))
+    squadra_filter = request.GET.get('squadra', '')
+
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
+    dates = [start_of_week + timedelta(days=i) for i in range(7)]
+
+    GIORNI = ['Lunedi', 'Martedi', 'Mercoledi',
+              'Giovedi', 'Venerdi', 'Sabato', 'Domenica']
+    MESI = {1:'Gen',2:'Feb',3:'Mar',4:'Apr',5:'Mag',6:'Giu',
+            7:'Lug',8:'Ago',9:'Set',10:'Ott',11:'Nov',12:'Dic'}
+
+    turni_qs = Turno.objects.filter(
+        data__in=dates
+    ).select_related(
+        'squadra', 'squadra__caposquadra', 'mezzo'
+    ).prefetch_related(
+        'assegnazioni__cliente'
+    ).order_by('data', 'assegnazioni__orario_inizio_previsto', 'squadra__nome')
+
+    if squadra_filter:
+        turni_qs = turni_qs.filter(squadra_id=squadra_filter)
+
+    # Raggruppa turni per giorno, ordinati per ora inizio prima assegnazione
+    turni_per_data = {d: [] for d in dates}
+    for t in turni_qs:
+        turni_per_data[t.data].append(t)
+
+    # Ordina ogni giorno per orario inizio della prima assegnazione
+    for d in dates:
+        turni_per_data[d].sort(
+            key=lambda t: (
+                min((a.orario_inizio_previsto for a in t.assegnazioni.all()),
+                    default=dt_time(23, 59))
+            )
+        )
+
+    buffer = BytesIO()
+    page_w, page_h = landscape(A4)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=10*mm, rightMargin=10*mm,
+        topMargin=12*mm, bottomMargin=12*mm,
+    )
+
+    # Stili
+    style_title = ParagraphStyle('T', fontSize=12, fontName='Helvetica-Bold',
+                                 alignment=TA_CENTER, spaceAfter=3)
+    style_day   = ParagraphStyle('D', fontSize=8, fontName='Helvetica-Bold',
+                                 alignment=TA_CENTER, textColor=colors.white)
+    style_ora   = ParagraphStyle('O', fontSize=7, fontName='Helvetica-Bold',
+                                 alignment=TA_RIGHT, textColor=colors.HexColor('#555555'),
+                                 leading=9)
+    style_cell  = ParagraphStyle('C', fontSize=7, fontName='Helvetica',
+                                 leading=9, alignment=TA_LEFT)
+    style_foot  = ParagraphStyle('F', fontSize=6, fontName='Helvetica',
+                                 alignment=TA_CENTER, textColor=colors.grey)
+
+    week_str = (f"{dates[0].day:02d} {MESI[dates[0].month]} - "
+                f"{dates[-1].day:02d} {MESI[dates[-1].month]} {dates[-1].year}")
+    sq_label = ''
+    if squadra_filter:
+        try:
+            sq_label = f" | {Squadra.objects.get(pk=squadra_filter).nome}"
+        except Exception:
+            pass
+
+    elements = [
+        Paragraph(f"Turni Settimana  {week_str}{sq_label}", style_title),
+        HRFlowable(width='100%', thickness=1,
+                   color=colors.HexColor('#37474f'), spaceAfter=4),
+    ]
+
+    # Larghezze colonne: ORA (20mm) + 7 giorni
+    usable_w = page_w - 20*mm
+    col_ora_w = 18*mm
+    col_day_w = (usable_w - col_ora_w) / 7
+
+    max_slots = max((len(turni_per_data[d]) for d in dates), default=1)
+
+    # --- Riga header ---
+    header_row = [Paragraph('Ora', style_day)]
+    for d in dates:
+        bg_marker = ' *' if d == today else ''
+        txt = f"{GIORNI[d.weekday()]}{bg_marker}<br/>{d.day:02d}/{d.month:02d}"
+        header_row.append(Paragraph(txt, style_day))
+
+    # --- Righe dati ---
+    # Ogni slot = un "livello" di turni sovrapposti nella settimana
+    # Per ogni slot costruiamo la colonna ORA + le 7 celle giorno
+    data_rows = []
+    for slot in range(max_slots):
+        row_cells = ['']  # placeholder per colonna ORA (la riempiamo dopo)
+        ora_parts = []
+
+        for d in dates:
+            lista = turni_per_data[d]
+            if slot < len(lista):
+                t = lista[slot]
+                capo = t.squadra.caposquadra
+                mezzo_str = t.mezzo.targa if t.mezzo else '-'
+                assegnazioni = list(t.assegnazioni.all().order_by('orario_inizio_previsto'))
+
+                righe = [f"<b>{t.squadra.nome}</b>  Capo: {capo.cognome if capo else '?'}  Mezzo: {mezzo_str}"]
+                for a in assegnazioni:
+                    ore_str = ''
+                    if a.ore_previste_contratto:
+                        hv = int(a.ore_previste_contratto)
+                        mv = int(round((a.ore_previste_contratto - hv) * 60))
+                        ore_str = f" [{hv}h" + (f"{mv:02d}'" if mv else "h]")
+                        if not ore_str.endswith(']'):
+                            ore_str += ']'
+                    righe.append(
+                        f"\u2022 {a.cliente.ragione_sociale[:24]}"
+                        f"  {a.orario_inizio_previsto.strftime('%H:%M')}"
+                        f"-{a.orario_fine_previsto.strftime('%H:%M')}{ore_str}"
+                    )
+                    # Raccogliamo l'ora per la colonna ORA (usiamo la prima assegnazione del primo giorno con dati)
+                    if not ora_parts and assegnazioni:
+                        first_a = assegnazioni[0]
+                        ora_parts.append(first_a.orario_inizio_previsto.strftime('%H:%M'))
+
+                row_cells.append(Paragraph('<br/>'.join(righe), style_cell))
+            else:
+                row_cells.append(Paragraph('', style_cell))
+
+        # Colonna ORA: mostra l'ora del primo turno del giorno per questo slot
+        ora_label = ora_parts[0] if ora_parts else ''
+        row_cells[0] = Paragraph(ora_label, style_ora)
+        data_rows.append(row_cells)
+
+        # Riga separatore tra slot (riga vuota sottile)
+        if slot < max_slots - 1:
+            sep_row = [Paragraph('', style_ora)] + [Paragraph('', style_cell)] * 7
+            data_rows.append(sep_row)
+
+    table_data = [header_row] + data_rows
+    col_widths = [col_ora_w] + [col_day_w] * 7
+
+    tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    # Indici delle righe separatore (1-based nel body, 0-based dal header)
+    sep_indices = [1 + slot * 2 + 1 for slot in range(max_slots - 1)]  # righe vuote
+
+    ts = [
+        # Header
+        ('BACKGROUND', (0, 0), (-1, 0),  colors.HexColor('#37474f')),
+        ('TEXTCOLOR',  (0, 0), (-1, 0),  colors.white),
+        ('ALIGN',      (0, 0), (-1, 0),  'CENTER'),
+        # Colonna ORA
+        ('BACKGROUND', (0, 1), (0, -1),  colors.HexColor('#f5f5f5')),
+        ('ALIGN',      (0, 1), (0, -1),  'RIGHT'),
+        # Corpo
+        ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
+        ('FONTSIZE',   (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 3),
+        ('GRID',       (0, 0), (-1, -1), 0.3, colors.HexColor('#cccccc')),
+        # Righe dati alternati (solo righe non-separatore)
+    ]
+
+    # Alterna colore righe dati (slot pari/dispari)
+    for slot in range(max_slots):
+        row_idx = 1 + slot * 2  # ogni slot occupa 2 righe (dati + sep)
+        if slot % 2 == 1:
+            ts.append(('BACKGROUND', (1, row_idx), (-1, row_idx),
+                       colors.HexColor('#f9f9f9')))
+
+    # Righe separatore: altezza ridotta e bordo superiore marcato
+    for sep_row_idx in sep_indices:
+        ts.append(('TOPPADDING',    (0, sep_row_idx), (-1, sep_row_idx), 0))
+        ts.append(('BOTTOMPADDING', (0, sep_row_idx), (-1, sep_row_idx), 0))
+        ts.append(('LINEABOVE',     (0, sep_row_idx), (-1, sep_row_idx),
+                   0.8, colors.HexColor('#90a4ae')))
+        ts.append(('BACKGROUND',    (0, sep_row_idx), (-1, sep_row_idx),
+                   colors.HexColor('#eceff1')))
+
+    # Evidenzia colonna oggi
+    today_col = next((i + 1 for i, d in enumerate(dates) if d == today), None)
+    if today_col is not None:
+        ts.append(('BACKGROUND', (today_col, 0), (today_col, 0),
+                   colors.HexColor('#2e7d32')))
+        for row_idx in range(1, len(table_data)):
+            ts.append(('BACKGROUND', (today_col, row_idx), (today_col, row_idx),
+                       colors.HexColor('#e8f5e9')))
+
+    tbl.setStyle(TableStyle(ts))
+    elements.append(tbl)
+    elements.append(Spacer(1, 4*mm))
+    elements.append(Paragraph(
+        f"Stampato il {today.strftime('%d/%m/%Y')} - Kandor", style_foot))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    nome_file = (f"turni_{dates[0].strftime('%d%m')}"
+                 f"-{dates[-1].strftime('%d%m%Y')}.pdf")
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{nome_file}"'
+    return response
