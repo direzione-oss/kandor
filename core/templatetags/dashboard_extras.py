@@ -362,6 +362,7 @@ def weekly_schedule_widget(context):
                     'ore_stato':    ore_stato,
                     'ore_label':    ore_label,
                     'ore_badge_html': ore_badge_html,
+                    'is_ricorrente': assign.programmazione_feriale_id is not None,
                 })
 
             capo = shift.squadra.caposquadra

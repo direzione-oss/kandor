@@ -493,11 +493,14 @@ def edit_turno_ajax(request, assign_id):
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     try:
         data = json.loads(request.body)
-        from .models import AssegnazioneTurno, Cliente
+        from .models import AssegnazioneTurno, Cliente, ProgrammazioneRicorrente, RichiestaStraordinaria
         from datetime import time as dt_time
-        
-        assign = AssegnazioneTurno.objects.get(pk=assign_id)
-        
+        from decimal import Decimal
+
+        assign = AssegnazioneTurno.objects.select_related(
+            'turno__squadra', 'programmazione_feriale'
+        ).get(pk=assign_id)
+
         if data.get('ora_inizio'):
             h, m = map(int, data['ora_inizio'].split(':'))
             assign.orario_inizio_previsto = dt_time(h, m)
@@ -510,13 +513,48 @@ def edit_turno_ajax(request, assign_id):
             assign.mansione_svolta = data['note']
         if 'ore_previste' in data:
             ore_p = data['ore_previste']
-            assign.ore_previste_contratto = float(str(ore_p).replace(',','.')) if ore_p else None
+            assign.ore_previste_contratto = float(str(ore_p).replace(',', '.')) if ore_p else None
+
+        # --- Gestione cambio tipo ricorrente ↔ straordinario ---
+        nuovo_tipo = data.get('tipo')  # 'ricorrente' o 'straordinario'
+        if nuovo_tipo == 'straordinario' and assign.programmazione_feriale_id:
+            # Converti: rimuovi il link alla programmazione ricorrente
+            assign.programmazione_feriale = None
+        elif nuovo_tipo == 'ricorrente' and not assign.programmazione_feriale_id:
+            # Converti: crea una nuova ProgrammazioneRicorrente
+            from django.db.models.signals import post_save
+            try:
+                from .signals import on_programmazione_save
+                post_save.disconnect(on_programmazione_save, sender=ProgrammazioneRicorrente)
+            except Exception:
+                pass
+            try:
+                t_inizio = assign.orario_inizio_previsto
+                t_fine = assign.orario_fine_previsto
+                minuti = (t_fine.hour * 60 + t_fine.minute) - (t_inizio.hour * 60 + t_inizio.minute)
+                durata = Decimal(str(round(max(minuti, 0) / 60, 2)))
+                wd = assign.turno.data.weekday()
+                prog = ProgrammazioneRicorrente.objects.create(
+                    cliente=assign.cliente,
+                    squadra_abituale=assign.turno.squadra,
+                    tipo_ripetizione='SETTIMANALE',
+                    giorno_settimana=wd,
+                    ora_inizio=t_inizio,
+                    durata=durata,
+                    data_inizio_contratto=assign.turno.data,
+                )
+                assign.programmazione_feriale = prog
+            finally:
+                try:
+                    post_save.connect(on_programmazione_save, sender=ProgrammazioneRicorrente)
+                except Exception:
+                    pass
 
         assign.save()
 
         # Gestione dipendenti esclusi (M2M)
         if 'dipendenti_esclusi' in data:
-            esclusi = data['dipendenti_esclusi']  # lista di ID
+            esclusi = data['dipendenti_esclusi']
             assign.dipendenti_esclusi.set(esclusi if esclusi else [])
 
         return JsonResponse({'status': 'ok', 'message': 'Turno aggiornato'})

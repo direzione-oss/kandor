@@ -92,6 +92,7 @@ template = r'''<style>
   data-ore-previste="{{ ev.ore_previste }}"
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
+  data-ricorrente="{{ ev.is_ricorrente|yesno:'1,0' }}"
   title="Trascina per spostare • Clicca per modificare">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
@@ -154,6 +155,13 @@ template = r'''<style>
 </div>
 <label>Note</label>
 <input type="text" id="edit-note" placeholder="Note sul turno">
+<div style="margin-top:12px;padding:10px;background:#fff8e1;border-radius:6px;border:1px solid #ffe082">
+<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#795548;margin:0;font-weight:500">
+<input type="checkbox" id="edit-straordinario" style="width:auto;min-height:auto;transform:scale(1.1)">
+&#x26A0;&#xFE0F; Solo questa settimana (straordinario)
+</label>
+<div style="font-size:11px;color:#999;margin-top:4px;margin-left:26px">Se spuntato il turno non si ripeter&agrave; nelle settimane successive</div>
+</div>
 <!-- SEZIONE DIPENDENTI PRESENTI -->
 <div style="margin-top:12px;padding:10px 12px;background:#fff8e1;border-radius:6px;border-left:4px solid #f39c12">
   <div style="font-size:12px;font-weight:600;color:#e67e22;margin-bottom:8px">👥 Dipendenti presenti in questo turno</div>
@@ -252,7 +260,8 @@ document.addEventListener('DOMContentLoaded',function(){
         el.getAttribute('data-note'),
         el.getAttribute('data-ore-stato')||'white',
         el.getAttribute('data-ore-label')||'—',
-        el.getAttribute('data-ore-previste')||''
+        el.getAttribute('data-ore-previste')||'',
+        el.getAttribute('data-ricorrente')||'1'
       );
       return;
     }
@@ -281,7 +290,7 @@ function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+
 
 var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
 
-function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste){
+function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,isRicorrente){
   _editId=assignId;
   document.getElementById('edit-squadra-label').textContent='Squadra: '+squadraNome;
   document.getElementById('edit-inizio').value=oraInizio;
@@ -289,6 +298,8 @@ function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,ore
   document.getElementById('edit-note').value=note||'';
   document.getElementById('edit-ore-input').value='';
   document.getElementById('edit-ore-previste').value=orePreviste||'';
+  /* Checkbox straordinario: spuntato se NON ricorrente */
+  document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
   /* Badge ore */
   var badge=document.getElementById('edit-ore-badge');
   var stato=oreStato||'white';
@@ -346,10 +357,11 @@ function submitValidaOre(action){
 function saveEditTurno(){
   if(!_editId)return;
   var orePrevEl=document.getElementById('edit-ore-previste').value;
+  var isStr=document.getElementById('edit-straordinario').checked;
   /* Raccogli gli esclusi: checkboxes non spuntati */
   var esclusi=[];
   document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
-  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value,ore_previste:orePrevEl?parseFloat(orePrevEl):null,dipendenti_esclusi:esclusi};
+  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value,ore_previste:orePrevEl?parseFloat(orePrevEl):null,dipendenti_esclusi:esclusi,tipo:isStr?'straordinario':'ricorrente'};
   fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
 function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
