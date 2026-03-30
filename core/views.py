@@ -2307,9 +2307,10 @@ def settimana_pdf_view(request):
         c.setLineWidth(0.5 if hour % 2 == 0 else 0.2)
         c.line(mg, y, page_w - mg, y)
         # Etichetta ora
-        c.setFont('Helvetica', 6.5)
-        c.setFillColor(colors.HexColor('#555555'))
-        c.drawRightString(mg + time_col_w - 2, y - 3, f"{hour:02d}:00")
+        c.setFont('Helvetica', 6)
+        c.setFillColor(colors.HexColor('#333333'))
+        # Etichetta SOPRA la linea (+2pt) — allineata visivamente al bordo superiore del blocco
+        c.drawRightString(mg + time_col_w - 3, y + 2, f"{hour:02d}:00")
 
     # Linee verticali colonne
     c.setStrokeColor(colors.HexColor('#cccccc'))
@@ -2363,7 +2364,7 @@ def settimana_pdf_view(request):
 
                 # Testo
                 tx = sx + pad + 5
-                ty = y_top - 8
+                ty = y_top - 7   # 7pt sotto il TOP = baseline prima riga testo
                 avail_h = rect_h
 
                 c.setFillColor(colors.HexColor('#111111'))
@@ -2412,4 +2413,3 @@ def settimana_pdf_view(request):
     nome_file = f"turni_{dates[0].strftime('%d%m')}-{dates[-1].strftime('%d%m%Y')}.pdf"
     resp = HttpResponse(buffer, content_type='application/pdf')
     resp['Content-Disposition'] = f'inline; filename="{nome_file}"'
-    return resp
