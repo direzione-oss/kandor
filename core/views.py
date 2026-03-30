@@ -2318,3 +2318,166 @@ def settimana_pdf_view(request):
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{nome_file}"'
     return response
+
+
+def settimana_pdf_view(request):
+    """
+    Genera PDF A4 landscape con la griglia turni della settimana selezionata.
+    GET params: week (offset), squadra (id opzionale)
+    """
+    from datetime import date, timedelta
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle,
+        Paragraph, Spacer, HRFlowable
+    )
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from .models import Turno, Squadra
+
+    if not request.user.is_staff:
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden()
+
+    week_offset = int(request.GET.get('week', 0))
+    squadra_filter = request.GET.get('squadra', '')
+
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
+    dates = [start_of_week + timedelta(days=i) for i in range(7)]
+
+    GIORNI = ['Lunedi', 'Martedi', 'Mercoledi',
+              'Giovedi', 'Venerdi', 'Sabato', 'Domenica']
+    MESI = {1:'Gen',2:'Feb',3:'Mar',4:'Apr',5:'Mag',6:'Giu',
+            7:'Lug',8:'Ago',9:'Set',10:'Ott',11:'Nov',12:'Dic'}
+
+    turni_qs = Turno.objects.filter(
+        data__in=dates
+    ).select_related(
+        'squadra', 'squadra__caposquadra', 'mezzo'
+    ).prefetch_related(
+        'assegnazioni__cliente'
+    ).order_by('data', 'squadra__nome')
+
+    if squadra_filter:
+        turni_qs = turni_qs.filter(squadra_id=squadra_filter)
+
+    turni_per_data = {d: [] for d in dates}
+    for t in turni_qs:
+        turni_per_data[t.data].append(t)
+
+    buffer = BytesIO()
+    page_w, page_h = landscape(A4)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=12*mm, rightMargin=12*mm,
+        topMargin=14*mm, bottomMargin=14*mm,
+    )
+
+    style_title = ParagraphStyle('T', fontSize=13, fontName='Helvetica-Bold',
+                                 alignment=TA_CENTER, spaceAfter=3)
+    style_day   = ParagraphStyle('D', fontSize=8, fontName='Helvetica-Bold',
+                                 alignment=TA_CENTER, textColor=colors.white)
+    style_cell  = ParagraphStyle('C', fontSize=7, fontName='Helvetica',
+                                 leading=10, alignment=TA_LEFT)
+    style_foot  = ParagraphStyle('F', fontSize=6, fontName='Helvetica',
+                                 alignment=TA_CENTER, textColor=colors.grey)
+
+    week_str = (f"{dates[0].day:02d} {MESI[dates[0].month]} - "
+                f"{dates[-1].day:02d} {MESI[dates[-1].month]} {dates[-1].year}")
+    sq_label = ''
+    if squadra_filter:
+        try:
+            sq_label = f" | {Squadra.objects.get(pk=squadra_filter).nome}"
+        except Exception:
+            pass
+
+    elements = [
+        Paragraph(f"Turni Settimana  {week_str}{sq_label}", style_title),
+        HRFlowable(width='100%', thickness=1,
+                   color=colors.HexColor('#37474f'), spaceAfter=5),
+    ]
+
+    col_w = (page_w - 24*mm) / 7
+    max_slots = max((len(turni_per_data[d]) for d in dates), default=1)
+
+    # Header
+    header_row = []
+    for d in dates:
+        txt = f"{GIORNI[d.weekday()]}<br/>{d.day:02d}/{d.month:02d}"
+        header_row.append(Paragraph(txt, style_day))
+
+    # Righe: ogni slot e' un turno parallelo
+    data_rows = []
+    for slot in range(max_slots):
+        row = []
+        for d in dates:
+            lista = turni_per_data[d]
+            if slot < len(lista):
+                t = lista[slot]
+                capo = t.squadra.caposquadra
+                mezzo_str = t.mezzo.targa if t.mezzo else '-'
+                # Costruiamo le righe come lista di stringhe, poi join con <br/>
+                # NON usiamo <bullet>: un solo bullet per paragrafo e' il limite RL
+                righe = [
+                    f"<b>{t.squadra.nome}</b>",
+                    f"Capo: {capo.cognome if capo else '?'}  Mezzo: {mezzo_str}",
+                ]
+                for a in t.assegnazioni.all():
+                    ore_str = ''
+                    if a.ore_previste_contratto:
+                        h_val = int(a.ore_previste_contratto)
+                        m_val = int(round((a.ore_previste_contratto - h_val) * 60))
+                        ore_str = f" {h_val}h" + (f"{m_val:02d}" + "'" if m_val else "")
+                    # Usiamo il carattere unicode diretto invece di <bullet>
+                    righe.append(
+                        f"\u2022 {a.cliente.ragione_sociale[:26]} "
+                        f"{a.orario_inizio_previsto.strftime('%H:%M')}"
+                        f"-{a.orario_fine_previsto.strftime('%H:%M')}{ore_str}"
+                    )
+                row.append(Paragraph('<br/>'.join(righe), style_cell))
+            else:
+                row.append(Paragraph('', style_cell))
+        data_rows.append(row)
+
+    table_data = [header_row] + data_rows
+    tbl = Table(table_data, colWidths=[col_w]*7, repeatRows=1)
+
+    ts = [
+        ('BACKGROUND',    (0, 0), (-1, 0),  colors.HexColor('#37474f')),
+        ('TEXTCOLOR',     (0, 0), (-1, 0),  colors.white),
+        ('VALIGN',        (0, 0), (-1, -1), 'TOP'),
+        ('FONTSIZE',      (0, 0), (-1, -1), 7),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING',   (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING',  (0, 0), (-1, -1), 4),
+        ('GRID',          (0, 0), (-1, -1), 0.4, colors.HexColor('#cccccc')),
+        ('ROWBACKGROUNDS',(0, 1), (-1, -1),
+         [colors.white, colors.HexColor('#f5f5f5')]),
+    ]
+    today_col = next((i for i, d in enumerate(dates) if d == today), None)
+    if today_col is not None:
+        ts.append(('BACKGROUND', (today_col, 0), (today_col, 0),
+                   colors.HexColor('#2e7d32')))
+        for r in range(1, len(table_data)):
+            ts.append(('BACKGROUND', (today_col, r), (today_col, r),
+                       colors.HexColor('#f1f8f3')))
+
+    tbl.setStyle(TableStyle(ts))
+    elements.append(tbl)
+    elements.append(Spacer(1, 5*mm))
+    elements.append(Paragraph(
+        f"Stampato il {today.strftime('%d/%m/%Y')} - Kandor", style_foot))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    nome_file = (f"turni_{dates[0].strftime('%d%m')}"
+                 f"-{dates[-1].strftime('%d%m%Y')}.pdf")
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{nome_file}"'
+    return response
