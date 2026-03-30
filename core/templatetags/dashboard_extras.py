@@ -261,61 +261,68 @@ def weekly_schedule_widget(context):
     for tt in all_tt:
         tt_map[tt.assegnazione_id] = tt
 
+    # OTTIMIZZAZIONE: una query unica per tutti i turni della settimana
+    # invece di 7 query separate (una per giorno)
+    shifts_qs_all = Turno.objects.filter(
+        data__in=dates
+    ).select_related(
+        'squadra', 'squadra__caposquadra', 'mezzo'
+    ).prefetch_related(
+        'assegnazioni__cliente',
+        'assegnazioni__dipendenti_esclusi',
+    ).order_by('data', 'squadra__nome')
+
+    if squadra_filter:
+        shifts_qs_all = shifts_qs_all.filter(squadra_id=squadra_filter)
+
+    # Raggruppa turni per data
+    turni_per_data = defaultdict(list)
+    for shift in shifts_qs_all:
+        turni_per_data[shift.data].append(shift)
+
     schedule = []
     for d in dates:
-        shifts_qs = Turno.objects.filter(data=d).select_related('squadra', 'mezzo').prefetch_related('assegnazioni__cliente')
-        
-        # Filtra per squadra se selezionata
-        if squadra_filter:
-            shifts_qs = shifts_qs.filter(squadra_id=squadra_filter)
-        
         day_data = {
             'date_obj': d,
-            'day_name': DAYS_MAP[d.weekday()], 
-            'day_date': f"{d.day:02d} {MONTHS_MAP[d.month]}", 
+            'day_name': DAYS_MAP[d.weekday()],
+            'day_date': f"{d.day:02d} {MONTHS_MAP[d.month]}",
             'iso_date': d.isoformat(),
             'is_today': d == today,
             'shifts': [],
             'events': []
         }
-        
-        for shift in shifts_qs:
-            # Assegna colore alla squadra
+
+        for shift in turni_per_data.get(d, []):
             sq_id = shift.squadra.id
             if sq_id not in squadra_colors:
                 squadra_colors[sq_id] = COLORS[color_idx % len(COLORS)]
                 color_idx += 1
 
             assignments_data = []
-            for assign in shift.assegnazioni.all().order_by('orario_inizio_previsto'):
+            STATO_COLORS = {
+                'green': '#27ae60', 'yellow': '#f39c12',
+                'red': '#e74c3c',   'white':  '#bdc3c7',
+            }
+            HOUR_PX = 80
+            grid_start_min = 5 * 60
+
+            for assign in sorted(shift.assegnazioni.all(), key=lambda a: a.orario_inizio_previsto):
                 start = assign.orario_inizio_previsto.strftime('%H:%M')
-                end = assign.orario_fine_previsto.strftime('%H:%M')
-                
-                # Calcola stato ore
+                end   = assign.orario_fine_previsto.strftime('%H:%M')
+
                 tt = tt_map.get(assign.id)
                 if tt and tt.is_validated:
-                    ore_stato = 'green'
-                    ore_label = f"{tt.durata_ore:.1f}h ✓"
+                    ore_stato = 'green';  ore_label = f"{tt.durata_ore:.1f}h ✓"
                 elif tt and (tt.ore_dichiarate or tt.check_out):
-                    ore_stato = 'yellow'
-                    ore_label = f"{tt.durata_ore:.1f}h"
+                    ore_stato = 'yellow'; ore_label = f"{tt.durata_ore:.1f}h"
                 elif d < today:
-                    ore_stato = 'red'
-                    ore_label = "!"
+                    ore_stato = 'red';    ore_label = "!"
                 else:
                     ore_stato = 'white'
                     sh_m = assign.orario_inizio_previsto.hour * 60 + assign.orario_inizio_previsto.minute
                     eh_m = assign.orario_fine_previsto.hour * 60 + assign.orario_fine_previsto.minute
-                    ore_prev = max((eh_m - sh_m) / 60, 0)
-                    ore_label = f"{ore_prev:.0f}h"
-                
-                # Colori per lo stato
-                STATO_COLORS = {
-                    'green': '#27ae60',
-                    'yellow': '#f39c12',
-                    'red': '#e74c3c',
-                    'white': '#bdc3c7',
-                }
+                    ore_label = f"{max((eh_m - sh_m) / 60, 0):.0f}h"
+
                 badge_bg = STATO_COLORS.get(ore_stato, '#bdc3c7')
                 badge_fg = '#fff' if ore_stato != 'white' else '#666'
                 ore_badge_html = (
@@ -323,59 +330,49 @@ def weekly_schedule_widget(context):
                     f'border-radius:8px;padding:0 4px;font-size:9px;font-weight:bold;line-height:16px;'
                     f'min-width:16px;text-align:center;z-index:3">{ore_label}</span>'
                 )
-                
-                assignments_data.append({
-                    'cliente': assign.cliente,
-                    'time_range': f"{start} - {end}"
-                })
-                
-                # Calcola posizione evento nella griglia
+
+                assignments_data.append({'cliente': assign.cliente, 'time_range': f"{start} - {end}"})
+
                 sh = assign.orario_inizio_previsto.hour
                 sm = assign.orario_inizio_previsto.minute
                 eh = assign.orario_fine_previsto.hour
                 em = assign.orario_fine_previsto.minute
-                
-                duration_min = (eh * 60 + em) - (sh * 60 + sm)
-                if duration_min <= 0:
-                    duration_min = 60
-                
-                HOUR_PX = 80  # pixel per ora
-                # top_abs = posizione assoluta dall'inizio griglia (include ora + minuti)
-                grid_start = 5  # ora di inizio griglia
+                duration_min = max((eh * 60 + em) - (sh * 60 + sm), 1)
+
                 start_total_min = sh * 60 + sm
-                grid_start_min = grid_start * 60
                 top_abs = int((start_total_min - grid_start_min) * HOUR_PX / 60)
-                height = max(int(duration_min * HOUR_PX / 60), 20)
-                
+                height  = max(int(duration_min * HOUR_PX / 60), 20)
+
                 day_data['events'].append({
-                    'assign_id': assign.id,
-                    'turno_id': shift.id,
+                    'assign_id':    assign.id,
+                    'turno_id':     shift.id,
                     'cliente_nome': assign.cliente.ragione_sociale[:25],
-                    'cliente_id': assign.cliente.id,
+                    'cliente_id':   assign.cliente.id,
                     'squadra_nome': shift.squadra.nome,
-                    'squadra_id': shift.squadra.id,
-                    'start_hour': sh,
-                    'height': height,
-                    'top_abs': top_abs,
-                    'color': squadra_colors[sq_id],
-                    'time_range': f"{start}-{end}",
-                    'ora_inizio': start,
-                    'ora_fine': end,
+                    'squadra_id':   sq_id,
+                    'start_hour':   sh,
+                    'height':       height,
+                    'top_abs':      top_abs,
+                    'color':        squadra_colors[sq_id],
+                    'time_range':   f"{start}-{end}",
+                    'ora_inizio':   start,
+                    'ora_fine':     end,
                     'ore_previste': assign.ore_previste_contratto or '',
-                    'note': assign.mansione_svolta or '',
-                    'ore_stato': ore_stato,
-                    'ore_label': ore_label,
+                    'note':         assign.mansione_svolta or '',
+                    'ore_stato':    ore_stato,
+                    'ore_label':    ore_label,
                     'ore_badge_html': ore_badge_html,
                 })
 
+            capo = shift.squadra.caposquadra
             day_data['shifts'].append({
-                'squadra': shift.squadra.nome,
-                'squadra_id': shift.squadra.id,
-                'mezzo': shift.mezzo.targa if shift.mezzo else 'N/D',
-                'caposquadra': shift.squadra.caposquadra.cognome if shift.squadra.caposquadra else '?',
-                'assignments': assignments_data
+                'squadra':     shift.squadra.nome,
+                'squadra_id':  sq_id,
+                'mezzo':       shift.mezzo.targa if shift.mezzo else 'N/D',
+                'caposquadra': capo.cognome if capo else '?',
+                'assignments': assignments_data,
             })
-            
+
         schedule.append(day_data)
     
     # Range ore da visualizzare (05:00 - 22:00)
@@ -414,16 +411,24 @@ def is_resource_model(model_name):
 @register.inclusion_tag('admin/widgets/telegram_feed_widget.html')
 def telegram_feed_widget():
     from core.models import TimeTracking, Assenza, Segnalazione
-    
+
     # Ultime 10 Ore Lavorate da Telegram
-    latest_hours = TimeTracking.objects.filter(source='TELEGRAM').order_by('-check_out')[:10]
-    
+    latest_hours = TimeTracking.objects.filter(
+        source='TELEGRAM'
+    ).select_related(
+        'dipendente', 'assegnazione__cliente', 'assegnazione__turno__squadra'
+    ).order_by('-check_out')[:10]
+
     # Ultime 10 Assenze da Telegram
-    latest_absences = Assenza.objects.filter(source='TELEGRAM').order_by('-created_at')[:10]
-    
+    latest_absences = Assenza.objects.filter(
+        source='TELEGRAM'
+    ).select_related('dipendente').order_by('-created_at')[:10]
+
     # Ultime 10 Segnalazioni
-    latest_reports = Segnalazione.objects.all().order_by('-data_inserimento')[:10]
-    
+    latest_reports = Segnalazione.objects.select_related(
+        'dipendente'
+    ).order_by('-data_inserimento')[:10]
+
     return {
         'latest_hours': latest_hours,
         'latest_absences': latest_absences,

@@ -126,6 +126,13 @@ template = r'''<style>
 </div>
 <label>Note (opzionale)</label>
 <input type="text" id="turno-note" placeholder="Es: pulizie straordinarie">
+<div style="margin-top:12px;padding:10px;background:#fff8e1;border-radius:6px;border:1px solid #ffe082">
+<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#795548;margin:0;font-weight:500">
+<input type="checkbox" id="turno-straordinario" style="width:auto;min-height:auto;transform:scale(1.1)" >
+&#x26A0;&#xFE0F; Solo questa settimana (straordinario)
+</label>
+<div style="font-size:11px;color:#999;margin-top:4px;margin-left:26px">Di default il turno &egrave; ricorrente e apparir&agrave; ogni settimana</div>
+</div>
 <div class="turno-modal-actions">
 <button class="btn-cancel-turno" onclick="closeAddTurno()">Annulla</button>
 <button class="btn-save-turno" onclick="saveTurno()">Salva Turno</button>
@@ -364,7 +371,7 @@ function submitCopyMove(action){
 
 function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
 function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
-function saveTurno(){var orePrev=document.getElementById('turno-ore-previste').value;var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev?parseFloat(orePrev):null};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
+function saveTurno(){var orePrev=document.getElementById('turno-ore-previste').value;var isStr=document.getElementById('turno-straordinario').checked;var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev?parseFloat(orePrev):null,tipo:isStr?'straordinario':'ricorrente'};fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})}
 </script>
 
 '''
