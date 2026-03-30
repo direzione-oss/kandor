@@ -1,4 +1,4 @@
-﻿from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -2367,21 +2367,29 @@ def settimana_pdf_view(request):
                 ty = y_top - 7   # 7pt sotto il TOP = baseline prima riga testo
                 avail_h = rect_h
 
+                dur_min = (ef.hour*60+ef.minute) - (sh.hour*60+sh.minute)
+                h_d = dur_min // 60; m_d = dur_min % 60
+                ore = f"{h_d}h{m_d:02d}'" if m_d else f"{h_d}h"
+                nome = a.cliente.ragione_sociale[:22]
+
                 c.setFillColor(colors.HexColor('#111111'))
-                if avail_h >= 10:
-                    c.setFont('Helvetica-Bold', 6)
-                    dur_min = (ef.hour*60+ef.minute) - (sh.hour*60+sh.minute)
-                    h_d = dur_min // 60; m_d = dur_min % 60
-                    ore = f"{h_d}h{m_d:02d}'" if m_d else f"{h_d}h"
-                    c.drawString(tx, ty, f"{start_str}-{end_str} [{ore}]")
-                if avail_h >= 19:
-                    c.setFont('Helvetica', 5.5)
-                    nome = a.cliente.ragione_sociale[:28]
-                    c.drawString(tx, ty - 8, nome)
-                if avail_h >= 28 and t.squadra:
+                if avail_h < 14:
+                    # Blocco molto piccolo: tutto su righa unica compressa
                     c.setFont('Helvetica', 5)
-                    c.setFillColor(colors.HexColor(sq_color_hex))
-                    c.drawString(tx, ty - 16, t.squadra.nome)
+                    c.drawString(tx, ty - 1, f"{start_str} {nome[:18]}")
+                else:
+                    # Prima riga: orario + durata
+                    c.setFont('Helvetica-Bold', 6)
+                    c.drawString(tx, ty, f"{start_str}-{end_str} [{ore}]")
+                    # Seconda riga: cliente (sempre visibile)
+                    c.setFont('Helvetica', 5.5)
+                    c.drawString(tx, ty - 8, nome)
+                    # Terza riga: squadra (solo se c'è spazio)
+                    if avail_h >= 28 and t.squadra:
+                        c.setFont('Helvetica', 5)
+                        c.setFillColor(colors.HexColor(sq_color_hex))
+                        c.drawString(tx, ty - 15, t.squadra.nome)
+
 
     # ── Legenda squadre ──────────────────────────────────────────────
     legend_x = mg
