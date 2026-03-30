@@ -180,3 +180,13 @@ SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'kandor-medi
 
 # Token per endpoint riepilogo settimanale (cron-job.org → GET /titolari/riepilogo/?token=...)
 RIEPILOGO_TOKEN = os.environ.get('RIEPILOGO_TOKEN', '')
+
+# --- Sessione e CSRF più robusti (riduce errori 403 su Render free tier) ---
+# Sessione valida 30 giorni (invece di 2 settimane default)
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
+# Aggiorna la scadenza della sessione ad ogni richiesta
+SESSION_SAVE_EVERY_REQUEST = True
+# Sessione persistente (non si cancella alla chiusura del browser)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+# CSRF cookie valido 30 giorni
+CSRF_COOKIE_AGE = 60 * 60 * 24 * 30

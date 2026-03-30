@@ -405,48 +405,51 @@ def add_turno_ajax(request):
         data_turno = data.get('data')  # YYYY-MM-DD
         ora_inizio = data.get('ora_inizio', '06:00')
         ora_fine = data.get('ora_fine', '14:00')
-        tipo = data.get('tipo', 'straordinario')  # 'ricorrente' o 'straordinario'
+        tipo = data.get('tipo', 'ricorrente')
+        tipo_ripetizione = data.get('tipo_ripetizione', 'SETTIMANALE')
         note = data.get('note', '')
-        
+
         if not all([squadra_id, cliente_id, data_turno]):
             return JsonResponse({'status': 'error', 'error': 'Dati mancanti'})
-        
+
         squadra = Squadra.objects.get(pk=squadra_id)
         cliente = Cliente.objects.get(pk=cliente_id)
-        
+
         h1, m1 = map(int, ora_inizio.split(':'))
         h2, m2 = map(int, ora_fine.split(':'))
         t_inizio = dt_time(h1, m1)
         t_fine = dt_time(h2, m2)
-        
-        # Calcola durata in ore
+
         minuti_tot = (h2 * 60 + m2) - (h1 * 60 + m1)
         if minuti_tot <= 0:
             minuti_tot = 60
         durata_ore = Decimal(str(round(minuti_tot / 60, 2)))
-        
-        # Parse data
+
         parsed_date = dt_date.fromisoformat(data_turno)
-        giorno_settimana = parsed_date.weekday()  # 0=Lunedì
-        
+        giorno_settimana = parsed_date.weekday()
+        giorno_mese = parsed_date.day
+
         prog_feriale = None
         richiesta_str = None
-        
+
         if tipo == 'ricorrente':
-            # Disabilita signal per evitare rigenerazione massiva turni (365 giorni)
             from django.db.models.signals import post_save
             from .signals import on_programmazione_save
             post_save.disconnect(on_programmazione_save, sender=ProgrammazioneRicorrente)
             try:
-                prog_feriale = ProgrammazioneRicorrente(
+                kwargs = dict(
                     cliente=cliente,
-                    tipo_ripetizione='SETTIMANALE',
-                    giorno_settimana=giorno_settimana,
+                    tipo_ripetizione=tipo_ripetizione,
                     ora_inizio=t_inizio,
                     durata=durata_ore,
                     squadra_abituale=squadra,
                     data_inizio_contratto=parsed_date,
                 )
+                if tipo_ripetizione == 'MENSILE':
+                    kwargs['giorno_mese'] = giorno_mese
+                else:
+                    kwargs['giorno_settimana'] = giorno_settimana
+                prog_feriale = ProgrammazioneRicorrente(**kwargs)
                 prog_feriale.save()
             finally:
                 post_save.connect(on_programmazione_save, sender=ProgrammazioneRicorrente)

@@ -136,12 +136,15 @@ template = r'''<style>
 </div>
 <label>Note (opzionale)</label>
 <input type="text" id="turno-note" placeholder="Es: pulizie straordinarie">
-<div style="margin-top:12px;padding:10px;background:#fff8e1;border-radius:6px;border:1px solid #ffe082">
-<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:#795548;margin:0;font-weight:500">
-<input type="checkbox" id="turno-straordinario" style="width:auto;min-height:auto;transform:scale(1.1)" >
-&#x26A0;&#xFE0F; Solo questa settimana (straordinario)
-</label>
-<div style="font-size:11px;color:#999;margin-top:4px;margin-left:26px">Di default il turno &egrave; ricorrente e apparir&agrave; ogni settimana</div>
+<div style="margin-top:12px;padding:10px 12px;background:#e8f5e9;border-radius:6px;border:1px solid #a5d6a7">
+<label style="font-size:12px;font-weight:600;color:#2e7d32;margin:0 0 6px;display:block">&#x1F501; Ripetitivit&agrave; turno</label>
+<select id="turno-ripetitivita" style="width:100%;padding:8px 10px;border:1px solid #a5d6a7;border-radius:4px;font-size:13px;background:#fff;color:#333">
+<option value="SETTIMANALE" selected>&#x1F4C5; Settimanale (ogni settimana)</option>
+<option value="BISETTIMANALE">&#x1F4C5; Ogni 15 giorni</option>
+<option value="MENSILE">&#x1F4C5; Ogni mese</option>
+<option value="STRAORDINARIO">&#x26A0;&#xFE0F; Solo questa volta</option>
+</select>
+<div style="font-size:11px;color:#666;margin-top:5px">Il turno verr&agrave; ripetuto automaticamente nelle settimane successive</div>
 </div>
 <div class="turno-modal-actions">
 <button class="btn-cancel-turno" onclick="closeAddTurno()">Annulla</button>
@@ -409,8 +412,10 @@ function saveTurno(){
   var h=parseInt(document.getElementById('turno-ore-h').value)||0;
   var m=parseInt(document.getElementById('turno-ore-m').value)||0;
   var orePrev=(h||m)?Math.round((h+m/60)*100)/100:null;
-  var isStr=document.getElementById('turno-straordinario').checked;
-  var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev,tipo:isStr?'straordinario':'ricorrente'};
+  var ripetitivita=document.getElementById('turno-ripetitivita').value;
+  var tipo=ripetitivita==='STRAORDINARIO'?'straordinario':'ricorrente';
+  var tipo_ripetizione=ripetitivita==='STRAORDINARIO'?null:ripetitivita;
+  var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev,tipo:tipo,tipo_ripetizione:tipo_ripetizione};
   fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})
 }
 </script>
