@@ -85,6 +85,7 @@
   data-duration="{{ ev.height }}"
   data-cliente-id="{{ ev.cliente_id }}"
   data-squadra="{{ ev.squadra_nome }}"
+  data-squadra-id="{{ ev.squadra_id }}"
   data-inizio="{{ ev.ora_inizio }}"
   data-fine="{{ ev.ora_fine }}"
   data-note="{{ ev.note|escapejs }}"
@@ -155,7 +156,8 @@
 <div id="edit-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeEditTurno()">
 <div class="turno-modal" style="width:460px">
 <h3 style="color:#e65100">✏️ Modifica Turno</h3>
-<div id="edit-squadra-label" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
+<label>Squadra</label>
+<select id="edit-squadra" style="margin-bottom:10px"></select>
 <label>Cliente</label>
 <select id="edit-cliente"></select>
 <div style="display:flex;gap:10px">
@@ -272,7 +274,7 @@ document.addEventListener('DOMContentLoaded',function(){
       openEditTurno(
         el.getAttribute('data-assign'),
         el.getAttribute('data-cliente-id'),
-        el.getAttribute('data-squadra'),
+        el.getAttribute('data-squadra-id'),
         el.getAttribute('data-inizio'),
         el.getAttribute('data-fine'),
         el.getAttribute('data-note'),
@@ -308,9 +310,8 @@ function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+
 
 var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
 
-function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,isRicorrente){
+function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,isRicorrente){
   _editId=assignId;
-  document.getElementById('edit-squadra-label').textContent='Squadra: '+squadraNome;
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
@@ -328,11 +329,13 @@ function openEditTurno(assignId,clienteId,squadraNome,oraInizio,oraFine,note,ore
   badge.textContent=oreLabel||'—';
   badge.style.background=colors[0];
   badge.style.color=colors[1];
-  /* Colore bordo sezione */
   document.getElementById('edit-ore-section').style.borderLeftColor=colors[0];
   var overlay=document.getElementById('edit-modal-overlay');
   overlay.classList.add('active');
+  /* Carica squadre e clienti */
   fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){
+    var ss=document.getElementById('edit-squadra');ss.innerHTML='';
+    d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;if(String(s.id)===String(squadraId))o.selected=true;ss.appendChild(o)});
     var cs=document.getElementById('edit-cliente');cs.innerHTML='';
     d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;if(String(c.id)===String(clienteId))o.selected=true;cs.appendChild(o)})
   });
@@ -381,10 +384,18 @@ function saveEditTurno(){
   var m=parseInt(document.getElementById('edit-ore-m').value)||0;
   var orePrev=(h||m)?Math.round((h+m/60)*100)/100:null;
   var isStr=document.getElementById('edit-straordinario').checked;
-  /* Raccogli gli esclusi: checkboxes non spuntati */
   var esclusi=[];
   document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
-  var payload={cliente_id:document.getElementById('edit-cliente').value,ora_inizio:document.getElementById('edit-inizio').value,ora_fine:document.getElementById('edit-fine').value,note:document.getElementById('edit-note').value,ore_previste:orePrev,dipendenti_esclusi:esclusi,tipo:isStr?'straordinario':'ricorrente'};
+  var payload={
+    squadra_id:document.getElementById('edit-squadra').value,
+    cliente_id:document.getElementById('edit-cliente').value,
+    ora_inizio:document.getElementById('edit-inizio').value,
+    ora_fine:document.getElementById('edit-fine').value,
+    note:document.getElementById('edit-note').value,
+    ore_previste:orePrev,
+    dipendenti_esclusi:esclusi,
+    tipo:isStr?'straordinario':'ricorrente'
+  };
   fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
 function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}

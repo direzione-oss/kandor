@@ -518,13 +518,23 @@ def edit_turno_ajax(request, assign_id):
             ore_p = data['ore_previste']
             assign.ore_previste_contratto = float(str(ore_p).replace(',', '.')) if ore_p else None
 
+        # --- Cambio squadra ---
+        if data.get('squadra_id'):
+            from .models import Squadra, Turno
+            nuova_squadra = Squadra.objects.get(pk=data['squadra_id'])
+            if nuova_squadra != assign.turno.squadra:
+                # Cerca o crea un turno per la nuova squadra nella stessa data
+                turno_nuovo, _ = Turno.objects.get_or_create(
+                    data=assign.turno.data,
+                    squadra=nuova_squadra
+                )
+                assign.turno = turno_nuovo
+
         # --- Gestione cambio tipo ricorrente ↔ straordinario ---
         nuovo_tipo = data.get('tipo')  # 'ricorrente' o 'straordinario'
         if nuovo_tipo == 'straordinario' and assign.programmazione_feriale_id:
-            # Converti: rimuovi il link alla programmazione ricorrente
             assign.programmazione_feriale = None
         elif nuovo_tipo == 'ricorrente' and not assign.programmazione_feriale_id:
-            # Converti: crea una nuova ProgrammazioneRicorrente
             from django.db.models.signals import post_save
             try:
                 from .signals import on_programmazione_save
