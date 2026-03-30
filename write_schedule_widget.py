@@ -49,6 +49,7 @@ template = r'''<style>
 <option value="{{ sq.id }}" {{ sq.selected }}>{{ sq.nome }}</option>
 {% endfor %}
 </select>
+<a href="/settimana-pdf/?week={{ current_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" target="_blank" style="color:#fff;font-size:12px;text-decoration:none;background:#c0392b;padding:4px 12px;border-radius:15px;font-weight:500">🖨 PDF</a>
 <a href="/admin/core/turno/" style="color:#fff;font-size:12px;text-decoration:none;background:rgba(255,255,255,.2);padding:4px 12px;border-radius:15px;font-weight:500">Gestisci Turni &rarr;</a>
 </div>
 </h3>

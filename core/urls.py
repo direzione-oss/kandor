@@ -9,7 +9,8 @@ from .views import (
     copy_move_turno_ajax, get_assegnazione_componenti_json,
     validate_ore_ajax, verifica_ore_view, pdf_verifica_ore,
     richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
-    titolari_dashboard_view, titolari_riepilogo_view
+    titolari_dashboard_view, titolari_riepilogo_view,
+    settimana_pdf_view
 )
 from django.views.generic import RedirectView
 
@@ -51,6 +52,7 @@ urlpatterns = [
     path('api/assegnazione-componenti/<int:assign_id>/', get_assegnazione_componenti_json, name='get_assegnazione_componenti'),
     path('verifica-ore/', verifica_ore_view, name='verifica_ore'),
     path('pdf-verifica-ore/', pdf_verifica_ore, name='pdf_verifica_ore'),
+    path('settimana-pdf/', settimana_pdf_view, name='settimana_pdf'),
     
     # Gestione Sostituti
     path('api/richiesta-sostituzione/', richiesta_sostituzione_api, name='richiesta_sostituzione'),
