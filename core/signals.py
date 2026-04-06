@@ -116,21 +116,24 @@ def on_programmazione_delete(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender='core.ProgrammazioneRicorrente')
-def on_programmazione_save(sender, instance, **kwargs):
-    """Quando modificata: cancella e rigenera SOLO i turni di questa programmazione."""
+def on_programmazione_save(sender, instance, raw=False, **kwargs):
+    """Quando modificata: cancella e rigenera SOLO i turni di questa programmazione.
+    raw=True durante loaddata/fixtures: salta per evitare errori di FK mancanti."""
+    if raw:
+        return
     deleted = _cleanup_future_assignments(instance)
     created = _genera_turni_singola_programmazione(instance)
     print(f"[SYNC] Aggiornata prog. '{instance.cliente}': {deleted} rimossi, {created} creati.")
 
 
 @receiver(post_save, sender='core.Assenza')
-def on_assenza_save(sender, instance, created, **kwargs):
+def on_assenza_save(sender, instance, created, raw=False, **kwargs):
     """
     Quando viene creata un'assenza (soprattutto programmata/futura):
-    - Verifica tutti i turni nel range data_inizio → data_fine
-    - Per ogni turno scoperto, avvia automaticamente la procedura di sostituzione
-    - Skippa le assenze Telegram same-day (già gestite dall'handler Telegram)
+    raw=True durante loaddata/fixtures: salta.
     """
+    if raw:
+        return
     if not created:
         return  # Solo nuove assenze, non aggiornamenti
     
