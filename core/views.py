@@ -2701,6 +2701,26 @@ def _run_push_background(job_id: str, python: str, manage: str,
         size_kb = round(os.path.getsize(push_file) / 1024, 1)
         log(f'OK: Esportazione completata ({size_kb} KB).')
 
+        # ── SICUREZZA: valida il JSON prima di toccare Supabase ──────
+        log('INFO: Validazione file di export...')
+        try:
+            import json as _json
+            with open(push_file, encoding='utf-8') as _f:
+                _data = _json.load(_f)
+            n_objects = len(_data)
+            log(f'INFO: File valido — {n_objects} oggetti trovati.')
+            if n_objects < 50:
+                log(f'ERR: Il file di export ha solo {n_objects} oggetti — '
+                    f'troppo pochi. Il DB locale sembra vuoto o non sincronizzato.')
+                log('INFO: Nessuna modifica a Supabase. Fai prima un PULL per scaricare i dati.')
+                _push_jobs[job_id]['done'] = True
+                return
+        except Exception as _e:
+            log(f'ERR: File di export non valido (JSON corrotto): {_e}')
+            _push_jobs[job_id]['done'] = True
+            return
+        log(f'OK: Verifica superata — {n_objects} oggetti pronti per il push.')
+
         # 2. Backup Supabase
         log('INFO: Backup Supabase in corso...')
         subprocess.run(
