@@ -141,10 +141,11 @@ class DipendenteAdmin(admin.ModelAdmin):
 class ProgrammazioneInline(admin.TabularInline):
     model = ProgrammazioneRicorrente
     extra = 1
-    # Ordiniamo i campi logicamente: Tipo, Giorni, Ora Inizio, Durata, Ora Fine (calcolata)
     fields = ('tipo_ripetizione', 'giorno_settimana', 'giorno_mese', 'data_inizio_contratto', 'data_fine_contratto', 'ora_inizio', 'durata', 'ora_fine', 'qualifica_richiesta', 'squadra_abituale', 'mezzo_abituale')
     readonly_fields = ('ora_fine',)
     ordering = ('tipo_ripetizione', 'giorno_settimana', 'ora_inizio')
+    # Select2: ricerca per sottostringa in tutti i campi FK
+    autocomplete_fields = ('squadra_abituale', 'mezzo_abituale')
 
 class StraordinarioInline(admin.TabularInline):
     model = RichiestaStraordinaria
@@ -195,6 +196,7 @@ class ClienteAdmin(admin.ModelAdmin):
 class MezzoAdmin(admin.ModelAdmin):
     list_display = ('targa', 'modello', 'stato', 'km_attuali', 'scadenza_polizza', 'scadenza_bollo')
     list_filter = ('stato',)
+    search_fields = ('targa', 'modello')  # Necessario per autocomplete_fields
 
 @admin.register(Squadra)
 class SquadraAdmin(admin.ModelAdmin):
@@ -295,6 +297,8 @@ class AssegnazioneInline(admin.TabularInline):
     fields = ('cliente', 'orario_inizio_previsto', 'orario_fine_previsto', 'ore_previste_contratto', 'dipendenti_esclusi', 'mansione_svolta')
     filter_horizontal = ('dipendenti_esclusi',)
     verbose_name_plural = 'Assegnazioni turno (cliente, orari, ore contratto, dipendenti esclusi)'
+    # Select2: ricerca per sottostringa nel campo cliente
+    autocomplete_fields = ('cliente',)
 
 @admin.register(Turno)
 class TurnoAdmin(admin.ModelAdmin):
@@ -303,7 +307,11 @@ class TurnoAdmin(admin.ModelAdmin):
     inlines = [AssegnazioneInline]
 
 admin.site.register(Qualifica)
-admin.site.register(AssegnazioneTurno)
+
+@admin.register(AssegnazioneTurno)
+class AssegnazioneTurnoAdmin(admin.ModelAdmin):
+    search_fields = ('cliente__ragione_sociale', 'turno__squadra__nome')
+    autocomplete_fields = ('cliente', 'turno')
 
 @admin.register(TimeTracking)
 class TimeTrackingAdmin(admin.ModelAdmin):
