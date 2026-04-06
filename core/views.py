@@ -2731,6 +2731,7 @@ def _run_push_background(job_id: str, python: str, manage: str,
              '--exclude', 'auth.group',
              '--exclude', 'contenttypes',
              '--exclude', 'admin.logentry',
+             '--exclude', 'sessions.session',
              '--indent', '2', '-o', backup_file],
             cwd=str(_BASE), env=env_pg,
             capture_output=True, text=True, encoding='utf-8', errors='replace'
@@ -2824,7 +2825,8 @@ def dev_tools_push(request):
     env_pg = os.environ.copy()
     env_pg.pop('LOCAL_DEV', None)
     env_pg['PYTHONUTF8'] = '1'
-    env_pg['SUPABASE_DB_PORT'] = '5432'  # Session Pooler per operazioni lunghe
+    env_pg['SUPABASE_DB_PORT'] = '5432'       # Session Pooler
+    env_pg['PGOPTIONS'] = '-c statement_timeout=0'  # Disabilita timeout Supabase
 
     env_local = os.environ.copy()
     env_local['LOCAL_DEV'] = '1'
