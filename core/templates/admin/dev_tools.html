@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kandor — Dev Tools</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    width: 100%;
+    max-width: 640px;
+    padding: 2rem;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  .badge {
+    display: inline-block;
+    background: #1e3a5f;
+    color: #60a5fa;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid #2563eb44;
+    margin-bottom: 1rem;
+  }
+  h1 { font-size: 1.8rem; font-weight: 700; color: #f1f5f9; }
+  .subtitle { color: #64748b; margin-top: 0.4rem; font-size: 0.9rem; }
+
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .card-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .card-desc { font-size: 0.85rem; color: #64748b; margin-bottom: 1.2rem; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.4rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .btn-blue { background: #2563eb; color: white; }
+  .btn-blue:hover { background: #1d4ed8; transform: translateY(-1px); }
+  .btn-green { background: #16a34a; color: white; }
+  .btn-green:hover { background: #15803d; transform: translateY(-1px); }
+  .btn-red { background: #dc2626; color: white; }
+  .btn-red:hover { background: #b91c1c; }
+  .btn-gray { background: #334155; color: #cbd5e1; }
+  .btn-gray:hover { background: #475569; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .log-box {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 1rem;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    min-height: 80px;
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+    white-space: pre-wrap;
+    margin-top: 1rem;
+  }
+  .log-box.visible { display: block; }
+  .log-ok { color: #4ade80; }
+  .log-err { color: #f87171; }
+  .log-info { color: #60a5fa; }
+
+  .spinner {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid #ffffff44;
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  .spinner.visible { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0.8rem;
+    background: #0f172a;
+    border-radius: 8px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 6px #4ade80;
+  }
+  .warning-box {
+    background: #431407;
+    border: 1px solid #7c2d12;
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    font-size: 0.82rem;
+    color: #fed7aa;
+    margin-bottom: 1rem;
+    display: none;
+  }
+  .warning-box.visible { display: block; }
+  .confirm-row { display: flex; gap: 0.8rem; align-items: center; margin-top: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="badge">🛠 Modalità sviluppo locale</div>
+    <h1>Kandor Dev Tools</h1>
+    <p class="subtitle">Gestisci i dati tra il PC locale e Supabase</p>
+  </div>
+
+  <!-- Status -->
+  <div class="card">
+    <div class="status-row">
+      <span class="dot"></span>
+      <span>Server locale attivo — <strong>{{ request.user.username }}</strong></span>
+    </div>
+    <a href="/admin/" class="btn btn-gray">← Torna all'applicazione</a>
+  </div>
+
+  <!-- PULL -->
+  <div class="card">
+    <div class="card-title">⬇ Scarica DB da Supabase</div>
+    <div class="card-desc">
+      Importa tutti i dati da Supabase nel DB locale. Operazione lenta (~1-2 min).
+      I dati locali attuali verranno sostituiti.
+    </div>
+    <button class="btn btn-blue" onclick="startPull(this)">
+      <span class="spinner" id="pull-spinner"></span>
+      Scarica da Supabase
+    </button>
+    <div class="log-box" id="pull-log"></div>
+  </div>
+
+  <!-- PUSH -->
+  <div class="card">
+    <div class="card-title">⬆ Carica DB su Supabase</div>
+    <div class="card-desc">
+      Sovrascrive i dati su Supabase con quelli del DB locale.
+      Un backup automatico viene salvato prima di procedere.
+    </div>
+    <button class="btn btn-gray" onclick="showPushConfirm()" id="push-btn">
+      Carica su Supabase
+    </button>
+    <div class="warning-box" id="push-warning">
+      ⚠️ Stai per sovrascrivere i dati su Supabase. Sei sicuro?
+      <div class="confirm-row">
+        <button class="btn btn-red" onclick="startPush(this)">
+          <span class="spinner" id="push-spinner"></span>
+          Confermo, procedi
+        </button>
+        <button class="btn btn-gray" onclick="hidePushConfirm()">Annulla</button>
+      </div>
+    </div>
+    <div class="log-box" id="push-log"></div>
+  </div>
+
+  <!-- BACKUP -->
+  <div class="card">
+    <div class="card-title">💾 Backup DB locale</div>
+    <div class="card-desc">Crea una copia di sicurezza del DB locale con timestamp.</div>
+    <button class="btn btn-gray" onclick="startBackup(this)">
+      <span class="spinner" id="backup-spinner"></span>
+      Crea backup
+    </button>
+    <div class="log-box" id="backup-log"></div>
+  </div>
+</div>
+
+<script>
+const CSRF = '{{ csrf_token }}';
+
+function appendLog(boxId, msg, cls='') {
+  const box = document.getElementById(boxId);
+  box.classList.add('visible');
+  const line = document.createElement('div');
+  if (cls) line.className = 'log-' + cls;
+  line.textContent = msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function callApi(endpoint, logBoxId, spinnerIds, onDone) {
+  spinnerIds.forEach(id => document.getElementById(id)?.classList.add('visible'));
+  const box = document.getElementById(logBoxId);
+  box.innerHTML = '';
+  box.classList.add('visible');
+
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' }
+    });
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value);
+      text.split('\n').forEach(line => {
+        if (!line.trim()) return;
+        let cls = '';
+        if (line.startsWith('OK:') || line.startsWith('[OK]')) cls = 'ok';
+        else if (line.startsWith('ERR') || line.startsWith('[ERR')) cls = 'err';
+        else cls = 'info';
+        appendLog(logBoxId, line, cls);
+      });
+    }
+    if (onDone) onDone();
+  } catch(e) {
+    appendLog(logBoxId, 'Errore: ' + e.message, 'err');
+  } finally {
+    spinnerIds.forEach(id => document.getElementById(id)?.classList.remove('visible'));
+  }
+}
+
+function startPull(btn) {
+  btn.disabled = true;
+  callApi('/dev-tools/pull/', 'pull-log', ['pull-spinner'], () => { btn.disabled = false; });
+}
+
+function showPushConfirm() {
+  document.getElementById('push-warning').classList.add('visible');
+}
+function hidePushConfirm() {
+  document.getElementById('push-warning').classList.remove('visible');
+}
+function startPush(btn) {
+  btn.disabled = true;
+  hidePushConfirm();
+  callApi('/dev-tools/push/', 'push-log', ['push-spinner'], () => { btn.disabled = false; });
+}
+
+function startBackup(btn) {
+  btn.disabled = true;
+  callApi('/dev-tools/backup/', 'backup-log', ['backup-spinner'], () => { btn.disabled = false; });
+}
+</script>
+</body>
+</html>

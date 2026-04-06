@@ -10,7 +10,9 @@ from .views import (
     validate_ore_ajax, verifica_ore_view, pdf_verifica_ore,
     richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
     titolari_dashboard_view, titolari_riepilogo_view,
-    settimana_pdf_view
+    settimana_pdf_view,
+    dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_backup,
+    installa_locale_view, installa_locale_download,
 )
 from django.views.generic import RedirectView
 
@@ -62,4 +64,14 @@ urlpatterns = [
     # Dashboard Titolari
     path('titolari/', titolari_dashboard_view, name='titolari_dashboard'),
     path('titolari/riepilogo/', titolari_riepilogo_view, name='titolari_riepilogo'),
+
+    # Dev Tools (solo LOCAL_DEV)
+    path('dev-tools/', dev_tools_view, name='dev_tools'),
+    path('dev-tools/pull/', dev_tools_pull, name='dev_tools_pull'),
+    path('dev-tools/push/', dev_tools_push, name='dev_tools_push'),
+    path('dev-tools/backup/', dev_tools_backup, name='dev_tools_backup'),
+
+    # Installa Locale (accessibile da Render per scaricare i file)
+    path('installa-locale/', installa_locale_view, name='installa_locale'),
+    path('installa-locale/download/<str:file_type>/', installa_locale_download, name='installa_locale_download'),
 ]

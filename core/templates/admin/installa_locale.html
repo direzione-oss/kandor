@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kandor — Installa Modalità Locale</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 700px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 3rem; }
+  .badge { display: inline-block; background: #1e3a5f; color: #60a5fa; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.3rem 0.8rem; border-radius: 999px; border: 1px solid #2563eb44; margin-bottom: 1rem; }
+  h1 { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
+  .subtitle { color: #64748b; margin-top: 0.5rem; }
+  .step { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 1.5rem; margin-bottom: 1.2rem; display: flex; gap: 1.2rem; align-items: flex-start; }
+  .step-num { background: #2563eb; color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1rem; flex-shrink: 0; }
+  .step-content h3 { font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 0.3rem; }
+  .step-content p { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; }
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.2rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer; text-decoration: none; transition: all 0.15s; margin-top: 0.8rem; }
+  .btn-blue { background: #2563eb; color: white; }
+  .btn-blue:hover { background: #1d4ed8; }
+  .btn-green { background: #16a34a; color: white; }
+  .btn-green:hover { background: #15803d; }
+  .btn-gray { background: #334155; color: #cbd5e1; }
+  .btn-gray:hover { background: #475569; }
+  .note { background: #1a2744; border-left: 3px solid #3b82f6; border-radius: 0 8px 8px 0; padding: 0.8rem 1rem; font-size: 0.82rem; color: #93c5fd; margin-top: 0.8rem; line-height: 1.5; }
+  .once-badge { display: inline-block; background: #422006; color: #fb923c; font-size: 0.68rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px; margin-left: 0.5rem; vertical-align: middle; }
+  .back { margin-bottom: 1.5rem; }
+  .download-group { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="back">
+    <a href="/admin/" class="btn btn-gray">← Torna all'applicazione</a>
+  </div>
+
+  <div class="header">
+    <div class="badge">💻 Setup modalità locale</div>
+    <h1>Lavora in locale</h1>
+    <p class="subtitle">Segui i passaggi per installare Kandor sul tuo PC e lavorare offline</p>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h3>Installa Python <span class="once-badge">una volta sola</span></h3>
+      <p>Se non hai già Python sul PC, scaricalo e installalo. Durante l'installazione <strong>spunta "Add Python to PATH"</strong>.</p>
+      <a href="https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe" class="btn btn-blue" target="_blank">
+        ⬇ Scarica Python 3.11
+      </a>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h3>Scarica i file di Kandor <span class="once-badge">una volta sola</span></h3>
+      <p>Scarica entrambi i file e salvali nella stessa cartella (es. <code>C:\Kandor\</code>).</p>
+      <div class="download-group">
+        <a href="/installa-locale/download/installer/" class="btn btn-blue">⬇ kandor_installa.bat</a>
+        <a href="/installa-locale/download/launcher/" class="btn btn-blue">⬇ kandor_avvia.pyw</a>
+      </div>
+      <div class="note">💡 Crea una cartella dedicata tipo <strong>C:\Kandor\</strong> e metti entrambi i file lì.</div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <h3>Esegui l'installazione <span class="once-badge">una volta sola</span></h3>
+      <p>Fai doppio click su <strong>kandor_installa.bat</strong>. Si apre una finestra che installa le dipendenze automaticamente (1-2 minuti). Poi si chiude da sola.</p>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step">
+    <div class="step-num" style="background:#16a34a">4</div>
+    <div class="step-content">
+      <h3>Ogni volta che vuoi lavorare</h3>
+      <p>Fai doppio click su <strong>kandor_avvia.pyw</strong>. Nessuna finestra si apre — solo il browser con Kandor pronto all'uso. Da lì puoi scaricare i dati aggiornati da Supabase, lavorare e ricaricarli quando finisci.</p>
+      <div class="note">🔒 Il server gira solo sul tuo PC — nessun altro può accedervi. Chiudi il browser quando hai finito.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -2422,3 +2422,374 @@ def settimana_pdf_view(request):
     resp = HttpResponse(buffer, content_type='application/pdf')
     resp['Content-Disposition'] = f'inline; filename="{nome_file}"'
     return resp
+
+
+# ─────────────────────────────────────────────────────────────
+#  INSTALLA LOCALE — pagina di download per nuovi utenti
+#  Accessibile anche dalla produzione (Render)
+# ─────────────────────────────────────────────────────────────
+from django.contrib.admin.views.decorators import staff_member_required as _staff_req
+from django.http import FileResponse, Http404
+
+
+@_staff_req
+def installa_locale_view(request):
+    """Pagina con istruzioni e link download per l'installazione locale."""
+    return render(request, 'admin/installa_locale.html')
+
+
+@_staff_req
+def installa_locale_download(request, file_type):
+    """Serve i file di installazione come download."""
+    import textwrap
+
+    if file_type == 'launcher':
+        # Serve kandor_avvia.pyw
+        file_path = _Path(__file__).resolve().parent.parent / 'kandor_avvia.pyw'
+        if not file_path.exists():
+            raise Http404("File non trovato. Contatta l'amministratore.")
+        response = FileResponse(
+            open(file_path, 'rb'),
+            content_type='text/plain',
+        )
+        response['Content-Disposition'] = 'attachment; filename="kandor_avvia.pyw"'
+        return response
+
+    elif file_type == 'installer':
+        # Genera kandor_installa.bat dinamicamente con il repo URL corretto
+        repo_url = getattr(settings, 'GITHUB_REPO_URL',
+                           'https://github.com/YOUR_GITHUB_USER/kandor.git')
+
+        bat_content = textwrap.dedent(f"""\
+            @echo off
+            title Kandor - Installazione
+            echo.
+            echo  ==========================================
+            echo    KANDOR - Installazione (una tantum)
+            echo  ==========================================
+            echo.
+
+            REM Verifica Python
+            python --version >nul 2>&1
+            if errorlevel 1 (
+                echo  ERRORE: Python non trovato.
+                echo  Scarica da: https://www.python.org/downloads/
+                echo  Spunta "Add Python to PATH" nell'installer.
+                pause
+                exit /b 1
+            )
+            echo  Python OK.
+
+            REM Crea cartella Kandor
+            if not exist "%USERPROFILE%\\Kandor" mkdir "%USERPROFILE%\\Kandor"
+            cd /d "%USERPROFILE%\\Kandor"
+
+            REM Scarica il progetto (Git o fallback con curl)
+            git --version >nul 2>&1
+            if not errorlevel 1 (
+                echo  Clonazione progetto via Git...
+                if exist ".git" (
+                    git pull
+                ) else (
+                    git clone {repo_url} .
+                )
+            ) else (
+                echo  Git non trovato. Scarica il progetto manualmente da:
+                echo  {repo_url}
+                pause
+                exit /b 1
+            )
+
+            REM Installa dipendenze Python
+            echo  Installazione dipendenze Python...
+            python -m pip install -r requirements.txt -q
+            if errorlevel 1 (
+                echo  ERRORE durante l'installazione dipendenze.
+                pause
+                exit /b 1
+            )
+
+            echo.
+            setx PYTHONUTF8 1 >nul
+
+            REM Copia kandor_avvia.pyw sul Desktop
+            if exist "kandor_avvia.pyw" (
+                copy "kandor_avvia.pyw" "%USERPROFILE%\\Desktop\\Kandor.pyw" >nul
+                echo  Icona creata sul Desktop: "Kandor.pyw"
+            )
+
+            echo.
+            echo  ==========================================
+            echo    Installazione completata!
+            echo    Usa "Kandor.pyw" sul Desktop per avviare.
+            echo  ==========================================
+            echo.
+            pause
+        """)
+
+        response = HttpResponse(bat_content, content_type='application/octet-stream')
+        response['Content-Disposition'] = 'attachment; filename="kandor_installa.bat"'
+        return response
+
+    raise Http404
+
+
+# ─────────────────────────────────────────────────────────────
+#  DEV TOOLS — solo in modalità LOCAL_DEV
+# ─────────────────────────────────────────────────────────────
+import subprocess
+import sys
+from pathlib import Path as _Path
+from django.http import StreamingHttpResponse
+from django.contrib.admin.views.decorators import staff_member_required
+
+_BASE = _Path(__file__).resolve().parent.parent
+
+
+def _only_local(view_fn):
+    """Decoratore: blocca l'accesso se non siamo in LOCAL_DEV."""
+    from functools import wraps
+    @wraps(view_fn)
+    def wrapper(request, *args, **kwargs):
+        if not os.environ.get('LOCAL_DEV'):
+            return HttpResponse(
+                '<h2>Dev Tools disponibili solo in modalità locale.</h2>', status=403)
+        return view_fn(request, *args, **kwargs)
+    return wrapper
+
+
+@staff_member_required
+@_only_local
+def dev_tools_view(request):
+    return render(request, 'admin/dev_tools.html')
+
+
+def _stream_proc(cmd, env):
+    """Esegue un comando e fa yield di ogni riga di output."""
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        env=env,
+        cwd=str(_BASE),
+    )
+    for line in iter(proc.stdout.readline, ''):
+        yield line
+    proc.wait()
+    yield f'__EXIT__{proc.returncode}\n'
+
+
+@staff_member_required
+@_only_local
+def dev_tools_pull(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    def generate():
+        python = sys.executable
+        manage = str(_BASE / 'manage.py')
+        dump_file = str(_BASE / 'db_dump.json')
+
+        # Env per Supabase (senza LOCAL_DEV)
+        env_pg = os.environ.copy()
+        env_pg.pop('LOCAL_DEV', None)
+        env_pg['PYTHONUTF8'] = '1'
+
+        # Env per SQLite locale
+        env_local = os.environ.copy()
+        env_local['LOCAL_DEV'] = '1'
+        env_local['PYTHONUTF8'] = '1'
+
+        yield 'INFO: Connessione a Supabase — scaricamento dati...\n'
+        exit_code = 0
+        for line in _stream_proc(
+            [python, manage, 'dumpdata',
+             '--natural-foreign', '--natural-primary',
+             '--exclude', 'auth.permission',
+             '--exclude', 'contenttypes',
+             '--indent', '2', '-o', dump_file],
+            env_pg
+        ):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code != 0:
+            yield 'ERR: Download da Supabase fallito.\n'
+            return
+        yield 'OK: Download completato.\n'
+
+        yield 'INFO: Migrazione schema SQLite locale...\n'
+        for line in _stream_proc([python, manage, 'migrate'], env_local):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        # Fallback: fake migration 0041 se necessario
+        if exit_code != 0:
+            yield 'INFO: Fallback — fake migration indici...\n'
+            for line in _stream_proc([python, manage, 'migrate', 'core', '0040'], env_local):
+                yield '' if line.startswith('__EXIT__') else line
+            for line in _stream_proc([python, manage, 'migrate', 'core', '0041', '--fake'], env_local):
+                yield '' if line.startswith('__EXIT__') else line
+            for line in _stream_proc([python, manage, 'migrate'], env_local):
+                if line.startswith('__EXIT__'):
+                    exit_code = int(line.split('__EXIT__')[1].strip())
+                else:
+                    yield line
+
+        if exit_code != 0:
+            yield 'ERR: Migrazione fallita.\n'
+            return
+        yield 'OK: Schema pronto.\n'
+
+        yield 'INFO: Caricamento dati in locale...\n'
+        for line in _stream_proc([python, manage, 'loaddata', dump_file], env_local):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code != 0:
+            yield 'ERR: Caricamento dati fallito.\n'
+        else:
+            yield 'OK: Pull completato! Puoi lavorare in locale.\n'
+            yield 'REDIRECT:/admin/\n'
+
+    return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
+
+
+@staff_member_required
+@_only_local
+def dev_tools_push(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    def generate():
+        python = sys.executable
+        manage = str(_BASE / 'manage.py')
+
+        env_pg = os.environ.copy()
+        env_pg.pop('LOCAL_DEV', None)
+        env_pg['PYTHONUTF8'] = '1'
+
+        env_local = os.environ.copy()
+        env_local['LOCAL_DEV'] = '1'
+        env_local['PYTHONUTF8'] = '1'
+
+        push_file = str(_BASE / 'db_push.json')
+        backup_file = str(_BASE / 'db_backup_pre_push.json')
+
+        # 1. Dump locale
+        yield 'INFO: Export DB locale...\n'
+        exit_code = 0
+        for line in _stream_proc(
+            [python, manage, 'dumpdata',
+             '--natural-foreign', '--natural-primary',
+             '--exclude', 'auth.permission',
+             '--exclude', 'contenttypes',
+             '--indent', '2', '-o', push_file],
+            env_local
+        ):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code != 0:
+            yield 'ERR: Export locale fallito.\n'
+            return
+        yield 'OK: Export locale completato.\n'
+
+        # 2. Backup Supabase
+        yield 'INFO: Backup Supabase...\n'
+        for line in _stream_proc(
+            [python, manage, 'dumpdata',
+             '--natural-foreign', '--natural-primary',
+             '--exclude', 'auth.permission',
+             '--exclude', 'contenttypes',
+             '--indent', '2', '-o', backup_file],
+            env_pg
+        ):
+            yield '' if line.startswith('__EXIT__') else line
+        yield 'OK: Backup Supabase salvato.\n'
+
+        # 3. Flush Supabase
+        yield 'INFO: Pulizia Supabase...\n'
+        for line in _stream_proc([python, manage, 'flush', '--no-input'], env_pg):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code != 0:
+            yield 'ERR: Flush Supabase fallito.\n'
+            return
+
+        # 4. Loaddata su Supabase
+        yield 'INFO: Caricamento su Supabase...\n'
+        for line in _stream_proc([python, manage, 'loaddata', push_file], env_pg):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code != 0:
+            yield 'ERR: Caricamento su Supabase fallito. Ripristino backup...\n'
+            for line in _stream_proc([python, manage, 'flush', '--no-input'], env_pg):
+                yield '' if line.startswith('__EXIT__') else line
+            for line in _stream_proc([python, manage, 'loaddata', backup_file], env_pg):
+                yield '' if line.startswith('__EXIT__') else line
+            yield 'OK: Dati originali ripristinati.\n'
+        else:
+            import pathlib
+            pathlib.Path(push_file).unlink(missing_ok=True)
+            yield 'OK: Push completato! Supabase aggiornato.\n'
+
+    return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
+
+
+@staff_member_required
+@_only_local
+def dev_tools_backup(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    def generate():
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime('%Y%m%d_%H%M')
+        backup_file = str(_BASE / f'db_backup_{ts}.json')
+        python = sys.executable
+        manage = str(_BASE / 'manage.py')
+        env_local = os.environ.copy()
+        env_local['LOCAL_DEV'] = '1'
+        env_local['PYTHONUTF8'] = '1'
+
+        yield f'INFO: Creazione backup {backup_file}...\n'
+        exit_code = 0
+        for line in _stream_proc(
+            [python, manage, 'dumpdata',
+             '--natural-foreign', '--natural-primary',
+             '--exclude', 'auth.permission',
+             '--exclude', 'contenttypes',
+             '--indent', '2', '-o', backup_file],
+            env_local
+        ):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code == 0:
+            import os as _os
+            size = round(_os.path.getsize(backup_file) / 1024, 1)
+            yield f'OK: Backup creato: db_backup_{ts}.json ({size} KB)\n'
+        else:
+            yield 'ERR: Backup fallito.\n'
+
+    return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
