@@ -5,9 +5,14 @@ from decimal import Decimal
 def converti_turni_in_ricorrenti(apps, schema_editor):
     """
     Converte tutti i turni esistenti senza programmazione_feriale in ricorrenti.
-    Raggruppa per (squadra, cliente, giorno_settimana, ora_inizio) e crea
-    una sola ProgrammazioneRicorrente per gruppo, collegando tutte le assegnazioni.
+    Su SQLite (sviluppo locale) viene saltata: i dati arrivano già convertiti
+    da Supabase tramite loaddata.
     """
+    from django.db import connection
+    if connection.vendor == 'sqlite':
+        print('\n  [SKIP] Data migration saltata su SQLite — i dati arrivano da loaddata.')
+        return
+
     AssegnazioneTurno = apps.get_model('core', 'AssegnazioneTurno')
     ProgrammazioneRicorrente = apps.get_model('core', 'ProgrammazioneRicorrente')
 
