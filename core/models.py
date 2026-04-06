@@ -613,6 +613,10 @@ def geocode_cliente_address(sender, instance, **kwargs):
     geocode_helper(instance, 'indirizzo_sede')
 
 def geocode_helper(instance, address_field):
+    # Skip durante loaddata/push per evitare chiamate lente all'API
+    if os.environ.get('SKIP_GEOCODING'):
+        return
+
     address = getattr(instance, address_field)
     if not address:
         return
@@ -635,4 +639,5 @@ def geocode_helper(instance, address_field):
         if lat is not None and lon is not None:
             instance.latitudine = lat
             instance.longitudine = lon
+
 

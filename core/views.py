@@ -2774,13 +2774,13 @@ def _run_push_background(job_id: str, python: str, manage: str,
             return
         log('OK: Pulizia completata.')
 
-        # 4. Loaddata su Supabase
-        log('INFO: Caricamento dati su Supabase (operazione lenta, attendere)...')
+        # 4. Loaddata su Supabase (geocoding disabilitato via SKIP_GEOCODING)
+        log('INFO: Caricamento dati su Supabase...')
         proc_load = subprocess.run(
             [python, manage, 'loaddata', push_file],
             cwd=str(_BASE), env=env_pg,
             capture_output=True, text=True, encoding='utf-8', errors='replace',
-            timeout=600  # max 10 minuti
+            timeout=1800  # max 30 minuti
         )
         if proc_load.returncode != 0:
             err = (proc_load.stdout + proc_load.stderr)[:500]
@@ -2825,8 +2825,9 @@ def dev_tools_push(request):
     env_pg = os.environ.copy()
     env_pg.pop('LOCAL_DEV', None)
     env_pg['PYTHONUTF8'] = '1'
-    env_pg['SUPABASE_DB_PORT'] = '5432'       # Session Pooler
+    env_pg['SUPABASE_DB_PORT'] = '5432'             # Session Pooler
     env_pg['PGOPTIONS'] = '-c statement_timeout=0'  # Disabilita timeout Supabase
+    env_pg['SKIP_GEOCODING'] = '1'                  # Salta geocoding durante loaddata
 
     env_local = os.environ.copy()
     env_local['LOCAL_DEV'] = '1'
