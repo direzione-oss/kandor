@@ -2773,95 +2773,35 @@ def _run_push_background(job_id: str, python: str, manage: str,
             return
         log('OK: Pulizia completata.')
 
-        # 4. Fast import inline con bulk_create (immune a timeout Supabase)
+        # 4. Fast push via management command (bulk_create, immune a timeout Supabase)
         log('INFO: Caricamento dati su Supabase (bulk insert)...')
-        try:
-            from collections import defaultdict
-            from django.apps import apps as _apps
-            from django.db import connection as _conn
+        proc_load = subprocess.run(
+            [python, manage, 'fast_push', push_file],
+            cwd=str(_BASE), env=env_pg,
+            capture_output=True, text=True, encoding='utf-8', errors='replace',
+            timeout=300  # max 5 minuti (bulk_create è molto veloce)
+        )
+        stdout_out = proc_load.stdout or ''
+        stderr_out = proc_load.stderr or ''
+        combined = stdout_out + stderr_out
 
-            by_model = defaultdict(list)
-            for obj in _data:
-                by_model[obj['model']].append(obj)
-
-            MODEL_ORDER = [
-                'core.qualifica', 'core.mezzo', 'core.dipendente', 'core.squadra',
-                'core.cliente', 'core.programmazionericorrente',
-                'core.richiestastraordinaria', 'core.turno', 'core.assegnazioneturno',
-                'core.assenza', 'core.timetracking', 'core.responsabilearea',
-                'core.richiestasostituzione', 'core.messaggiochat',
-                'core.segnalazione', 'core.proximitylog', 'core.messaggioprogrammato',
-            ]
-
-            def _fk_m2m(MC):
-                fk, m2m = set(), set()
-                for fd in MC._meta.get_fields():
-                    if hasattr(fd, 'many_to_many') and fd.many_to_many:
-                        m2m.add(fd.name)
-                    elif hasattr(fd, 'column') and hasattr(fd, 'related_model') and fd.related_model:
-                        fk.add(fd.name)
-                return fk, m2m
-
-            total_imported = 0
-            for model_label in MODEL_ORDER:
-                records = by_model.get(model_label, [])
-                if not records:
-                    continue
-                try:
-                    MC = _apps.get_model(*model_label.split('.'))
-                    fk_names, m2m_names = _fk_m2m(MC)
-                    instances, all_m2m_data = [], []
-                    for rec in records:
-                        kwargs = {'pk': rec['pk']}
-                        rec_m2m = {}
-                        for k, v in rec['fields'].items():
-                            if k in m2m_names:
-                                rec_m2m[k] = v
-                            elif k in fk_names and v is not None:
-                                kwargs[f'{k}_id'] = v
-                            else:
-                                kwargs[k] = v
-                        instances.append((MC(**kwargs), rec_m2m))
-
-                    created = MC.objects.bulk_create(
-                        [i[0] for i in instances], ignore_conflicts=True
-                    )
-                    total_imported += len(created)
-                    for obj, m2m in instances:
-                        for fn, pks in m2m.items():
-                            if pks:
-                                try:
-                                    getattr(obj, fn).set(pks)
-                                except Exception:
-                                    pass
-                except Exception as _em:
-                    log(f'WARN: {model_label}: {str(_em)[:80]}')
-
-            # Reset sequenze PostgreSQL
-            seq_tables = [
-                'core_turno', 'core_assegnazioneturno', 'core_dipendente',
-                'core_cliente', 'core_squadra', 'core_qualifica', 'core_mezzo',
-                'core_programmazionericorrente', 'core_assenza', 'core_timetracking',
-                'core_responsabilearea', 'core_messaggioprogrammato',
-            ]
-            with _conn.cursor() as cur:
-                for tbl in seq_tables:
-                    try:
-                        cur.execute(
-                            f"SELECT setval(pg_get_serial_sequence('{tbl}','id'),"
-                            f"COALESCE((SELECT MAX(id) FROM {tbl}),1),true);"
-                        )
-                    except Exception:
-                        pass
-
+        if proc_load.returncode != 0 or 'FAST_PUSH_OK' not in stdout_out:
+            log(f'ERR: Caricamento fallito: {combined[:400]}')
+            log('INFO: Il backup è disponibile in db_backup_pre_push.json.')
+        else:
+            # Estrai numero oggetti caricati
+            try:
+                n_loaded = stdout_out.split('FAST_PUSH_OK:')[1].strip().split()[0]
+            except Exception:
+                n_loaded = '?'
+            if stderr_out.strip():
+                log(f'WARN: {stderr_out.strip()[:200]}')
             pathlib.Path(push_file).unlink(missing_ok=True)
-            log(f'OK: Push completato! {total_imported} oggetti caricati su Supabase.')
+            log(f'OK: Push completato! {n_loaded} oggetti caricati su Supabase.')
             _push_jobs[job_id]['ok'] = True
 
-        except Exception as _ei:
-            log(f'ERR: Caricamento fallito: {_ei}')
-            log('INFO: Il backup è disponibile in db_backup_pre_push.json.')
-
+    except subprocess.TimeoutExpired:
+        log('ERR: Timeout (>5 min). Problema di connessione Supabase.')
     except Exception as e:
         log(f'ERR: Errore imprevisto: {e}')
     finally:
