@@ -2688,13 +2688,15 @@ def dev_tools_push(request):
         push_file = str(_BASE / 'db_push.json')
         backup_file = str(_BASE / 'db_backup_pre_push.json')
 
-        # ── 1. Export DB locale ─────────────────────────────────
+        # ── 1. Export DB locale (solo core — no utenti, gestiti da Google OAuth)
         yield 'INFO: Esportazione DB locale...\n'
         exit_code = 0
         for line in _stream_proc(
             [python, manage, 'dumpdata',
              '--natural-foreign', '--natural-primary',
              '--exclude', 'auth.permission',
+             '--exclude', 'auth.user',        # Gli utenti restano su Supabase
+             '--exclude', 'auth.group',
              '--exclude', 'contenttypes',
              '--exclude', 'admin.logentry',
              '--indent', '2', '-o', push_file],
@@ -2719,6 +2721,8 @@ def dev_tools_push(request):
             [python, manage, 'dumpdata',
              '--natural-foreign', '--natural-primary',
              '--exclude', 'auth.permission',
+             '--exclude', 'auth.user',
+             '--exclude', 'auth.group',
              '--exclude', 'contenttypes',
              '--exclude', 'admin.logentry',
              '--indent', '2', '-o', backup_file],
