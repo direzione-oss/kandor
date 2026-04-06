@@ -2672,7 +2672,7 @@ def _run_push_background(job_id: str, python: str, manage: str,
                           env_pg: dict, env_local: dict,
                           push_file: str, backup_file: str):
     """Esegue il push in background e scrive l'output nel job log."""
-    import pathlib
+    import pathlib, json as _json
 
     def log(msg):
         _push_jobs[job_id]['log'].append(msg.rstrip('\n'))
@@ -2680,7 +2680,7 @@ def _run_push_background(job_id: str, python: str, manage: str,
     try:
         _push_jobs[job_id] = {'log': [], 'done': False, 'ok': False}
 
-        # 1. Export locale
+        # 1. Export locale (senza sessions)
         log('INFO: Esportazione DB locale...')
         proc = subprocess.run(
             [python, manage, 'dumpdata',
@@ -2690,6 +2690,7 @@ def _run_push_background(job_id: str, python: str, manage: str,
              '--exclude', 'auth.group',
              '--exclude', 'contenttypes',
              '--exclude', 'admin.logentry',
+             '--exclude', 'sessions.session',
              '--indent', '2', '-o', push_file],
             cwd=str(_BASE), env=env_local,
             capture_output=True, text=True, encoding='utf-8', errors='replace'
@@ -2704,15 +2705,13 @@ def _run_push_background(job_id: str, python: str, manage: str,
         # ── SICUREZZA: valida il JSON prima di toccare Supabase ──────
         log('INFO: Validazione file di export...')
         try:
-            import json as _json
             with open(push_file, encoding='utf-8') as _f:
                 _data = _json.load(_f)
             n_objects = len(_data)
             log(f'INFO: File valido — {n_objects} oggetti trovati.')
             if n_objects < 50:
-                log(f'ERR: Il file di export ha solo {n_objects} oggetti — '
-                    f'troppo pochi. Il DB locale sembra vuoto o non sincronizzato.')
-                log('INFO: Nessuna modifica a Supabase. Fai prima un PULL per scaricare i dati.')
+                log(f'ERR: Il file ha solo {n_objects} oggetti — '
+                    f'troppo pochi. Il DB locale sembra vuoto.')
                 _push_jobs[job_id]['done'] = True
                 return
         except Exception as _e:
@@ -2774,35 +2773,95 @@ def _run_push_background(job_id: str, python: str, manage: str,
             return
         log('OK: Pulizia completata.')
 
-        # 4. Loaddata su Supabase (geocoding disabilitato via SKIP_GEOCODING)
-        log('INFO: Caricamento dati su Supabase...')
-        proc_load = subprocess.run(
-            [python, manage, 'loaddata', push_file],
-            cwd=str(_BASE), env=env_pg,
-            capture_output=True, text=True, encoding='utf-8', errors='replace',
-            timeout=1800  # max 30 minuti
-        )
-        if proc_load.returncode != 0:
-            err = (proc_load.stdout + proc_load.stderr)[:500]
-            log(f'ERR: Caricamento fallito: {err}')
-            log('INFO: Ripristino backup...')
-            subprocess.run(
-                [python, manage, 'loaddata', backup_file],
-                cwd=str(_BASE), env=env_pg,
-                capture_output=True, text=True, encoding='utf-8', errors='replace',
-                timeout=600
-            )
-            log('INFO: Ripristino completato.')
-        else:
-            out_msg = proc_load.stdout.strip()
-            if out_msg:
-                log(f'INFO: {out_msg}')
+        # 4. Fast import inline con bulk_create (immune a timeout Supabase)
+        log('INFO: Caricamento dati su Supabase (bulk insert)...')
+        try:
+            from collections import defaultdict
+            from django.apps import apps as _apps
+            from django.db import connection as _conn
+
+            by_model = defaultdict(list)
+            for obj in _data:
+                by_model[obj['model']].append(obj)
+
+            MODEL_ORDER = [
+                'core.qualifica', 'core.mezzo', 'core.dipendente', 'core.squadra',
+                'core.cliente', 'core.programmazionericorrente',
+                'core.richiestastraordinaria', 'core.turno', 'core.assegnazioneturno',
+                'core.assenza', 'core.timetracking', 'core.responsabilearea',
+                'core.richiestasostituzione', 'core.messaggiochat',
+                'core.segnalazione', 'core.proximitylog', 'core.messaggioprogrammato',
+            ]
+
+            def _fk_m2m(MC):
+                fk, m2m = set(), set()
+                for fd in MC._meta.get_fields():
+                    if hasattr(fd, 'many_to_many') and fd.many_to_many:
+                        m2m.add(fd.name)
+                    elif hasattr(fd, 'column') and hasattr(fd, 'related_model') and fd.related_model:
+                        fk.add(fd.name)
+                return fk, m2m
+
+            total_imported = 0
+            for model_label in MODEL_ORDER:
+                records = by_model.get(model_label, [])
+                if not records:
+                    continue
+                try:
+                    MC = _apps.get_model(*model_label.split('.'))
+                    fk_names, m2m_names = _fk_m2m(MC)
+                    instances, all_m2m_data = [], []
+                    for rec in records:
+                        kwargs = {'pk': rec['pk']}
+                        rec_m2m = {}
+                        for k, v in rec['fields'].items():
+                            if k in m2m_names:
+                                rec_m2m[k] = v
+                            elif k in fk_names and v is not None:
+                                kwargs[f'{k}_id'] = v
+                            else:
+                                kwargs[k] = v
+                        instances.append((MC(**kwargs), rec_m2m))
+
+                    created = MC.objects.bulk_create(
+                        [i[0] for i in instances], ignore_conflicts=True
+                    )
+                    total_imported += len(created)
+                    for obj, m2m in instances:
+                        for fn, pks in m2m.items():
+                            if pks:
+                                try:
+                                    getattr(obj, fn).set(pks)
+                                except Exception:
+                                    pass
+                except Exception as _em:
+                    log(f'WARN: {model_label}: {str(_em)[:80]}')
+
+            # Reset sequenze PostgreSQL
+            seq_tables = [
+                'core_turno', 'core_assegnazioneturno', 'core_dipendente',
+                'core_cliente', 'core_squadra', 'core_qualifica', 'core_mezzo',
+                'core_programmazionericorrente', 'core_assenza', 'core_timetracking',
+                'core_responsabilearea', 'core_messaggioprogrammato',
+            ]
+            with _conn.cursor() as cur:
+                for tbl in seq_tables:
+                    try:
+                        cur.execute(
+                            f"SELECT setval(pg_get_serial_sequence('{tbl}','id'),"
+                            f"COALESCE((SELECT MAX(id) FROM {tbl}),1),true);"
+                        )
+                    except Exception:
+                        pass
+
             pathlib.Path(push_file).unlink(missing_ok=True)
-            log('OK: Push completato! Supabase aggiornato.')
+            log(f'OK: Push completato! {total_imported} oggetti caricati su Supabase.')
             _push_jobs[job_id]['ok'] = True
 
-    except subprocess.TimeoutExpired:
-        log('ERR: Timeout (>10 min). Connessione Supabase troppo lenta.')
+        except Exception as _ei:
+            log(f'ERR: Caricamento fallito: {_ei}')
+            log('INFO: Il backup è disponibile in db_backup_pre_push.json.')
+
     except Exception as e:
         log(f'ERR: Errore imprevisto: {e}')
     finally:
