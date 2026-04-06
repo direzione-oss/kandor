@@ -1,4 +1,39 @@
-from django.db import migrations, models
+from django.db import migrations
+
+
+def forward(apps, schema_editor):
+    db = schema_editor.connection.vendor
+    with schema_editor.connection.cursor() as cursor:
+        if db == 'sqlite':
+            cursor.execute("PRAGMA table_info(core_dipendente);")
+            cols = [r[1] for r in cursor.fetchall()]
+            # DROP riceve_notifiche_messaggi se esiste
+            if 'riceve_notifiche_messaggi' in cols:
+                try:
+                    cursor.execute(
+                        "ALTER TABLE core_dipendente DROP COLUMN riceve_notifiche_messaggi;"
+                    )
+                except Exception:
+                    pass  # SQLite < 3.35 non supporta DROP COLUMN, ignoriamo
+            # ADD foto se non esiste
+            if 'foto' not in cols:
+                cursor.execute(
+                    "ALTER TABLE core_dipendente ADD COLUMN foto varchar(100) NULL;"
+                )
+        else:
+            # PostgreSQL
+            cursor.execute(
+                "ALTER TABLE core_dipendente "
+                "DROP COLUMN IF EXISTS riceve_notifiche_messaggi;"
+            )
+            cursor.execute(
+                "ALTER TABLE core_dipendente "
+                "ADD COLUMN IF NOT EXISTS foto varchar(100) NULL;"
+            )
+
+
+def reverse(apps, schema_editor):
+    pass
 
 
 class Migration(migrations.Migration):
@@ -8,15 +43,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Rimuovi riceve_notifiche_messaggi solo se esiste
-        migrations.RunSQL(
-            sql="ALTER TABLE core_dipendente DROP COLUMN IF EXISTS riceve_notifiche_messaggi;",
-            reverse_sql="ALTER TABLE core_dipendente ADD COLUMN riceve_notifiche_messaggi boolean NOT NULL DEFAULT true;",
-        ),
-        # Aggiungi foto solo se non esiste già (Render aveva già questa colonna da migrazione precedente)
-        migrations.RunSQL(
-            sql="ALTER TABLE core_dipendente ADD COLUMN IF NOT EXISTS foto varchar(100) NULL;",
-            reverse_sql="ALTER TABLE core_dipendente DROP COLUMN IF EXISTS foto;",
-        ),
-        # Nota: il modello Titolare viene gestito dalla migrazione 0036
+        migrations.RunPython(forward, reverse),
     ]
