@@ -87,27 +87,32 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 # e commentare quello Supabase.
 # =====================================================
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-        'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-        'HOST': os.environ.get('SUPABASE_DB_HOST', 'aws-1-eu-west-1.pooler.supabase.com'),
-        'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
-        'OPTIONS': {
-            'sslmode': 'require',  # Supabase richiede SSL
-        },
+# =====================================================
+# DATABASE — modalità automatica
+#   LOCAL_DEV=1  →  SQLite locale (veloce, offline)
+#   (default)    →  Supabase PostgreSQL (produzione)
+# =====================================================
+if os.environ.get('LOCAL_DEV') == '1':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db_local.sqlite3',
+        }
     }
-}
-
-# --- SQLite locale (backup) ---
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
+            'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
+            'HOST': os.environ.get('SUPABASE_DB_HOST', 'aws-1-eu-west-1.pooler.supabase.com'),
+            'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+            },
+        }
+    }
 
 
 # Password validation

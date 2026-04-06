@@ -2,8 +2,12 @@
 .env
 *.toml
 
-# Database locale
+# Database locale (sviluppo)
 db.sqlite3
+db_local.sqlite3
+db_dump.json
+db_push.json
+db_backup_pre_push.json
 
 # Python
 __pycache__/
