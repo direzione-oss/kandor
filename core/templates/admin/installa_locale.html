@@ -82,8 +82,45 @@
     <div class="step-num" style="background:#16a34a">4</div>
     <div class="step-content">
       <h3>Ogni volta che vuoi lavorare</h3>
-      <p>Fai doppio click su <strong>kandor_avvia.pyw</strong>. Nessuna finestra si apre — solo il browser con Kandor pronto all'uso. Da lì puoi scaricare i dati aggiornati da Supabase, lavorare e ricaricarli quando finisci.</p>
-      <div class="note">🔒 Il server gira solo sul tuo PC — nessun altro può accedervi. Chiudi il browser quando hai finito.</div>
+      <p>Fai doppio click su <strong>kandor_avvia.pyw</strong>. Nessuna finestra si apre — solo il browser con Kandor pronto all'uso.</p>
+      <div style="margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#4ade80;">① Scarica i dati</strong> — Clicca <em>"⬇ Scarica da Supabase"</em> nella pagina che si apre
+        </div>
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#60a5fa;">② Lavora</strong> — Usa Kandor normalmente dal browser
+        </div>
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#f59e0b;">③ Salva prima di chiudere</strong> — <em>Vedi Step 5</em>
+        </div>
+      </div>
+      <div class="note">🔒 Il server gira solo sul tuo PC. Nessun altro può accedervi mentre lavori.</div>
+    </div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="step" style="border-color: #dc2626; border-width: 2px;">
+    <div class="step-num" style="background:#dc2626">5</div>
+    <div class="step-content">
+      <h3>⚠️ Prima di chiudere — Ricarica su Supabase</h3>
+      <p>Quando hai finito di lavorare, <strong>devi sempre ricaricare i dati su Supabase</strong> altrimenti le modifiche andranno perse e gli altri utenti vedranno i dati vecchi.</p>
+      <div style="margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#f87171;">1.</strong> Vai su <strong style="color:#fbbf24;">http://127.0.0.1:8000/dev-tools/</strong> dal browser locale
+        </div>
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#f87171;">2.</strong> Clicca il pulsante <strong style="color:#fbbf24;">"⬆ Carica su Supabase"</strong>
+        </div>
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#f87171;">3.</strong> Conferma e <strong>aspetta il messaggio "OK: Push completato"</strong>
+        </div>
+        <div style="background:#0f172a; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#f87171;">4.</strong> Solo a quel punto puoi chiudere il browser
+        </div>
+      </div>
+      <div style="background:#431407; border: 1px solid #7c2d12; border-radius:8px; padding:0.8rem 1rem; font-size:0.82rem; color:#fed7aa; margin-top:0.8rem; line-height:1.5;">
+        ⚠️ <strong>Importante:</strong> non possono lavorare due persone in locale contemporaneamente — i dati dell'ultimo che ricarica sovrascrivono quelli dell'altro. Coordinatevi prima di iniziare.
+      </div>
     </div>
   </div>
 
