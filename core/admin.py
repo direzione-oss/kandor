@@ -304,6 +304,7 @@ class AssegnazioneInline(admin.TabularInline):
 class TurnoAdmin(admin.ModelAdmin):
     list_display = ('data', 'squadra', 'mezzo')
     list_filter = ('data', 'squadra')
+    search_fields = ('data', 'squadra__nome')  # Richiesto da autocomplete_fields
     inlines = [AssegnazioneInline]
 
 admin.site.register(Qualifica)
