@@ -2664,60 +2664,46 @@ def dev_tools_pull(request):
     return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
 
 
-@staff_member_required
-@_only_local
-def dev_tools_push(request):
-    if request.method != 'POST':
-        return HttpResponse(status=405)
+# Dizionario in-memory per i job di push in background
+_push_jobs: dict = {}
 
-    def generate():
-        python = sys.executable
-        manage = str(_BASE / 'manage.py')
 
-        # Supabase: usa Session Pooler (porta 5432) per operazioni lunghe
-        # Il Transaction Pooler (6543) va in timeout su TRUNCATE massivi
-        env_pg = os.environ.copy()
-        env_pg.pop('LOCAL_DEV', None)
-        env_pg['PYTHONUTF8'] = '1'
-        env_pg['SUPABASE_DB_PORT'] = '5432'   # Session Pooler, più stabile
+def _run_push_background(job_id: str, python: str, manage: str,
+                          env_pg: dict, env_local: dict,
+                          push_file: str, backup_file: str):
+    """Esegue il push in background e scrive l'output nel job log."""
+    import pathlib
 
-        env_local = os.environ.copy()
-        env_local['LOCAL_DEV'] = '1'
-        env_local['PYTHONUTF8'] = '1'
+    def log(msg):
+        _push_jobs[job_id]['log'].append(msg.rstrip('\n'))
 
-        push_file = str(_BASE / 'db_push.json')
-        backup_file = str(_BASE / 'db_backup_pre_push.json')
+    try:
+        _push_jobs[job_id] = {'log': [], 'done': False, 'ok': False}
 
-        # ── 1. Export DB locale (solo core — no utenti, gestiti da Google OAuth)
-        yield 'INFO: Esportazione DB locale...\n'
-        exit_code = 0
-        for line in _stream_proc(
+        # 1. Export locale
+        log('INFO: Esportazione DB locale...')
+        proc = subprocess.run(
             [python, manage, 'dumpdata',
              '--natural-foreign', '--natural-primary',
              '--exclude', 'auth.permission',
-             '--exclude', 'auth.user',        # Gli utenti restano su Supabase
+             '--exclude', 'auth.user',
              '--exclude', 'auth.group',
              '--exclude', 'contenttypes',
              '--exclude', 'admin.logentry',
              '--indent', '2', '-o', push_file],
-            env_local
-        ):
-            if line.startswith('__EXIT__'):
-                exit_code = int(line.split('__EXIT__')[1].strip())
-            else:
-                yield line
-
-        if exit_code != 0:
-            yield 'ERR: Esportazione locale fallita.\n'
+            cwd=str(_BASE), env=env_local,
+            capture_output=True, text=True, encoding='utf-8', errors='replace'
+        )
+        if proc.returncode != 0:
+            log(f'ERR: Esportazione fallita: {proc.stderr[:300]}')
+            _push_jobs[job_id]['done'] = True
             return
-        import os as _os
-        size_kb = round(_os.path.getsize(push_file) / 1024, 1)
-        yield f'OK: Esportazione locale completata ({size_kb} KB).\n'
+        size_kb = round(os.path.getsize(push_file) / 1024, 1)
+        log(f'OK: Esportazione completata ({size_kb} KB).')
 
-        # ── 2. Backup Supabase ──────────────────────────────────
-        yield 'INFO: Backup dati attuali su Supabase...\n'
-        backup_ok = True
-        for line in _stream_proc(
+        # 2. Backup Supabase
+        log('INFO: Backup Supabase in corso...')
+        subprocess.run(
             [python, manage, 'dumpdata',
              '--natural-foreign', '--natural-primary',
              '--exclude', 'auth.permission',
@@ -2726,102 +2712,132 @@ def dev_tools_push(request):
              '--exclude', 'contenttypes',
              '--exclude', 'admin.logentry',
              '--indent', '2', '-o', backup_file],
-            env_pg
-        ):
-            if line.startswith('__EXIT__'):
-                if int(line.split('__EXIT__')[1].strip()) != 0:
-                    backup_ok = False
-            else:
-                yield line
-        if backup_ok:
-            yield 'OK: Backup Supabase salvato.\n'
-        else:
-            yield 'INFO: Backup parziale (continuo comunque).\n'
+            cwd=str(_BASE), env=env_pg,
+            capture_output=True, text=True, encoding='utf-8', errors='replace'
+        )
+        log('OK: Backup Supabase salvato.')
 
-        # ── 3. Pulizia ordinata su Supabase (DELETE invece di TRUNCATE) ──
-        yield 'INFO: Pulizia dati su Supabase...\n'
-        # Script Python che cancella i modelli in ordine inverso
-        # evitando problemi di FK che andrebbero in timeout con TRUNCATE
+        # 3. DELETE ordinato su Supabase
+        log('INFO: Pulizia dati su Supabase...')
         delete_script = (
-            "import django; django.setup();"
-            "from django.apps import apps;"
-            "from django.db import connection;"
-            # Disabilita temporaneamente i trigger/FK check (PostgreSQL)
-            "cursor = connection.cursor();"
-            "models_to_delete = ["
-            "  'core.richiestasostituzone', 'core.responsabilearea',"
-            "  'core.timetracking', 'core.assegnazioneturno',"
-            "  'core.richiestaStraordinaria', 'core.turno',"
-            "  'core.programmazionericorrente', 'core.assenza',"
-            "  'core.cliente', 'core.squadra', 'core.dipendente',"
-            "  'core.mezzo', 'core.qualifica', 'core.titolare',"
-            "  'core.messaggioprogrammato', 'auth.user',"
-            "];"
-            "from django.contrib.auth import get_user_model; User = get_user_model();"
-            # Uso deletequeryset con select_for_update per evitare deadlock
-            "from core.models import ("
-            "  RichiestaSostituzione, ResponsabileArea, TimeTracking,"
-            "  AssegnazioneTurno, RichiestaStraordinaria, Turno,"
-            "  ProgrammazioneRicorrente, Assenza, Cliente, Squadra,"
-            "  Dipendente, Mezzo, Qualifica, MessaggioProgrammato"
-            ");"
-            "RichiestaSostituzione.objects.all().delete();"
-            "ResponsabileArea.objects.all().delete();"
-            "TimeTracking.objects.all().delete();"
-            "AssegnazioneTurno.objects.all().delete();"
-            "RichiestaStraordinaria.objects.all().delete();"
-            "Turno.objects.all().delete();"
-            "ProgrammazioneRicorrente.objects.all().delete();"
-            "Assenza.objects.all().delete();"
-            "MessaggioProgrammato.objects.all().delete();"
-            "Cliente.objects.all().delete();"
-            "Squadra.objects.all().delete();"
-            "Dipendente.objects.all().delete();"
-            "Mezzo.objects.all().delete();"
-            "Qualifica.objects.all().delete();"
-            "print('DELETE OK');"
+            'from core.models import ('
+            '  RichiestaSostituzione, ResponsabileArea, TimeTracking,'
+            '  AssegnazioneTurno, RichiestaStraordinaria, Turno,'
+            '  ProgrammazioneRicorrente, Assenza, Cliente, Squadra,'
+            '  Dipendente, Mezzo, Qualifica, MessaggioProgrammato);'
+            'RichiestaSostituzione.objects.all().delete();'
+            'ResponsabileArea.objects.all().delete();'
+            'TimeTracking.objects.all().delete();'
+            'AssegnazioneTurno.objects.all().delete();'
+            'RichiestaStraordinaria.objects.all().delete();'
+            'Turno.objects.all().delete();'
+            'ProgrammazioneRicorrente.objects.all().delete();'
+            'Assenza.objects.all().delete();'
+            'MessaggioProgrammato.objects.all().delete();'
+            'Cliente.objects.all().delete();'
+            'Squadra.objects.all().delete();'
+            'Dipendente.objects.all().delete();'
+            'Mezzo.objects.all().delete();'
+            'Qualifica.objects.all().delete();'
+            "print('DELETE OK')"
         )
-
-        proc_del = subprocess.Popen(
+        proc_del = subprocess.run(
             [python, manage, 'shell', '-c', delete_script],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True, encoding='utf-8', errors='replace',
-            env=env_pg, cwd=str(_BASE),
+            cwd=str(_BASE), env=env_pg,
+            capture_output=True, text=True, encoding='utf-8', errors='replace'
         )
-        del_output = []
-        for line in iter(proc_del.stdout.readline, ''):
-            del_output.append(line.strip())
-            yield line
-        proc_del.wait()
-
-        if proc_del.returncode != 0 or not any('DELETE OK' in l for l in del_output):
-            yield f'ERR: Pulizia Supabase fallita (codice {proc_del.returncode}).\n'
-            yield 'INFO: Nessuna modifica apportata — i dati originali sono intatti.\n'
+        out = (proc_del.stdout or '') + (proc_del.stderr or '')
+        if proc_del.returncode != 0 or 'DELETE OK' not in out:
+            log(f'ERR: Pulizia fallita (codice {proc_del.returncode}): {out[:300]}')
+            _push_jobs[job_id]['done'] = True
             return
-        yield 'OK: Pulizia completata.\n'
+        log('OK: Pulizia completata.')
 
-        # ── 4. Caricamento dati su Supabase ────────────────────
-        yield 'INFO: Caricamento dati su Supabase (potrebbe richiedere 2-3 min)...\n'
-        exit_code = 0
-        for line in _stream_proc([python, manage, 'loaddata', push_file], env_pg):
-            if line.startswith('__EXIT__'):
-                exit_code = int(line.split('__EXIT__')[1].strip())
-            else:
-                yield line
-
-        if exit_code != 0:
-            yield 'ERR: Caricamento su Supabase fallito — ripristino backup...\n'
-            # Tenta di ripristinare dal backup
-            for line in _stream_proc([python, manage, 'loaddata', backup_file], env_pg):
-                yield '' if line.startswith('__EXIT__') else line
-            yield 'INFO: Ripristino completato. Verifica i dati su Supabase.\n'
+        # 4. Loaddata su Supabase
+        log('INFO: Caricamento dati su Supabase (operazione lenta, attendere)...')
+        proc_load = subprocess.run(
+            [python, manage, 'loaddata', push_file],
+            cwd=str(_BASE), env=env_pg,
+            capture_output=True, text=True, encoding='utf-8', errors='replace',
+            timeout=600  # max 10 minuti
+        )
+        if proc_load.returncode != 0:
+            err = (proc_load.stdout + proc_load.stderr)[:500]
+            log(f'ERR: Caricamento fallito: {err}')
+            log('INFO: Ripristino backup...')
+            subprocess.run(
+                [python, manage, 'loaddata', backup_file],
+                cwd=str(_BASE), env=env_pg,
+                capture_output=True, text=True, encoding='utf-8', errors='replace',
+                timeout=600
+            )
+            log('INFO: Ripristino completato.')
         else:
-            import pathlib
+            out_msg = proc_load.stdout.strip()
+            if out_msg:
+                log(f'INFO: {out_msg}')
             pathlib.Path(push_file).unlink(missing_ok=True)
-            yield 'OK: Push completato! Supabase aggiornato.\n'
+            log('OK: Push completato! Supabase aggiornato.')
+            _push_jobs[job_id]['ok'] = True
 
-    return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
+    except subprocess.TimeoutExpired:
+        log('ERR: Timeout (>10 min). Connessione Supabase troppo lenta.')
+    except Exception as e:
+        log(f'ERR: Errore imprevisto: {e}')
+    finally:
+        _push_jobs[job_id]['done'] = True
+
+
+@staff_member_required
+@_only_local
+def dev_tools_push(request):
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    import uuid
+    import threading
+
+    job_id = uuid.uuid4().hex
+    python = sys.executable
+    manage = str(_BASE / 'manage.py')
+
+    env_pg = os.environ.copy()
+    env_pg.pop('LOCAL_DEV', None)
+    env_pg['PYTHONUTF8'] = '1'
+    env_pg['SUPABASE_DB_PORT'] = '5432'  # Session Pooler per operazioni lunghe
+
+    env_local = os.environ.copy()
+    env_local['LOCAL_DEV'] = '1'
+    env_local['PYTHONUTF8'] = '1'
+
+    push_file = str(_BASE / 'db_push.json')
+    backup_file = str(_BASE / 'db_backup_pre_push.json')
+
+    # Inizializza subito il job (evita race condition con il polling)
+    _push_jobs[job_id] = {'log': ['INFO: Avvio push in background...'], 'done': False, 'ok': False}
+
+    t = threading.Thread(
+        target=_run_push_background,
+        args=(job_id, python, manage, env_pg, env_local, push_file, backup_file),
+        daemon=True
+    )
+    t.start()
+
+    return JsonResponse({'job_id': job_id})
+
+
+@staff_member_required
+@_only_local
+def dev_tools_push_status(request, job_id):
+    """Restituisce lo stato corrente del job di push."""
+    job = _push_jobs.get(job_id)
+    if not job:
+        return JsonResponse({'log': ['ERR: Job non trovato.'], 'done': True, 'ok': False})
+    return JsonResponse({
+        'log': job.get('log', []),
+        'done': job.get('done', False),
+        'ok': job.get('ok', False),
+    })
 
 
 @staff_member_required

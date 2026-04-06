@@ -11,7 +11,7 @@ from .views import (
     richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
     titolari_dashboard_view, titolari_riepilogo_view,
     settimana_pdf_view,
-    dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_backup,
+    dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup,
     installa_locale_view, installa_locale_download,
 )
 from django.views.generic import RedirectView
@@ -69,6 +69,7 @@ urlpatterns = [
     path('dev-tools/', dev_tools_view, name='dev_tools'),
     path('dev-tools/pull/', dev_tools_pull, name='dev_tools_pull'),
     path('dev-tools/push/', dev_tools_push, name='dev_tools_push'),
+    path('dev-tools/push-status/<str:job_id>/', dev_tools_push_status, name='dev_tools_push_status'),
     path('dev-tools/backup/', dev_tools_backup, name='dev_tools_backup'),
 
     # Installa Locale (accessibile da Render per scaricare i file)

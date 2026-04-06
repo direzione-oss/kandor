@@ -266,10 +266,70 @@ function showPushConfirm() {
 function hidePushConfirm() {
   document.getElementById('push-warning').classList.remove('visible');
 }
-function startPush(btn) {
+
+// Push usa polling perché loaddata può richiedere 5-10 minuti
+async function startPush(btn) {
   btn.disabled = true;
   hidePushConfirm();
-  callApi('/dev-tools/push/', 'push-log', ['push-spinner'], () => { btn.disabled = false; });
+  document.getElementById('push-spinner').classList.add('visible');
+  const box = document.getElementById('push-log');
+  box.innerHTML = '';
+  box.classList.add('visible');
+
+  function log(msg) {
+    const line = document.createElement('div');
+    let cls = '';
+    if (msg.startsWith('OK:')) cls = 'log-ok';
+    else if (msg.startsWith('ERR:')) cls = 'log-err';
+    else cls = 'log-info';
+    line.className = cls;
+    line.textContent = msg;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  log('INFO: Avvio push in corso...');
+
+  // 1. Avvia il job in background
+  let jobId;
+  try {
+    const resp = await fetch('/dev-tools/push/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF }
+    });
+    const data = await resp.json();
+    jobId = data.job_id;
+  } catch(e) {
+    log('ERR: Impossibile avviare il push: ' + e.message);
+    document.getElementById('push-spinner').classList.remove('visible');
+    btn.disabled = false;
+    return;
+  }
+
+  // 2. Polling ogni 3 secondi finché done=true
+  let lastLogLen = 0;
+  const poll = async () => {
+    try {
+      const r = await fetch(`/dev-tools/push-status/${jobId}/`);
+      const data = await r.json();
+      // Append solo le nuove righe
+      const newLines = data.log.slice(lastLogLen);
+      newLines.forEach(l => log(l));
+      lastLogLen = data.log.length;
+
+      if (data.done) {
+        document.getElementById('push-spinner').classList.remove('visible');
+        btn.disabled = false;
+        return;
+      }
+      setTimeout(poll, 3000);
+    } catch(e) {
+      log('ERR: Polling interrotto: ' + e.message);
+      document.getElementById('push-spinner').classList.remove('visible');
+      btn.disabled = false;
+    }
+  };
+  setTimeout(poll, 2000);
 }
 
 function startBackup(btn) {
