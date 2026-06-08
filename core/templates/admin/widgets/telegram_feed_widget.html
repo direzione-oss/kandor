@@ -101,13 +101,11 @@
                 {% for item in latest_hours %}
                 <li class="telegram-item {% if item.is_validated %}completed-task hidden-managed{% endif %}">
                     <input type="checkbox" style="margin-top:4px;min-width:16px"
-                        onclick="toggleStatus('timetracking',{{ item.id }},this)" {{ item.is_validated|yesno:"checked,"
-                        }}>
+                        onclick="toggleStatus('timetracking',{{ item.id }},this)" {{ item.is_validated|yesno:"checked," }}>
                     <div>
                         <strong>{{ item.dipendente }}</strong><br>
                         <span style="color:#555">{{ item.assegnazione.cliente }}</span><br>
-                        <small style="color:#888">{{ item.check_out|date:"d/m H:i" }} - {{ item.durata_ore|floatformat:1
-                            }}h</small>
+                        <small style="color:#888">{{ item.check_out|date:"d/m H:i" }} - {{ item.durata_ore|floatformat:1 }}h</small>
                         {% if item.note %}<em class="telegram-note">{{ item.note }}</em>{% endif %}
                     </div>
                 </li>
@@ -129,10 +127,8 @@
                         onclick="toggleStatus('assenza',{{ item.id }},this)" {{ item.is_processed|yesno:"checked," }}>
                     <div>
                         <strong>{{ item.dipendente }}</strong><br>
-                        <span style="background:#eee;padding:2px 6px;border-radius:4px;font-size:12px">{{
-                            item.get_tipo_display }}</span><br>
-                        <small style="color:#888">Dal {{ item.data_inizio|date:"d/m/Y" }} al {{
-                            item.data_fine|date:"d/m/Y" }}</small>
+                        <span style="background:#eee;padding:2px 6px;border-radius:4px;font-size:12px">{{ item.get_tipo_display }}</span><br>
+                        <small style="color:#888">Dal {{ item.data_inizio|date:"d/m/Y" }} al {{ item.data_fine|date:"d/m/Y" }}</small>
                         {% if item.note %}<em class="telegram-note">{{ item.note }}</em>{% endif %}
                     </div>
                 </li>
