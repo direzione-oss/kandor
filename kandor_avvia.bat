@@ -1,6 +1,6 @@
 @echo off
 title Kandor — Server Locale
-cd /d "C:\Users\serra\.gemini\antigravity\playground\phantom-ionosphere"
+cd /d "%~dp0"
 
 set LOCAL_DEV=1
 set DEBUG=True
@@ -18,7 +18,7 @@ python manage.py migrate >nul 2>&1
 
 REM Avvia il server in una finestra minimizzata separata
 echo  Avvio server...
-start /min "Kandor Server — tieni aperto" cmd /k "cd /d C:\Users\serra\.gemini\antigravity\playground\phantom-ionosphere && set LOCAL_DEV=1 && set DEBUG=True && set PYTHONUTF8=1 && python manage.py runserver"
+start /min "Kandor Server — tieni aperto" cmd /k "cd /d "%~dp0" && set LOCAL_DEV=1 && set DEBUG=True && set PYTHONUTF8=1 && python manage.py runserver"
 
 REM Aspetta che il server sia pronto (8 secondi per sicurezza)
 timeout /t 8 /nobreak >nul

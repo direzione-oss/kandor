@@ -572,27 +572,31 @@ def check_proximity(dipendente, lat, lon):
     
     for cliente in clienti:
         dist = calculate_distance(lat, lon, float(cliente.latitudine), float(cliente.longitudine))
-        raggio = float(cliente.raggio_prossimita) if cliente.raggio_prossimita else 100
+        # Utilizziamo un raggio fisso di 150 metri poiché il modello Cliente non ha raggio_prossimita
+        raggio = 150.0
         is_inside = dist <= raggio
         
         last_log = ProximityLog.objects.filter(
             dipendente=dipendente, cliente=cliente
-        ).order_by('-timestamp').first()
+        ).first()
         
-        was_inside = last_log.inside if last_log else False
+        was_inside = last_log.is_near if last_log else False
         
         if is_inside != was_inside:
-            ProximityLog.objects.create(
+            log_obj, created = ProximityLog.objects.get_or_create(
                 dipendente=dipendente,
-                cliente=cliente,
-                latitudine=lat,
-                longitudine=lon,
-                distanza=dist,
-                inside=is_inside
+                cliente=cliente
             )
+            log_obj.is_near = is_inside
             if is_inside:
-                events.append(('enter', cliente, dist))
+                log_obj.entered_at = timezone.now()
             else:
-                events.append(('exit', cliente, dist))
+                log_obj.exited_at = timezone.now()
+            log_obj.save()
+            
+            if is_inside:
+                events.append({'type': 'entry', 'cliente': cliente, 'distanza': dist})
+            else:
+                events.append({'type': 'exit', 'cliente': cliente, 'distanza': dist})
     
     return events

@@ -13,11 +13,7 @@ import os
 from django.conf import settings
 from django.core.management import call_command
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-import io
-import os
-from django.conf import settings
-from django.core.management import call_command
-from django.http import HttpResponse, HttpResponseRedirect
+
 
 def find_jolly_view(request):
     results = None

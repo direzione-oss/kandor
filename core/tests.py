@@ -37,7 +37,7 @@ class BirthdayWidgetTestCase(TestCase):
 
         # Execute Widget Logic
         context = upcoming_birthdays_widget()
-        birthdays = context['birthdays']
+        birthdays = context['employees_birthdays']
         
         # Verify
         self.assertEqual(len(birthdays), 2)
@@ -275,3 +275,71 @@ class ImportDipendenteTestCase(TestCase):
         self.assertEqual(d.data_nascita.year, 1980)
         self.assertEqual(d.data_nascita.month, 1)
         self.assertEqual(d.data_nascita.day, 1)
+
+from core.models import Cliente, ProximityLog
+from core.utils_kandor_chat import check_proximity
+
+class ProximityTestCase(TestCase):
+    def test_proximity_logging(self):
+        # 1. Create a Dipendente
+        dip = Dipendente.objects.create(
+            nome='Mario', cognome='Rossi',
+            codice_fiscale='RSSMRA80A01H501U',
+            stato='ATTIVO',
+            indirizzo_residenza='Via Fittizia 1'
+        )
+        Dipendente.objects.filter(pk=dip.pk).update(latitudine=45.0, longitudine=9.0)
+        dip.refresh_from_db()
+        
+        # 2. Create a Cliente close to (45.0, 9.0)
+        # 45.0, 9.0 is close to 45.0001, 9.0001 (approx 14 meters)
+        cli = Cliente.objects.create(
+            ragione_sociale='Cliente Prossimo',
+            indirizzo_sede='Via Fittizia 2',
+            ore_mensili_contratto=10
+        )
+        Cliente.objects.filter(pk=cli.pk).update(latitudine=45.0001, longitudine=9.0001)
+        cli.refresh_from_db()
+        
+        # 3. Create a Cliente far from (45.0, 9.0)
+        # 46.0, 10.0 is very far (approx 130 km)
+        cli_far = Cliente.objects.create(
+            ragione_sociale='Cliente Lontano',
+            indirizzo_sede='Via Fittizia 3',
+            ore_mensili_contratto=10
+        )
+        Cliente.objects.filter(pk=cli_far.pk).update(latitudine=46.0, longitudine=10.0)
+        cli_far.refresh_from_db()
+        
+        # 4. Check proximity
+        events = check_proximity(dip, 45.0, 9.0)
+        
+        # Should have 1 entry event (for Cliente Prossimo)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['type'], 'entry')
+        self.assertEqual(events[0]['cliente'], cli)
+        
+        # ProximityLog should have been created for cli
+        log_cli = ProximityLog.objects.get(dipendente=dip, cliente=cli)
+        self.assertTrue(log_cli.is_near)
+        self.assertIsNotNone(log_cli.entered_at)
+        self.assertIsNone(log_cli.exited_at)
+        
+        # Now move far away
+        events_far = check_proximity(dip, 46.0, 10.0)
+        
+        # Should have 1 exit event for cli, and 1 entry event for cli_far
+        self.assertEqual(len(events_far), 2)
+        
+        types = [e['type'] for e in events_far]
+        clienti = [e['cliente'] for e in events_far]
+        
+        self.assertIn('exit', types)
+        self.assertIn('entry', types)
+        self.assertIn(cli, clienti)
+        self.assertIn(cli_far, clienti)
+        
+        # ProximityLog for cli should now be is_near=False
+        log_cli.refresh_from_db()
+        self.assertFalse(log_cli.is_near)
+        self.assertIsNotNone(log_cli.exited_at)
