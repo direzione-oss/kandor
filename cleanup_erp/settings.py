@@ -207,3 +207,15 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # CSRF cookie valido 30 giorni
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 30
+
+# Gestione Proxy SSL (fondamentale per Render e ngrok dietro HTTPS)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Origini fidate per CSRF (necessario in Django per richieste HTTPS)
+CSRF_TRUSTED_ORIGINS = [
+    'https://kandor.onrender.com',
+    'https://*.onrender.com',
+    'https://*.ngrok-free.app',
+    'https://*.ngrok-free.dev',
+    'https://*.railway.app',
+]
