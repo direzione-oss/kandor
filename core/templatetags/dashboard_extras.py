@@ -99,11 +99,17 @@ def upcoming_birthdays_widget():
             if not bday: continue
             
             # Next birthday for this year
-            next_bday = bday.replace(year=today.year)
+            try:
+                next_bday = bday.replace(year=today.year)
+            except ValueError:
+                next_bday = bday.replace(year=today.year, month=2, day=28)
             
             # If passed this year, check next year
             if next_bday < today:
-                next_bday = bday.replace(year=today.year + 1)
+                try:
+                    next_bday = bday.replace(year=today.year + 1)
+                except ValueError:
+                    next_bday = bday.replace(year=today.year + 1, month=2, day=28)
                 
             if today <= next_bday <= threshold:
                 days_until = (next_bday - today).days
@@ -228,27 +234,31 @@ def weekly_schedule_widget(context):
     overlaps = []
     # Carica TUTTE le assegnazioni della settimana in una sola query
     all_assigns = list(AssegnazioneTurno.objects.filter(
-        turno__data__in=dates
+        turno__data__in=dates,
+        orario_inizio_previsto__isnull=False,
+        orario_fine_previsto__isnull=False
     ).select_related('turno__squadra', 'cliente'))
     
     # Raggruppa per (data, squadra)
     from collections import defaultdict
     per_day_squadra = defaultdict(list)
     for a in all_assigns:
-        per_day_squadra[(a.turno.data, a.turno.squadra.id)].append(a)
+        if a.turno and a.turno.squadra:
+            per_day_squadra[(a.turno.data, a.turno.squadra.id)].append(a)
     
     for key, assigns in per_day_squadra.items():
         for i in range(len(assigns)):
             for j in range(i + 1, len(assigns)):
                 a1, a2 = assigns[i], assigns[j]
-                if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
-                    overlaps.append({
-                        'data': key[0].strftime('%d/%m'),
-                        'squadra': a1.turno.squadra.nome,
-                        'c1': str(a1.cliente),
-                        'c2': str(a2.cliente),
-                        'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
-                    })
+                if a1.orario_inizio_previsto and a1.orario_fine_previsto and a2.orario_inizio_previsto and a2.orario_fine_previsto:
+                    if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
+                        overlaps.append({
+                            'data': key[0].strftime('%d/%m'),
+                            'squadra': a1.turno.squadra.nome,
+                            'c1': str(a1.cliente),
+                            'c2': str(a2.cliente),
+                            'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
+                        })
 
     # Pre-carica tutti i TimeTracking per la settimana per efficienza
     from core.models import TimeTracking
@@ -306,21 +316,31 @@ def weekly_schedule_widget(context):
             HOUR_PX = 80
             grid_start_min = 4 * 60
 
-            for assign in sorted(shift.assegnazioni.all(), key=lambda a: a.orario_inizio_previsto):
+            # Filtra solo assegnazioni con orari previsti non nulli
+            valid_assigns = [
+                a for a in shift.assegnazioni.all()
+                if a.orario_inizio_previsto is not None and a.orario_fine_previsto is not None
+            ]
+            for assign in sorted(valid_assigns, key=lambda a: a.orario_inizio_previsto):
                 start = assign.orario_inizio_previsto.strftime('%H:%M')
                 end   = assign.orario_fine_previsto.strftime('%H:%M')
 
                 tt = tt_map.get(assign.id)
                 def _fmt_ore(ore_float):
                     """Converte 7.5 → '7h30'' | 7.0 → '7h' | 0.5 → '30'"""
-                    h = int(ore_float)
-                    m = int(round((ore_float - h) * 60))
-                    if h and m:
-                        return f"{h}h{m:02d}'"
-                    elif h:
-                        return f"{h}h"
-                    else:
-                        return f"{m}'"
+                    if ore_float is None:
+                        return '—'
+                    try:
+                        h = int(ore_float)
+                        m = int(round((ore_float - h) * 60))
+                        if h and m:
+                            return f"{h}h{m:02d}'"
+                        elif h:
+                            return f"{h}h"
+                        else:
+                            return f"{m}'"
+                    except (TypeError, ValueError):
+                        return '—'
 
                 if tt and tt.is_validated:
                     ore_stato = 'green';  ore_label = _fmt_ore(tt.durata_ore) + ' ✓'

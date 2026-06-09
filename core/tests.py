@@ -77,6 +77,22 @@ class BirthdayWidgetTestCase(TestCase):
         d2.refresh_from_db()
         self.assertEqual(d2.data_nascita.day, 1) # 41 - 40 = 1
 
+    def test_leap_year_birthday(self):
+        # Create an employee born on February 29th of a leap year (e.g. 1988)
+        d = Dipendente.objects.create(
+            nome='LeapYear', cognome='Born',
+            codice_fiscale='BRNLYR88B29H501A', # 88 = 1988, B = Feb, 29 = 29th
+            stato='ATTIVO',
+            data_nascita=datetime.date(1988, 2, 29)
+        )
+        
+        # Test widget rendering - it should not crash even if today is a non-leap year (e.g. 2026)
+        try:
+            context = upcoming_birthdays_widget()
+            self.assertIn('employees_birthdays', context)
+        except ValueError as e:
+            self.fail(f"upcoming_birthdays_widget crashed with leap year birthday: {e}")
+
 class WeeklyScheduleWidgetTestCase(TestCase):
     def test_schedule_generation(self):
         from core.templatetags.dashboard_extras import weekly_schedule_widget
