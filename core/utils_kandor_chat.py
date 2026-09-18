@@ -76,6 +76,10 @@ def get_calendario_giornaliero(dipendente, data_calendario):
                 testo += f"🏢 *{cliente_nome}*\n"
                 testo += f"🕒 {inizio} - {fine} (Squadra: {squadra_nome})\n"
                 
+                # Note/mansioni del turno (inserite dall'app)
+                if a.mansione_svolta:
+                    testo += f"📋 Mansione: {a.mansione_svolta}\n"
+                
                 # Cerca timetracking
                 tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).first()
                 if tt:
