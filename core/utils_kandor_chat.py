@@ -51,11 +51,68 @@ def parse_message(text):
 
 # ========== MENU INTERATTIVO ==========
 
+def get_calendario_giornaliero(dipendente, data_calendario):
+    """Genera il testo e i bottoni per il calendario giornaliero."""
+    try:
+        from datetime import timedelta
+        
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data=data_calendario
+        ).filter(
+            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).select_related('cliente', 'turno').distinct().order_by('orario_inizio_previsto')
+        
+        testo = f"📅 Calendario del {data_calendario.strftime('%d/%m/%Y')}\n\n"
+        
+        if not assegnazioni.exists():
+            testo += "Nessun turno assegnato per questa giornata.\n"
+        else:
+            for a in assegnazioni:
+                inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
+                fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
+                cliente_nome = a.cliente.ragione_sociale
+                squadra_nome = a.turno.squadra.nome
+                
+                testo += f"🏢 *{cliente_nome}*\n"
+                testo += f"🕒 {inizio} - {fine} (Squadra: {squadra_nome})\n"
+                
+                # Cerca timetracking
+                tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).first()
+                if tt:
+                    ore = tt.ore_dichiarate if tt.ore_dichiarate else 'N/D'
+                    note = tt.note if tt.note else 'Nessuna'
+                    testo += f"✅ Ore registrate: {ore}h\n"
+                    testo += f"📝 Note: {note}\n"
+                else:
+                    testo += f"⏳ Ore non ancora registrate.\n"
+                testo += "\n"
+        
+        # Bottoni prev/next
+        prev_data = data_calendario - timedelta(days=1)
+        next_data = data_calendario + timedelta(days=1)
+        
+        keyboard = [
+            [
+                {'text': '⬅️ Precedente', 'callback_data': f'cal_prev_{prev_data.strftime("%Y-%m-%d")}'},
+                {'text': 'Successivo ➡️', 'callback_data': f'cal_next_{next_data.strftime("%Y-%m-%d")}'}
+            ],
+            [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+        ]
+        
+        # Parse_mode non e supportato da default, ma i telegram clients renderizzano Markdown se inviato dal bot 
+        # se parse_mode e supportato dalla API call. Qui restituiamo il text raw, i caratteri speciali faranno da UI.
+        
+        return {'text': testo, 'reply_markup': {'inline_keyboard': keyboard}, 'parse_mode': 'Markdown'}
+    except Exception as e:
+        return {'text': f'Errore calendario: {str(e)}', 'reply_markup': get_main_menu()}
+
+
 def get_main_menu():
     """Ritorna il menu principale con bottoni inline."""
     return {
         'inline_keyboard': [
             [{'text': '⏱ Registra Ore', 'callback_data': 'menu_ore'}],
+            [{'text': '📅 Calendario', 'callback_data': 'menu_calendario'}],
             [{'text': '📋 Turni da compilare', 'callback_data': 'menu_turni_mancanti'}],
             [{'text': 'Malattia', 'callback_data': 'menu_malattia'},
              {'text': 'Ferie', 'callback_data': 'menu_ferie'}],
@@ -380,6 +437,22 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
             'reply_markup': get_turni_oggi_keyboard(dipendente)
         }
     
+    # Turni da compilare
+    # Calendario - Oggi
+    if callback_data == 'menu_calendario':
+        oggi = timezone.now().date()
+        return get_calendario_giornaliero(dipendente, oggi)
+    
+    # Calendario - Navigazione
+    if callback_data.startswith('cal_prev_') or callback_data.startswith('cal_next_'):
+        try:
+            from datetime import datetime
+            date_str = callback_data.split('_')[2]
+            data_cal = datetime.strptime(date_str, '%Y-%m-%d').date()
+            return get_calendario_giornaliero(dipendente, data_cal)
+        except Exception:
+            return {'text': 'Errore navigazione data.', 'reply_markup': get_main_menu()}
+
     # Turni da compilare
     if callback_data == 'menu_turni_mancanti':
         return {
