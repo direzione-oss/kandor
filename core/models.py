@@ -48,6 +48,14 @@ class Dipendente(models.Model):
     file_contratto = models.FileField(upload_to='contratti/', null=True, blank=True)
     data_assunzione = models.DateField(null=True, blank=True, verbose_name="Data di Assunzione")
     data_licenziamento = models.DateField(null=True, blank=True, verbose_name="Data di Licenziamento")
+    is_part_time = models.BooleanField(default=False, verbose_name="Contratto Part-Time")
+    ore_settimanali_part_time = models.DecimalField(
+        max_digits=4, decimal_places=1,
+        null=True, blank=True,
+        verbose_name="Ore Settimanali (Part-Time)",
+        help_text="Compilare solo se il contratto è Part-Time"
+    )
+    data_ultima_visita_medica = models.DateField(null=True, blank=True, verbose_name="Data Ultima Visita Medica")
     
     # Relazioni
     qualifiche = models.ManyToManyField(Qualifica, related_name='dipendenti', blank=True, verbose_name="Qualifiche Possedute")

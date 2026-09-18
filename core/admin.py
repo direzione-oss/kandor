@@ -95,7 +95,12 @@ class DipendenteAdmin(admin.ModelAdmin):
             'fields': ('stato',)
         }),
         ('Dati Contrattuali', {
-            'fields': ('categoria_protetta', 'file_contratto', 'data_assunzione', 'data_licenziamento'),
+            'fields': (
+                'categoria_protetta', 'file_contratto',
+                'data_assunzione', 'data_licenziamento',
+                'is_part_time', 'ore_settimanali_part_time',
+                'data_ultima_visita_medica',
+            ),
             'description': 'Inserire la data di assunzione e, se applicabile, la data di fine rapporto.',
         }),
         ('Qualifiche & Squadra', {
