@@ -82,11 +82,30 @@ admin.site.index_title = "Benvenuto in Kandor"
 
 @admin.register(Dipendente)
 class DipendenteAdmin(admin.ModelAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
     list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
     actions = ['send_telegram_message_action']
+    fieldsets = (
+        ('Dati Anagrafici', {
+            'fields': ('nome', 'cognome', 'codice_fiscale', 'data_nascita', 'indirizzo_residenza', 'email', 'telefono')
+        }),
+        ('Stato', {
+            'fields': ('stato',)
+        }),
+        ('Dati Contrattuali', {
+            'fields': ('categoria_protetta', 'file_contratto', 'data_assunzione', 'data_licenziamento'),
+            'description': 'Inserire la data di assunzione e, se applicabile, la data di fine rapporto.',
+        }),
+        ('Qualifiche & Squadra', {
+            'fields': ('qualifiche', 'is_sostituto')
+        }),
+        ('Integrazione Telegram', {
+            'fields': ('telegram_chat_id', 'riceve_notifiche_messaggi', 'foto_profilo_url', 'foto', 'foto_url'),
+            'classes': ('collapse',)
+        }),
+    )
     
     def foto_avatar(self, obj):
         from django.utils.html import format_html

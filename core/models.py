@@ -22,6 +22,7 @@ class Qualifica(models.Model):
 class Dipendente(models.Model):
     STATO_CHOICES = [
         ('ATTIVO', 'Attivo'),
+        ('TIROCINIO', 'Tirocinio'),
         ('MALATTIA', 'In Malattia'),
         ('FERIE', 'In Ferie'),
         ('PERMESSO', 'In Permesso'),
@@ -45,6 +46,8 @@ class Dipendente(models.Model):
     # Dati Contrattuali
     categoria_protetta = models.BooleanField(default=False)
     file_contratto = models.FileField(upload_to='contratti/', null=True, blank=True)
+    data_assunzione = models.DateField(null=True, blank=True, verbose_name="Data di Assunzione")
+    data_licenziamento = models.DateField(null=True, blank=True, verbose_name="Data di Licenziamento")
     
     # Relazioni
     qualifiche = models.ManyToManyField(Qualifica, related_name='dipendenti', blank=True, verbose_name="Qualifiche Possedute")
