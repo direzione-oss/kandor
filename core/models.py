@@ -427,6 +427,8 @@ class Assenza(models.Model):
     tipo = models.CharField(max_length=20, choices=TIPO_ASSENZA)
     data_inizio = models.DateField()
     data_fine = models.DateField()
+    ora_inizio = models.TimeField(null=True, blank=True, verbose_name="Ora Inizio")
+    ora_fine = models.TimeField(null=True, blank=True, verbose_name="Ora Fine")
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True) # Allow null for existing rows
     source = models.CharField(max_length=20, default='MANUAL') # MANUAL, TELEGRAM

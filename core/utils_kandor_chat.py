@@ -228,31 +228,496 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     
     # COMANDO /malattia
     if clean_text in ('/malattia', 'malattia'):
-        today = timezone.now().date()
-        from .models import Assenza
-        Assenza.objects.create(
-            dipendente=dipendente, tipo='MALATTIA',
-            data_inizio=today, data_fine=today,
-            note=f"Via Telegram: {text}", source='TELEGRAM'
-        )
-        return {
-            'text': f"Registrata MALATTIA per oggi ({today.strftime('%d/%m')}). Riposati {dipendente.nome}!",
-            'reply_markup': get_main_menu()
-        }
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_date_malattia'}
+        return {'text': 'Scrivi la data o il periodo di Malattia (es: 15/10/2026, oppure 15/10/2026 - 18/10/2026):'}
+
 
     # COMANDO /ferie
     if clean_text in ('/ferie', 'ferie'):
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_date_ferie'}
+        return {'text': 'Scrivi la data o il periodo di Ferie (es: 15/10/2026, oppure 15/10/2026 - 18/10/2026):'}
+
+
+    # COMANDO /permesso
+    if clean_text in ('/permesso', 'permesso'):
         today = timezone.now().date()
         from .models import Assenza
         Assenza.objects.create(
-            dipendente=dipendente, tipo='FERIE',
+            dipendente=dipendente, tipo='PERMESSO',
             data_inizio=today, data_fine=today,
             note=f"Via Telegram: {text}", source='TELEGRAM'
         )
         return {
-            'text': f"Ferie registrate per oggi ({today.strftime('%d/%m')}). Buon relax {dipendente.nome}!",
+            'text': f"Permesso registrato per oggi ({today.strftime('%d/%m')}).",
             'reply_markup': get_main_menu()
         }
+
+    # SEGNALAZIONE
+    if clean_text.startswith('/segnalazione') or clean_text.startswith('segnalazione'):
+        from .models import Segnalazione
+        contenuto = text.lower().replace('/segnalazione', '').replace('segnalazione', '').strip()
+        if not contenuto:
+            _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
+            return "Scrivi il testo della segnalazione:"
+        Segnalazione.objects.create(dipendente=dipendente, testo=contenuto)
+        return {
+            'text': f"Segnalazione registrata: '{contenuto}'",
+            'reply_markup': get_main_menu()
+        }
+    
+    # Controlla stato conversazione (attesa input)
+    state = _TELEGRAM_STATE.get(telegram_chat_id)
+    if state:
+        action = state.get('action')
+        
+        # Attesa ore per un turno specifico
+        if action == 'attesa_ore':
+            assegnazione_id = state.get('assegnazione_id')
+            del _TELEGRAM_STATE[telegram_chat_id]
+            
+            try:
+                hours = float(clean_text.replace(',', '.').replace(':', '.'))
+            except ValueError:
+                return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
+            
+            try:
+                assegnazione = AssegnazioneTurno.objects.filter(
+                    pk=assegnazione_id
+                ).filter(
+                    Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+                ).select_related('cliente', 'turno').distinct().first()
+                if not assegnazione:
+                    return {"text": "Turno non trovato o non appartiene alla tua squadra.", "reply_markup": get_main_menu()}
+            except Exception:
+                return {"text": "Errore nel recupero del turno.", "reply_markup": get_main_menu()}
+            
+            return _salva_ore_turno(dipendente, assegnazione, hours, text)
+        
+        # Attesa testo segnalazione
+        
+        # Attesa date malattia o ferie
+        if action in ['attesa_date_malattia', 'attesa_date_ferie']:
+            del _TELEGRAM_STATE[telegram_chat_id]
+            import datetime
+            tipo = 'MALATTIA' if action == 'attesa_date_malattia' else 'FERIE'
+            # Parser data: DD/MM/YYYY (opzionale - DD/MM/YYYY)
+            pattern = r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?'
+            matches = re.findall(pattern, text)
+            
+            if not matches:
+                return "Formato non riconosciuto. Riprova (es. 15/10/2026 oppure 15/10/2026 - 18/10/2026)."
+            
+            today = timezone.now().date()
+            dates = []
+            for m in matches:
+                day, month = int(m[0]), int(m[1])
+                year = int(m[2]) if m[2] else today.year
+                if year < 100: year += 2000
+                try:
+                    dates.append(datetime.date(year, month, day))
+                except ValueError:
+                    return "Data non valida. Riprova."
+            
+            data_inizio = dates[0]
+            data_fine = dates[-1]
+            if data_fine < data_inizio:
+                data_inizio, data_fine = data_fine, data_inizio
+                
+            return _gestisci_assenza_con_sostituzione(dipendente, tipo, f"Registrata {tipo}", "", data_inizio=data_inizio, data_fine=data_fine)
+            
+        # Attesa dati permesso
+        if action == 'attesa_dati_permesso':
+            del _TELEGRAM_STATE[telegram_chat_id]
+            import datetime
+            
+            # Parser: 15/10/2026 09:00 - 11:00
+            date_pattern = r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?'
+            time_pattern = r'(\d{1,2}):(\d{2})'
+            
+            d_matches = re.findall(date_pattern, text)
+            t_matches = re.findall(time_pattern, text)
+            
+            today = timezone.now().date()
+            if not d_matches:
+                data_permesso = today
+            else:
+                m = d_matches[0]
+                day, month = int(m[0]), int(m[1])
+                year = int(m[2]) if m[2] else today.year
+                if year < 100: year += 2000
+                try:
+                    data_permesso = datetime.date(year, month, day)
+                except ValueError:
+                    return "Data non valida."
+            
+            if len(t_matches) < 2:
+                return "Devi specificare sia l'ora di inizio che l'ora di fine (es. 09:00 - 11:00)."
+                
+            try:
+                ora_inizio = datetime.time(int(t_matches[0][0]), int(t_matches[0][1]))
+                ora_fine = datetime.time(int(t_matches[1][0]), int(t_matches[1][1]))
+            except ValueError:
+                return "Orari non validi."
+                
+            return _gestisci_assenza_con_sostituzione(dipendente, 'PERMESSO', "Permesso registrato", "", data_inizio=data_permesso, data_fine=data_permesso, ora_inizio=ora_inizio, ora_fine=ora_fine)
+
+        if action == 'segnalazione':
+            del _TELEGRAM_STATE[telegram_chat_id]
+            from .models import Segnalazione
+            Segnalazione.objects.create(dipendente=dipendente, testo=text.strip())
+            return {
+                'text': f"Segnalazione registrata: '{text.strip()}'",
+                'reply_markup': get_main_menu()
+            }
+    
+    # Nessun comando riconosciuto: mostra menu
+    return {
+        'text': f"Ciao {dipendente.nome}! Usa i bottoni per navigare il menu.\nPuoi anche scrivere:\n- /ore — registra ore\n- /malattia, /ferie, /permesso\n- /segnalazione testo",
+        'reply_markup': get_main_menu()
+    }
+
+
+def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, msg_aggiuntivo, data_inizio=None, data_fine=None, ora_inizio=None, ora_fine=None):
+    """
+    Registra l'assenza e verifica se il dipendente aveva turni nel periodo.
+    Se si, avvia automaticamente la procedura di sostituzione per ogni turno.
+    """
+    today = timezone.now().date()
+    if not data_inizio:
+        data_inizio = today
+    if not data_fine:
+        data_fine = data_inizio
+
+    from .models import Assenza, AssegnazioneTurno, Squadra
+    from django.db.models import Q
+    
+    # 1. Registra l'assenza
+    Assenza.objects.create(
+        dipendente=dipendente, tipo=tipo_assenza,
+        data_inizio=data_inizio, data_fine=data_fine,
+        ora_inizio=ora_inizio, ora_fine=ora_fine,
+        note="Via bottone Telegram", source='TELEGRAM'
+    )
+    
+    # 2. Cerca turni nel periodo dove il dipendente e coinvolto
+    squadre_dipendente = Squadra.objects.filter(
+        Q(componenti=dipendente) | Q(caposquadra=dipendente)
+    ).distinct()
+    
+    assegnazioni_oggi = AssegnazioneTurno.objects.filter(
+        turno__data__range=[data_inizio, data_fine],
+        turno__squadra__in=squadre_dipendente
+    ).select_related('turno', 'turno__squadra', 'cliente')
+    
+    turni_scoperti = list(assegnazioni_oggi)
+    
+    # 3. Componi messaggio base
+    if data_inizio == data_fine:
+        periodo_str = data_inizio.strftime('%d/%m/%Y')
+    else:
+        periodo_str = f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}"
+        
+    testo = f"{msg_conferma} per il periodo: {periodo_str}."
+    if ora_inizio and ora_fine:
+        testo += f" Dalle {ora_inizio.strftime('%H:%M')} alle {ora_fine.strftime('%H:%M')}."
+    if msg_aggiuntivo:
+        testo += f" {msg_aggiuntivo}"
+    
+    # 4. Se ci sono turni, avvia la sostituzione automatica
+    if turni_scoperti:
+        testo += f"\n\n🚨 ATTENZIONE: Hai {len(turni_scoperti)} turno/i nel periodo indicato!\n"
+        
+        richieste_create = 0
+        for assegnazione in turni_scoperti:
+            testo += f"  👉 {assegnazione.cliente.ragione_sociale} ({assegnazione.orario_inizio_previsto.strftime('%H:%M')}-{assegnazione.orario_fine_previsto.strftime('%H:%M')})\n"
+            
+            try:
+                from .services import crea_richiesta_sostituzione
+                motivo_map = {
+                    'MALATTIA': 'MALATTIA',
+                    'FERIE': 'FERIE',
+                    'PERMESSO': 'PERMESSO',
+                }
+                crea_richiesta_sostituzione(
+                    assegnazione, 
+                    dipendente, 
+                    motivo_map.get(tipo_assenza, 'ALTRO'),
+                    f"Comunicato via Telegram"
+                )
+                richieste_create += 1
+            except Exception as e:
+                print(f"[Sostituzione Auto] Errore per assegnazione {assegnazione.pk}: {e}")
+        
+        if richieste_create > 0:
+            testo += f"\n✅ Procedura sostituzione avviata per {richieste_create} turno/i."
+            testo += "\nIl Responsabile Area e stato notificato."
+        
+        # Notifica anche l'admin via Telegram (se configurato)
+        try:
+            from django.conf import settings
+            admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
+            if admin_chat_id:
+                token = settings.TELEGRAM_BOT_TOKEN
+                alert_msg = (
+                    f"⚠️ ALERT ASSENZA\n\n"
+                    f"👤 {dipendente.cognome} {dipendente.nome} ha comunicato {tipo_assenza}\n"
+                    f"📅 Periodo: {periodo_str}\n"
+                )
+                if ora_inizio and ora_fine:
+                    alert_msg += f"🕒 Orario: {ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}\n"
+                alert_msg += f"🚨 Turni scoperti: {len(turni_scoperti)}\n"
+
+                for a in turni_scoperti:
+                    alert_msg += f"  👉 {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')}) 👥 Squadra: {a.turno.squadra.nome}\n"
+                alert_msg += "\n✅ Procedura sostituzione avviata automaticamente."
+                
+                import requests as req
+                req.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={'chat_id': admin_chat_id, 'text': alert_msg}
+                )
+        except Exception as e:
+            print(f"[Telegram Alert Admin Error] {e}")
+            
+    return {'text': testo, 'reply_markup': get_main_menu()}
+imedelta
+from django.utils import timezone
+from .models import Dipendente, Cliente, TimeTracking, AssegnazioneTurno, Turno, Squadra, Mezzo
+from django.db.models import Q
+
+def normalize_text(text):
+    """Rimuove caratteri speciali e normalizza spazi"""
+    if not text:
+        return ""
+    return re.sub(r'\s+', ' ', text.strip().lower())
+
+def fuzzy_find_cliente(query_name):
+    """Cerca il cliente che meglio matcha il nome fornito."""
+    query = normalize_text(query_name)
+    candidates = Cliente.objects.all()
+    best_match = None
+    best_score = 0
+    
+    for c in candidates:
+        c_name = normalize_text(c.ragione_sociale)
+        if query == c_name:
+            return c
+        if query in c_name:
+            score = len(query) / len(c_name)
+            if score > best_score:
+                best_score = score
+                best_match = c
+    
+    return best_match
+
+def parse_message(text):
+    """Estrae (nome_cliente, ore) dal testo."""
+    match = re.search(r'^(.*?)(\d+[.,:]?\d*)$', text.strip())
+    
+    if match:
+        client_part = match.group(1).strip()
+        time_part = match.group(2).strip().replace(',', '.')
+        
+        hours = 0.0
+        if ':' in time_part:
+            h, m = time_part.split(':')
+            hours = int(h) + int(m)/60
+        else:
+            hours = float(time_part)
+            
+        return client_part, round(hours, 2)
+    
+    return None, None
+
+
+# ========== MENU INTERATTIVO ==========
+
+def get_calendario_giornaliero(dipendente, data_calendario):
+    """Genera il testo e i bottoni per il calendario giornaliero."""
+    try:
+        from datetime import timedelta
+        
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data=data_calendario
+        ).filter(
+            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).select_related('cliente', 'turno').distinct().order_by('orario_inizio_previsto')
+        
+        testo = f"📅 Calendario del {data_calendario.strftime('%d/%m/%Y')}\n\n"
+        
+        if not assegnazioni.exists():
+            testo += "Nessun turno assegnato per questa giornata.\n"
+        else:
+            for a in assegnazioni:
+                inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
+                fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
+                cliente_nome = a.cliente.ragione_sociale
+                squadra_nome = a.turno.squadra.nome
+                
+                testo += f"🏢 *{cliente_nome}*\n"
+                testo += f"🕒 {inizio} - {fine} (Squadra: {squadra_nome})\n"
+                
+                # Note/mansioni del turno (inserite dall'app)
+                if a.mansione_svolta:
+                    testo += f"📋 Mansione: {a.mansione_svolta}\n"
+                
+                # Cerca timetracking
+                tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).first()
+                if tt:
+                    ore = tt.ore_dichiarate if tt.ore_dichiarate else 'N/D'
+                    note = tt.note if tt.note else 'Nessuna'
+                    testo += f"✅ Ore registrate: {ore}h\n"
+                    testo += f"📝 Note: {note}\n"
+                else:
+                    testo += f"⏳ Ore non ancora registrate.\n"
+                testo += "\n"
+        
+        # Bottoni prev/next
+        prev_data = data_calendario - timedelta(days=1)
+        next_data = data_calendario + timedelta(days=1)
+        
+        keyboard = [
+            [
+                {'text': '⬅️ Precedente', 'callback_data': f'cal_prev_{prev_data.strftime("%Y-%m-%d")}'},
+                {'text': 'Successivo ➡️', 'callback_data': f'cal_next_{next_data.strftime("%Y-%m-%d")}'}
+            ],
+            [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+        ]
+        
+        # Parse_mode non e supportato da default, ma i telegram clients renderizzano Markdown se inviato dal bot 
+        # se parse_mode e supportato dalla API call. Qui restituiamo il text raw, i caratteri speciali faranno da UI.
+        
+        return {'text': testo, 'reply_markup': {'inline_keyboard': keyboard}, 'parse_mode': 'Markdown'}
+    except Exception as e:
+        return {'text': f'Errore calendario: {str(e)}', 'reply_markup': get_main_menu()}
+
+
+def get_main_menu():
+    """Ritorna il menu principale con bottoni inline."""
+    return {
+        'inline_keyboard': [
+            [{'text': '⏱ Registra Ore', 'callback_data': 'menu_ore'}],
+            [{'text': '📅 Calendario', 'callback_data': 'menu_calendario'}],
+            [{'text': '📋 Turni da compilare', 'callback_data': 'menu_turni_mancanti'}],
+            [{'text': 'Malattia', 'callback_data': 'menu_malattia'},
+             {'text': 'Ferie', 'callback_data': 'menu_ferie'}],
+            [{'text': 'Permesso', 'callback_data': 'menu_permesso'},
+             {'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}],
+            [{'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}],
+            [{'text': '📖 Guida', 'url': 'https://kandor.onrender.com/manuale-dipendente/'}],
+        ]
+    }
+
+def get_turni_oggi_keyboard(dipendente):
+    """Ritorna tastiera inline con i turni di OGGI del dipendente."""
+    try:
+        today = timezone.now().date()
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data=today
+        ).filter(
+            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).select_related('cliente', 'turno').distinct()
+        
+        keyboard = []
+        for a in assegnazioni:
+            inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
+            fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
+            cliente_nome = a.cliente.ragione_sociale[:20] if a.cliente else 'N/D'
+            label = f"{cliente_nome} ({inizio}-{fine})"
+            # Controlla se già compilato
+            has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
+            if has_tt:
+                label = f"✅ {label}"
+            keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
+        
+        if not keyboard:
+            keyboard.append([{'text': '— Nessun turno oggi —', 'callback_data': 'menu_start'}])
+        keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+        return {'inline_keyboard': keyboard}
+    except Exception as e:
+        return {'inline_keyboard': [
+            [{'text': f'Errore: {str(e)[:40]}', 'callback_data': 'menu_start'}],
+            [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+        ]}
+
+def get_turni_non_compilati_keyboard(dipendente):
+    """Ritorna tastiera con turni passati senza ore compilate (ultimi 7 giorni)."""
+    try:
+        from datetime import timedelta as td
+        today = timezone.now().date()
+        sette_giorni_fa = today - td(days=7)
+        
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data__gte=sette_giorni_fa,
+            turno__data__lte=today,
+        ).filter(
+            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
+        
+        keyboard = []
+        for a in assegnazioni:
+            has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
+            if not has_tt:
+                data_str = a.turno.data.strftime('%d/%m')
+                inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
+                fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
+                cliente_nome = a.cliente.ragione_sociale[:18] if a.cliente else 'N/D'
+                label = f"🔴 {data_str} {cliente_nome} ({inizio}-{fine})"
+                keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
+        
+        if not keyboard:
+            keyboard.append([{'text': '✅ Tutto compilato!', 'callback_data': 'menu_start'}])
+        keyboard.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+        return {'inline_keyboard': keyboard}
+    except Exception as e:
+        return {'inline_keyboard': [
+            [{'text': f'Errore: {str(e)[:40]}', 'callback_data': 'menu_start'}],
+            [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+        ]}
+
+
+# Stato conversazione multi-step (in memoria)
+_TELEGRAM_STATE = {}
+
+
+def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
+    """
+    Logica principale con supporto comandi e menu interattivo.
+    Ritorna stringa o dict con text + reply_markup.
+    """
+    dipendenti = Dipendente.objects.filter(telegram_chat_id=telegram_chat_id, stato='ATTIVO')
+    
+    if not dipendenti.exists():
+        return f"Non ti conosco! Il tuo ID Telegram e': {telegram_chat_id}\nInvialo all'amministratore per farti abilitare."
+    
+    dipendente = dipendenti.first()
+    clean_text = normalize_text(text)
+    
+    # COMANDI /start e /menu
+    if clean_text in ('/start', '/menu', 'menu', 'start'):
+        return {
+            'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
+            'reply_markup': get_main_menu()
+        }
+    
+    # COMANDO /ore
+    if clean_text == '/ore':
+        return {
+            'text': "Seleziona il turno di oggi per cui registrare le ore:",
+            'reply_markup': get_turni_oggi_keyboard(dipendente)
+        }
+    
+    # COMANDO /malattia
+    if clean_text in ('/malattia', 'malattia'):
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_date_malattia'}
+        return {'text': 'Scrivi la data o il periodo di Malattia (es: 15/10/2026, oppure 15/10/2026 - 18/10/2026):'}
+
+
+    # COMANDO /ferie
+    if clean_text in ('/ferie', 'ferie'):
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_date_ferie'}
+        return {'text': 'Scrivi la data o il periodo di Ferie (es: 15/10/2026, oppure 15/10/2026 - 18/10/2026):'}
+
 
     # COMANDO /permesso
     if clean_text in ('/permesso', 'permesso'):
@@ -466,15 +931,18 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     
     # Malattia
     if callback_data == 'menu_malattia':
-        return _gestisci_assenza_con_sostituzione(dipendente, 'MALATTIA', 'Registrata MALATTIA', 'Riposati!')
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_date_malattia'}
+        return {'text': 'Scrivi la data o il periodo di Malattia (es: 15/10/2026, oppure 15/10/2026 - 18/10/2026):'}
     
     # Ferie
     if callback_data == 'menu_ferie':
-        return _gestisci_assenza_con_sostituzione(dipendente, 'FERIE', 'Ferie registrate', 'Buon relax!')
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_date_ferie'}
+        return {'text': 'Scrivi la data o il periodo di Ferie (es: 15/10/2026, oppure 15/10/2026 - 18/10/2026):'}
     
     # Permesso
     if callback_data == 'menu_permesso':
-        return _gestisci_assenza_con_sostituzione(dipendente, 'PERMESSO', 'Permesso registrato', '')
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_dati_permesso'}
+        return {'text': 'Scrivi la data e gli orari del permesso (es: 15/10/2026 09:00 - 11:00):'}
     
     # Segnalazione -> chiedi testo
     if callback_data == 'menu_segnalazione':
