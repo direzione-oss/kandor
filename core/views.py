@@ -913,12 +913,13 @@ def telegram_webhook_view(request):
                             foto_url=foto_url,
                             direzione='IN'
                         )
-                        # Notifica admin, RA e titolari del nuovo messaggio
-                        try:
-                            from .services import notifica_nuovo_messaggio
-                            notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=foto_url)
-                        except Exception:
-                            pass
+                        # Notifica admin, RA e titolari del nuovo messaggio (DISABILITATO COME RICHIESTO)
+                        # visualizzandoli solo nel centro messaggi del server
+                        # try:
+                        #     from .services import notifica_nuovo_messaggio
+                        #     notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=foto_url)
+                        # except Exception:
+                        #     pass
                 except Exception:
                     pass
                 

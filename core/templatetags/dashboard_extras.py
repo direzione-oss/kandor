@@ -148,12 +148,12 @@ def upcoming_birthdays_widget():
 def weekly_schedule_widget(context):
     request = context.get('request')
     try:
-        week_offset = int(request.GET.get('week', 0))
-    except (ValueError, TypeError):
+        week_offset = int(request.GET.get('week', 0)) if request else 0
+    except (ValueError, TypeError, AttributeError):
         week_offset = 0
     
     # Filtro squadra
-    squadra_filter = request.GET.get('squadra', '')
+    squadra_filter = request.GET.get('squadra', '') if request else ''
         
     from core.models import Turno, Squadra, AssegnazioneTurno
     today = timezone.now().date()
@@ -213,22 +213,28 @@ def weekly_schedule_widget(context):
                             if delta >= 0 and (delta // 7) % 2 == 0:
                                 match = True
                     if match:
-                        turno, _ = Turno.objects.get_or_create(data=d, squadra=p.squadra_abituale, defaults={'mezzo': p.mezzo_abituale})
-                        if not AssegnazioneTurno.objects.filter(turno=turno, programmazione_feriale=p).exists():
-                            oi = p.ora_inizio
-                            if p.durata:
-                                dt_s = _dt.combine(d, oi)
-                                h = int(p.durata); m = int((p.durata - h) * 60)
-                                of = (dt_s + timedelta(hours=h, minutes=m)).time()
-                            else:
-                                of = oi
-                            AssegnazioneTurno.objects.create(
-                                turno=turno, cliente=p.cliente, programmazione_feriale=p,
-                                orario_inizio_previsto=oi, orario_fine_previsto=of,
-                                mansione_svolta=f"Generato autom. ({p.qualifica_richiesta})"
-                            )
-        except Exception:
-            pass
+                        try:
+                            turno = Turno.objects.filter(data=d, squadra=p.squadra_abituale).first()
+                            if not turno:
+                                turno = Turno.objects.create(data=d, squadra=p.squadra_abituale, mezzo=p.mezzo_abituale)
+                            
+                            if not AssegnazioneTurno.objects.filter(turno=turno, programmazione_feriale=p).exists():
+                                oi = p.ora_inizio
+                                if p.durata:
+                                    dt_s = _dt.combine(d, oi)
+                                    h = int(p.durata); m = int((p.durata - h) * 60)
+                                    of = (dt_s + timedelta(hours=h, minutes=m)).time()
+                                else:
+                                    of = oi
+                                AssegnazioneTurno.objects.create(
+                                    turno=turno, cliente=p.cliente, programmazione_feriale=p,
+                                    orario_inizio_previsto=oi, orario_fine_previsto=of,
+                                    mansione_svolta=f"Generato autom. ({p.qualifica_richiesta})"
+                                )
+                        except Exception as e:
+                            print(f"[WeeklySchedule] Errore generazione turno automatico: {e}")
+        except Exception as e:
+            print(f"[WeeklySchedule] Errore generale in generazione turni: {e}")
     
     # RILEVAMENTO SOVRAPPOSIZIONI: stessa squadra, stesso giorno, orari sovrapposti
     overlaps = []
