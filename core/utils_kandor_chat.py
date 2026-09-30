@@ -443,12 +443,13 @@ def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, m
             testo += f"\n✅ Procedura sostituzione avviata per {richieste_create} turno/i."
             testo += "\nIl Responsabile Area e stato notificato."
         
-        # Notifica anche l'admin via Telegram (se configurato)
-        try:
-            from django.conf import settings
-            admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
-            if admin_chat_id:
-                token = settings.TELEGRAM_BOT_TOKEN
+    # Notifica anche l'admin via Telegram (sempre)
+    try:
+        from django.conf import settings
+        admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
+        if admin_chat_id:
+            token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+            if token:
                 alert_msg = (
                     f"⚠️ ALERT ASSENZA\n\n"
                     f"👤 {dipendente.cognome} {dipendente.nome} ha comunicato {tipo_assenza}\n"
@@ -456,19 +457,23 @@ def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, m
                 )
                 if ora_inizio and ora_fine:
                     alert_msg += f"🕒 Orario: {ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}\n"
-                alert_msg += f"🚨 Turni scoperti: {len(turni_scoperti)}\n"
-
-                for a in turni_scoperti:
-                    alert_msg += f"  👉 {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')}) 👥 Squadra: {a.turno.squadra.nome}\n"
-                alert_msg += "\n✅ Procedura sostituzione avviata automaticamente."
+                
+                if not turni_scoperti:
+                    alert_msg += "\nℹ️ Nessun turno previsto nel periodo indicato."
+                else:
+                    alert_msg += f"🚨 Turni scoperti: {len(turni_scoperti)}\n"
+                    for a in turni_scoperti:
+                        alert_msg += f"  👉 {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')}) 👥 Squadra: {a.turno.squadra.nome}\n"
+                    alert_msg += "\n✅ Procedura sostituzione avviata automaticamente."
                 
                 import requests as req
                 req.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={'chat_id': admin_chat_id, 'text': alert_msg}
+                    json={'chat_id': admin_chat_id, 'text': alert_msg},
+                    timeout=5
                 )
-        except Exception as e:
-            print(f"[Telegram Alert Admin Error] {e}")
+    except Exception as e:
+        print(f"[Telegram Alert Admin Error] {e}")
 
     # --- NOTIFICA DIRETTA AL RESPONSABILE AREA (sempre, anche senza turni) ---
     try:

@@ -90,6 +90,7 @@
   data-fine="{{ ev.ora_fine }}"
   data-note="{{ ev.note|escapejs }}"
   data-ore-previste="{{ ev.ore_previste }}"
+  data-ore-dichiarate="{{ ev.ore_dichiarate }}"
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
   data-ricorrente="{{ ev.is_ricorrente|yesno:'1,0' }}"
@@ -281,6 +282,7 @@ document.addEventListener('DOMContentLoaded',function(){
         el.getAttribute('data-ore-stato')||'white',
         el.getAttribute('data-ore-label')||'—',
         el.getAttribute('data-ore-previste')||'',
+        el.getAttribute('data-ore-dichiarate')||'',
         el.getAttribute('data-ricorrente')||'1'
       );
       return;
@@ -310,12 +312,13 @@ function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+
 
 var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
 
-function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,isRicorrente){
+function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente){
   _editId=assignId;
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
-  document.getElementById('edit-ore-input').value='';
+  var prefillOre = oreDichiarate ? oreDichiarate : (orePreviste || '');
+  document.getElementById('edit-ore-input').value = prefillOre;
   /* Ore previste: converti decimale in h+min */
   var _op=parseFloat(orePreviste)||0;
   document.getElementById('edit-ore-h').value=_op?Math.floor(_op):'';

@@ -396,6 +396,7 @@ def weekly_schedule_widget(context):
                     'ora_inizio':   start,
                     'ora_fine':     end,
                     'ore_previste': assign.ore_previste_contratto or '',
+                    'ore_dichiarate': float(tt.durata_ore) if tt and tt.durata_ore else '',
                     'note':         assign.mansione_svolta or '',
                     'ore_stato':    ore_stato,
                     'ore_label':    ore_label,
