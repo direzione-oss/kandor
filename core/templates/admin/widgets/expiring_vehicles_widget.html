@@ -1,34 +1,27 @@
 {% if vehicles %}
-<div class="module dashboard-widget"
-    style="margin-bottom: 20px; border: 1px solid #ff9800; border-radius: 5px; overflow: hidden;">
-    <h3 style="background: #ff9800; color: white; margin: 0; padding: 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+<div class="k-card" style="margin-bottom: 24px; border-top: 3px solid var(--warning);">
+    <div style="background: #0F172A; color: white; padding: 12px 18px; font-size: 0.9rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;"
         onclick="toggleWidget('vehicles-content', this)">
         <span>⚠️ Scadenze Mezzi (Prossimi 45 gg)</span>
-        <span style="font-size: 12px;">{% if has_urgent_7days %}▼{% else %}▶{% endif %}</span>
-    </h3>
+        <span id="veh-toggle-icon" style="font-size: 0.8rem;">{% if has_urgent_7days %}▼{% else %}▶{% endif %}</span>
+    </div>
     <div id="vehicles-content" style="padding: 0; {% if not has_urgent_7days %}display: none;{% endif %}">
-        <table style="width: 100%; border-collapse: collapse;">
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
             <thead>
                 <tr>
-                    <th
-                        style="width: 30%; padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; background: #fff3e0;">
-                        Mezzo</th>
-                    <th
-                        style="width: 20%; padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; background: #fff3e0;">
-                        Targa</th>
-                    <th
-                        style="padding: 8px 10px; text-align: left; border-bottom: 1px solid #eee; background: #fff3e0;">
-                        Scadenza</th>
+                    <th style="padding: 10px 14px; text-align: left;">Mezzo</th>
+                    <th style="padding: 10px 14px; text-align: left;">Targa</th>
+                    <th style="padding: 10px 14px; text-align: left;">Scadenza</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in vehicles %}
                 {% for alert in item.alerts %}
-                <tr style="border-bottom: 1px solid #eee;">
-                    <td style="padding: 8px 10px;"><strong>{{ item.obj.modello }}</strong></td>
-                    <td style="padding: 8px 10px;">{{ item.obj.targa }}</td>
-                    <td style="padding: 8px 10px;">
-                        <span style="color: {{ alert.color }}; font-weight: bold;">
+                <tr>
+                    <td style="padding: 10px 14px; font-weight: 700;">{{ item.obj.modello }}</td>
+                    <td style="padding: 10px 14px; font-family: monospace; font-size: 0.85rem; color: var(--text-muted);">{{ item.obj.targa }}</td>
+                    <td style="padding: 10px 14px;">
+                        <span class="k-badge" style="background: var(--warning-bg); color: #B45309; border: 1px solid #FDE68A;">
                             {{ alert.type }}: {{ alert.date|date:"d/m/Y" }} ({{ alert.status }})
                         </span>
                     </td>
@@ -46,10 +39,10 @@
             var icon = header.querySelector('span:last-child');
             if (content.style.display === "none") {
                 content.style.display = "block";
-                icon.innerText = "▼";
+                if (icon) icon.innerText = "▼";
             } else {
                 content.style.display = "none";
-                icon.innerText = "▶";
+                if (icon) icon.innerText = "▶";
             }
         }
     }

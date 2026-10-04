@@ -1,38 +1,34 @@
 {% if has_birthdays %}
-<div class="module dashboard-widget"
-    style="margin-bottom: 20px; border: 1px solid #79aec8; border-radius: 5px; overflow: hidden;">
-    <h3 style="background: #79aec8; color: white; margin: 0; padding: 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;"
+<div class="k-card" style="margin-bottom: 24px; border-top: 3px solid #3B82F6;">
+    <div style="background: #0F172A; color: white; padding: 12px 18px; font-size: 0.9rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;"
         onclick="toggleWidget('birthdays-content', this)">
         <span>🎂 Compleanni in Arrivo (20 giorni)</span>
-        <span style="font-size: 12px;">{% if has_urgent_7days %}▼{% else %}▶{% endif %}</span>
-    </h3>
+        <span id="bday-toggle-icon" style="font-size: 0.8rem;">{% if has_urgent_7days %}▼{% else %}▶{% endif %}</span>
+    </div>
     <div id="birthdays-content" style="padding: 0; {% if not has_urgent_7days %}display: none;{% endif %}">
-        <table style="width: 100%; border-collapse: collapse;">
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
             <tbody>
                 <!-- DIPENDENTI -->
                 {% if employees_birthdays %}
-                <tr style="background: #f8f9fa;">
-                    <td colspan="3"
-                        style="padding: 6px 10px; font-size: 11px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; border-bottom: 1px solid #eee;">
+                <tr>
+                    <td colspan="3" style="background: #F1F5F9; padding: 6px 14px; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
                         Dipendenti
                     </td>
                 </tr>
                 {% for item in employees_birthdays %}
-                <tr
-                    style="border-bottom: 1px solid #eee; background-color: {% if item.is_today %}#fff9c4{% else %}white{% endif %};">
-                    <td style="padding: 10px; color: #333;">
+                <tr style="{% if item.is_today %}background: #FFFBEB;{% endif %}">
+                    <td style="padding: 10px 14px; color: var(--text-main);">
                         <strong>{{ item.obj.nome }} {{ item.obj.cognome }}</strong>
                     </td>
-                    <td style="padding: 10px; text-align: right; color: #666;">
+                    <td style="padding: 10px 14px; text-align: right; color: var(--text-muted); font-size: 0.85rem;">
                         {% if item.is_today %}
-                        <span style="color: #d35400; font-weight: bold;">OGGI! 🎉</span>
+                        <span class="k-badge k-badge-warning" style="font-size:0.8rem; font-weight:700;">OGGI! 🎉</span>
                         {% else %}
                         {{ item.date|date:"d M" }} (tra {{ item.days_until }} gg)
                         {% endif %}
                     </td>
-                    <td style="padding: 10px; text-align: right;">
-                        <a href="/admin/core/dipendente/{{ item.obj.id }}/change/"
-                            style="text-decoration: none; color: #79aec8;">👤</a>
+                    <td style="padding: 10px 14px; text-align: right; width: 40px;">
+                        <a href="/admin/core/dipendente/{{ item.obj.id }}/change/" style="font-size: 1.1rem; text-decoration: none;">👤</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -40,29 +36,26 @@
 
                 <!-- CLIENTI -->
                 {% if clients_birthdays %}
-                <tr style="background: #f8f9fa;">
-                    <td colspan="3"
-                        style="padding: 6px 10px; font-size: 11px; font-weight: bold; color: #7f8c8d; text-transform: uppercase; border-bottom: 1px solid #eee;">
+                <tr>
+                    <td colspan="3" style="background: #F1F5F9; padding: 6px 14px; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
                         Clienti
                     </td>
                 </tr>
                 {% for item in clients_birthdays %}
-                <tr
-                    style="border-bottom: 1px solid #eee; background-color: {% if item.is_today %}#e8f5e9{% else %}white{% endif %};">
-                    <td style="padding: 10px; color: #333;">
+                <tr style="{% if item.is_today %}background: #ECFDF5;{% endif %}">
+                    <td style="padding: 10px 14px; color: var(--text-main);">
                         <strong>{{ item.obj.referente_nome }}</strong><br>
-                        <span style="font-size: 11px; color: #7f8c8d;">{{ item.obj.ragione_sociale }}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">{{ item.obj.ragione_sociale }}</span>
                     </td>
-                    <td style="padding: 10px; text-align: right; color: #666;">
+                    <td style="padding: 10px 14px; text-align: right; color: var(--text-muted); font-size: 0.85rem;">
                         {% if item.is_today %}
-                        <span style="color: #2ecc71; font-weight: bold;">OGGI! 🎁</span>
+                        <span class="k-badge k-badge-success" style="font-size:0.8rem; font-weight:700;">OGGI! 🎁</span>
                         {% else %}
                         {{ item.date|date:"d M" }} (tra {{ item.days_until }} gg)
                         {% endif %}
                     </td>
-                    <td style="padding: 10px; text-align: right;">
-                        <a href="/admin/core/cliente/{{ item.obj.id }}/change/"
-                            style="text-decoration: none; color: #79aec8;">🏢</a>
+                    <td style="padding: 10px 14px; text-align: right; width: 40px;">
+                        <a href="/admin/core/cliente/{{ item.obj.id }}/change/" style="font-size: 1.1rem; text-decoration: none;">🏢</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -79,10 +72,10 @@
             var icon = header.querySelector('span:last-child');
             if (content.style.display === "none") {
                 content.style.display = "block";
-                icon.innerText = "▼";
+                if (icon) icon.innerText = "▼";
             } else {
                 content.style.display = "none";
-                icon.innerText = "▶";
+                if (icon) icon.innerText = "▶";
             }
         }
     }

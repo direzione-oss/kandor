@@ -97,6 +97,11 @@ if os.environ.get('LOCAL_DEV') == '1':
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db_local.sqlite3',
+            'OPTIONS': {
+                'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+                'timeout': 20,
+            },
+            'CONN_MAX_AGE': 600,
         }
     }
 else:

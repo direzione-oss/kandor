@@ -77,15 +77,25 @@ def run_hidden(cmd):
     )
 
 
-def wait_for_server(port=8000, timeout=20):
+def wait_for_server(port=8000, timeout=15):
     import urllib.request
     import urllib.error
-    for _ in range(timeout):
+    # Polling veloce ogni 0.2s (fino a 15s max)
+    for _ in range(timeout * 5):
         try:
-            urllib.request.urlopen(f'http://127.0.0.1:{port}/', timeout=1)
+            req = urllib.request.Request(
+                f'http://127.0.0.1:{port}/dev-tools/',
+                headers={'User-Agent': 'KandorLauncher/1.0'}
+            )
+            with urllib.request.urlopen(req, timeout=1) as response:
+                if response.status in (200, 301, 302, 404):
+                    return True
+        except urllib.error.HTTPError:
+            # Qualsiasi risposta HTTP (200, 302, 404) indica che il server Django è già ATTIVO!
             return True
         except Exception:
-            time.sleep(1)
+            pass
+        time.sleep(0.2)
     return False
 
 
@@ -93,16 +103,19 @@ try:
     log("=== Kandor avvio ===")
     log(f"Cartella progetto: {BASE}")
 
-    # Migrazioni
-    log("Migrazione DB locale...")
-    result = run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
-    if result.returncode != 0:
-        log(f"Migrate fallito: {result.stderr[:500]}")
-        # Fallback: fake migration indici
-        run_hidden([sys.executable, 'manage.py', 'migrate', 'core', '0040'])
-        run_hidden([sys.executable, 'manage.py', 'migrate', 'core', '0041', '--fake'])
-        run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
-    log("Migrazioni OK")
+    # Migrazioni (esegui solo se il DB non esiste per avvio fulmineo)
+    db_file = BASE / 'db_local.sqlite3'
+    if not db_file.exists():
+        log("Inizializzazione DB locale...")
+        result = run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
+        if result.returncode != 0:
+            log(f"Migrate fallito: {result.stderr[:500]}")
+            run_hidden([sys.executable, 'manage.py', 'migrate', 'core', '0040'])
+            run_hidden([sys.executable, 'manage.py', 'migrate', 'core', '0041', '--fake'])
+            run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
+        log("Migrazioni OK")
+    else:
+        log("DB locale trovato: avvio rapido (migrazioni saltate)")
 
     # Avvio server
     log("Avvio server Django...")

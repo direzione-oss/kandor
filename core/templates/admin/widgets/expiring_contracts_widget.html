@@ -1,48 +1,40 @@
 {% if has_expiring %}
-<div
-    style="background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 20px; border-left: 5px solid #e74c3c;">
-    <div style="background: #e74c3c; color: white; padding: 12px 20px; font-weight: bold; font-size: 15px;">
-        ⏰ Contratti in Scadenza (prossimi 30 giorni)
+<div class="k-card" style="margin-bottom: 28px; border-left: 4px solid var(--danger);">
+    <div style="background: #0F172A; color: white; padding: 14px 20px; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--danger);">
+        <span>⏰ Contratti in Scadenza (Prossimi 30 giorni)</span>
+        <span class="k-badge k-badge-danger">{{ contracts|length }} contratti</span>
     </div>
-    <div style="padding: 0;">
-        <table style="width: 100%; border-collapse: collapse;">
+    <div style="padding: 0; overflow-x: auto;">
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
             <thead>
-                <tr style="background: #f8f9fa; border-bottom: 2px solid #eee;">
-                    <th style="padding: 10px 15px; text-align: left; font-size: 12px; color: #666;">Cliente</th>
-                    <th style="padding: 10px 15px; text-align: left; font-size: 12px; color: #666;">Tipo</th>
-                    <th style="padding: 10px 15px; text-align: center; font-size: 12px; color: #666;">Scadenza</th>
-                    <th style="padding: 10px 15px; text-align: center; font-size: 12px; color: #666;">Stato</th>
-                    <th style="padding: 10px 15px; text-align: center; font-size: 12px; color: #666;">Azione</th>
+                <tr>
+                    <th style="padding: 12px 16px; text-align: left;">Cliente</th>
+                    <th style="padding: 12px 16px; text-align: left;">Tipo / Frequenza</th>
+                    <th style="padding: 12px 16px; text-align: center;">Scadenza</th>
+                    <th style="padding: 12px 16px; text-align: center;">Stato</th>
+                    <th style="padding: 12px 16px; text-align: center;">Azione</th>
                 </tr>
             </thead>
             <tbody>
                 {% for c in contracts %}
-                <tr
-                    style="border-bottom: 1px solid #eee; {% if c.is_expired %}background: #fdf2f2;{% elif c.is_urgent %}background: #fff8e1;{% endif %}">
-                    <td style="padding: 10px 15px; font-weight: 600;">{{ c.cliente }}</td>
-                    <td style="padding: 10px 15px; font-size: 13px; color: #555;">{{ c.tipo }} — {{ c.giorno }}</td>
-                    <td style="padding: 10px 15px; text-align: center; font-size: 13px;">{{ c.data_fine|date:"d/m/Y" }}
-                    </td>
-                    <td style="padding: 10px 15px; text-align: center;">
+                <tr style="{% if c.is_expired %}background: #FEF2F2;{% elif c.is_urgent %}background: #FFFBEB;{% endif %}">
+                    <td style="padding: 12px 16px; font-weight: 700; color: var(--text-main);">{{ c.cliente }}</td>
+                    <td style="padding: 12px 16px; font-size: 0.85rem; color: var(--text-muted);">{{ c.tipo }} &bull; {{ c.giorno }}</td>
+                    <td style="padding: 12px 16px; text-align: center; font-size: 0.85rem; font-weight: 600;">{{ c.data_fine|date:"d/m/Y" }}</td>
+                    <td style="padding: 12px 16px; text-align: center;">
                         {% if c.is_expired %}
-                        <span
-                            style="background: #e74c3c; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">SCADUTO</span>
+                        <span class="k-badge k-badge-danger">SCADUTO</span>
                         {% elif c.is_urgent %}
-                        <span
-                            style="background: #f39c12; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold;">{{
-                            c.days_left }} giorni</span>
+                        <span class="k-badge k-badge-warning">{{ c.days_left }} giorni rimasti</span>
                         {% else %}
-                        <span
-                            style="background: #3498db; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px;">{{
-                            c.days_left }} giorni</span>
+                        <span class="k-badge k-badge-info">{{ c.days_left }} giorni rimasti</span>
                         {% endif %}
                     </td>
-                    <td style="padding: 10px 15px; text-align: center;">
+                    <td style="padding: 12px 16px; text-align: center;">
                         <a href="/extend-contract/{{ c.prog_id }}/"
                             onclick="return confirm('Vuoi prorogare di 12 mesi il contratto per {{ c.cliente }}?\n\nNuova scadenza: +12 mesi dalla data attuale.')"
-                            style="display: inline-block; padding: 5px 14px; background: #27ae60; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: bold; transition: background 0.2s;"
-                            onmouseover="this.style.background='#219a52'" onmouseout="this.style.background='#27ae60'">
-                            🔄 Proroga 12 mesi
+                            class="button" style="background: var(--success) !important; padding: 5px 12px !important; font-size: 0.75rem !important;">
+                            🔄 Proroga 12 Mesi
                         </a>
                     </td>
                 </tr>
