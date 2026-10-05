@@ -12,9 +12,8 @@ for cmd in commands:
     print(f"\n==> Running: {' '.join(cmd)}")
     result = subprocess.run(cmd)
     if result.returncode != 0:
-        print(f"⚠️ Avviso: comando '{' '.join(cmd)}' completato con codice {result.returncode}")
-        if "pip" in cmd or "collectstatic" in cmd:
-            sys.exit(result.returncode)
+        print(f"❌ ERRORE: comando '{' '.join(cmd)}' fallito con codice {result.returncode}")
+        sys.exit(result.returncode)
 
 # Crea superuser admin se non esiste
 print("\n==> Creazione superuser admin...")
