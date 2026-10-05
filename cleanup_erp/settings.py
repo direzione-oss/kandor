@@ -172,7 +172,7 @@ else:
                 'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
                 'timeout': 30,
             },
-            'CONN_MAX_AGE': 600,
+            'CONN_MAX_AGE': 0,
         }
     }
 
