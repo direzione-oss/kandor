@@ -12,12 +12,13 @@ from .views import (
     titolari_dashboard_view, titolari_riepilogo_view,
     settimana_pdf_view,
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup,
-    installa_locale_view, installa_locale_download,
+    installa_locale_view, installa_locale_download, debug_db_view
 )
 from django.views.generic import RedirectView
 
 urlpatterns = [
     path('', RedirectView.as_view(url='/admin/', permanent=False)), # Redirect root to admin
+    path('debug-db/', debug_db_view, name='debug_db'),
     path('find-jolly/', find_jolly_view, name='find_jolly'),
     path('reconciliation/', reconciliation_view, name='reconciliation'),
     path('manuale/', manuale_view, name='manuale_utente'),

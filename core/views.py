@@ -2898,3 +2898,38 @@ def dev_tools_backup(request):
             yield 'ERR: Backup fallito.\n'
 
     return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
+
+
+def debug_db_view(request):
+    import traceback
+    from django.db import connection
+    from django.core.management import call_command
+    from django.conf import settings
+    from django.http import JsonResponse
+    info = {}
+    try:
+        db_settings = settings.DATABASES['default']
+        info['engine'] = db_settings.get('ENGINE')
+        info['host'] = db_settings.get('HOST')
+        info['port'] = db_settings.get('PORT')
+        info['name'] = str(db_settings.get('NAME'))
+
+        connection.ensure_connection()
+        info['connection'] = 'OK'
+
+        tables = connection.introspection.table_names()
+        info['tables_count'] = len(tables)
+        info['has_django_session'] = 'django_session' in tables
+
+        # Run migrate
+        call_command('migrate', interactive=False)
+        info['migration_result'] = 'MIGRATION_OK'
+
+        tables_after = connection.introspection.table_names()
+        info['has_django_session_after'] = 'django_session' in tables_after
+        info['tables_count_after'] = len(tables_after)
+    except Exception as e:
+        info['error'] = str(e)
+        info['traceback'] = traceback.format_exc()
+
+    return JsonResponse(info)
