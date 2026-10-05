@@ -1,3 +1,4 @@
+from collections import defaultdict
 from django import template
 from django.utils import timezone
 from datetime import timedelta
@@ -187,6 +188,7 @@ def weekly_schedule_widget(context):
     color_idx = 0
 
     # OTTIMIZZAZIONE: Caricamento in 3 passaggi basato su ID diretti per evitare JOIN lente
+    from core.models import Turno, AssegnazioneTurno, TimeTracking
     shifts_qs_all = list(Turno.objects.filter(
         data__in=dates
     ).select_related(
