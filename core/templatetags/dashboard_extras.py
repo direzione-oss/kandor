@@ -394,22 +394,22 @@ def is_resource_model(model_name):
 def telegram_feed_widget():
     from core.models import TimeTracking, Assenza, Segnalazione
 
-    # Ultime 10 Ore Lavorate da Telegram
+    # Ultime 10 Ore Lavorate da Telegram (usa -id per B-tree index istantaneo)
     latest_hours = TimeTracking.objects.filter(
         source='TELEGRAM'
     ).select_related(
         'dipendente', 'assegnazione__cliente', 'assegnazione__turno__squadra'
-    ).order_by('-check_out')[:10]
+    ).order_by('-id')[:10]
 
     # Ultime 10 Assenze da Telegram
     latest_absences = Assenza.objects.filter(
         source='TELEGRAM'
-    ).select_related('dipendente').order_by('-created_at')[:10]
+    ).select_related('dipendente').order_by('-id')[:10]
 
     # Ultime 10 Segnalazioni
     latest_reports = Segnalazione.objects.select_related(
         'dipendente'
-    ).order_by('-data_inserimento')[:10]
+    ).order_by('-id')[:10]
 
     return {
         'latest_hours': latest_hours,
