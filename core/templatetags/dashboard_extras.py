@@ -186,60 +186,52 @@ def weekly_schedule_widget(context):
     squadra_colors = {}
     color_idx = 0
 
-    # RILEVAMENTO SOVRAPPOSIZIONI: stessa squadra, stesso giorno, orari sovrapposti
-    overlaps = []
-    # Carica TUTTE le assegnazioni della settimana in una sola query
+    # OTTIMIZZAZIONE: Caricamento in 3 passaggi basato su ID diretti per evitare JOIN lente
+    shifts_qs_all = list(Turno.objects.filter(
+        data__in=dates
+    ).select_related(
+        'squadra', 'squadra__caposquadra', 'mezzo'
+    ).order_by('data', 'squadra__nome'))
+
+    if squadra_filter:
+        shifts_qs_all = [s for s in shifts_qs_all if str(s.squadra_id) == squadra_filter]
+
+    shift_ids = [s.id for s in shifts_qs_all]
+
+    # Carica assegnazioni con query diretta per ID turno
     all_assigns = list(AssegnazioneTurno.objects.filter(
-        turno__data__in=dates,
-        orario_inizio_previsto__isnull=False,
-        orario_fine_previsto__isnull=False
-    ).select_related('turno__squadra', 'cliente'))
-    
-    # Raggruppa per (data, squadra)
-    from collections import defaultdict
+        turno_id__in=shift_ids
+    ).select_related('cliente', 'turno__squadra'))
+
+    # Mappa assegnazioni per turno
+    assigns_per_shift = defaultdict(list)
+    for a in all_assigns:
+        assigns_per_shift[a.turno_id].append(a)
+
+    # RILEVAMENTO SOVRAPPOSIZIONI
+    overlaps = []
     per_day_squadra = defaultdict(list)
     for a in all_assigns:
-        if a.turno and a.turno.squadra:
+        if a.turno and a.turno.squadra and a.orario_inizio_previsto and a.orario_fine_previsto:
             per_day_squadra[(a.turno.data, a.turno.squadra.id)].append(a)
-    
+
     for key, assigns in per_day_squadra.items():
         for i in range(len(assigns)):
             for j in range(i + 1, len(assigns)):
                 a1, a2 = assigns[i], assigns[j]
-                if a1.orario_inizio_previsto and a1.orario_fine_previsto and a2.orario_inizio_previsto and a2.orario_fine_previsto:
-                    if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
-                        overlaps.append({
-                            'data': key[0].strftime('%d/%m'),
-                            'squadra': a1.turno.squadra.nome,
-                            'c1': str(a1.cliente),
-                            'c2': str(a2.cliente),
-                            'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
-                        })
+                if a1.orario_inizio_previsto < a2.orario_fine_previsto and a2.orario_inizio_previsto < a1.orario_fine_previsto:
+                    overlaps.append({
+                        'data': key[0].strftime('%d/%m'),
+                        'squadra': a1.turno.squadra.nome,
+                        'c1': str(a1.cliente),
+                        'c2': str(a2.cliente),
+                        'orario': f"{a1.orario_inizio_previsto.strftime('%H:%M')}-{a1.orario_fine_previsto.strftime('%H:%M')} vs {a2.orario_inizio_previsto.strftime('%H:%M')}-{a2.orario_fine_previsto.strftime('%H:%M')}"
+                    })
 
-    # Pre-carica tutti i TimeTracking per la settimana per efficienza
-    from core.models import TimeTracking
-    all_tt = TimeTracking.objects.filter(
-        assegnazione__turno__data__in=dates
-    ).select_related('assegnazione')
-    
-    # Mappa assegnazione_id -> TimeTracking
-    tt_map = {}
-    for tt in all_tt:
-        tt_map[tt.assegnazione_id] = tt
-
-    # OTTIMIZZAZIONE: una query unica per tutti i turni della settimana
-    # invece di 7 query separate (una per giorno)
-    shifts_qs_all = Turno.objects.filter(
-        data__in=dates
-    ).select_related(
-        'squadra', 'squadra__caposquadra', 'mezzo'
-    ).prefetch_related(
-        'assegnazioni__cliente',
-        'assegnazioni__dipendenti_esclusi',
-    ).order_by('data', 'squadra__nome')
-
-    if squadra_filter:
-        shifts_qs_all = shifts_qs_all.filter(squadra_id=squadra_filter)
+    # Pre-carica TimeTracking via ID assegnazione
+    assign_ids = [a.id for a in all_assigns]
+    all_tt = TimeTracking.objects.filter(assegnazione_id__in=assign_ids)
+    tt_map = {tt.assegnazione_id: tt for tt in all_tt}
 
     # Raggruppa turni per data
     turni_per_data = defaultdict(list)
@@ -274,7 +266,7 @@ def weekly_schedule_widget(context):
 
             # Filtra solo assegnazioni con orari previsti non nulli
             valid_assigns = [
-                a for a in shift.assegnazioni.all()
+                a for a in assigns_per_shift.get(shift.id, [])
                 if a.orario_inizio_previsto is not None and a.orario_fine_previsto is not None
             ]
             for assign in sorted(valid_assigns, key=lambda a: a.orario_inizio_previsto):
