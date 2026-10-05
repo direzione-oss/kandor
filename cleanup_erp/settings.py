@@ -92,7 +92,11 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 #   LOCAL_DEV=1  →  SQLite locale (veloce, offline)
 #   (default)    →  Supabase PostgreSQL (produzione)
 # =====================================================
-if os.environ.get('LOCAL_DEV') == '1':
+import urllib.parse
+
+db_url = os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
+
+if os.environ.get('LOCAL_DEV') == '1' or os.environ.get('USE_SQLITE') == '1':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -102,6 +106,37 @@ if os.environ.get('LOCAL_DEV') == '1':
                 'timeout': 20,
             },
             'CONN_MAX_AGE': 600,
+        }
+    }
+elif db_url:
+    if db_url.startswith('postgres://'):
+        db_url = db_url.replace('postgres://', 'postgresql://', 1)
+    
+    parsed = urllib.parse.urlparse(db_url)
+    db_user = urllib.parse.unquote(parsed.username or 'postgres')
+    
+    # Ensure tenant identifier on Supabase pooler
+    supabase_url = os.environ.get('SUPABASE_URL', '')
+    project_ref = os.environ.get('SUPABASE_PROJECT_REF', '')
+    if not project_ref and supabase_url:
+        project_ref = supabase_url.replace('https://', '').replace('http://', '').split('.')[0]
+    if project_ref and '.' not in db_user and 'pooler.supabase.com' in (parsed.hostname or ''):
+        db_user = f"{db_user}.{project_ref}"
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': parsed.path.lstrip('/') or 'postgres',
+            'USER': db_user,
+            'PASSWORD': urllib.parse.unquote(parsed.password or ''),
+            'HOST': parsed.hostname or 'localhost',
+            'PORT': str(parsed.port or 5432),
+            'OPTIONS': {
+                'sslmode': 'require',
+                'connect_timeout': 10,
+            },
+            'CONN_MAX_AGE': 0,
+            'DISABLE_SERVER_SIDE_CURSORS': True,
         }
     }
 else:
@@ -131,7 +166,6 @@ else:
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 10,
-                'options': '-c search_path=public',
             },
             'CONN_MAX_AGE': 0,
             'DISABLE_SERVER_SIDE_CURSORS': True,
