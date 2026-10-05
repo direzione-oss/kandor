@@ -242,12 +242,10 @@ GITHUB_REPO_URL = os.environ.get(
     'https://github.com/direzione-oss/kandor.git'
 )
 
-# --- Sessione e CSRF più robusti (riduce errori 403 su Render free tier) ---
-# Sessione valida 30 giorni (invece di 2 settimane default)
+# --- Sessione cookie-based (elimina dipendenza da django_session DB table) ---
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
-# Aggiorna la scadenza della sessione ad ogni richiesta
-SESSION_SAVE_EVERY_REQUEST = True
-# Sessione persistente (non si cancella alla chiusura del browser)
+SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # CSRF cookie valido 30 giorni
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 30
