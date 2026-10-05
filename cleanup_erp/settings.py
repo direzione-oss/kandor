@@ -115,7 +115,7 @@ if use_postgres and db_url:
             'HOST': db_host,
             'PORT': db_port,
             'OPTIONS': {
-                'sslmode': 'require',
+                'sslmode': 'prefer',
                 'connect_timeout': 10,
             },
             'CONN_MAX_AGE': 0,
@@ -132,7 +132,7 @@ elif use_postgres:
             'HOST': os.environ.get('SUPABASE_DB_HOST', 'localhost'),
             'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
             'OPTIONS': {
-                'sslmode': 'require',
+                'sslmode': 'prefer',
                 'connect_timeout': 10,
             },
             'CONN_MAX_AGE': 0,
