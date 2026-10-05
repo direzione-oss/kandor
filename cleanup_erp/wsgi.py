@@ -9,32 +9,15 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cleanup_erp.settings')
 django.setup()
 
+# Auto-esecuzione migrazioni database e reset admin all'avvio del server WSGI
 from django.core.management import call_command
-from django.db import connection, connections, DEFAULT_DB_ALIAS
 
+print("==> Esecuzione automatica migrazioni database all'avvio WSGI...")
 try:
-    print("==> Esecuzione migrazioni database su WSGI...")
     call_command('migrate', interactive=False)
     print("   ✅ Migrazioni database completate con successo!")
-except Exception as main_db_err:
-    print(f"⚠️ Impossibile completare le migrazioni sul DB principale ({main_db_err}). Switching definitivo a SQLite...")
-    os.environ['USE_POSTGRES'] = '0'
-    from django.conf import settings
-    settings.DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': settings.BASE_DIR / 'db_local.sqlite3',
-        'OPTIONS': {
-            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
-            'timeout': 30,
-        },
-        'CONN_MAX_AGE': 0,
-    }
-    connections[DEFAULT_DB_ALIAS].close()
-    try:
-        call_command('migrate', interactive=False)
-        print("   ✅ Migrazione SQLite locale completata con successo!")
-    except Exception as sqlite_err:
-        print(f"❌ Errore migrazione SQLite: {sqlite_err}")
+except Exception as e:
+    print(f"⚠️ Avviso durante migrazione WSGI: {e}")
 
 try:
     from django.contrib.auth.models import User
@@ -46,8 +29,8 @@ try:
         u.set_password('Kandor2024!')
         u.save()
         print("   ✅ Password 'admin' sincronizzata con successo!")
-except Exception as user_err:
-    print(f"⚠️ Errore creazione superuser: {user_err}")
+except Exception as e:
+    print(f"⚠️ Errore gestione superuser WSGI: {e}")
 
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()

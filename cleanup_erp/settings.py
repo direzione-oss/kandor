@@ -93,54 +93,61 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 #   (default)    →  Supabase PostgreSQL (produzione)
 # =====================================================
 import urllib.parse
+import socket
 
 db_url = os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
 supabase_pw = os.environ.get('SUPABASE_DB_PASSWORD')
 use_postgres = (os.environ.get('USE_POSTGRES') == '1' or ((db_url or supabase_pw) and os.environ.get('USE_POSTGRES') != '0'))
 
-if use_postgres and db_url:
-    if db_url.startswith('postgres://'):
-        db_url = db_url.replace('postgres://', 'postgresql://', 1)
-    
-    parsed = urllib.parse.urlparse(db_url)
-    db_host = parsed.hostname or 'localhost'
-    db_user = urllib.parse.unquote(parsed.username or 'postgres')
-    db_port = str(parsed.port or 5432)
-    
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': parsed.path.lstrip('/') or 'postgres',
-            'USER': db_user,
-            'PASSWORD': urllib.parse.unquote(parsed.password or ''),
-            'HOST': db_host,
-            'PORT': db_port,
-            'OPTIONS': {
-                'sslmode': 'prefer',
-                'connect_timeout': 10,
-            },
-            'CONN_MAX_AGE': 0,
-            'DISABLE_SERVER_SIDE_CURSORS': True,
+if use_postgres:
+    if db_url:
+        if db_url.startswith('postgres://'):
+            db_url = db_url.replace('postgres://', 'postgresql://', 1)
+        parsed = urllib.parse.urlparse(db_url)
+        db_host = parsed.hostname or 'localhost'
+        db_user = urllib.parse.unquote(parsed.username or 'postgres')
+        db_port = str(parsed.port or 5432)
+        db_name = parsed.path.lstrip('/') or 'postgres'
+        db_password = urllib.parse.unquote(parsed.password or '')
+    else:
+        db_host = os.environ.get('SUPABASE_DB_HOST', 'localhost')
+        db_user = os.environ.get('SUPABASE_DB_USER', 'postgres')
+        db_port = str(os.environ.get('SUPABASE_DB_PORT', '5432'))
+        db_name = os.environ.get('SUPABASE_DB_NAME', 'postgres')
+        db_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
+
+    # Test preventivo di connessione socket TCP all'host del DB
+    is_reachable = False
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect((db_host, int(db_port)))
+        s.close()
+        is_reachable = True
+    except Exception:
+        pass
+
+    if is_reachable:
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': db_name,
+                'USER': db_user,
+                'PASSWORD': db_password,
+                'HOST': db_host,
+                'PORT': db_port,
+                'OPTIONS': {
+                    'sslmode': 'prefer',
+                    'connect_timeout': 5,
+                },
+                'CONN_MAX_AGE': 0,
+                'DISABLE_SERVER_SIDE_CURSORS': True,
+            }
         }
-    }
-elif use_postgres:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-            'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-            'HOST': os.environ.get('SUPABASE_DB_HOST', 'localhost'),
-            'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
-            'OPTIONS': {
-                'sslmode': 'prefer',
-                'connect_timeout': 10,
-            },
-            'CONN_MAX_AGE': 0,
-            'DISABLE_SERVER_SIDE_CURSORS': True,
-        }
-    }
-else:
+    else:
+        use_postgres = False
+
+if not use_postgres:
     # Default robust SQLite configuration for Render and local development
     DATABASES = {
         'default': {
