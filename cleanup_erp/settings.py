@@ -176,6 +176,35 @@ else:
         }
     }
 
+# Connection verification with automatic SQLite fallback to prevent 500 errors
+if DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
+    try:
+        import psycopg2
+        _test_conn = psycopg2.connect(
+            dbname=DATABASES['default']['NAME'],
+            user=DATABASES['default']['USER'],
+            password=DATABASES['default']['PASSWORD'],
+            host=DATABASES['default']['HOST'],
+            port=int(DATABASES['default']['PORT'] or 5432),
+            sslmode='require',
+            connect_timeout=3
+        )
+        _test_conn.close()
+        print("[DATABASES] Connected successfully to PostgreSQL Supabase.")
+    except Exception as _db_err:
+        print(f"[DATABASES] PostgreSQL connection unavailable ({_db_err}). Falling back to SQLite.")
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db_local.sqlite3',
+                'OPTIONS': {
+                    'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+                    'timeout': 20,
+                },
+                'CONN_MAX_AGE': 600,
+            }
+        }
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
