@@ -4,17 +4,20 @@ Exposes the WSGI callable as a module-level variable named ``application``.
 """
 
 import os
-from django.core.wsgi import get_wsgi_application
+import django
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cleanup_erp.settings')
+django.setup()
 
-application = get_wsgi_application()
-
-# Auto-esecuzione migrazioni database e reset admin all'avvio del server (essenziale su Render epimero)
+# Sincronizzazione atomica del DB prima dell'inizializzazione del gestore WSGI
 try:
     from django.core.management import call_command
-    print("==> Esecuzione automatica migrazioni database all'avvio WSGI...")
-    call_command('migrate', interactive=False)
+    from django.db import connection
+    
+    tables = connection.introspection.table_names()
+    if 'django_session' not in tables:
+        print("==> Esecuzione migrazioni essenziali prima di abilitare le richieste HTTP...")
+        call_command('migrate', interactive=False)
     
     from django.contrib.auth.models import User
     if not User.objects.filter(username='admin').exists():
@@ -24,6 +27,9 @@ try:
         u = User.objects.get(username='admin')
         u.set_password('Kandor2024!')
         u.save()
-        print("   ✅ Password 'admin' resettata con successo!")
+        print("   ✅ Password 'admin' sincronizzata con successo!")
 except Exception as e:
-    print(f"⚠️ Avviso durante migrazione WSGI: {e}")
+    print(f"⚠️ Errore durante sincronizzazione DB su WSGI: {e}")
+
+from django.core.wsgi import get_wsgi_application
+application = get_wsgi_application()
