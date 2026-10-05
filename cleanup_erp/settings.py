@@ -112,15 +112,13 @@ else:
             'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
             'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
             'HOST': os.environ.get('SUPABASE_DB_HOST', 'aws-1-eu-west-1.pooler.supabase.com'),
-            'PORT': os.environ.get('SUPABASE_DB_PORT', '6543'),
+            'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 10,
                 'options': '-c search_path=public -c statement_timeout=30000',
             },
-            # PgBouncer Transaction mode: Django non deve gestire
-            # le connessioni — ci pensa il pooler
-            'CONN_MAX_AGE': 0,
+            'CONN_MAX_AGE': 60,
             'DISABLE_SERVER_SIDE_CURSORS': True,
         }
     }
