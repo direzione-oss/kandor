@@ -149,12 +149,13 @@ if use_postgres:
 
 if not use_postgres:
     # Default robust SQLite configuration for Render and local development
+    sqlite_path = Path('/tmp/db_local.sqlite3') if (os.environ.get('RENDER') or os.name != 'nt') else BASE_DIR / 'db_local.sqlite3'
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db_local.sqlite3',
+            'NAME': sqlite_path,
             'OPTIONS': {
-                'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+                'init_command': 'PRAGMA journal_mode=DELETE; PRAGMA synchronous=NORMAL;',
                 'timeout': 30,
             },
             'CONN_MAX_AGE': 0,
