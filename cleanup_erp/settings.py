@@ -95,7 +95,8 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 import urllib.parse
 
 db_url = os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
-use_postgres = os.environ.get('USE_POSTGRES') == '1' or (db_url and os.environ.get('USE_POSTGRES') != '0')
+supabase_pw = os.environ.get('SUPABASE_DB_PASSWORD')
+use_postgres = (os.environ.get('USE_POSTGRES') == '1' or ((db_url or supabase_pw) and os.environ.get('USE_POSTGRES') != '0'))
 
 if use_postgres and db_url:
     if db_url.startswith('postgres://'):

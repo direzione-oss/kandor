@@ -9,15 +9,16 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cleanup_erp.settings')
 django.setup()
 
-# Sincronizzazione automatica del DB prima dell'inizializzazione del gestore WSGI
 from django.core.management import call_command
 from django.db import connection, connections, DEFAULT_DB_ALIAS
 
 try:
-    print("==> Tentativo migrazione su DB principale...")
+    print("==> Esecuzione migrazioni database su WSGI...")
     call_command('migrate', interactive=False)
+    print("   ✅ Migrazioni database completate con successo!")
 except Exception as main_db_err:
-    print(f"⚠️ Impossibile completare le migrazioni sul DB principale ({main_db_err}). Switching automatico a SQLite locale...")
+    print(f"⚠️ Impossibile completare le migrazioni sul DB principale ({main_db_err}). Switching definitivo a SQLite...")
+    os.environ['USE_POSTGRES'] = '0'
     from django.conf import settings
     settings.DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
