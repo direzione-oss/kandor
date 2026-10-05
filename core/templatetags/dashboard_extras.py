@@ -186,56 +186,6 @@ def weekly_schedule_widget(context):
     squadra_colors = {}
     color_idx = 0
 
-    # GENERAZIONE AUTOMATICA: genera turni mancanti solo per i 7 giorni visibili
-    end_of_week = dates[-1]
-    if end_of_week >= today:
-        try:
-            from core.models import ProgrammazioneRicorrente
-            from datetime import datetime as _dt
-            progs = ProgrammazioneRicorrente.objects.filter(squadra_abituale__isnull=False).select_related('cliente', 'squadra_abituale', 'mezzo_abituale')
-            for d in dates:
-                if d < today:
-                    continue
-                wd = d.weekday()
-                for p in progs:
-                    if p.data_inizio_contratto and d < p.data_inizio_contratto:
-                        continue
-                    if p.data_fine_contratto and d > p.data_fine_contratto:
-                        continue
-                    match = False
-                    if p.tipo_ripetizione == 'SETTIMANALE' and p.giorno_settimana == wd:
-                        match = True
-                    elif p.tipo_ripetizione == 'MENSILE' and p.giorno_mese == d.day:
-                        match = True
-                    elif p.tipo_ripetizione == 'BISETTIMANALE' and p.giorno_settimana == wd:
-                        if p.data_inizio_contratto:
-                            delta = (d - p.data_inizio_contratto).days
-                            if delta >= 0 and (delta // 7) % 2 == 0:
-                                match = True
-                    if match:
-                        try:
-                            turno = Turno.objects.filter(data=d, squadra=p.squadra_abituale).first()
-                            if not turno:
-                                turno = Turno.objects.create(data=d, squadra=p.squadra_abituale, mezzo=p.mezzo_abituale)
-                            
-                            if not AssegnazioneTurno.objects.filter(turno=turno, programmazione_feriale=p).exists():
-                                oi = p.ora_inizio
-                                if p.durata:
-                                    dt_s = _dt.combine(d, oi)
-                                    h = int(p.durata); m = int((p.durata - h) * 60)
-                                    of = (dt_s + timedelta(hours=h, minutes=m)).time()
-                                else:
-                                    of = oi
-                                AssegnazioneTurno.objects.create(
-                                    turno=turno, cliente=p.cliente, programmazione_feriale=p,
-                                    orario_inizio_previsto=oi, orario_fine_previsto=of,
-                                    mansione_svolta=f"Generato autom. ({p.qualifica_richiesta})"
-                                )
-                        except Exception as e:
-                            print(f"[WeeklySchedule] Errore generazione turno automatico: {e}")
-        except Exception as e:
-            print(f"[WeeklySchedule] Errore generale in generazione turni: {e}")
-    
     # RILEVAMENTO SOVRAPPOSIZIONI: stessa squadra, stesso giorno, orari sovrapposti
     overlaps = []
     # Carica TUTTE le assegnazioni della settimana in una sola query
