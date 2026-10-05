@@ -106,24 +106,6 @@ if use_postgres and db_url:
     db_user = urllib.parse.unquote(parsed.username or 'postgres')
     db_port = str(parsed.port or 5432)
     
-    supabase_url = os.environ.get('SUPABASE_URL', '')
-    project_ref = os.environ.get('SUPABASE_PROJECT_REF', '')
-    if not project_ref and db_host.startswith('db.') and '.supabase.co' in db_host:
-        parts = db_host.split('.')
-        if len(parts) >= 2:
-            project_ref = parts[1]
-    if not project_ref and supabase_url:
-        project_ref = supabase_url.replace('https://', '').replace('http://', '').split('.')[0]
-
-    # Convert IPv6-only host db.<ref>.supabase.co to IPv4 Pooler
-    if db_host.startswith('db.') and '.supabase.co' in db_host:
-        db_host = 'aws-1-eu-west-1.pooler.supabase.com'
-        if db_port == '5432':
-            db_port = '6543'
-
-    if project_ref and '.' not in db_user and ('pooler.supabase.com' in db_host or db_host == 'aws-1-eu-west-1.pooler.supabase.com'):
-        db_user = f"{db_user}.{project_ref}"
-
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -141,36 +123,14 @@ if use_postgres and db_url:
         }
     }
 elif use_postgres:
-    supabase_url = os.environ.get('SUPABASE_URL', '')
-    project_ref = os.environ.get('SUPABASE_PROJECT_REF', '')
-    db_host = os.environ.get('SUPABASE_DB_HOST', 'aws-1-eu-west-1.pooler.supabase.com')
-    db_port = os.environ.get('SUPABASE_DB_PORT', '5432')
-
-    if not project_ref and db_host.startswith('db.') and '.supabase.co' in db_host:
-        parts = db_host.split('.')
-        if len(parts) >= 2:
-            project_ref = parts[1]
-    if not project_ref and supabase_url:
-        project_ref = supabase_url.replace('https://', '').replace('http://', '').split('.')[0]
-
-    # Convert IPv6-only host db.<ref>.supabase.co to IPv4 Pooler
-    if db_host.startswith('db.') and '.supabase.co' in db_host:
-        db_host = 'aws-1-eu-west-1.pooler.supabase.com'
-        if db_port == '5432':
-            db_port = '6543'
-
-    db_user = os.environ.get('SUPABASE_DB_USER', 'postgres')
-    if project_ref and '.' not in db_user and ('pooler.supabase.com' in db_host or db_host == 'aws-1-eu-west-1.pooler.supabase.com'):
-        db_user = f"{db_user}.{project_ref}"
-
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-            'USER': db_user,
+            'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
             'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-            'HOST': db_host,
-            'PORT': db_port,
+            'HOST': os.environ.get('SUPABASE_DB_HOST', 'localhost'),
+            'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 10,
@@ -192,6 +152,7 @@ else:
             'CONN_MAX_AGE': 0,
         }
     }
+
 
 
 # Password validation
