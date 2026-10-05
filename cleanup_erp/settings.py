@@ -131,9 +131,9 @@ else:
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 10,
-                'options': '-c search_path=public -c statement_timeout=30000',
+                'options': '-c search_path=public',
             },
-            'CONN_MAX_AGE': 60,
+            'CONN_MAX_AGE': 0,
             'DISABLE_SERVER_SIDE_CURSORS': True,
         }
     }
