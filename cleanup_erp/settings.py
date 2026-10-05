@@ -151,6 +151,10 @@ else:
         if len(parts) >= 2:
             project_ref = parts[1]
 
+    # Preference: direct host db.<project_ref>.supabase.co supports full Django SAVEPOINT transactions
+    if project_ref and ('pooler.supabase.com' in db_host or db_host == 'aws-1-eu-west-1.pooler.supabase.com'):
+        db_host = f"db.{project_ref}.supabase.co"
+
     db_user = os.environ.get('SUPABASE_DB_USER', 'postgres')
     if project_ref and '.' not in db_user and 'pooler.supabase.com' in db_host:
         db_user = f"{db_user}.{project_ref}"
@@ -167,8 +171,8 @@ else:
                 'sslmode': 'require',
                 'connect_timeout': 10,
             },
-            'CONN_MAX_AGE': 0,
-            'DISABLE_SERVER_SIDE_CURSORS': True,
+            'CONN_MAX_AGE': 60,
+            'DISABLE_SERVER_SIDE_CURSORS': False,
         }
     }
 
