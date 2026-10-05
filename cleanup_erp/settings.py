@@ -105,13 +105,28 @@ if os.environ.get('LOCAL_DEV') == '1':
         }
     }
 else:
+    supabase_url = os.environ.get('SUPABASE_URL', '')
+    project_ref = os.environ.get('SUPABASE_PROJECT_REF', '')
+    if not project_ref and supabase_url:
+        project_ref = supabase_url.replace('https://', '').replace('http://', '').split('.')[0]
+
+    db_host = os.environ.get('SUPABASE_DB_HOST', 'aws-1-eu-west-1.pooler.supabase.com')
+    if not project_ref and db_host.startswith('db.') and '.supabase.' in db_host:
+        parts = db_host.split('.')
+        if len(parts) >= 2:
+            project_ref = parts[1]
+
+    db_user = os.environ.get('SUPABASE_DB_USER', 'postgres')
+    if project_ref and '.' not in db_user and 'pooler.supabase.com' in db_host:
+        db_user = f"{db_user}.{project_ref}"
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
             'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-            'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
+            'USER': db_user,
             'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-            'HOST': os.environ.get('SUPABASE_DB_HOST', 'aws-1-eu-west-1.pooler.supabase.com'),
+            'HOST': db_host,
             'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
             'OPTIONS': {
                 'sslmode': 'require',
