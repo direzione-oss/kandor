@@ -95,27 +95,15 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 import urllib.parse
 
 db_url = os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
+use_postgres = os.environ.get('USE_POSTGRES') == '1' or (db_url and os.environ.get('USE_POSTGRES') != '0')
 
-if os.environ.get('LOCAL_DEV') == '1' or os.environ.get('USE_SQLITE') == '1':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db_local.sqlite3',
-            'OPTIONS': {
-                'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
-                'timeout': 20,
-            },
-            'CONN_MAX_AGE': 600,
-        }
-    }
-elif db_url:
+if use_postgres and db_url:
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
     
     parsed = urllib.parse.urlparse(db_url)
     db_user = urllib.parse.unquote(parsed.username or 'postgres')
     
-    # Ensure tenant identifier on Supabase pooler
     supabase_url = os.environ.get('SUPABASE_URL', '')
     project_ref = os.environ.get('SUPABASE_PROJECT_REF', '')
     if not project_ref and supabase_url:
@@ -135,11 +123,11 @@ elif db_url:
                 'sslmode': 'require',
                 'connect_timeout': 10,
             },
-            'CONN_MAX_AGE': 0,
-            'DISABLE_SERVER_SIDE_CURSORS': True,
+            'CONN_MAX_AGE': 60,
+            'DISABLE_SERVER_SIDE_CURSORS': False,
         }
     }
-else:
+elif use_postgres:
     supabase_url = os.environ.get('SUPABASE_URL', '')
     project_ref = os.environ.get('SUPABASE_PROJECT_REF', '')
     if not project_ref and supabase_url:
@@ -151,7 +139,6 @@ else:
         if len(parts) >= 2:
             project_ref = parts[1]
 
-    # Preference: direct host db.<project_ref>.supabase.co supports full Django SAVEPOINT transactions
     if project_ref and ('pooler.supabase.com' in db_host or db_host == 'aws-1-eu-west-1.pooler.supabase.com'):
         db_host = f"db.{project_ref}.supabase.co"
 
@@ -175,35 +162,19 @@ else:
             'DISABLE_SERVER_SIDE_CURSORS': False,
         }
     }
-
-# Connection verification with automatic SQLite fallback to prevent 500 errors
-if DATABASES['default']['ENGINE'] == 'django.db.backends.postgresql':
-    try:
-        import psycopg2
-        _test_conn = psycopg2.connect(
-            dbname=DATABASES['default']['NAME'],
-            user=DATABASES['default']['USER'],
-            password=DATABASES['default']['PASSWORD'],
-            host=DATABASES['default']['HOST'],
-            port=int(DATABASES['default']['PORT'] or 5432),
-            sslmode='require',
-            connect_timeout=3
-        )
-        _test_conn.close()
-        print("[DATABASES] Connected successfully to PostgreSQL Supabase.")
-    except Exception as _db_err:
-        print(f"[DATABASES] PostgreSQL connection unavailable ({_db_err}). Falling back to SQLite.")
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db_local.sqlite3',
-                'OPTIONS': {
-                    'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
-                    'timeout': 20,
-                },
-                'CONN_MAX_AGE': 600,
-            }
+else:
+    # Default robust SQLite configuration for Render and local development
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db_local.sqlite3',
+            'OPTIONS': {
+                'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+                'timeout': 30,
+            },
+            'CONN_MAX_AGE': 600,
         }
+    }
 
 
 # Password validation
