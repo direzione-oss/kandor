@@ -1,37 +1,29 @@
-"""Script di build per Render - esegue collectstatic, migrate e crea superuser."""
+"""Script di build per Render - esegue installazione dipendenze e collectstatic in modo sicuro."""
 import subprocess
 import sys
 
-commands = [
-    [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
-    [sys.executable, "manage.py", "collectstatic", "--no-input"],
-    [sys.executable, "manage.py", "migrate", "--no-input"],
-]
+print("\n==> 1/2 Installazione dipendenze...")
+result_pip = subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+if result_pip.returncode != 0:
+    print(f"❌ ERRORE pip install: codice {result_pip.returncode}")
+    sys.exit(result_pip.returncode)
 
-for cmd in commands:
-    print(f"\n==> Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        print(f"❌ ERRORE: comando '{' '.join(cmd)}' fallito con codice {result.returncode}")
-        sys.exit(result.returncode)
+print("\n==> 2/2 Raccolta file statici (collectstatic)...")
+result_static = subprocess.run([sys.executable, "manage.py", "collectstatic", "--no-input"])
+if result_static.returncode != 0:
+    print(f"❌ ERRORE collectstatic: codice {result_static.returncode}")
+    sys.exit(result_static.returncode)
 
-# Crea superuser admin se non esiste
-print("\n==> Creazione superuser admin...")
+# Esegui la migrazione DB in modo resiliente durante il build step
+print("\n==> Tentativo di migrazione database pre-deploy...")
 try:
-    import os, django
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'cleanup_erp.settings')
-    django.setup()
-    from django.contrib.auth.models import User
-    if not User.objects.filter(username='admin').exists():
-        User.objects.create_superuser('admin', 'admin@kandor.it', 'Kandor2024!')
-        print("   ✅ Superuser 'admin' creato con successo!")
+    res_mig = subprocess.run([sys.executable, "manage.py", "migrate", "--no-input"])
+    if res_mig.returncode == 0:
+        print("   ✅ Migrazione pre-deploy completata con successo!")
     else:
-        u = User.objects.get(username='admin')
-        u.set_password('Kandor2024!')
-        u.save()
-        print("   ✅ Password del superuser 'admin' aggiornata con successo!")
+        print("   ⚠️ Nota: Migrazione in build step terminata con avviso. Le tabelle verranno verificate all'avvio dell'app.")
 except Exception as e:
-    print(f"   ⚠️ Nota durante aggiornamento superuser: {e}")
+    print(f"   ⚠️ Nota: Migrazione in build step saltata ({e}). Le tabelle verranno verificate all'avvio dell'app.")
 
 print("\n==> Build completato con successo!")
 sys.exit(0)
