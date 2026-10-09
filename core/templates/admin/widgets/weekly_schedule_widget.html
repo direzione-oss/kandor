@@ -327,11 +327,32 @@ function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+
 var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
 
 function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente){
+  function _calcHoursFromTimes(inizio, fine) {
+    if (!inizio || !fine) return 0;
+    var p1 = inizio.split(':');
+    var p2 = fine.split(':');
+    if (p1.length < 2 || p2.length < 2) return 0;
+    var m1 = parseInt(p1[0], 10) * 60 + parseInt(p1[1], 10);
+    var m2 = parseInt(p2[0], 10) * 60 + parseInt(p2[1], 10);
+    if (m2 < m1) m2 += 24 * 60;
+    var diffMin = m2 - m1;
+    return diffMin > 0 ? (diffMin / 60) : 0;
+  }
+
   _editId=assignId;
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
-  var prefillOre = oreDichiarate ? oreDichiarate : (orePreviste || '');
+  
+  var calcShiftHours = _calcHoursFromTimes(oraInizio, oraFine);
+  var prefillOre = '';
+  if (oreDichiarate && parseFloat(oreDichiarate) > 0) {
+    prefillOre = oreDichiarate;
+  } else if (orePreviste && parseFloat(orePreviste) > 0) {
+    prefillOre = orePreviste;
+  } else if (calcShiftHours > 0) {
+    prefillOre = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
+  }
   document.getElementById('edit-ore-input').value = prefillOre;
   /* Ore previste: converti decimale in h+min */
   var _op=parseFloat(orePreviste)||0;
