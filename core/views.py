@@ -648,55 +648,89 @@ def delete_turno_ajax(request, assign_id):
 
 @csrf_exempt
 def validate_ore_ajax(request, assign_id):
-    """Valida, invalida o inserisce manualmente le ore di un'assegnazione turno."""
+    """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     try:
         from .models import TimeTracking, AssegnazioneTurno, Dipendente
-        
-        assign = AssegnazioneTurno.objects.select_related('turno__squadra').get(pk=assign_id)
+        from decimal import Decimal
+
+        assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
+        squadra = assign.turno.squadra
+        esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
+
+        # Raccogli componenti attivi (non esclusi dal turno)
+        active_dips = []
+        if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids:
+            active_dips.append(squadra.caposquadra)
+        for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+            if c.pk not in esclusi_ids and c not in active_dips:
+                active_dips.append(c)
+
+        if not active_dips:
+            return JsonResponse({'status': 'error', 'error': 'Nessun dipendente attivo nella squadra per questo turno'})
+
         data = json.loads(request.body) if request.body else {}
         action = data.get('action', 'validate')
-        ore = data.get('ore')
-        
-        # Inserimento ore manuali dall'admin
-        if ore is not None:
-            ore = float(str(ore).replace(',', '.'))
-            validate = data.get('validate', False)
-            
-            # Trova il primo dipendente della squadra per associare le ore
-            squadra = assign.turno.squadra
-            dip = squadra.caposquadra or squadra.componenti.first()
-            if not dip:
-                return JsonResponse({'status': 'error', 'error': 'Nessun dipendente nella squadra'})
-            
-            tt, created = TimeTracking.objects.update_or_create(
+        ore_param = data.get('ore')
+        validate_flag = data.get('validate', False) or (action == 'validate')
+
+        # Determina il valore delle ore da applicare
+        ore_val = None
+        if ore_param is not None:
+            ore_val = Decimal(str(float(str(ore_param).replace(',', '.'))))
+        else:
+            # Cerca ore esistenti registrate dal primo dipendente che ha scritto
+            first_tt = TimeTracking.objects.filter(assegnazione=assign).order_by('id').first()
+            if first_tt and (first_tt.ore_dichiarate is not None or first_tt.durata_ore):
+                ore_val = Decimal(str(first_tt.ore_dichiarate or first_tt.durata_ore))
+            elif assign.ore_previste_contratto:
+                ore_val = Decimal(str(assign.ore_previste_contratto))
+            elif assign.orario_inizio_previsto and assign.orario_fine_previsto:
+                t1 = assign.orario_inizio_previsto
+                t2 = assign.orario_fine_previsto
+                minuti = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
+                if minuti < 0:
+                    minuti += 24 * 60
+                ore_val = Decimal(str(round(minuti / 60.0, 2)))
+
+        # Applica a TUTTI i componenti attivi della squadra
+        updated_count = 0
+        for dip in active_dips:
+            tt, created = TimeTracking.objects.get_or_create(
                 dipendente=dip,
                 assegnazione=assign,
                 defaults={
-                    'ore_dichiarate': ore,
+                    'ore_dichiarate': ore_val,
+                    'ore_validate': ore_val if validate_flag else None,
+                    'is_validated': validate_flag if action != 'unvalidate' else False,
                     'source': 'ADMIN',
-                    'is_validated': validate,
-                    'note': 'Inserito manualmente da admin',
+                    'note': f"Ore valide per la squadra ({squadra.nome})",
                 }
             )
-            msg = f"{'Creato' if created else 'Aggiornato'}: {ore}h"
-            if validate:
-                msg += " (validato)"
-            return JsonResponse({'status': 'ok', 'message': msg})
-        
-        # Validazione/invalidazione ore esistenti
-        tt_list = TimeTracking.objects.filter(assegnazione=assign)
-        
-        if not tt_list.exists():
-            return JsonResponse({'status': 'error', 'error': 'Nessuna ora registrata per questo turno'})
-        
-        if action == 'validate':
-            tt_list.update(is_validated=True)
-            return JsonResponse({'status': 'ok', 'message': 'Ore validate', 'validated': True})
-        else:
-            tt_list.update(is_validated=False)
-            return JsonResponse({'status': 'ok', 'message': 'Validazione rimossa', 'validated': False})
+            if not created:
+                if ore_val is not None:
+                    tt.ore_dichiarate = ore_val
+                    if validate_flag:
+                        tt.ore_validate = ore_val
+                if action == 'unvalidate':
+                    tt.is_validated = False
+                elif validate_flag:
+                    tt.is_validated = True
+                tt.save()
+            updated_count += 1
+
+        # Elimina/Invalida eventuali registrazioni per dipendenti esclusi
+        if esclusi_ids:
+            TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=esclusi_ids).delete()
+
+        status_msg = "Ore validate" if validate_flag else ("Validazione rimossa" if action == 'unvalidate' else "Ore salvate")
+        return JsonResponse({
+            'status': 'ok',
+            'message': f"{status_msg} per {updated_count} dipendenti della squadra {squadra.nome}",
+            'validated': validate_flag and action != 'unvalidate',
+            'count': updated_count,
+        })
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)})
 

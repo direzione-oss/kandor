@@ -101,7 +101,7 @@ class Dipendente(models.Model):
 
 class Cliente(models.Model):
     ragione_sociale = models.CharField(max_length=200, verbose_name="Ragione Sociale")
-    partita_iva = models.CharField(max_length=20, unique=True, blank=True, null=True, verbose_name="Partita IVA")
+    partita_iva = models.CharField(max_length=20, blank=True, null=True, verbose_name="Partita IVA")
     codice_fiscale = models.CharField(max_length=16, blank=True, null=True, verbose_name="Codice Fiscale")
     
     indirizzo_sede = models.CharField(max_length=255, verbose_name="Indirizzo Sede")
