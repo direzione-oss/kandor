@@ -704,7 +704,6 @@ def validate_ore_ajax(request, assign_id):
                 assegnazione=assign,
                 defaults={
                     'ore_dichiarate': ore_val,
-                    'ore_validate': ore_val if validate_flag else None,
                     'is_validated': validate_flag if action != 'unvalidate' else False,
                     'source': 'ADMIN',
                     'note': f"Ore valide per la squadra ({squadra.nome})",
@@ -713,8 +712,6 @@ def validate_ore_ajax(request, assign_id):
             if not created:
                 if ore_val is not None:
                     tt.ore_dichiarate = ore_val
-                    if validate_flag:
-                        tt.ore_validate = ore_val
                 if action == 'unvalidate':
                     tt.is_validated = False
                 elif validate_flag:

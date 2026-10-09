@@ -341,29 +341,35 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
   document.getElementById('edit-note').value=note||'';
   
   var calcShiftHours = _calcHoursFromTimes(oraInizio, oraFine);
-  var prefillOre = '';
-  if (oreDichiarate && parseFloat(oreDichiarate) > 0) {
-    prefillOre = oreDichiarate;
-  } else if (orePreviste && parseFloat(orePreviste) > 0) {
-    prefillOre = orePreviste;
+  var prefillOrePreviste = '';
+  if (orePreviste && parseFloat(orePreviste) > 0) {
+    prefillOrePreviste = orePreviste;
   } else if (calcShiftHours > 0) {
-    prefillOre = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
+    prefillOrePreviste = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
   }
-  document.getElementById('edit-ore-input').value = prefillOre;
+  document.getElementById('edit-ore-input').value = prefillOrePreviste;
   /* Ore previste: converti decimale in h+min */
   var _op=parseFloat(orePreviste)||0;
   document.getElementById('edit-ore-h').value=_op?Math.floor(_op):'';
   document.getElementById('edit-ore-m').value=_op?Math.round((_op%1)*60):'';
   /* Checkbox straordinario: spuntato se NON ricorrente */
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
-  /* Badge ore e alert provvisorie */
+  /* Badge cerchietto grigio: mostra le ore segnalate dal dipendente */
   var badge=document.getElementById('edit-ore-badge');
-  var stato=oreStato||'white';
-  var colors=_ORE_BADGE_COLORS[stato]||_ORE_BADGE_COLORS.white;
-  badge.textContent=oreLabel||'—';
-  badge.style.background=colors[0];
-  badge.style.color=colors[1];
-  document.getElementById('edit-ore-section').style.borderLeftColor=colors[0];
+  if (oreDichiarate && parseFloat(oreDichiarate) > 0) {
+    badge.textContent = 'Segnalate: ' + oreDichiarate + 'h';
+    badge.style.background = '#e2e8f0';
+    badge.style.color = '#334155';
+    badge.style.border = '1px solid #cbd5e1';
+  } else {
+    var stato=oreStato||'white';
+    var colors=_ORE_BADGE_COLORS[stato]||_ORE_BADGE_COLORS.white;
+    badge.textContent=oreLabel||'—';
+    badge.style.background=colors[0];
+    badge.style.color=colors[1];
+    badge.style.border='none';
+  }
+  document.getElementById('edit-ore-section').style.borderLeftColor = '#0277bd';
 
   var overlay=document.getElementById('edit-modal-overlay');
   overlay.classList.add('active');
@@ -409,7 +415,10 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
     });
 
     if (maxOreDichiarate !== null) {
-      document.getElementById('edit-ore-input').value = maxOreDichiarate;
+      badge.textContent = 'Segnalate: ' + maxOreDichiarate + 'h';
+      badge.style.background = '#e2e8f0';
+      badge.style.color = '#334155';
+      badge.style.border = '1px solid #cbd5e1';
     }
   }).catch(function(){listEl.innerHTML='<span style="font-size:11px;color:#e74c3c">Errore nel caricamento dei componenti</span>';});
 }

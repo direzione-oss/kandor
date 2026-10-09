@@ -793,7 +793,6 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
         assegnazione=assegnazione,
         defaults={
             'ore_dichiarate': decimal_hours,
-            'ore_validate': decimal_hours,
             'source': 'TELEGRAM',
             'note': f"Registrato da {dipendente.nome} {dipendente.cognome}",
             'is_validated': False,
@@ -822,7 +821,6 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
             assegnazione=assegnazione,
             defaults={
                 'ore_dichiarate': decimal_hours,
-                'ore_validate': decimal_hours,
                 'source': 'TELEGRAM',
                 'note': f"Registrato dal collega {dipendente.nome} {dipendente.cognome}",
                 'is_validated': False,
