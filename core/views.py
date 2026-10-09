@@ -843,6 +843,52 @@ def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
 
     return None
 
+def _upload_chat_foto_supabase(telegram_foto_url, chat_id):
+    """
+    Scarica la foto dalla chat Telegram e la salva su Supabase Storage.
+    Ritorna l'URL permanente (Supabase) o il Telegram URL come fallback.
+    """
+    try:
+        import requests as req
+        from django.conf import settings
+        import uuid
+        import os
+
+        resp = req.get(telegram_foto_url, timeout=15)
+        if not resp.ok:
+            return telegram_foto_url
+        foto_bytes = resp.content
+
+        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
+        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
+        bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'kandor-media')
+
+        if supabase_url and supabase_key:
+            file_name = f"chat_{chat_id}_{uuid.uuid4().hex[:8]}.jpg"
+            upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
+            upload_resp = req.post(
+                upload_url,
+                data=foto_bytes,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": "image/jpeg",
+                    "x-upsert": "true",
+                },
+                timeout=20
+            )
+            if upload_resp.status_code in (200, 201):
+                return f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
+        
+        # Fallback se Supabase non va a buon fine, salviamo file locale in media
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        file_name = f"chat_images/chat_{chat_id}_{uuid.uuid4().hex[:8]}.jpg"
+        saved_path = default_storage.save(file_name, ContentFile(foto_bytes))
+        return default_storage.url(saved_path)
+    except Exception as e:
+        print(f"[ChatFotoUpload] Errore salvataggio foto chat: {e}")
+
+    return telegram_foto_url
 
 @csrf_exempt
 def telegram_webhook_view(request):
@@ -960,28 +1006,36 @@ def telegram_webhook_view(request):
                     from .models import MessaggioChat, Dipendente
                     dip = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
                     if dip:
+                        # Salva foto in modo permanente invece del URL temporaneo Telegram
+                        perm_foto_url = _upload_chat_foto_supabase(foto_url, chat_id) if foto_url else ''
                         MessaggioChat.objects.create(
                             dipendente=dip,
                             testo=text or caption,
-                            foto_url=foto_url,
+                            foto_url=perm_foto_url,
                             direzione='IN'
                         )
                         # Notifica nuovi messaggi SOLO a Responsabili Area, Titolari e Admin (non a tutti i dipendenti)
                         try:
                             from .services import notifica_nuovo_messaggio
-                            notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=foto_url)
+                            notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=perm_foto_url)
                         except Exception as e:
                             print(f"[Notifica Errore]: {e}")
                 except Exception:
                     pass
                 
-                # Processa solo messaggi di testo per i comandi bot
+                # Processa messaggi per i comandi bot
                 if text:
                     response = handle_telegram_message(chat_id, text, sender_name=first_name)
                 elif caption:
                     response = handle_telegram_message(chat_id, caption, sender_name=first_name)
+                elif foto_url:
+                    from .utils_kandor_chat import _TELEGRAM_STATE
+                    if _TELEGRAM_STATE.get(chat_id, {}).get('action') == 'segnalazione':
+                        response = handle_telegram_message(chat_id, "[Foto allegata]", sender_name=first_name)
+                    else:
+                        response = {'text': 'Foto ricevuta! Se volevi fare una segnalazione, usa prima il pulsante "Segnalazione".', 'reply_markup': None}
                 else:
-                    response = {'text': 'Foto ricevuta!', 'reply_markup': None}
+                    response = None
                 
                 if response and token:
                     import requests as req
