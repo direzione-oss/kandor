@@ -27,15 +27,83 @@ class TitolareAdmin(admin.ModelAdmin):
 
 @admin.register(Assenza)
 class AssenzaAdmin(admin.ModelAdmin):
-    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine', 'is_processed')
-    list_filter = ('tipo', 'data_inizio', 'is_processed')
-    search_fields = ('dipendente__cognome', 'dipendente__nome')
+    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine', 'get_orario_display', 'source', 'is_processed', 'cerca_sostituto_action')
+    list_filter = ('tipo', 'data_inizio', 'is_processed', 'source')
+    search_fields = ('dipendente__cognome', 'dipendente__nome', 'note')
+    readonly_fields = ('source', 'created_at')
     actions = ['gestisci_sostituti_periodo']
+
+    fieldsets = (
+        ('👤 Dipendente e Tipo', {
+            'fields': ('dipendente', 'tipo', 'source', 'is_processed')
+        }),
+        ('📅 Periodo Assenza', {
+            'fields': ('data_inizio', 'data_fine')
+        }),
+        ('🕒 Orario e Ore Permesso (se applicabile)', {
+            'fields': ('ora_inizio', 'ora_fine'),
+            'description': 'Specificare orario di inizio e fine per assenze ad ore (es. Permessi).'
+        }),
+        ('📝 Dettagli', {
+            'fields': ('note', 'created_at')
+        }),
+    )
+
+    def cerca_sostituto_action(self, obj):
+        from django.utils.html import format_html
+        from django.urls import reverse
+        url = f"{reverse('admin:core_richiestasostituzione_changelist')}?q={obj.dipendente.cognome}"
+        return format_html(
+            '<a class="button" style="background:#2980b9; color:white; font-size:11px; padding:3px 8px; border-radius:4px; text-decoration:none;" href="{}">🔄 Trova Sostituto</a>',
+            url
+        )
+    cerca_sostituto_action.short_description = "Procedura Sostituzione"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Avvia automaticamente la ricerca sostituto per ogni turno scoperto
+        from .services import crea_richiesta_sostituzione
+        from .models import AssegnazioneTurno, Squadra, RichiestaSostituzione
+        from django.db.models import Q
+        import datetime
+
+        dip = obj.dipendente
+        squadre = Squadra.objects.filter(Q(componenti=dip) | Q(caposquadra=dip)).distinct()
+        data = obj.data_inizio
+        totale_create = 0
+
+        while data <= obj.data_fine:
+            assegnazioni = AssegnazioneTurno.objects.filter(
+                turno__data=data,
+                turno__squadra__in=squadre
+            ).select_related('turno', 'turno__squadra')
+
+            for a in assegnazioni:
+                # Se è un permesso ad ore, verifica eventuale sovrapposizione oraria
+                if obj.ora_inizio and obj.ora_fine and a.orario_inizio_previsto and a.orario_fine_previsto:
+                    if a.orario_fine_previsto <= obj.ora_inizio or a.orario_inizio_previsto >= obj.ora_fine:
+                        continue # Il permesso non copre l'orario del turno
+
+                gia_pres = RichiestaSostituzione.objects.filter(
+                    assegnazione_originale=a,
+                    dipendente_assente=dip
+                ).exists()
+                if not gia_pres:
+                    try:
+                        crea_richiesta_sostituzione(a, dip, obj.tipo, f"Registrata da Admin: {obj.note}")
+                        totale_create += 1
+                    except Exception as e:
+                        pass
+            data += datetime.timedelta(days=1)
+
+        if totale_create > 0:
+            self.message_user(request, f"⚡ Procedura sostituzione avviata: create {totale_create} richieste di sostituzione Jolly.")
 
     @admin.action(description='🔄 Gestisci sostituti per il periodo (tutti i turni)')
     def gestisci_sostituti_periodo(self, request, queryset):
-        from .models import AssegnazioneTurno, RichiestaSostituzione
+        from .models import AssegnazioneTurno, RichiestaSostituzione, Squadra
         from .services import crea_richiesta_sostituzione
+        from django.db.models import Q
         import datetime
 
         totale_turni = 0
@@ -44,19 +112,22 @@ class AssenzaAdmin(admin.ModelAdmin):
 
         for assenza in queryset:
             dip = assenza.dipendente
+            squadre = Squadra.objects.filter(Q(componenti=dip) | Q(caposquadra=dip)).distinct()
             data = assenza.data_inizio
             while data <= assenza.data_fine:
-                # Trova tutti i turni del dipendente in questo giorno
                 assegnazioni = AssegnazioneTurno.objects.filter(
                     turno__data=data,
-                    turno__squadra__componenti=dip
-                ).select_related('turno', 'turno__squadra', 'turno__squadra__caposquadra')
+                    turno__squadra__in=squadre
+                ).select_related('turno', 'turno__squadra')
 
                 for assegnazione in assegnazioni:
                     totale_turni += 1
-                    # Verifica se esiste già una richiesta per questa assegnazione
+                    if assenza.ora_inizio and assenza.ora_fine and assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto:
+                        if assegnazione.orario_fine_previsto <= assenza.ora_inizio or assegnazione.orario_inizio_previsto >= assenza.ora_fine:
+                            continue
+
                     gia_presente = RichiestaSostituzione.objects.filter(
-                        assegnazione=assegnazione,
+                        assegnazione_originale=assegnazione,
                         dipendente_assente=dip
                     ).exists()
                     if gia_presente:
@@ -72,7 +143,7 @@ class AssenzaAdmin(admin.ModelAdmin):
 
         self.message_user(
             request,
-            f'✅ {totale_turni} turni trovati nel periodo: {totale_create} richieste create, {totale_skip} già esistenti.'
+            f'✅ {totale_turni} turni analizzati: {totale_create} richieste di sostituzione create, {totale_skip} già esistenti.'
         )
 
 # -- Branding Configuration --

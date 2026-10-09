@@ -3173,12 +3173,19 @@ def report_paghe_view(request):
         report_data[dip_id]['assenze_dict'][tipo] += giorni
         report_data[dip_id]['giorni_assenza_totali'] += giorni
 
+        if 'ore_permesso_totali' not in report_data[dip_id]:
+            report_data[dip_id]['ore_permesso_totali'] = 0.0
+        if assenza.tipo == 'PERMESSO' and assenza.ore_permesso:
+            report_data[dip_id]['ore_permesso_totali'] += assenza.ore_permesso
+
         report_data[dip_id]['dettaglio_assenze'].append({
             'tipo': assenza.tipo,
             'inizio': assenza.data_inizio.strftime('%d/%m/%Y'),
             'fine': assenza.data_fine.strftime('%d/%m/%Y'),
+            'orario': assenza.get_orario_display(),
+            'ore': assenza.ore_permesso or 0.0,
             'giorni': giorni,
-            'note': assenza.note or '',
+            'note': (assenza.note or '') + (f" [{assenza.get_orario_display()}]" if assenza.ora_inizio else ""),
         })
 
     report_list = []

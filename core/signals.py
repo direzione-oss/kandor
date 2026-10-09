@@ -164,7 +164,13 @@ def on_assenza_save(sender, instance, created, raw=False, **kwargs):
         turno__squadra__in=squadre
     ).select_related('turno', 'turno__squadra', 'cliente')
     
-    turni_scoperti = list(assegnazioni)
+    turni_scoperti = []
+    for a in assegnazioni:
+        if instance.ora_inizio and instance.ora_fine and a.orario_inizio_previsto and a.orario_fine_previsto:
+            if a.orario_fine_previsto <= instance.ora_inizio or a.orario_inizio_previsto >= instance.ora_fine:
+                continue
+        turni_scoperti.append(a)
+
     if not turni_scoperti:
         return
     
@@ -189,9 +195,10 @@ def on_assenza_save(sender, instance, created, raw=False, **kwargs):
         
         try:
             from core.services import crea_richiesta_sostituzione
+            orario_str = f" ({instance.get_orario_display()})" if instance.ora_inizio else ""
             crea_richiesta_sostituzione(
                 assegnazione, dipendente, motivo,
-                f"Assenza programmata {instance.tipo}: {instance.data_inizio.strftime('%d/%m')}→{instance.data_fine.strftime('%d/%m')}"
+                f"Assenza programmata {instance.tipo}{orario_str}: {instance.data_inizio.strftime('%d/%m')}→{instance.data_fine.strftime('%d/%m')}"
             )
             richieste_create += 1
         except Exception as e:
@@ -206,10 +213,12 @@ def on_assenza_save(sender, instance, created, raw=False, **kwargs):
             admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
             if admin_chat_id:
                 token = settings.TELEGRAM_BOT_TOKEN
+                orario_info = f"\n🕒 Orario: {instance.get_orario_display()}" if instance.ora_inizio else ""
                 alert_msg = (
                     f"📋 ASSENZA PROGRAMMATA\n\n"
                     f"👤 {dipendente.cognome} {dipendente.nome}\n"
-                    f"📅 {instance.data_inizio.strftime('%d/%m/%Y')} → {instance.data_fine.strftime('%d/%m/%Y')}\n"
+                    f"📅 {instance.data_inizio.strftime('%d/%m/%Y')} → {instance.data_fine.strftime('%d/%m/%Y')}"
+                    f"{orario_info}\n"
                     f"📝 Motivo: {instance.tipo}\n"
                     f"⚠️ Turni scoperti: {len(turni_scoperti)}\n"
                     f"🔄 Richieste sostituzione create: {richieste_create}\n"

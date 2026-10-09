@@ -434,13 +434,37 @@ class Assenza(models.Model):
     source = models.CharField(max_length=20, default='MANUAL') # MANUAL, TELEGRAM
     is_processed = models.BooleanField(default=False, verbose_name="Processato")
 
+    @property
+    def ore_permesso(self):
+        """Calcola la durata in ore del permesso se specificati ora_inizio e ora_fine."""
+        if self.ora_inizio and self.ora_fine:
+            import datetime
+            d = datetime.date.today()
+            t_start = datetime.datetime.combine(d, self.ora_inizio)
+            t_end = datetime.datetime.combine(d, self.ora_fine)
+            if t_end > t_start:
+                diff = (t_end - t_start).total_seconds() / 3600.0
+                return round(diff, 1)
+        return None
+
+    def get_orario_display(self):
+        """Restituisce la stringa formattata dell'orario o dell'intera giornata."""
+        if self.ora_inizio and self.ora_fine:
+            durata = f" ({self.ore_permesso}h)" if self.ore_permesso else ""
+            return f"{self.ora_inizio.strftime('%H:%M')} - {self.ora_fine.strftime('%H:%M')}{durata}"
+        return "Intera Giornata"
+    get_orario_display.short_description = "Orario / Durata"
+
     def clean(self):
         from django.core.exceptions import ValidationError
         if self.data_fine < self.data_inizio:
             raise ValidationError("La data di fine non può essere precedente all'inizio.")
+        if self.ora_inizio and self.ora_fine and self.ora_fine <= self.ora_inizio:
+            raise ValidationError("L'ora di fine deve essere successiva all'ora di inizio.")
 
     def __str__(self):
-        return f"{self.dipendente} - {self.tipo} ({self.data_inizio} a {self.data_fine})"
+        orario = f" {self.get_orario_display()}" if self.ora_inizio else ""
+        return f"{self.dipendente} - {self.tipo} ({self.data_inizio} a {self.data_fine}{orario})"
 
     class Meta:
         verbose_name_plural = "Assenze"
