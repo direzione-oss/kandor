@@ -2998,7 +2998,7 @@ def report_paghe_view(request):
             'dipendente': dip,
             'cognome_nome': f"{dip.cognome} {dip.nome}",
             'codice_fiscale': dip.codice_fiscale or '---',
-            'ruolo': dip.ruolo or 'Dipendente',
+            'ruolo': ('Part-Time' if getattr(dip, 'is_part_time', False) else 'Full-Time'),
             'ore_lavorate': 0.0,
             'ore_validate': 0.0,
             'giorni_lavorati_set': set(),
