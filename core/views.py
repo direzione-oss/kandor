@@ -1781,47 +1781,68 @@ def verifica_ore_view(request):
         9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'
     }
     
-    # === SEZIONE PER CLIENTE ===
+    # === SEZIONE PER CLIENTE (Raggruppato per Partita IVA se presente) ===
     tt_mese = TimeTracking.objects.filter(
         assegnazione__turno__data__gte=primo_giorno,
         assegnazione__turno__data__lte=ultimo_giorno
     ).select_related('assegnazione__cliente', 'dipendente', 'assegnazione__turno__squadra')
     
-    # Aggregazione per cliente
+    # Aggregazione per cliente / Partita IVA
     clienti_data = {}
     for tt in tt_mese:
         cliente = tt.assegnazione.cliente
-        cid = cliente.pk
-        if cid not in clienti_data:
-            clienti_data[cid] = {
-                'cliente': cliente,
-                'ragione_sociale': cliente.ragione_sociale,
-                'ore_contratto': float(cliente.ore_mensili_contratto or 0),
-                'importo_contratto': float(cliente.importo_mensile_contratto or 0),
-                'importo_orario': cliente.importo_orario,
-                'ore_lavorate': 0,
-                'ore_validate': 0,
+        if not cliente:
+            continue
+        piva = (cliente.partita_iva or '').strip().upper()
+        key = f"PIVA_{piva}" if piva else f"PK_{cliente.pk}"
+        
+        if key not in clienti_data:
+            clienti_data[key] = {
+                'key': key,
+                'piva': piva,
+                'clienti': set(),
+                'ore_lavorate': 0.0,
+                'ore_validate': 0.0,
             }
+        clienti_data[key]['clienti'].add(cliente)
+        
         ore = float(tt.ore_dichiarate or 0)
-        clienti_data[cid]['ore_lavorate'] += ore
+        clienti_data[key]['ore_lavorate'] += ore
         if tt.is_validated:
-            clienti_data[cid]['ore_validate'] += ore
+            clienti_data[key]['ore_validate'] += ore
     
     # Aggiungi clienti senza ore ma con contratto
     for cl in Cliente.objects.filter(ore_mensili_contratto__gt=0):
-        if cl.pk not in clienti_data:
-            clienti_data[cl.pk] = {
-                'cliente': cl,
-                'ragione_sociale': cl.ragione_sociale,
-                'ore_contratto': float(cl.ore_mensili_contratto or 0),
-                'importo_contratto': float(cl.importo_mensile_contratto or 0),
-                'importo_orario': cl.importo_orario,
-                'ore_lavorate': 0,
-                'ore_validate': 0,
+        piva = (cl.partita_iva or '').strip().upper()
+        key = f"PIVA_{piva}" if piva else f"PK_{cl.pk}"
+        
+        if key not in clienti_data:
+            clienti_data[key] = {
+                'key': key,
+                'piva': piva,
+                'clienti': set(),
+                'ore_lavorate': 0.0,
+                'ore_validate': 0.0,
             }
+        clienti_data[key]['clienti'].add(cl)
     
-    # Calcoli derivati per cliente
+    # Calcoli derivati e formattazione nomi per ciascun gruppo
     for cd in clienti_data.values():
+        clienti_list_sorted = sorted(list(cd['clienti']), key=lambda x: x.ragione_sociale)
+        cd['cliente'] = clienti_list_sorted[0]
+        
+        # Somma contratti delle sedi
+        cd['ore_contratto'] = float(sum(c.ore_mensili_contratto or 0 for c in clienti_list_sorted))
+        cd['importo_contratto'] = float(sum(c.importo_mensile_contratto or 0 for c in clienti_list_sorted))
+        cd['importo_orario'] = round(cd['importo_contratto'] / cd['ore_contratto'], 2) if cd['ore_contratto'] > 0 else 0
+        
+        piva_str = cd['piva']
+        if len(clienti_list_sorted) > 1 and piva_str:
+            nome_base = clienti_list_sorted[0].ragione_sociale.split('-')[0].strip()
+            cd['ragione_sociale'] = f"{nome_base} ({len(clienti_list_sorted)} Sedi - P.IVA {piva_str})"
+        else:
+            cd['ragione_sociale'] = clienti_list_sorted[0].ragione_sociale
+
         cd['ore_lavorate'] = round(cd['ore_lavorate'], 1)
         cd['ore_validate'] = round(cd['ore_validate'], 1)
         cd['diff'] = round(cd['ore_lavorate'] - cd['ore_contratto'], 1)
@@ -1994,35 +2015,55 @@ def pdf_verifica_ore(request):
         assegnazione__turno__data__lte=ultimo_giorno
     ).select_related('assegnazione__cliente', 'dipendente', 'assegnazione__turno__squadra')
     
-    # Aggregazione per cliente
+    # Aggregazione per cliente / Partita IVA
     clienti_data = {}
     for tt in tt_mese:
         cliente = tt.assegnazione.cliente
-        cid = cliente.pk
-        if cid not in clienti_data:
-            clienti_data[cid] = {
-                'ragione_sociale': cliente.ragione_sociale,
-                'ore_contratto': float(cliente.ore_mensili_contratto or 0),
-                'importo_contratto': float(cliente.importo_mensile_contratto or 0),
-                'importo_orario': cliente.importo_orario,
-                'ore_lavorate': 0, 'ore_validate': 0,
+        if not cliente:
+            continue
+        piva = (cliente.partita_iva or '').strip().upper()
+        key = f"PIVA_{piva}" if piva else f"PK_{cliente.pk}"
+        
+        if key not in clienti_data:
+            clienti_data[key] = {
+                'piva': piva,
+                'clienti': set(),
+                'ore_lavorate': 0.0,
+                'ore_validate': 0.0,
             }
+        clienti_data[key]['clienti'].add(cliente)
+        
         ore = float(tt.ore_dichiarate or 0)
-        clienti_data[cid]['ore_lavorate'] += ore
+        clienti_data[key]['ore_lavorate'] += ore
         if tt.is_validated:
-            clienti_data[cid]['ore_validate'] += ore
+            clienti_data[key]['ore_validate'] += ore
     
     for cl in Cliente.objects.filter(ore_mensili_contratto__gt=0):
-        if cl.pk not in clienti_data:
-            clienti_data[cl.pk] = {
-                'ragione_sociale': cl.ragione_sociale,
-                'ore_contratto': float(cl.ore_mensili_contratto or 0),
-                'importo_contratto': float(cl.importo_mensile_contratto or 0),
-                'importo_orario': cl.importo_orario,
-                'ore_lavorate': 0, 'ore_validate': 0,
+        piva = (cl.partita_iva or '').strip().upper()
+        key = f"PIVA_{piva}" if piva else f"PK_{cl.pk}"
+        
+        if key not in clienti_data:
+            clienti_data[key] = {
+                'piva': piva,
+                'clienti': set(),
+                'ore_lavorate': 0.0,
+                'ore_validate': 0.0,
             }
+        clienti_data[key]['clienti'].add(cl)
     
     for cd in clienti_data.values():
+        clienti_list_sorted = sorted(list(cd['clienti']), key=lambda x: x.ragione_sociale)
+        cd['ore_contratto'] = float(sum(c.ore_mensili_contratto or 0 for c in clienti_list_sorted))
+        cd['importo_contratto'] = float(sum(c.importo_mensile_contratto or 0 for c in clienti_list_sorted))
+        cd['importo_orario'] = round(cd['importo_contratto'] / cd['ore_contratto'], 2) if cd['ore_contratto'] > 0 else 0
+        
+        piva_str = cd['piva']
+        if len(clienti_list_sorted) > 1 and piva_str:
+            nome_base = clienti_list_sorted[0].ragione_sociale.split('-')[0].strip()
+            cd['ragione_sociale'] = f"{nome_base} ({len(clienti_list_sorted)} Sedi - P.IVA {piva_str})"
+        else:
+            cd['ragione_sociale'] = clienti_list_sorted[0].ragione_sociale
+
         cd['ore_lavorate'] = round(cd['ore_lavorate'], 1)
         cd['ore_validate'] = round(cd['ore_validate'], 1)
         cd['diff'] = round(cd['ore_lavorate'] - cd['ore_contratto'], 1)
