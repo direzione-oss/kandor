@@ -350,9 +350,26 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
 
   var provAlert = document.getElementById('edit-provvisorie-alert');
   var provVal = document.getElementById('edit-provvisorie-val');
-  if (stato === 'yellow') {
-    if (provAlert) provAlert.style.display = 'block';
-    if (provVal) provVal.textContent = (oreDichiarate ? oreDichiarate + 'h' : oreLabel) + ' (Provvisorie - In attesa di validazione)';
+  var odVal = parseFloat(oreDichiarate);
+  if (!isNaN(odVal) && odVal > 0) {
+    if (provAlert) {
+      provAlert.style.display = 'block';
+      provAlert.style.background = (stato === 'green' ? '#d1fae5' : '#fef3c7');
+      provAlert.style.borderColor = (stato === 'green' ? '#10b981' : '#f59e0b');
+      provAlert.style.color = (stato === 'green' ? '#047857' : '#92400e');
+    }
+    if (provVal) {
+      var statusTxt = (stato === 'green') ? '✅ VALIDATE' : '⏳ IN ATTESA DI VALIDAZIONE';
+      provVal.innerHTML = '<b>' + odVal + ' h</b> (' + statusTxt + ')';
+    }
+  } else if (stato === 'yellow') {
+    if (provAlert) {
+      provAlert.style.display = 'block';
+      provAlert.style.background = '#fef3c7';
+      provAlert.style.borderColor = '#f59e0b';
+      provAlert.style.color = '#92400e';
+    }
+    if (provVal) provVal.innerHTML = '<b>' + (oreLabel || 'Dichiarate') + '</b> (⏳ In attesa di validazione)';
   } else {
     if (provAlert) provAlert.style.display = 'none';
   }
@@ -366,25 +383,48 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
     var cs=document.getElementById('edit-cliente');cs.innerHTML='';
     d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;if(String(c.id)===String(clienteId))o.selected=true;cs.appendChild(o)})
   });
-  /* Carica componenti squadra con checkboxes */
+  /* Carica componenti squadra con checkboxes e ORE DICHIARATE */
   var listEl=document.getElementById('edit-componenti-list');
   listEl.innerHTML='<span style="font-size:11px;color:#999">Caricamento...</span>';
   fetch('/api/assegnazione-componenti/'+assignId+'/').then(function(r){return r.json()}).then(function(d){
     listEl.innerHTML='';
     if(!d.componenti||!d.componenti.length){listEl.innerHTML='<span style="font-size:11px;color:#999">Nessun componente</span>';return;}
+    
+    var maxOreDichiarate = null;
     d.componenti.forEach(function(c){
       var lbl=document.createElement('label');
-      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+(c.escluso?'#ffeaea':'#f0fff4')+';padding:3px 8px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+(c.escluso?'#f5c6cb':'#c3e6cb');
+      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+(c.escluso?'#ffeaea':'#f0fff4')+';padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+(c.escluso?'#f5c6cb':'#c3e6cb');
       var chk=document.createElement('input');
       chk.type='checkbox';chk.value=c.id;chk.dataset.dipId=c.id;chk.className='comp-check';
       chk.checked=!c.escluso;
       chk.style.transform='scale(0.85)';
       chk.onchange=function(){lbl.style.background=this.checked?'#f0fff4':'#ffeaea';lbl.style.borderColor=this.checked?'#c3e6cb':'#f5c6cb';};
       lbl.appendChild(chk);
-      lbl.appendChild(document.createTextNode(c.nome+(c.ruolo==='Caposquadra'?' \u2B50':'')));
+      
+      var txtNode = document.createTextNode(c.nome+(c.ruolo==='Caposquadra'?' ⭐':''));
+      lbl.appendChild(txtNode);
+
+      if (c.ore_dichiarate !== null && c.ore_dichiarate !== undefined) {
+        if (maxOreDichiarate === null || c.ore_dichiarate > maxOreDichiarate) {
+          maxOreDichiarate = c.ore_dichiarate;
+        }
+        var oreSpan = document.createElement('span');
+        oreSpan.style.cssText = 'background:' + (c.is_validated ? '#d1fae5' : '#fef3c7') + ';color:' + (c.is_validated ? '#047857' : '#92400e') + ';padding:2px 7px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px;border:1px solid ' + (c.is_validated ? '#a7f3d0' : '#fde68a');
+        oreSpan.textContent = (c.is_validated ? '✅ ' : '⏳ ') + c.ore_dichiarate + 'h';
+        lbl.appendChild(oreSpan);
+      }
+      
       listEl.appendChild(lbl);
     });
-  }).catch(function(){listEl.innerHTML='<span style="font-size:11px;color:#e74c3c">Errore</span>';});
+
+    if (maxOreDichiarate !== null) {
+      document.getElementById('edit-ore-input').value = maxOreDichiarate;
+      var pAlert = document.getElementById('edit-provvisorie-alert');
+      var pVal = document.getElementById('edit-provvisorie-val');
+      if (pAlert) pAlert.style.display = 'block';
+      if (pVal) pVal.innerHTML = '<b>' + maxOreDichiarate + ' h</b> (⏳ Inserite dal dipendente via Telegram)';
+    }
+  }).catch(function(){listEl.innerHTML='<span style="font-size:11px;color:#e74c3c">Errore nel caricamento dei componenti</span>';});
 }
 function closeEditTurno(){document.getElementById('edit-modal-overlay').classList.remove('active');_editId=null}
 function submitOreManual(validate){

@@ -719,25 +719,41 @@ def get_squadre_clienti_json(request):
 
 
 def get_assegnazione_componenti_json(request, assign_id):
-    """Per una specifica assegnazione: restituisce i componenti della squadra e gli ID degli esclusi."""
+    """Per una specifica assegnazione: restituisce i componenti della squadra, le ore dichiarate e gli ID degli esclusi."""
     try:
-        from .models import AssegnazioneTurno
+        from .models import AssegnazioneTurno, TimeTracking
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
         esclusi_ids = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
+        tt_map = {tt.dipendente_id: tt for tt in TimeTracking.objects.filter(assegnazione=assign)}
+
+        def _build_comp_dict(dip, ruolo):
+            tt = tt_map.get(dip.pk)
+            ore_d = float(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else (float(tt.durata_ore) if (tt and tt.durata_ore) else None)
+            return {
+                'id': dip.pk,
+                'nome': f"{dip.cognome} {dip.nome}",
+                'ruolo': ruolo,
+                'escluso': dip.pk in esclusi_ids,
+                'ore_dichiarate': ore_d,
+                'is_validated': tt.is_validated if tt else False,
+                'source': tt.source if tt else None,
+                'note': tt.note if tt else '',
+            }
+
         componenti = []
         if squadra.caposquadra:
-            componenti.append({'id': squadra.caposquadra.pk,
-                               'nome': f"{squadra.caposquadra.cognome} {squadra.caposquadra.nome}",
-                               'ruolo': 'Caposquadra',
-                               'escluso': squadra.caposquadra.pk in esclusi_ids})
+            componenti.append(_build_comp_dict(squadra.caposquadra, 'Caposquadra'))
         for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-            componenti.append({'id': c.pk,
-                               'nome': f"{c.cognome} {c.nome}",
-                               'ruolo': 'Componente',
-                               'escluso': c.pk in esclusi_ids})
-        return JsonResponse({'componenti': componenti, 'esclusi_ids': esclusi_ids})
+            componenti.append(_build_comp_dict(c, 'Componente'))
+
+        return JsonResponse({
+            'componenti': componenti,
+            'esclusi_ids': esclusi_ids,
+            'assign_id': assign.id,
+            'ore_previste': float(assign.ore_previste_contratto) if assign.ore_previste_contratto else None,
+        })
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)})
 
