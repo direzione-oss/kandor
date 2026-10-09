@@ -6,7 +6,7 @@
 
     <h1 style="color: #1a5276; border-bottom: 3px solid #2980b9; padding-bottom: 10px; font-size: 28px;">📘 Manuale
         d'Uso — Kandor</h1>
-    <p style="color: #777;">Versione 1.0 — Marzo 2026 | URL: <a
+    <p style="color: #777;">Versione 2.2 — Ottobre 2026 | URL: <a
             href="https://kandor.onrender.com">kandor.onrender.com</a></p>
 
     <!-- SOMMARIO -->
@@ -27,6 +27,7 @@
                 <li><a href="#straordinarie">Richieste Straordinarie</a></li>
                 <li><a href="#jolly">Trova Jolly</a></li>
                 <li><a href="#timetracking">Registrazione Ore</a></li>
+                <li><a href="#paghe">Report Paghe</a></li>
                 <li><a href="#assenze">Gestione Assenze</a></li>
                 <li><a href="#segnalazioni">Segnalazioni</a></li>
                 <li><a href="#riconciliazione">Riconciliazione Ore</a></li>
@@ -284,9 +285,22 @@
     <h2 id="timetracking" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">13.
         Registrazione Ore (Time Tracking)</h2>
     <p><strong>Dashboard → Time Tracking</strong></p>
-    <p>Campi: Dipendente, Assegnazione, Check-in/out, Note, Origine (Manuale/Telegram), Validato.</p>
     <p>La <strong>durata</strong> viene calcolata automaticamente. I dipendenti possono registrare le ore anche via
         <strong>Telegram</strong>.</p>
+    <div style="background: #e8f4fd; padding: 12px 15px; border-left: 5px solid #0277bd; margin: 10px 0;">
+        <strong>⏳ Ore Provvisorie e Validazione 1-Click:</strong> Le ore inserite dai dipendenti compaiono sul calendario con il badge ambra <code>⏳ Provvisorie: Xh</code>. L'amministrazione può approvarle direttamente con 1-click dal calendario oppure dalla modale di modifica turno con il tasto "✔ Salva e valida".
+    </div>
+
+    <!-- 14. REPORT PAGHE -->
+    <h2 id="paghe" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">14. Report Paghe e Stampa Buste Paga</h2>
+    <p><strong>Dashboard → Report Paghe</strong> (URL: <code>/admin/report-paghe/</code>)</p>
+    <p>Permette di elaborare e verificare i conteggi mensili di tutti i dipendenti pronti per lo studio di consulenza del lavoro:</p>
+    <ul>
+        <li><strong>Filtro Mese/Anno e Dipendente:</strong> Seleziona il periodo e filtra per nome/cognome.</li>
+        <li><strong>Totali Ore Ordinarie e Straordinari:</strong> Calcolo separato delle ore ordinarie e degli straordinari approvati.</li>
+        <li><strong>Stato Validazione e Assenze:</strong> Evidenza delle ore validate vs in attesa e dei giorni di ferie, malattia o permessi usufruiti.</li>
+        <li><strong>Export PDF & Excel:</strong> Generazione di un documento PDF ufficiale pronto per la stampa o l'invio via email e download Excel/CSV.</li>
+    </ul>
 
     <!-- 14. ASSENZE -->
     <h2 id="assenze" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">14. Gestione Assenze

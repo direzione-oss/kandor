@@ -202,10 +202,6 @@
   <div style="font-size:10px;color:#999;margin-top:6px">✅ = presente nel turno &nbsp;|&nbsp; Deseleziona per escludere dal turno</div>
 </div>
 <div id="edit-ore-section" style="margin-top:14px;padding:12px;background:#f5f5f5;border-radius:6px;border-left:4px solid #bbb">
-  <div id="edit-provvisorie-alert" style="display:none;margin-bottom:10px;padding:8px 10px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e">
-    <strong>⏳ Ore dichiarate dal dipendente: <span id="edit-provvisorie-val"></span></strong>
-    <div style="font-size:11px;margin-top:2px;color:#b45309">Inserite dal dipendente e in attesa di validazione dall'amministrazione.</div>
-  </div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate</span>
     <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
@@ -369,32 +365,6 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
   badge.style.color=colors[1];
   document.getElementById('edit-ore-section').style.borderLeftColor=colors[0];
 
-  var provAlert = document.getElementById('edit-provvisorie-alert');
-  var provVal = document.getElementById('edit-provvisorie-val');
-  var odVal = parseFloat(oreDichiarate);
-  if (!isNaN(odVal) && odVal > 0) {
-    if (provAlert) {
-      provAlert.style.display = 'block';
-      provAlert.style.background = (stato === 'green' ? '#d1fae5' : '#fef3c7');
-      provAlert.style.borderColor = (stato === 'green' ? '#10b981' : '#f59e0b');
-      provAlert.style.color = (stato === 'green' ? '#047857' : '#92400e');
-    }
-    if (provVal) {
-      var statusTxt = (stato === 'green') ? '✅ VALIDATE' : '⏳ IN ATTESA DI VALIDAZIONE';
-      provVal.innerHTML = '<b>' + odVal + ' h</b> (' + statusTxt + ')';
-    }
-  } else if (stato === 'yellow') {
-    if (provAlert) {
-      provAlert.style.display = 'block';
-      provAlert.style.background = '#fef3c7';
-      provAlert.style.borderColor = '#f59e0b';
-      provAlert.style.color = '#92400e';
-    }
-    if (provVal) provVal.innerHTML = '<b>' + (oreLabel || 'Dichiarate') + '</b> (⏳ In attesa di validazione)';
-  } else {
-    if (provAlert) provAlert.style.display = 'none';
-  }
-
   var overlay=document.getElementById('edit-modal-overlay');
   overlay.classList.add('active');
   /* Carica squadre e clienti */
@@ -440,10 +410,6 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
 
     if (maxOreDichiarate !== null) {
       document.getElementById('edit-ore-input').value = maxOreDichiarate;
-      var pAlert = document.getElementById('edit-provvisorie-alert');
-      var pVal = document.getElementById('edit-provvisorie-val');
-      if (pAlert) pAlert.style.display = 'block';
-      if (pVal) pVal.innerHTML = '<b>' + maxOreDichiarate + ' h</b> (⏳ Inserite dal dipendente via Telegram)';
     }
   }).catch(function(){listEl.innerHTML='<span style="font-size:11px;color:#e74c3c">Errore nel caricamento dei componenti</span>';});
 }

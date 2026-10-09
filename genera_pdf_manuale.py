@@ -71,7 +71,8 @@ def clean_text(text):
         '\u201c': '"', '\u201d': '"', '\u2026': '...',
         '\u2022': '-', '\u2192': '->', '\u2190': '<-',
         '\u2713': '[OK]', '\u2717': '[NO]',
-        '\u2705': '[OK]', '\u274c': '[NO]', '\u26a0\ufe0f': '[!]',
+        '\u2705': '[OK]', '\u274c': '[NO]', '\u26a0\ufe0f': '[!]', '\u26a0': '[!]',
+        '⚠️': '[!]', '📘': '', '🚨': '[!]', '🟢': '[V]', '🟡': '[A]', '🔴': '[R]', '⚪': '[ ]',
         '\U0001f389': '', '\U0001f91e': '', '\U0001f680': '',
         '\U0001f4d8': '', '\U0001f4c5': '', '\U0001f4f1': '',
         '\U0001f697': '', '\U0001f382': '', '\U0001f4ac': '',
@@ -81,12 +82,13 @@ def clean_text(text):
         '\U0001f464': '', '\U0001f511': '', '\U0001f449': '>',
         '\U0001f5d1\ufe0f': '', '\u270f\ufe0f': '', '\U0001f440': '',
         '\u26a1': '', '\u2190': '<', '\u2192': '>',
-        '\u2714': '[OK]',
+        '\u2714': '[OK]', '\u23f1': '[...]', '\u23f3': '[...]',
+        '⏳': '[...]', '✔': '[OK]', '✅': '[OK]', '🗓️': '', '👥': '', '🏢': '', '📦': '', '📄': '',
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
-    # Rimuovi qualsiasi carattere non-latin1 rimanente
-    text = text.encode('latin-1', errors='replace').decode('latin-1')
+    # Rimuovi qualsiasi carattere non-latin1 rimanente convertendolo
+    text = text.encode('latin-1', errors='ignore').decode('latin-1')
     return text.strip()
 
 def parse_table(lines, start_idx):
@@ -152,10 +154,11 @@ def main():
             continue
         
         if in_code_block:
+            clean_l = clean_text(line)
             pdf.set_font('Courier', '', 9)
             pdf.set_fill_color(44, 62, 80)
             pdf.set_text_color(236, 240, 241)
-            pdf.cell(0, 5, f'  {line}', fill=True, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 5, f'  {clean_l}', fill=True, new_x="LMARGIN", new_y="NEXT")
             pdf.set_text_color(0, 0, 0)
             i += 1
             continue

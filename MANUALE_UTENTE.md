@@ -1,7 +1,7 @@
 # 📘 KANDOR — Manuale d'Uso Completo
 
-> **Versione**: 2.1  
-> **Ultimo aggiornamento**: Marzo 2026  
+> **Versione**: 2.2  
+> **Ultimo aggiornamento**: Ottobre 2026  
 > **URL**: [kandor.onrender.com](https://kandor.onrender.com)
 
 ---
@@ -34,6 +34,7 @@
 24. [Backup e Ripristino](#24-backup-e-ripristino)
 25. [Widget Dashboard](#25-widget-dashboard)
 26. [FAQ e Risoluzione Problemi](#26-faq-e-risoluzione-problemi)
+27. [Report Paghe e Stampa Buste Paga](#27-report-paghe-e-stampa-buste-paga)
 
 ---
 
@@ -340,7 +341,16 @@ Dalla sidebar, clicca **"Genera Turni"** per creare le assegnazioni per i prossi
 
 ## 11. Programmazione Ricorrente
 
-Accessibile dalla **scheda del Cliente** (sezione inline).
+Accessibile dalla **scheda del Cliente** oppure dalla sezione panoramica **Programmazioni Ricorrenti** nel menu Admin.
+
+### Modalità di Visualizzazione e Gestione Riorganizzata
+
+Per facilitare la consultazione e l'inserimento senza sovrapposizioni visive:
+- **Gestione nel Cliente (`StackedInline`)**: Nella scheda di ciascun cliente, ogni programmazione è organizzata come un blocco ordinato suddiviso in tre gruppi:
+  1. **Frequenza e Orari**: Ripetizione (Settimanale, Bisettimanale, Mensile), Giorno della settimana/mese, Ora Inizio/Fine, Flessibilità.
+  2. **Risorse Abituali**: Squadra abituale, Mezzo e Qualifica/Mansione richiesta.
+  3. **Periodo Contratto**: Data Inizio Contratto e Data Fine Contratto.
+- **Vista Dedicata Generale (`/admin/core/programmazionericorrente/`)**: Accessibile direttamente dal menu laterale di Django Admin, consente di visualizzare, cercare e filtrare **tutte le programmazioni ricorrenti aziendali** in una singola lista con filtri rapidi per giorno, squadra e tipo di frequenza.
 
 | Campo | Descrizione |
 |-------|-------------|
@@ -451,13 +461,15 @@ Azione rapida: **"✅ Approva e invia ai sostituti"** per approvare in blocco.
 | **Origine** | Manuale, Telegram o WhatsApp |
 | **Validato** | Checkbox per conferma amministrativa |
 
-### Validazione Ore dal Calendario
+### Validazione Ore e Gestione Ore Provvisorie sul Calendario
 
-Nel calendario, le ore non validate mostrano un badge **giallo**. Clicca sull'evento → bottone **"✅ Valida Ore"** per confermarle (diventano verdi). Per rimuovere la validazione: **"❌ Rimuovi Validazione"**.
-
-### Inserimento Ore dall'Admin
-
-Nell'evento del calendario: campo "Inserisci ore lavorate" con checkbox "Valida subito" → **"💾 Salva Ore"**.
+Quando i dipendenti comunicano le ore lavorate (tramite bot Telegram o chat):
+1. **Ore Provvisorie nel Calendario**: Sulla scheda del turno nel calendario compare direttamente il badge ambra **`⏳ Provvisorie: Xh`** (es. `⏳ Provvisorie: 7h30'`).
+2. **Validazione Rapida 1-Click**: Il pulsante con la spunta `✓` sul turno si illumina in arancione brillante con bordo in rilievo. Cliccandolo direttamente dal calendario, l'amministrazione approva le ore con un solo click.
+3. **Modale di Dettaglio Turno**: Cliccando su un turno per modificarlo, un banner d'avviso evidenzia:
+   > **⏳ Ore dichiarate dal dipendente: Xh (Provvisorie - In attesa di validazione)**  
+   È possibile salvare e validare subito con il bottone **"✔ Salva e valida"** oppure confermare le ore esistenti con **"✅ Valida ore esistenti"**.
+4. **Badge Validato**: Una volta approvate, la scheda sul calendario mostra il badge verde **`✅ Validate: Xh`**.
 
 ---
 
@@ -791,6 +803,25 @@ Il dipendente invia un messaggio al bot. Se non registrato, il bot risponde: *"N
 2. Seleziona il dipendente
 3. Dai un nome all'area
 4. Assegna le squadre supervisionate
+
+---
+
+## 27. Report Paghe e Stampa Buste Paga
+
+La sezione **Report Paghe** (`/admin/report-paghe/`) permette all'amministrazione di verificare ed esportare i conteggi mensili di tutti i dipendenti pronti per l'elaborazione delle buste paga da parte dello studio consulente del lavoro.
+
+### Funzionalità Principali
+
+- **Filtro Mese e Anno**: Seleziona qualsiasi mese e anno per calcolare istantaneamente il prospetto contabile.
+- **Ricerca Dipendente**: Filtra rapidamente per nome o cognome del lavoratore.
+- **Dettaglio Totali e Ore**:
+  - **Ore Lavorate Totali**: Somma complessiva delle ore consuntivate nel mese.
+  - **Ore Ordinarie e Straordinari**: Distinzione automatica delle ore di straordinario approvate.
+  - **Ore Validate vs In Attesa**: Evidenza immediata dello stato di validazione contabile.
+  - **Gestione Assenze**: Conteggio dei giorni di malattia, ferie, permessi o infortuni usufruiti nel periodo.
+- **Esportazione Pronta**:
+  - **Pulsante "Stampa / Export PDF"**: Genera un documento PDF ufficiale, pronto per la stampa o l'invio via email al consulente del lavoro.
+  - **Export Excel / CSV**: Download dei dati in formato foglio di calcolo per archiviazione e integrazione con altri software gestionali.
 
 ---
 
