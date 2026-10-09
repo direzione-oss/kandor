@@ -158,9 +158,10 @@ class DipendenteAdmin(admin.ModelAdmin):
     list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
     actions = ['send_telegram_message_action']
+    readonly_fields = ('anteprima_foto_telegram',)
     fieldsets = (
         ('Dati Anagrafici', {
-            'fields': ('nome', 'cognome', 'codice_fiscale', 'data_nascita', 'indirizzo_residenza', 'email', 'telefono')
+            'fields': (('nome', 'cognome', 'anteprima_foto_telegram'), 'codice_fiscale', 'data_nascita', 'indirizzo_residenza', 'email', 'telefono')
         }),
         ('Stato', {
             'fields': ('stato',)
@@ -182,6 +183,33 @@ class DipendenteAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def anteprima_foto_telegram(self, obj):
+        from django.utils.html import format_html
+        from django.utils.safestring import mark_safe
+        img_url = obj.foto_profilo_url or obj.foto_url or (obj.foto.url if obj.foto else None)
+        if img_url:
+            return format_html(
+                '<div style="display:inline-flex; align-items:center; gap:12px; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 8px 12px; background: #FFFFFF; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">'
+                '  <img src="{}" style="width: 72px; height: 72px; object-fit: cover; border-radius: 10px; border: 2px solid #FF6F00;" alt="Foto Telegram" />'
+                '  <div style="display:flex; flex-direction:column;">'
+                '    <span style="font-size: 11px; font-weight: 700; color: #0F172A; text-transform: uppercase; letter-spacing: 0.5px;">Foto Telegram</span>'
+                '    <span style="font-size: 11px; color: #16A34A; font-weight: 600; margin-top: 2px;">✓ Inviata dal Bot</span>'
+                '    <a href="{}" target="_blank" style="font-size: 10px; color: #2563EB; text-decoration: underline; margin-top: 4px;">Apri originale ↗</a>'
+                '  </div>'
+                '</div>',
+                img_url, img_url
+            )
+        return mark_safe(
+            '<div style="display:inline-flex; align-items:center; gap:10px; border: 1.5px dashed #CBD5E1; border-radius: 12px; padding: 10px 14px; background: #F8FAFC; color: #64748B;">'
+            '  <span style="font-size: 20px;">📸</span>'
+            '  <div style="display:flex; flex-direction:column;">'
+            '    <span style="font-size: 11px; font-weight: 600; color: #475569;">Foto Telegram Non Presente</span>'
+            '    <span style="font-size: 10px; color: #94A3B8;">Il dipendente non ha inviato una foto via bot</span>'
+            '  </div>'
+            '</div>'
+        )
+    anteprima_foto_telegram.short_description = 'Foto Telegram'
     
     def foto_avatar(self, obj):
         from django.utils.html import format_html
