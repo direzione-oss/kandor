@@ -176,11 +176,8 @@
 <div style="flex:1"><label>Ora Fine</label><input type="time" id="edit-fine"></div>
 <div style="flex:0.8">
 <label>Ore previste &#x1F4CB;</label>
-<div style="display:flex;gap:4px;align-items:center">
-<input type="number" id="edit-ore-h" min="0" max="24" placeholder="h" style="width:52px;padding:8px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;text-align:center">
-<span style="font-size:12px;color:#666;white-space:nowrap">h</span>
-<input type="number" id="edit-ore-m" min="0" max="59" placeholder="min" style="width:52px;padding:8px 6px;border:1px solid #ddd;border-radius:4px;font-size:14px;text-align:center">
-<span style="font-size:12px;color:#666">min</span>
+<div id="edit-ore-previste-text" style="padding:8px 10px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;font-size:14px;font-weight:bold;color:#1e293b;text-align:center">
+—
 </div>
 </div>
 </div>
@@ -309,7 +306,23 @@ document.addEventListener('DOMContentLoaded',function(){
       if(d.status==='ok'){location.reload();}
       else{alert('Impossibile spostare: '+(d.error||'errore'));location.reload();}
     }).catch(function(){alert('Errore di connessione');location.reload();});
-  });
+  var editInizioEl = document.getElementById('edit-inizio');
+  var editFineEl = document.getElementById('edit-fine');
+  function _onTimesChange() {
+    if (!editInizioEl || !editFineEl) return;
+    var t1 = editInizioEl.value;
+    var t2 = editFineEl.value;
+    if (t1 && t2) {
+      var calc = _calcHoursFromTimes(t1, t2);
+      if (calc > 0) {
+        var txt = (calc % 1 === 0) ? calc.toFixed(0) + 'h' : calc.toFixed(1) + 'h';
+        var el = document.getElementById('edit-ore-previste-text');
+        if (el) el.textContent = txt;
+      }
+    }
+  }
+  if (editInizioEl) editInizioEl.addEventListener('change', _onTimesChange);
+  if (editFineEl) editFineEl.addEventListener('change', _onTimesChange);
 });
 
 function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo turno?'))return;fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
@@ -344,18 +357,13 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
     prefillOrePreviste = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
   }
   document.getElementById('edit-ore-input').value = prefillOrePreviste;
-  /* Ore previste: converti decimale in h+min (fallback su orario inizio/fine se non impostato esplicitamente) */
+  /* Ore previste: visualizza testo semplice (es: 8h o 7.5h) */
   var _op = (orePreviste && parseFloat(orePreviste) > 0) ? parseFloat(orePreviste) : calcShiftHours;
+  var displayStr = '—';
   if (_op && _op > 0) {
-    var _hP = Math.floor(_op);
-    var _mP = Math.round((_op % 1) * 60);
-    if (_mP === 60) { _hP += 1; _mP = 0; }
-    document.getElementById('edit-ore-h').value = _hP;
-    document.getElementById('edit-ore-m').value = _mP;
-  } else {
-    document.getElementById('edit-ore-h').value = '';
-    document.getElementById('edit-ore-m').value = '';
+    displayStr = (_op % 1 === 0) ? _op.toFixed(0) + 'h' : _op.toFixed(1) + 'h';
   }
+  document.getElementById('edit-ore-previste-text').textContent = displayStr;
   /* Checkbox straordinario: spuntato se NON ricorrente */
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
   /* Badge cerchietto grigio: mostra le ore segnalate dal dipendente */
@@ -447,9 +455,9 @@ function submitValidaOre(action){
 }
 function saveEditTurno(){
   if(!_editId)return;
-  var h=parseInt(document.getElementById('edit-ore-h').value)||0;
-  var m=parseInt(document.getElementById('edit-ore-m').value)||0;
-  var orePrev=(h||m)?Math.round((h+m/60)*100)/100:null;
+  var tStart = document.getElementById('edit-inizio').value;
+  var tEnd = document.getElementById('edit-fine').value;
+  var orePrev = _calcHoursFromTimes(tStart, tEnd);
   var isStr=document.getElementById('edit-straordinario').checked;
   var esclusi=[];
   document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
