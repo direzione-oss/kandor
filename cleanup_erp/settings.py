@@ -242,15 +242,15 @@ GITHUB_REPO_URL = os.environ.get(
     'https://github.com/direzione-oss/kandor.git'
 )
 
-# --- Sessione cookie-based (elimina dipendenza da django_session DB table) ---
-SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+# --- Sessione e CSRF Configuration ---
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
-SESSION_SAVE_EVERY_REQUEST = False
+SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_SAMESITE = 'Lax'
 
-# --- CSRF Configuration ---
-CSRF_USE_SESSIONS = True
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 30
 CSRF_COOKIE_SAMESITE = 'Lax'
 
