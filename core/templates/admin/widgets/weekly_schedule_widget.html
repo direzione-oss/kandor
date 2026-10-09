@@ -203,17 +203,13 @@
 </div>
 <div id="edit-ore-section" style="margin-top:14px;padding:12px;background:#f5f5f5;border-radius:6px;border-left:4px solid #bbb">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate</span>
+    <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate / da validare</span>
     <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
   </div>
-  <div style="display:flex;gap:8px;margin-bottom:8px">
-    <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 7.5)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
-    <button onclick="submitOreManual(false)" style="background:#0277bd;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">💾 Salva ore</button>
-    <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">✔ Salva e valida</button>
-  </div>
   <div style="display:flex;gap:8px">
-    <button onclick="submitValidaOre('validate')" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;flex:1">✅ Valida ore esistenti</button>
-    <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:6px 14px;font-size:12px;cursor:pointer;flex:1">↩ Rimuovi validazione</button>
+    <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 8)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+    <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✔ Salva e valida ore</button>
+    <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">↩ Rimuovi validazione</button>
   </div>
 </div>
 <!-- SEZIONE COPIA / SPOSTA SU ALTRO GIORNO -->
@@ -348,10 +344,18 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
     prefillOrePreviste = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
   }
   document.getElementById('edit-ore-input').value = prefillOrePreviste;
-  /* Ore previste: converti decimale in h+min */
-  var _op=parseFloat(orePreviste)||0;
-  document.getElementById('edit-ore-h').value=_op?Math.floor(_op):'';
-  document.getElementById('edit-ore-m').value=_op?Math.round((_op%1)*60):'';
+  /* Ore previste: converti decimale in h+min (fallback su orario inizio/fine se non impostato esplicitamente) */
+  var _op = (orePreviste && parseFloat(orePreviste) > 0) ? parseFloat(orePreviste) : calcShiftHours;
+  if (_op && _op > 0) {
+    var _hP = Math.floor(_op);
+    var _mP = Math.round((_op % 1) * 60);
+    if (_mP === 60) { _hP += 1; _mP = 0; }
+    document.getElementById('edit-ore-h').value = _hP;
+    document.getElementById('edit-ore-m').value = _mP;
+  } else {
+    document.getElementById('edit-ore-h').value = '';
+    document.getElementById('edit-ore-m').value = '';
+  }
   /* Checkbox straordinario: spuntato se NON ricorrente */
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
   /* Badge cerchietto grigio: mostra le ore segnalate dal dipendente */
