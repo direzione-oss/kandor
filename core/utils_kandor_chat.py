@@ -594,17 +594,15 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         try:
             assegnazione = AssegnazioneTurno.objects.filter(
                 pk=assegnazione_id
-            ).filter(
-                Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
-            ).select_related('cliente', 'turno').distinct().first()
+            ).select_related('cliente', 'turno', 'turno__squadra').first()
             if not assegnazione:
-                return {'text': "Turno non trovato o non appartiene alla tua squadra.", 'reply_markup': get_main_menu()}
+                return {'text': "Turno non trovato.", 'reply_markup': get_main_menu()}
         except Exception:
             return {'text': "Errore nel recupero del turno.", 'reply_markup': get_main_menu()}
         
-        data_str = assegnazione.turno.data.strftime('%d/%m')
-        inizio = assegnazione.orario_inizio_previsto.strftime('%H:%M')
-        fine = assegnazione.orario_fine_previsto.strftime('%H:%M')
+        data_str = assegnazione.turno.data.strftime('%d/%m') if assegnazione.turno else ''
+        inizio = assegnazione.orario_inizio_previsto.strftime('%H:%M') if assegnazione.orario_inizio_previsto else '?'
+        fine = assegnazione.orario_fine_previsto.strftime('%H:%M') if assegnazione.orario_fine_previsto else '?'
         
         # Calcola ore previste dall'orario
         _ore_previste = None
@@ -621,8 +619,8 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         tt_squadra = TimeTracking.objects.filter(assegnazione=assegnazione).exclude(dipendente=dipendente).first()
         if tt_squadra and tt_squadra.ore_dichiarate:
             return {
-                'text': f"ℹ️ Le ore per il turno **{assegnazione.cliente.ragione_sociale}** ({data_str}) "
-                        f"sono già state registrate dal tuo collega **{tt_squadra.dipendente.nome} {tt_squadra.dipendente.cognome}** ({tt_squadra.ore_dichiarate}h).\n\n"
+                'text': f"ℹ️ Le ore per il turno {assegnazione.cliente.ragione_sociale} ({data_str}) "
+                        f"sono già state registrate dal tuo collega {tt_squadra.dipendente.nome} {tt_squadra.dipendente.cognome} ({tt_squadra.ore_dichiarate}h).\n\n"
                         f"Non occorre che le inserisci nuovamente! 👍",
                 'reply_markup': get_main_menu()
             }
@@ -659,14 +657,19 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         assign_id = callback_data.replace('conf_squadra_no_', '')
         try:
             assign = AssegnazioneTurno.objects.select_related('cliente', 'turno__squadra__caposquadra').get(pk=assign_id)
-            squadra = assign.turno.squadra
+            squadra = (assign.turno.squadra if (assign.turno and assign.turno.squadra) else None)
+            if not squadra:
+                from .models import Squadra
+                squadra = Squadra.objects.filter(Q(componenti=dipendente) | Q(caposquadra=dipendente)).first()
+
             esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
             altri_comp = []
-            if squadra.caposquadra and squadra.caposquadra != dipendente and squadra.caposquadra.pk not in esclusi_ids:
-                altri_comp.append(squadra.caposquadra)
-            for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-                if c != dipendente and c.pk not in esclusi_ids and c not in altri_comp:
-                    altri_comp.append(c)
+            if squadra:
+                if squadra.caposquadra and squadra.caposquadra != dipendente and squadra.caposquadra.pk not in esclusi_ids:
+                    altri_comp.append(squadra.caposquadra)
+                for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+                    if c != dipendente and c.pk not in esclusi_ids and c not in altri_comp:
+                        altri_comp.append(c)
 
             keyboard = []
             for c in altri_comp:
@@ -687,12 +690,22 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         if len(parts) >= 2:
             assign_id, dip_assente_id = parts[0], parts[1]
             try:
-                assign = AssegnazioneTurno.objects.select_related('cliente').get(pk=assign_id)
+                assign = AssegnazioneTurno.objects.select_related('cliente', 'turno').get(pk=assign_id)
                 dip_assente = Dipendente.objects.get(pk=dip_assente_id)
                 assign.dipendenti_esclusi.add(dip_assente)
                 TimeTracking.objects.filter(assegnazione=assign, dipendente=dip_assente).delete()
+                
+                # Invia avviso al dipendente contrassegnato assente se ha Telegram
+                if dip_assente.telegram_chat_id:
+                    data_str = assign.turno.data.strftime('%d/%m/%Y') if assign.turno else ''
+                    send_telegram_message(
+                        dip_assente.telegram_chat_id,
+                        f"⚠️ Sei stato segnalato come ASSENTE per il turno {assign.cliente.ragione_sociale} del {data_str}.\n"
+                        f"Se si tratta di un errore, contatta il tuo caposquadra o amministratore."
+                    )
+
                 return {
-                    'text': f"🚫 **{dip_assente.nome} {dip_assente.cognome}** è stato segnato come ASSENTE per il turno **{assign.cliente.ragione_sociale}**.\n\nLe ore per gli altri componenti rimangono confermate.",
+                    'text': f"🚫 {dip_assente.nome} {dip_assente.cognome} è stato segnato come ASSENTE per il turno {assign.cliente.ragione_sociale}.\n\nLe ore per gli altri componenti rimangono confermate.",
                     'reply_markup': get_main_menu()
                 }
             except Exception as e:
@@ -769,11 +782,12 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
 
 
 def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
-    """Salva le ore lavorate per una specifica assegnazione turno ed estende la registrazione a tutta la squadra."""
+    """Salva le ore lavorate per una specifica assegnazione turno ed estende la registrazione a tutta la squadra con notifiche Telegram."""
     from decimal import Decimal
+    from .models import Squadra
     decimal_hours = Decimal(str(hours))
 
-    # Salva le ore per il primo dipendente che scrive
+    # 1. Salva le ore per il dipendente che le ha digitate
     tt, created = TimeTracking.objects.update_or_create(
         dipendente=dipendente,
         assegnazione=assegnazione,
@@ -786,17 +800,22 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
         }
     )
 
-    squadra = assegnazione.turno.squadra
+    # 2. Recupera la squadra (dal turno o di appartenenza)
+    squadra = (assegnazione.turno.squadra if (assegnazione.turno and assegnazione.turno.squadra) else None)
+    if not squadra:
+        squadra = Squadra.objects.filter(Q(componenti=dipendente) | Q(caposquadra=dipendente)).first()
+
     esclusi_ids = set(assegnazione.dipendenti_esclusi.values_list('pk', flat=True))
 
     altri_comp = []
-    if squadra.caposquadra and squadra.caposquadra != dipendente and squadra.caposquadra.pk not in esclusi_ids:
-        altri_comp.append(squadra.caposquadra)
-    for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-        if c != dipendente and c.pk not in esclusi_ids and c not in altri_comp:
-            altri_comp.append(c)
+    if squadra:
+        if squadra.caposquadra and squadra.caposquadra != dipendente and squadra.caposquadra.pk not in esclusi_ids:
+            altri_comp.append(squadra.caposquadra)
+        for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+            if c != dipendente and c.pk not in esclusi_ids and c not in altri_comp:
+                altri_comp.append(c)
 
-    # Crea/aggiorna TimeTracking anche per gli altri componenti della squadra
+    # 3. Crea/aggiorna TimeTracking anche per gli altri componenti della squadra
     for alt_dip in altri_comp:
         TimeTracking.objects.update_or_create(
             dipendente=alt_dip,
@@ -810,15 +829,27 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
             }
         )
 
-    data_str = assegnazione.turno.data.strftime('%d/%m')
+    data_str = assegnazione.turno.data.strftime('%d/%m/%Y') if (assegnazione.turno and assegnazione.turno.data) else ''
     action = "Salvato" if created else "Aggiornato"
 
-    # Se ci sono altri componenti nella squadra, chiedi conferma di presenza al primo che ha scritto
+    # 4. INVIA NOTIFICA TELEGRAM PROATTIVA A TUTTI GLI ALTRI COMPONENTI DELLA SQUADRA
+    sq_nome = squadra.nome if squadra else 'Squadra'
+    for alt_dip in altri_comp:
+        if alt_dip.telegram_chat_id:
+            msg_collega = (
+                f"ℹ️ AGGIORNAMENTO SQUADRA ({sq_nome})\n\n"
+                f"Il tuo collega {dipendente.nome} {dipendente.cognome} ha già registrato le ore "
+                f"({hours}h) per il turno {assegnazione.cliente.ragione_sociale} del {data_str}.\n\n"
+                f"Le tue ore sono state registrate automaticamente! 👍"
+            )
+            send_telegram_message(alt_dip.telegram_chat_id, msg_collega)
+
+    # 5. SE CI SONO ALTRI COMPONENTI, CHIEDI LA VERIFICA PRESENZA SQUADRA A CHI HA SCRITTO
     if altri_comp:
         nomi_comp = "\n".join([f"• {c.nome} {c.cognome}" for c in altri_comp])
         prompt_text = (
             f"✅ {action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).\n\n"
-            f"👥 **Confermi la presenza anche degli altri componenti della squadra?**\n"
+            f"👥 Confermi la presenza anche degli altri componenti della squadra?\n"
             f"{nomi_comp}"
         )
         keyboard = {
