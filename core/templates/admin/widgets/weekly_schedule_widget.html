@@ -19,8 +19,8 @@
 .validate-ev-btn.ore-green {background:#059669;opacity:.3}
 .validate-ev-btn.ore-red {background:#DC2626;opacity:.8}
 .validate-ev-btn.ore-yellow {background:#d97706;color:#fff;opacity:1;box-shadow:0 0 0 2px #fde68a;font-weight:bold;width:20px;height:20px;line-height:20px;font-size:11px}
-.turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:9999;justify-content:center;align-items:center}
-.turno-modal-overlay.active {display:flex}
+.turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:99999;justify-content:center;align-items:center}
+.turno-modal-overlay.active {display:flex!important}
 .turno-modal {background:#fff;border-radius:12px;padding:28px;width:440px;max-width:92%;box-shadow:var(--shadow-xl);border:1px solid var(--border-color)}
 .turno-modal h3 {margin:0 0 16px;color:#0F172A;font-size:1.1rem;font-weight:700}
 .turno-modal label {display:block;font-size:12px;color:#64748B;margin:12px 0 4px;font-weight:700}
@@ -31,6 +31,7 @@
 .btn-save-turno:hover {background:#047857}
 .btn-cancel-turno {background:#F1F5F9;color:#475569}
 </style>
+
 <div class="k-card" style="margin-bottom:28px;overflow:hidden">
 <h3 style="background:#0F172A;color:#fff;margin:0;padding:14px 20px;font-size:0.95rem;text-transform:uppercase;letter-spacing:.025em;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:2px solid var(--primary-color)">
 <div style="display:flex;align-items:center;gap:14px">
@@ -72,9 +73,10 @@
 <div style="position:relative;height:{{ total_height }}px;{% if day.is_today %}background:#f1f8f3;{% endif %}">
 <!-- Linee orarie (sfondo) -->
 {% for slot in hours_with_top %}
-<div style="position:absolute;left:0;right:0;top:{{ slot.top_px }}px;height:80px;border-bottom:1px solid #f5f5f5"
-     data-date="{{ day.iso_date }}" data-hour="{{ slot.hour }}">
-<button class="add-turno-btn" onclick="openAddTurno('{{ day.iso_date }}','{{ slot.hour }}')" title="Aggiungi turno">+</button>
+<div style="position:absolute;left:0;right:0;top:{{ slot.top_px }}px;height:80px;border-bottom:1px solid #f5f5f5;cursor:pointer;"
+     data-date="{{ day.iso_date }}" data-hour="{{ slot.hour }}"
+     onclick="openAddTurno('{{ day.iso_date }}','{{ slot.hour }}')">
+<button class="add-turno-btn" onclick="event.stopPropagation();openAddTurno('{{ day.iso_date }}','{{ slot.hour }}')" title="Aggiungi turno">+</button>
 </div>
 {% endfor %}
 <!-- Eventi posizionati assolutamente -->
@@ -95,7 +97,8 @@
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
   data-ricorrente="{{ ev.is_ricorrente|yesno:'1,0' }}"
-  title="Trascina per spostare • Clicca per modificare">
+  title="Trascina per spostare • Clicca per modificare"
+  onclick="clickEventEdit(this, event)">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
 <button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="{% if ev.ore_stato == 'yellow' %}Valida ore provvisorie ({{ ev.ore_dichiarate_fmt }}){% else %}Valida ore{% endif %}">✓</button>
@@ -227,17 +230,57 @@
 </div>
 
 <script>
-var _turnoDate='';var _dataLoaded=false;var _editId=null;
-var HOUR_PX=80;var GRID_START=4;
+var _turnoDate=''; var _dataLoaded=false; var _editId=null;
+var HOUR_PX=80; var GRID_START=4;
 var _drag={el:null,startY:0,origTop:0,duration:0,moved:false};
+var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
 
-function _fmtTime(totalMin){totalMin=Math.max(0,Math.min(totalMin,23*60+59));var h=Math.floor(totalMin/60);var m=totalMin%60;return(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);}
+function _fmtTime(totalMin){
+  totalMin=Math.max(0,Math.min(totalMin,23*60+59));
+  var h=Math.floor(totalMin/60);
+  var m=totalMin%60;
+  return(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
+}
+
+function _calcHoursFromTimes(inizio, fine) {
+  if (!inizio || !fine) return 0;
+  var p1 = inizio.split(':');
+  var p2 = fine.split(':');
+  if (p1.length < 2 || p2.length < 2) return 0;
+  var m1 = parseInt(p1[0], 10) * 60 + parseInt(p1[1], 10);
+  var m2 = parseInt(p2[0], 10) * 60 + parseInt(p2[1], 10);
+  if (m2 < m1) m2 += 24 * 60;
+  var diffMin = m2 - m1;
+  return diffMin > 0 ? (diffMin / 60) : 0;
+}
+
+function clickEventEdit(el, e) {
+  if (e) {
+    if (e.target.classList.contains('delete-ev-btn') || e.target.classList.contains('validate-ev-btn')) {
+      return;
+    }
+    e.stopPropagation();
+  }
+  if (_drag.moved) return;
+  openEditTurno(
+    el.getAttribute('data-assign'),
+    el.getAttribute('data-cliente-id'),
+    el.getAttribute('data-squadra-id'),
+    el.getAttribute('data-inizio'),
+    el.getAttribute('data-fine'),
+    el.getAttribute('data-note'),
+    el.getAttribute('data-ore-stato')||'white',
+    el.getAttribute('data-ore-label')||'—',
+    el.getAttribute('data-ore-previste')||'',
+    el.getAttribute('data-ore-dichiarate')||'',
+    el.getAttribute('data-ricorrente')||'1'
+  );
+}
 
 document.addEventListener('DOMContentLoaded',function(){
   document.querySelectorAll('.schedule-event').forEach(function(ev){
     ev.addEventListener('mousedown',function(e){
-      if(e.target.classList.contains('delete-ev-btn'))return;
-      e.preventDefault();
+      if(e.target.classList.contains('delete-ev-btn') || e.target.classList.contains('validate-ev-btn'))return;
       _drag.el=ev;
       _drag.startY=e.clientY;
       _drag.origTop=parseInt(ev.style.top)||0;
@@ -246,10 +289,11 @@ document.addEventListener('DOMContentLoaded',function(){
       ev.style.zIndex='100';
     });
   });
+
   document.addEventListener('mousemove',function(e){
     if(!_drag.el)return;
     var dy=e.clientY-_drag.startY;
-    if(Math.abs(dy)>5){_drag.moved=true;}
+    if(Math.abs(dy)>10){_drag.moved=true;}
     if(!_drag.moved)return;
     var snap=Math.round(HOUR_PX/4); /* 15 min = 20px */
     var newTop=Math.round((_drag.origTop+dy)/snap)*snap;
@@ -257,13 +301,19 @@ document.addEventListener('DOMContentLoaded',function(){
     _drag.el.style.top=newTop+'px';
     _drag.el.style.opacity='0.75';
     _drag.el.style.cursor='grabbing';
-    /* Mostra orario in tempo reale */
+    
     var totalMin=GRID_START*60+Math.round(newTop*60/HOUR_PX);
     var endMin=totalMin+Math.round(_drag.duration*60/HOUR_PX);
     var lbl=_drag.el.querySelector('.ev-time-drag');
-    if(!lbl){lbl=document.createElement('div');lbl.className='ev-time-drag';lbl.style.cssText='font-size:10px;font-weight:bold;color:#0277bd;background:#e3f2fd;padding:1px 3px;border-radius:2px;margin-top:2px';_drag.el.appendChild(lbl);}
+    if(!lbl){
+      lbl=document.createElement('div');
+      lbl.className='ev-time-drag';
+      lbl.style.cssText='font-size:10px;font-weight:bold;color:#0277bd;background:#e3f2fd;padding:1px 3px;border-radius:2px;margin-top:2px';
+      _drag.el.appendChild(lbl);
+    }
     lbl.textContent=_fmtTime(totalMin)+' → '+_fmtTime(endMin);
   });
+
   document.addEventListener('mouseup',function(e){
     if(!_drag.el)return;
     var el=_drag.el;
@@ -274,38 +324,26 @@ document.addEventListener('DOMContentLoaded',function(){
     el.style.zIndex='2';
     var lbl=el.querySelector('.ev-time-drag');
     if(lbl)lbl.remove();
-    if(!moved){
-      openEditTurno(
-        el.getAttribute('data-assign'),
-        el.getAttribute('data-cliente-id'),
-        el.getAttribute('data-squadra-id'),
-        el.getAttribute('data-inizio'),
-        el.getAttribute('data-fine'),
-        el.getAttribute('data-note'),
-        el.getAttribute('data-ore-stato')||'white',
-        el.getAttribute('data-ore-label')||'—',
-        el.getAttribute('data-ore-previste')||'',
-        el.getAttribute('data-ore-dichiarate')||'',
-        el.getAttribute('data-ricorrente')||'1'
-      );
-      return;
+
+    if(moved){
+      var finalTop=parseInt(el.style.top)||0;
+      var snap=Math.round(HOUR_PX/4);
+      finalTop=Math.round(finalTop/snap)*snap;
+      var startMin=GRID_START*60+Math.round(finalTop*60/HOUR_PX);
+      var endMin=startMin+Math.round(_drag.duration*60/HOUR_PX);
+      var assignId=el.getAttribute('data-assign');
+      var newStart=_fmtTime(startMin);
+      var newEnd=_fmtTime(endMin);
+      fetch('/api/edit-turno/'+assignId+'/',{method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+        body:JSON.stringify({ora_inizio:newStart,ora_fine:newEnd})
+      }).then(function(r){return r.json()}).then(function(d){
+        if(d.status==='ok'){location.reload();}
+        else{alert('Impossibile spostare: '+(d.error||'errore'));location.reload();}
+      }).catch(function(){alert('Errore di connessione');location.reload();});
     }
-    /* Calcola nuovo orario dopo drag */
-    var finalTop=parseInt(el.style.top)||0;
-    var snap=Math.round(HOUR_PX/4);
-    finalTop=Math.round(finalTop/snap)*snap;
-    var startMin=GRID_START*60+Math.round(finalTop*60/HOUR_PX);
-    var endMin=startMin+Math.round(_drag.duration*60/HOUR_PX);
-    var assignId=el.getAttribute('data-assign');
-    var newStart=_fmtTime(startMin);
-    var newEnd=_fmtTime(endMin);
-    fetch('/api/edit-turno/'+assignId+'/',{method:'POST',
-      headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-      body:JSON.stringify({ora_inizio:newStart,ora_fine:newEnd})
-    }).then(function(r){return r.json()}).then(function(d){
-      if(d.status==='ok'){location.reload();}
-      else{alert('Impossibile spostare: '+(d.error||'errore'));location.reload();}
-    }).catch(function(){alert('Errore di connessione');location.reload();});
+  });
+
   var editInizioEl = document.getElementById('edit-inizio');
   var editFineEl = document.getElementById('edit-fine');
   function _onTimesChange() {
@@ -325,24 +363,25 @@ document.addEventListener('DOMContentLoaded',function(){
   if (editFineEl) editFineEl.addEventListener('change', _onTimesChange);
 });
 
-function deleteTurno(assignId,e){e.stopPropagation();if(!confirm('Elimina questo turno?'))return;fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
+function deleteTurno(assignId,e){
+  if(e) e.stopPropagation();
+  if(!confirm('Elimina questo turno?'))return;
+  fetch('/api/delete-turno/'+assignId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}})
+  .catch(function(){alert('Errore di connessione')});
+}
 
-function validateOre(assignId,e){e.stopPropagation();fetch('/api/validate-ore/'+assignId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify({action:'validate'})}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata per questo turno'))}}).catch(function(){alert('Errore di connessione')})}
-
-var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
+function validateOre(assignId,e){
+  if(e) e.stopPropagation();
+  fetch('/api/validate-ore/'+assignId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify({action:'validate'})})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.status==='ok'){location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata per questo turno'))}})
+  .catch(function(){alert('Errore di connessione')});
+}
 
 function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente){
-  function _calcHoursFromTimes(inizio, fine) {
-    if (!inizio || !fine) return 0;
-    var p1 = inizio.split(':');
-    var p2 = fine.split(':');
-    if (p1.length < 2 || p2.length < 2) return 0;
-    var m1 = parseInt(p1[0], 10) * 60 + parseInt(p1[1], 10);
-    var m2 = parseInt(p2[0], 10) * 60 + parseInt(p2[1], 10);
-    if (m2 < m1) m2 += 24 * 60;
-    var diffMin = m2 - m1;
-    return diffMin > 0 ? (diffMin / 60) : 0;
-  }
+try {
 
   _editId=assignId;
   document.getElementById('edit-inizio').value=oraInizio;
@@ -357,16 +396,15 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
     prefillOrePreviste = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
   }
   document.getElementById('edit-ore-input').value = prefillOrePreviste;
-  /* Ore previste: visualizza testo semplice (es: 8h o 7.5h) */
+  
   var _op = (orePreviste && parseFloat(orePreviste) > 0) ? parseFloat(orePreviste) : calcShiftHours;
   var displayStr = '—';
   if (_op && _op > 0) {
     displayStr = (_op % 1 === 0) ? _op.toFixed(0) + 'h' : _op.toFixed(1) + 'h';
   }
   document.getElementById('edit-ore-previste-text').textContent = displayStr;
-  /* Checkbox straordinario: spuntato se NON ricorrente */
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
-  /* Badge cerchietto grigio: mostra le ore segnalate dal dipendente */
+  
   var badge=document.getElementById('edit-ore-badge');
   if (oreDichiarate && parseFloat(oreDichiarate) > 0) {
     badge.textContent = 'Segnalate: ' + oreDichiarate + 'h';
@@ -385,14 +423,14 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
 
   var overlay=document.getElementById('edit-modal-overlay');
   overlay.classList.add('active');
-  /* Carica squadre e clienti */
+
   fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){
     var ss=document.getElementById('edit-squadra');ss.innerHTML='';
     d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;if(String(s.id)===String(squadraId))o.selected=true;ss.appendChild(o)});
     var cs=document.getElementById('edit-cliente');cs.innerHTML='';
     d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;if(String(c.id)===String(clienteId))o.selected=true;cs.appendChild(o)})
   });
-  /* Carica componenti squadra con checkboxes e ORE DICHIARATE */
+
   var listEl=document.getElementById('edit-componenti-list');
   listEl.innerHTML='<span style="font-size:11px;color:#999">Caricamento...</span>';
   fetch('/api/assegnazione-componenti/'+assignId+'/').then(function(r){return r.json()}).then(function(d){
@@ -433,8 +471,14 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
       badge.style.border = '1px solid #cbd5e1';
     }
   }).catch(function(){listEl.innerHTML='<span style="font-size:11px;color:#e74c3c">Errore nel caricamento dei componenti</span>';});
+}catch(e){alert(e);console.error(e);}
 }
-function closeEditTurno(){document.getElementById('edit-modal-overlay').classList.remove('active');_editId=null}
+
+function closeEditTurno(){
+  document.getElementById('edit-modal-overlay').classList.remove('active');
+  _editId=null;
+}
+
 function submitOreManual(validate){
   if(!_editId)return;
   var ore=parseFloat(document.getElementById('edit-ore-input').value);
@@ -445,6 +489,7 @@ function submitOreManual(validate){
     if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
   }).catch(function(){alert('Errore di connessione')})
 }
+
 function submitValidaOre(action){
   if(!_editId)return;
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
@@ -453,6 +498,7 @@ function submitValidaOre(action){
     if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata'))}
   }).catch(function(){alert('Errore di connessione')})
 }
+
 function saveEditTurno(){
   if(!_editId)return;
   var tStart = document.getElementById('edit-inizio').value;
@@ -473,7 +519,14 @@ function saveEditTurno(){
   };
   fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
-function confirmDeleteEdit(){if(!confirm('Elimina definitivamente questo turno?'))return;fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}}).catch(function(){alert('Errore di connessione')})}
+
+function confirmDeleteEdit(){
+  if(!confirm('Elimina definitivamente questo turno?'))return;
+  fetch('/api/delete-turno/'+_editId+'/',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+  .then(function(r){return r.json()})
+  .then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile eliminare'))}})
+  .catch(function(){alert('Errore di connessione')});
+}
 
 function submitCopyMove(action){
   if(!_editId)return;
@@ -490,8 +543,40 @@ function submitCopyMove(action){
   }).catch(function(){alert('Errore di connessione');});
 }
 
-function openAddTurno(isoDate,hour){_turnoDate=isoDate;document.getElementById('turno-modal-date').textContent='Data: '+isoDate;document.getElementById('turno-inizio').value=(hour<10?'0'+hour:hour)+':00';var endH=parseInt(hour)+8;if(endH>23)endH=23;document.getElementById('turno-fine').value=(endH<10?'0'+endH:endH)+':00';document.getElementById('turno-modal-overlay').classList.add('active');if(!_dataLoaded){fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){var ss=document.getElementById('turno-squadra');ss.innerHTML='';d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});var cs=document.getElementById('turno-cliente');cs.innerHTML='';d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});_dataLoaded=true})}}
-function closeAddTurno(){document.getElementById('turno-modal-overlay').classList.remove('active')}
+function openAddTurno(isoDate,hour){
+  _turnoDate=isoDate;
+  var hNum = parseInt(hour, 10) || 6;
+  var startStr = (hNum < 10 ? '0' + hNum : hNum) + ':00';
+  var endH = hNum + 8;
+  if (endH > 23) endH = 23;
+  var endStr = (endH < 10 ? '0' + endH : endH) + ':00';
+
+  var dateEl = document.getElementById('turno-modal-date');
+  if (dateEl) dateEl.textContent = 'Data: ' + isoDate;
+  
+  var inizioEl = document.getElementById('turno-inizio');
+  if (inizioEl) inizioEl.value = startStr;
+  
+  var fineEl = document.getElementById('turno-fine');
+  if (fineEl) fineEl.value = endStr;
+
+  var overlay = document.getElementById('turno-modal-overlay');
+  if (overlay) overlay.classList.add('active');
+
+  if(!_dataLoaded){
+    fetch('/api/squadre-clienti/').then(function(r){return r.json()}).then(function(d){
+      var ss=document.getElementById('turno-squadra'); if(ss){ ss.innerHTML=''; d.squadre.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.nome;ss.appendChild(o)});}
+      var cs=document.getElementById('turno-cliente'); if(cs){ cs.innerHTML=''; d.clienti.forEach(function(c){var o=document.createElement('option');o.value=c.id;o.textContent=c.ragione_sociale;cs.appendChild(o)});}
+      _dataLoaded=true;
+    });
+  }
+}
+
+function closeAddTurno(){
+  var overlay = document.getElementById('turno-modal-overlay');
+  if (overlay) overlay.classList.remove('active');
+}
+
 function saveTurno(){
   var h=parseInt(document.getElementById('turno-ore-h').value)||0;
   var m=parseInt(document.getElementById('turno-ore-m').value)||0;
@@ -503,4 +588,3 @@ function saveTurno(){
   fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})
 }
 </script>
-
