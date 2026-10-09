@@ -617,6 +617,16 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         except Exception:
             pass
 
+        # Controlla se le ore per questo turno sono GIÀ state inserite da un altro collega della squadra
+        tt_squadra = TimeTracking.objects.filter(assegnazione=assegnazione).exclude(dipendente=dipendente).first()
+        if tt_squadra and tt_squadra.ore_dichiarate:
+            return {
+                'text': f"ℹ️ Le ore per il turno **{assegnazione.cliente.ragione_sociale}** ({data_str}) "
+                        f"sono già state registrate dal tuo collega **{tt_squadra.dipendente.nome} {tt_squadra.dipendente.cognome}** ({tt_squadra.ore_dichiarate}h).\n\n"
+                        f"Non occorre che le inserisci nuovamente! 👍",
+                'reply_markup': get_main_menu()
+            }
+
         # Controlla se esiste già un TimeTracking per pre-popolare
         _tt_esistente = TimeTracking.objects.filter(assegnazione=assegnazione, dipendente=dipendente).first()
 
@@ -631,7 +641,63 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
             _prompt += f"✅ Ore già registrate: {_tt_esistente.ore_dichiarate}h\n"
         _prompt += "\nQuante ore hai lavorato?\n(Scrivi il numero, es: 8 o 7.5 - invio per confermare le ore previste)"
         return {'text': _prompt}
-    
+
+    # Callback per conferma squadra al completo
+    if callback_data.startswith('conf_squadra_si_'):
+        assign_id = callback_data.replace('conf_squadra_si_', '')
+        try:
+            assign = AssegnazioneTurno.objects.select_related('cliente').get(pk=assign_id)
+            return {
+                'text': f"✅ Perfetto, presenza confermata per tutti i componenti della squadra per il turno {assign.cliente.ragione_sociale}.\n\nLe ore sono state contabilizzate per l'intero gruppo.",
+                'reply_markup': get_main_menu()
+            }
+        except Exception:
+            return {'text': "Errore nella conferma della squadra.", 'reply_markup': get_main_menu()}
+
+    # Callback per segnalazione componente assente
+    if callback_data.startswith('conf_squadra_no_'):
+        assign_id = callback_data.replace('conf_squadra_no_', '')
+        try:
+            assign = AssegnazioneTurno.objects.select_related('cliente', 'turno__squadra__caposquadra').get(pk=assign_id)
+            squadra = assign.turno.squadra
+            esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
+            altri_comp = []
+            if squadra.caposquadra and squadra.caposquadra != dipendente and squadra.caposquadra.pk not in esclusi_ids:
+                altri_comp.append(squadra.caposquadra)
+            for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+                if c != dipendente and c.pk not in esclusi_ids and c not in altri_comp:
+                    altri_comp.append(c)
+
+            keyboard = []
+            for c in altri_comp:
+                keyboard.append([{'text': f"❌ {c.nome} {c.cognome} (Segnala assente)", 'callback_data': f'conf_escludi_{assign_id}_{c.pk}'}])
+            keyboard.append([{'text': "✅ Fatto / Nessun altro assente", 'callback_data': 'menu_start'}])
+
+            return {
+                'text': f"Seleziona chi mancava per il turno {assign.cliente.ragione_sociale}:",
+                'reply_markup': {'inline_keyboard': keyboard}
+            }
+        except Exception as e:
+            return {'text': f"Errore nel recupero componenti: {e}", 'reply_markup': get_main_menu()}
+
+    # Callback per escludere uno specifico dipendente assente
+    if callback_data.startswith('conf_escludi_'):
+        raw = callback_data.replace('conf_escludi_', '')
+        parts = raw.split('_')
+        if len(parts) >= 2:
+            assign_id, dip_assente_id = parts[0], parts[1]
+            try:
+                assign = AssegnazioneTurno.objects.select_related('cliente').get(pk=assign_id)
+                dip_assente = Dipendente.objects.get(pk=dip_assente_id)
+                assign.dipendenti_esclusi.add(dip_assente)
+                TimeTracking.objects.filter(assegnazione=assign, dipendente=dip_assente).delete()
+                return {
+                    'text': f"🚫 **{dip_assente.nome} {dip_assente.cognome}** è stato segnato come ASSENTE per il turno **{assign.cliente.ragione_sociale}**.\n\nLe ore per gli altri componenti rimangono confermate.",
+                    'reply_markup': get_main_menu()
+                }
+            except Exception as e:
+                return {'text': f"Errore nell'esclusione: {e}", 'reply_markup': get_main_menu()}
+
     # ===== GESTIONE SOSTITUTI =====
     
     # Responsabile Area approva la richiesta di sostituzione
@@ -703,25 +769,69 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
 
 
 def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
-    """Salva le ore lavorate per una specifica assegnazione turno.
-    Imposta ore_validate = ore_dichiarate come valore di partenza per la validazione.
-    """
+    """Salva le ore lavorate per una specifica assegnazione turno ed estende la registrazione a tutta la squadra."""
+    from decimal import Decimal
+    decimal_hours = Decimal(str(hours))
+
+    # Salva le ore per il primo dipendente che scrive
     tt, created = TimeTracking.objects.update_or_create(
         dipendente=dipendente,
         assegnazione=assegnazione,
         defaults={
-            'ore_dichiarate': hours,
-            'ore_validate': hours,  # Pre-popola le ore validate con quelle dichiarate
+            'ore_dichiarate': decimal_hours,
+            'ore_validate': decimal_hours,
             'source': 'TELEGRAM',
-            'note': f"Messaggio: {original_text}",
+            'note': f"Registrato da {dipendente.nome} {dipendente.cognome}",
             'is_validated': False,
         }
     )
-    
+
+    squadra = assegnazione.turno.squadra
+    esclusi_ids = set(assegnazione.dipendenti_esclusi.values_list('pk', flat=True))
+
+    altri_comp = []
+    if squadra.caposquadra and squadra.caposquadra != dipendente and squadra.caposquadra.pk not in esclusi_ids:
+        altri_comp.append(squadra.caposquadra)
+    for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+        if c != dipendente and c.pk not in esclusi_ids and c not in altri_comp:
+            altri_comp.append(c)
+
+    # Crea/aggiorna TimeTracking anche per gli altri componenti della squadra
+    for alt_dip in altri_comp:
+        TimeTracking.objects.update_or_create(
+            dipendente=alt_dip,
+            assegnazione=assegnazione,
+            defaults={
+                'ore_dichiarate': decimal_hours,
+                'ore_validate': decimal_hours,
+                'source': 'TELEGRAM',
+                'note': f"Registrato dal collega {dipendente.nome} {dipendente.cognome}",
+                'is_validated': False,
+            }
+        )
+
     data_str = assegnazione.turno.data.strftime('%d/%m')
     action = "Salvato" if created else "Aggiornato"
+
+    # Se ci sono altri componenti nella squadra, chiedi conferma di presenza al primo che ha scritto
+    if altri_comp:
+        nomi_comp = "\n".join([f"• {c.nome} {c.cognome}" for c in altri_comp])
+        prompt_text = (
+            f"✅ {action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).\n\n"
+            f"👥 **Confermi la presenza anche degli altri componenti della squadra?**\n"
+            f"{nomi_comp}"
+        )
+        keyboard = {
+            'inline_keyboard': [
+                [{'text': '✅ Sì, squadra al completo', 'callback_data': f'conf_squadra_si_{assegnazione.pk}'}],
+                [{'text': '⚠️ No, mancava qualcuno', 'callback_data': f'conf_squadra_no_{assegnazione.pk}'}],
+                [{'text': '🏠 Menu Principale', 'callback_data': 'menu_start'}]
+            ]
+        }
+        return {'text': prompt_text, 'reply_markup': keyboard}
+
     return {
-        'text': f"{action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).",
+        'text': f"✅ {action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).",
         'reply_markup': get_main_menu()
     }
 
