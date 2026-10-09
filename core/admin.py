@@ -187,7 +187,17 @@ class DipendenteAdmin(admin.ModelAdmin):
     def anteprima_foto_telegram(self, obj):
         from django.utils.html import format_html
         from django.utils.safestring import mark_safe
-        img_url = obj.foto_profilo_url or obj.foto_url or (obj.foto.url if obj.foto else None)
+        
+        # Preferisci URL permanenti (Supabase o Media locale) rispetto ad URL temporanei Telegram
+        urls = [obj.foto_profilo_url, obj.foto_url, (obj.foto.url if obj.foto else None)]
+        img_url = None
+        for u in urls:
+            if u and 'api.telegram.org' not in u:
+                img_url = u
+                break
+        if not img_url:
+            img_url = obj.foto_profilo_url or obj.foto_url or (obj.foto.url if obj.foto else None)
+
         if img_url:
             return format_html(
                 '<div style="display:inline-flex; align-items:center; gap:12px; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 8px 12px; background: #FFFFFF; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">'

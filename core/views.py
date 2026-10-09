@@ -430,7 +430,7 @@ def add_turno_ajax(request):
 
         if tipo == 'ricorrente':
             from django.db.models.signals import post_save
-            from .signals import on_programmazione_save
+            from .signals import on_programmazione_save, _genera_turni_singola_programmazione
             post_save.disconnect(on_programmazione_save, sender=ProgrammazioneRicorrente)
             try:
                 kwargs = dict(
@@ -447,6 +447,7 @@ def add_turno_ajax(request):
                     kwargs['giorno_settimana'] = giorno_settimana
                 prog_feriale = ProgrammazioneRicorrente(**kwargs)
                 prog_feriale.save()
+                _genera_turni_singola_programmazione(prog_feriale)
             finally:
                 post_save.connect(on_programmazione_save, sender=ProgrammazioneRicorrente)
         else:
@@ -532,8 +533,8 @@ def edit_turno_ajax(request, assign_id):
             assign.programmazione_feriale = None
         elif nuovo_tipo == 'ricorrente' and not assign.programmazione_feriale_id:
             from django.db.models.signals import post_save
+            from .signals import on_programmazione_save, _genera_turni_singola_programmazione
             try:
-                from .signals import on_programmazione_save
                 post_save.disconnect(on_programmazione_save, sender=ProgrammazioneRicorrente)
             except Exception:
                 pass
@@ -553,6 +554,7 @@ def edit_turno_ajax(request, assign_id):
                     data_inizio_contratto=assign.turno.data,
                 )
                 assign.programmazione_feriale = prog
+                _genera_turni_singola_programmazione(prog)
             finally:
                 try:
                     post_save.connect(on_programmazione_save, sender=ProgrammazioneRicorrente)
@@ -794,49 +796,53 @@ def get_assegnazione_componenti_json(request, assign_id):
 
 def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
     """
-    Scarica la foto da Telegram e la carica su Supabase Storage (bucket 'avatars').
-    Ritorna l'URL pubblico permanente, o None se fallisce.
+    Scarica la foto da Telegram, la salva localmente nel campo Dipendente.foto e
+    se configurato la carica su Supabase Storage.
+    Ritorna l'URL permanente (Supabase o Media locale), prevenendo l'uso di URL Telegram temporanei.
     """
     try:
         import requests as req
+        from django.core.files.base import ContentFile
         from django.conf import settings
+        from .models import Dipendente
 
-        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
-        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
-
-        if not supabase_url or not supabase_key:
-            return None
-
-        # Scarica la foto da Telegram
         resp = req.get(telegram_foto_url, timeout=15)
         if not resp.ok:
             return None
         foto_bytes = resp.content
 
-        # Nome file nel bucket
+        # 1. Salva il file permanente locale
+        dip = Dipendente.objects.filter(pk=dipendente_id).first()
         file_name = f"dipendente_{dipendente_id}.jpg"
-        bucket = "avatar"
-        upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
+        local_url = None
+        if dip:
+            dip.foto.save(file_name, ContentFile(foto_bytes), save=True)
+            local_url = dip.foto.url if dip.foto else None
 
-        # Upload su Supabase (upsert = sovrascrive se esiste già)
-        upload_resp = req.post(
-            upload_url,
-            data=foto_bytes,
-            headers={
-                "Authorization": f"Bearer {supabase_key}",
-                "Content-Type": "image/jpeg",
-                "x-upsert": "true",
-            },
-            timeout=20
-        )
+        # 2. Prova anche l'upload su Supabase Storage se configurato
+        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
+        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
 
-        if upload_resp.status_code in (200, 201):
-            # URL pubblico
-            public_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
-            return public_url
+        if supabase_url and supabase_key:
+            bucket = "avatar"
+            upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
+            upload_resp = req.post(
+                upload_url,
+                data=foto_bytes,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": "image/jpeg",
+                    "x-upsert": "true",
+                },
+                timeout=20
+            )
+            if upload_resp.status_code in (200, 201):
+                return f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
+
+        return local_url
 
     except Exception as e:
-        print(f"[SupabaseUpload] Errore upload foto profilo: {e}")
+        print(f"[FotoProfiloUpload] Errore salvataggio foto profilo: {e}")
 
     return None
 
