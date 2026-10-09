@@ -162,18 +162,82 @@ class DipendenteAdmin(admin.ModelAdmin):
             'selected_ids': request.POST.getlist(admin.helpers.ACTION_CHECKBOX_NAME)
         })
 
-class ProgrammazioneInline(admin.TabularInline):
+class ProgrammazioneInline(admin.StackedInline):
     model = ProgrammazioneRicorrente
     extra = 1
-    fields = ('tipo_ripetizione', 'giorno_settimana', 'giorno_mese', 'data_inizio_contratto', 'data_fine_contratto', 'ora_inizio', 'durata', 'ora_fine', 'qualifica_richiesta', 'squadra_abituale', 'mezzo_abituale')
     readonly_fields = ('ora_fine',)
     ordering = ('tipo_ripetizione', 'giorno_settimana', 'ora_inizio')
-    # Select2: ricerca per sottostringa in tutti i campi FK
     autocomplete_fields = ('squadra_abituale', 'mezzo_abituale')
+    fieldsets = (
+        ('🗓️ Frequenza e Orari', {
+            'fields': (
+                ('tipo_ripetizione', 'giorno_settimana', 'giorno_mese'),
+                ('ora_inizio', 'durata', 'ora_fine', 'orario_flessibile'),
+            )
+        }),
+        ('👥 Squadra e Mezzo Abituali', {
+            'fields': (
+                ('squadra_abituale', 'mezzo_abituale', 'qualifica_richiesta'),
+            )
+        }),
+        ('📅 Validità Contratto', {
+            'fields': (
+                ('data_inizio_contratto', 'data_fine_contratto'),
+            )
+        }),
+    )
 
-class StraordinarioInline(admin.TabularInline):
+class StraordinarioInline(admin.StackedInline):
     model = RichiestaStraordinaria
     extra = 0
+
+@admin.register(ProgrammazioneRicorrente)
+class ProgrammazioneRicorrenteAdmin(admin.ModelAdmin):
+    list_display = (
+        'cliente', 'tipo_ripetizione', 'get_giorno_display',
+        'ora_inizio', 'durata', 'ora_fine',
+        'squadra_abituale', 'mezzo_abituale',
+        'data_inizio_contratto', 'data_fine_contratto'
+    )
+    list_filter = ('tipo_ripetizione', 'giorno_settimana', 'squadra_abituale', 'mezzo_abituale')
+    search_fields = ('cliente__ragione_sociale', 'squadra_abituale__nome', 'mezzo_abituale__targa')
+    autocomplete_fields = ('cliente', 'squadra_abituale', 'mezzo_abituale')
+    readonly_fields = ('ora_fine',)
+    ordering = ('cliente', 'tipo_ripetizione', 'giorno_settimana', 'ora_inizio')
+    fieldsets = (
+        ('🏢 Cliente', {
+            'fields': ('cliente',)
+        }),
+        ('🗓️ Frequenza e Orari', {
+            'fields': (
+                ('tipo_ripetizione', 'giorno_settimana', 'giorno_mese'),
+                ('ora_inizio', 'durata', 'ora_fine', 'orario_flessibile'),
+            )
+        }),
+        ('👥 Risorse Abituali', {
+            'fields': (
+                ('squadra_abituale', 'mezzo_abituale', 'qualifica_richiesta'),
+            )
+        }),
+        ('📅 Periodo Contratto', {
+            'fields': (
+                ('data_inizio_contratto', 'data_fine_contratto'),
+            )
+        }),
+    )
+
+    def get_giorno_display(self, obj):
+        if obj.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
+            return obj.get_giorno_settimana_display() or '-'
+        return f"Giorno {obj.giorno_mese}" if obj.giorno_mese else '-'
+    get_giorno_display.short_description = 'Giorno'
+
+@admin.register(RichiestaStraordinaria)
+class RichiestaStraordinariaAdmin(admin.ModelAdmin):
+    list_display = ('cliente', 'data_inizio', 'data_fine', 'ora_inizio', 'ora_fine', 'completata')
+    list_filter = ('completata', 'data_inizio')
+    search_fields = ('cliente__ragione_sociale', 'descrizione')
+    autocomplete_fields = ('cliente',)
 
 @admin.register(Cliente)
 class ClienteAdmin(admin.ModelAdmin):
