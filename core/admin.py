@@ -184,19 +184,28 @@ class DipendenteAdmin(admin.ModelAdmin):
         }),
     )
 
+    def _get_photo_url(self, obj):
+        if not obj:
+            return None
+        # 1. File caricato locale (ImageField)
+        if obj.foto and hasattr(obj.foto, 'url') and obj.foto.url:
+            try:
+                return obj.foto.url
+            except Exception:
+                pass
+        # 2. URL Supabase o permanente
+        if obj.foto_url:
+            return obj.foto_url
+        # 3. URL profilo Telegram/Supabase
+        if obj.foto_profilo_url:
+            return obj.foto_profilo_url
+        return None
+
     def anteprima_foto_telegram(self, obj):
         from django.utils.html import format_html
         from django.utils.safestring import mark_safe
         
-        # Preferisci URL permanenti (Supabase o Media locale) rispetto ad URL temporanei Telegram
-        urls = [obj.foto_profilo_url, obj.foto_url, (obj.foto.url if obj.foto else None)]
-        img_url = None
-        for u in urls:
-            if u and 'api.telegram.org' not in u:
-                img_url = u
-                break
-        if not img_url:
-            img_url = obj.foto_profilo_url or obj.foto_url or (obj.foto.url if obj.foto else None)
+        img_url = self._get_photo_url(obj)
 
         if img_url:
             return format_html(
@@ -223,10 +232,11 @@ class DipendenteAdmin(admin.ModelAdmin):
     
     def foto_avatar(self, obj):
         from django.utils.html import format_html
-        if obj.foto_profilo_url:
+        img_url = self._get_photo_url(obj)
+        if img_url:
             return format_html(
                 '<img src="{}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #ff6f00;" />',
-                obj.foto_profilo_url
+                img_url
             )
         initials = (obj.nome[0] if obj.nome else '') + (obj.cognome[0] if obj.cognome else '')
         return format_html(
