@@ -136,6 +136,22 @@ class Command(BaseCommand):
                         
                     self.stdout.write(f"Received from {first_name}: {text}")
                     
+                    # Save message and notify Responsabili & PC Gestionale
+                    dip = None
+                    try:
+                        from core.models import MessaggioChat, Dipendente
+                        from core.services import notifica_nuovo_messaggio
+                        dip = Dipendente.objects.filter(telegram_chat_id=str(chat_id)).first()
+                        if dip:
+                            MessaggioChat.objects.create(
+                                dipendente=dip,
+                                testo=text,
+                                direzione='IN'
+                            )
+                            notifica_nuovo_messaggio(dip, testo=text)
+                    except Exception as e:
+                        self.stdout.write(self.style.ERROR(f"Error saving/notifying incoming chat message: {e}"))
+
                     # Process message
                     try:
                         reply_text = handle_telegram_message(chat_id, text, sender_name=first_name)
@@ -145,10 +161,29 @@ class Command(BaseCommand):
 
                     # Send reply
                     if reply_text:
+                        payload = {'chat_id': chat_id}
+                        if isinstance(reply_text, dict):
+                            payload['text'] = reply_text.get('text', '')
+                            if reply_text.get('reply_markup'):
+                                payload['reply_markup'] = reply_text['reply_markup']
+                            testo_out = reply_text.get('text', '')
+                        else:
+                            payload['text'] = str(reply_text)
+                            testo_out = str(reply_text)
+
                         requests.post(
                             f"{base_url}/sendMessage",
-                            json={'chat_id': chat_id, 'text': reply_text}
+                            json=payload
                         )
+                        if dip and testo_out:
+                            try:
+                                MessaggioChat.objects.create(
+                                    dipendente=dip,
+                                    testo=testo_out,
+                                    direzione='OUT'
+                                )
+                            except Exception:
+                                pass
 
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"Polling error: {e}"))

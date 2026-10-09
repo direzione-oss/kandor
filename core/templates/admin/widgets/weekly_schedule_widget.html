@@ -18,7 +18,7 @@
 .schedule-event:hover .validate-ev-btn {opacity:.8}
 .validate-ev-btn.ore-green {background:#059669;opacity:.3}
 .validate-ev-btn.ore-red {background:#DC2626;opacity:.8}
-.validate-ev-btn.ore-yellow {background:#D97706;opacity:.7}
+.validate-ev-btn.ore-yellow {background:#d97706;color:#fff;opacity:1;box-shadow:0 0 0 2px #fde68a;font-weight:bold;width:20px;height:20px;line-height:20px;font-size:11px}
 .turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:9999;justify-content:center;align-items:center}
 .turno-modal-overlay.active {display:flex}
 .turno-modal {background:#fff;border-radius:12px;padding:28px;width:440px;max-width:92%;box-shadow:var(--shadow-xl);border:1px solid var(--border-color)}
@@ -91,16 +91,26 @@
   data-note="{{ ev.note|escapejs }}"
   data-ore-previste="{{ ev.ore_previste }}"
   data-ore-dichiarate="{{ ev.ore_dichiarate }}"
+  data-ore-dichiarate-fmt="{{ ev.ore_dichiarate_fmt }}"
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
   data-ricorrente="{{ ev.is_ricorrente|yesno:'1,0' }}"
   title="Trascina per spostare • Clicca per modificare">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
-<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="Valida ore">✓</button>
+<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="{% if ev.ore_stato == 'yellow' %}Valida ore provvisorie ({{ ev.ore_dichiarate_fmt }}){% else %}Valida ore{% endif %}">✓</button>
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
 <div style="font-size:9px;color:#777;margin-top:2px">{{ ev.time_range }}</div>
+{% if ev.ore_stato == 'yellow' %}
+  <div style="font-size:9.5px;font-weight:bold;color:#92400e;background:#fef3c7;padding:2px 5px;border-radius:4px;margin-top:3px;display:inline-block;border:1px solid #fde68a;box-shadow:0 1px 2px rgba(0,0,0,0.05)" title="Ore inserite dal dipendente in attesa di validazione">
+    ⏳ Provvisorie: {{ ev.ore_dichiarate_fmt }}
+  </div>
+{% elif ev.ore_stato == 'green' %}
+  <div style="font-size:9px;font-weight:bold;color:#047857;background:#d1fae5;padding:1px 4px;border-radius:4px;margin-top:3px;display:inline-block">
+    ✅ Validate: {{ ev.ore_dichiarate_fmt }}
+  </div>
+{% endif %}
 </div>
 
 {% endfor %}
@@ -192,6 +202,10 @@
   <div style="font-size:10px;color:#999;margin-top:6px">✅ = presente nel turno &nbsp;|&nbsp; Deseleziona per escludere dal turno</div>
 </div>
 <div id="edit-ore-section" style="margin-top:14px;padding:12px;background:#f5f5f5;border-radius:6px;border-left:4px solid #bbb">
+  <div id="edit-provvisorie-alert" style="display:none;margin-bottom:10px;padding:8px 10px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:4px;font-size:12px;color:#92400e">
+    <strong>⏳ Ore dichiarate dal dipendente: <span id="edit-provvisorie-val"></span></strong>
+    <div style="font-size:11px;margin-top:2px;color:#b45309">Inserite dal dipendente e in attesa di validazione dall'amministrazione.</div>
+  </div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
     <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate</span>
     <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
@@ -325,7 +339,7 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
   document.getElementById('edit-ore-m').value=_op?Math.round((_op%1)*60):'';
   /* Checkbox straordinario: spuntato se NON ricorrente */
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
-  /* Badge ore */
+  /* Badge ore e alert provvisorie */
   var badge=document.getElementById('edit-ore-badge');
   var stato=oreStato||'white';
   var colors=_ORE_BADGE_COLORS[stato]||_ORE_BADGE_COLORS.white;
@@ -333,6 +347,16 @@ function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreSt
   badge.style.background=colors[0];
   badge.style.color=colors[1];
   document.getElementById('edit-ore-section').style.borderLeftColor=colors[0];
+
+  var provAlert = document.getElementById('edit-provvisorie-alert');
+  var provVal = document.getElementById('edit-provvisorie-val');
+  if (stato === 'yellow') {
+    if (provAlert) provAlert.style.display = 'block';
+    if (provVal) provVal.textContent = (oreDichiarate ? oreDichiarate + 'h' : oreLabel) + ' (Provvisorie - In attesa di validazione)';
+  } else {
+    if (provAlert) provAlert.style.display = 'none';
+  }
+
   var overlay=document.getElementById('edit-modal-overlay');
   overlay.classList.add('active');
   /* Carica squadre e clienti */

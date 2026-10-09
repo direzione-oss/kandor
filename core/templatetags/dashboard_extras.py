@@ -232,8 +232,10 @@ def weekly_schedule_widget(context):
 
     # Pre-carica TimeTracking via ID assegnazione
     assign_ids = [a.id for a in all_assigns]
-    all_tt = TimeTracking.objects.filter(assegnazione_id__in=assign_ids)
-    tt_map = {tt.assegnazione_id: tt for tt in all_tt}
+    all_tt = TimeTracking.objects.filter(assegnazione_id__in=assign_ids).select_related('dipendente')
+    tt_map = defaultdict(list)
+    for tt_obj in all_tt:
+        tt_map[tt_obj.assegnazione_id].append(tt_obj)
 
     # Raggruppa turni per data
     turni_per_data = defaultdict(list)
@@ -275,7 +277,9 @@ def weekly_schedule_widget(context):
                 start = assign.orario_inizio_previsto.strftime('%H:%M')
                 end   = assign.orario_fine_previsto.strftime('%H:%M')
 
-                tt = tt_map.get(assign.id)
+                tt_list = tt_map.get(assign.id, [])
+                tt = tt_list[0] if tt_list else None
+
                 def _fmt_ore(ore_float):
                     """Converte 7.5 → '7h30'' | 7.0 → '7h' | 0.5 → '30'"""
                     if ore_float is None:
@@ -292,12 +296,19 @@ def weekly_schedule_widget(context):
                     except (TypeError, ValueError):
                         return '—'
 
-                if tt and tt.is_validated:
-                    ore_stato = 'green';  ore_label = _fmt_ore(tt.durata_ore) + ' ✓'
-                elif tt and (tt.ore_dichiarate or tt.check_out):
-                    ore_stato = 'yellow'; ore_label = _fmt_ore(tt.durata_ore)
+                durata_tot = sum(float(t.durata_ore) for t in tt_list if t.durata_ore) if tt_list else (float(tt.durata_ore) if tt and tt.durata_ore else 0)
+                is_all_val = all(t.is_validated for t in tt_list) if tt_list else (tt.is_validated if tt else False)
+                has_hours = bool(tt_list and any(t.ore_dichiarate or t.check_out for t in tt_list)) or bool(durata_tot > 0)
+
+                if tt_list and is_all_val and durata_tot > 0:
+                    ore_stato = 'green'
+                    ore_label = _fmt_ore(durata_tot) + ' ✓'
+                elif tt_list and has_hours:
+                    ore_stato = 'yellow'
+                    ore_label = _fmt_ore(durata_tot)
                 elif d < today:
-                    ore_stato = 'red';    ore_label = "!"
+                    ore_stato = 'red'
+                    ore_label = "!"
                 else:
                     ore_stato = 'white'
                     sh_m = assign.orario_inizio_previsto.hour * 60 + assign.orario_inizio_previsto.minute
@@ -340,7 +351,8 @@ def weekly_schedule_widget(context):
                     'ora_inizio':   start,
                     'ora_fine':     end,
                     'ore_previste': assign.ore_previste_contratto or '',
-                    'ore_dichiarate': float(tt.durata_ore) if tt and tt.durata_ore else '',
+                    'ore_dichiarate': float(durata_tot) if durata_tot else '',
+                    'ore_dichiarate_fmt': _fmt_ore(durata_tot) if durata_tot else '',
                     'note':         assign.mansione_svolta or '',
                     'ore_stato':    ore_stato,
                     'ore_label':    ore_label,

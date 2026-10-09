@@ -913,13 +913,12 @@ def telegram_webhook_view(request):
                             foto_url=foto_url,
                             direzione='IN'
                         )
-                        # Notifica admin, RA e titolari del nuovo messaggio (DISABILITATO COME RICHIESTO)
-                        # visualizzandoli solo nel centro messaggi del server
-                        # try:
-                        #     from .services import notifica_nuovo_messaggio
-                        #     notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=foto_url)
-                        # except Exception:
-                        #     pass
+                        # Notifica nuovi messaggi SOLO a Responsabili Area, Titolari e Admin (non a tutti i dipendenti)
+                        try:
+                            from .services import notifica_nuovo_messaggio
+                            notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=foto_url)
+                        except Exception as e:
+                            print(f"[Notifica Errore]: {e}")
                 except Exception:
                     pass
                 
@@ -2933,3 +2932,500 @@ def debug_db_view(request):
         info['traceback'] = traceback.format_exc()
 
     return JsonResponse(info)
+
+
+
+# ==============================================================================
+# REPORT CEDOLINI PAGHE (DA DATA A DATA)
+# ==============================================================================
+
+def report_paghe_view(request):
+    """
+    Report Elaborazione Cedolini Paghe da Data Inizio a Data Fine.
+    Aggrega ore lavorate (totali e validate), presenze, assenze (ferie, permessi, malattia, 104)
+    per ciascun dipendente.
+    """
+    from .models import Dipendente, TimeTracking, Assenza
+    from datetime import date
+    import calendar
+    from django.db.models import Q
+    from django.utils import timezone
+
+    now = timezone.now().date()
+    
+    str_inizio = request.GET.get('data_inizio', '')
+    str_fine = request.GET.get('data_fine', '')
+    dipendente_id = request.GET.get('dipendente_id', '')
+
+    try:
+        data_inizio = date.fromisoformat(str_inizio) if str_inizio else now.replace(day=1)
+    except Exception:
+        data_inizio = now.replace(day=1)
+
+    try:
+        if str_fine:
+            data_fine = date.fromisoformat(str_fine)
+        else:
+            last_day = calendar.monthrange(now.year, now.month)[1]
+            data_fine = now.replace(day=last_day)
+    except Exception:
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        data_fine = now.replace(day=last_day)
+
+    # Query Dipendenti
+    dip_qs = Dipendente.objects.filter(stato='ATTIVO')
+    if dipendente_id and dipendente_id.isdigit():
+        dip_qs = dip_qs.filter(pk=int(dipendente_id))
+    
+    dipendenti_map = {d.pk: d for d in dip_qs.order_by('cognome', 'nome')}
+
+    # Query TimeTracking (Ore lavorate)
+    tt_qs = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=data_inizio,
+        assegnazione__turno__data__lte=data_fine,
+        dipendente_id__in=dipendenti_map.keys()
+    ).select_related('dipendente', 'assegnazione__cliente', 'assegnazione__turno__squadra')
+
+    # Query Assenze
+    assenze_qs = Assenza.objects.filter(
+        Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio),
+        dipendente_id__in=dipendenti_map.keys()
+    ).select_related('dipendente')
+
+    report_data = {}
+    for dip_id, dip in dipendenti_map.items():
+        report_data[dip_id] = {
+            'dipendente': dip,
+            'cognome_nome': f"{dip.cognome} {dip.nome}",
+            'codice_fiscale': dip.codice_fiscale or '---',
+            'ruolo': dip.ruolo or 'Dipendente',
+            'ore_lavorate': 0.0,
+            'ore_validate': 0.0,
+            'giorni_lavorati_set': set(),
+            'clienti_dict': {},
+            'assenze_dict': {
+                'MALATTIA': 0,
+                'FERIE': 0,
+                'PERMESSO': 0,
+                '104': 0,
+                'INFORTUNIO': 0,
+                'ALTRO': 0,
+            },
+            'giorni_assenza_totali': 0,
+            'dettaglio_assenze': [],
+        }
+
+    # Processa TimeTracking
+    for tt in tt_qs:
+        dip_id = tt.dipendente_id
+        if dip_id not in report_data:
+            continue
+
+        ore = float(tt.ore_dichiarate or 0)
+        data_turno = tt.assegnazione.turno.data
+        cliente = tt.assegnazione.cliente
+        cl_nome = cliente.ragione_sociale if cliente else 'Senza Cliente'
+
+        report_data[dip_id]['ore_lavorate'] += ore
+        if tt.is_validated:
+            report_data[dip_id]['ore_validate'] += ore
+
+        report_data[dip_id]['giorni_lavorati_set'].add(data_turno)
+
+        if cl_nome not in report_data[dip_id]['clienti_dict']:
+            report_data[dip_id]['clienti_dict'][cl_nome] = 0.0
+        report_data[dip_id]['clienti_dict'][cl_nome] += ore
+
+    # Processa Assenze
+    for assenza in assenze_qs:
+        dip_id = assenza.dipendente_id
+        if dip_id not in report_data:
+            continue
+
+        inizio_eff = max(assenza.data_inizio, data_inizio)
+        fine_eff = min(assenza.data_fine, data_fine)
+        giorni = (fine_eff - inizio_eff).days + 1
+
+        tipo = assenza.tipo if assenza.tipo in report_data[dip_id]['assenze_dict'] else 'ALTRO'
+        report_data[dip_id]['assenze_dict'][tipo] += giorni
+        report_data[dip_id]['giorni_assenza_totali'] += giorni
+
+        report_data[dip_id]['dettaglio_assenze'].append({
+            'tipo': assenza.tipo,
+            'inizio': assenza.data_inizio.strftime('%d/%m/%Y'),
+            'fine': assenza.data_fine.strftime('%d/%m/%Y'),
+            'giorni': giorni,
+            'note': assenza.note or '',
+        })
+
+    report_list = []
+    for item in report_data.values():
+        item['giorni_lavorati'] = len(item['giorni_lavorati_set'])
+        item['ore_lavorate'] = round(item['ore_lavorate'], 2)
+        item['ore_validate'] = round(item['ore_validate'], 2)
+        item['ore_non_validate'] = round(item['ore_lavorate'] - item['ore_validate'], 2)
+
+        clienti_str = ", ".join([f"{n} ({round(o,1)}h)" for n, o in sorted(item['clienti_dict'].items())])
+        item['clienti_str'] = clienti_str or "Nessun cantiere"
+
+        report_list.append(item)
+
+    report_list.sort(key=lambda x: x['cognome_nome'])
+
+    totale_generale = {
+        'dipendenti_count': len(report_list),
+        'giorni_lavorati_totali': sum(x['giorni_lavorati'] for x in report_list),
+        'ore_lavorate_totali': round(sum(x['ore_lavorate'] for x in report_list), 2),
+        'ore_validate_totali': round(sum(x['ore_validate'] for x in report_list), 2),
+        'giorni_assenza_totali': sum(x['giorni_assenza_totali'] for x in report_list),
+        'ferie_totali': sum(x['assenze_dict']['FERIE'] for x in report_list),
+        'permessi_totali': sum(x['assenze_dict']['PERMESSO'] for x in report_list),
+        'malattia_totale': sum(x['assenze_dict']['MALATTIA'] for x in report_list),
+        'infortunio_totale': sum(x['assenze_dict']['INFORTUNIO'] for x in report_list),
+        'l104_totale': sum(x['assenze_dict']['104'] for x in report_list),
+    }
+
+    all_dipendenti = Dipendente.objects.filter(stato='ATTIVO').order_by('cognome', 'nome')
+
+    context = {
+        'report_list': report_list,
+        'totale_generale': totale_generale,
+        'data_inizio': data_inizio.strftime('%Y-%m-%d'),
+        'data_fine': data_fine.strftime('%Y-%m-%d'),
+        'data_inizio_formatted': data_inizio.strftime('%d/%m/%Y'),
+        'data_fine_formatted': data_fine.strftime('%d/%m/%Y'),
+        'dipendente_id': int(dipendente_id) if dipendente_id.isdigit() else '',
+        'all_dipendenti': all_dipendenti,
+    }
+    return render(request, 'admin/report_paghe.html', context)
+
+
+@csrf_exempt
+def pdf_report_paghe(request):
+    """Genera report PDF per la consulenza paghe da data ad altra data."""
+    from .models import Dipendente, TimeTracking, Assenza
+    from datetime import date
+    import calendar
+    from django.db.models import Q
+    from django.utils import timezone
+    from django.http import HttpResponse
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    now = timezone.now().date()
+    str_inizio = request.GET.get('data_inizio', '')
+    str_fine = request.GET.get('data_fine', '')
+    dipendente_id = request.GET.get('dipendente_id', '')
+
+    try:
+        data_inizio = date.fromisoformat(str_inizio) if str_inizio else now.replace(day=1)
+    except Exception:
+        data_inizio = now.replace(day=1)
+
+    try:
+        if str_fine:
+            data_fine = date.fromisoformat(str_fine)
+        else:
+            last_day = calendar.monthrange(now.year, now.month)[1]
+            data_fine = now.replace(day=last_day)
+    except Exception:
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        data_fine = now.replace(day=last_day)
+
+    dip_qs = Dipendente.objects.filter(stato='ATTIVO')
+    if dipendente_id and dipendente_id.isdigit():
+        dip_qs = dip_qs.filter(pk=int(dipendente_id))
+    dipendenti_map = {d.pk: d for d in dip_qs.order_by('cognome', 'nome')}
+
+    tt_qs = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=data_inizio,
+        assegnazione__turno__data__lte=data_fine,
+        dipendente_id__in=dipendenti_map.keys()
+    ).select_related('dipendente', 'assegnazione__cliente')
+
+    assenze_qs = Assenza.objects.filter(
+        Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio),
+        dipendente_id__in=dipendenti_map.keys()
+    ).select_related('dipendente')
+
+    report_data = {}
+    for dip_id, dip in dipendenti_map.items():
+        report_data[dip_id] = {
+            'dip': dip,
+            'cognome_nome': f"{dip.cognome} {dip.nome}",
+            'cf': dip.codice_fiscale or '---',
+            'ore_lavorate': 0.0,
+            'ore_validate': 0.0,
+            'giorni_set': set(),
+            'ferie': 0, 'permessi': 0, 'malattia': 0, 'altri': 0,
+            'clienti_dict': {},
+        }
+
+    for tt in tt_qs:
+        dip_id = tt.dipendente_id
+        if dip_id not in report_data:
+            continue
+        ore = float(tt.ore_dichiarate or 0)
+        report_data[dip_id]['ore_lavorate'] += ore
+        if tt.is_validated:
+            report_data[dip_id]['ore_validate'] += ore
+        report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
+        cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
+        report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
+
+    for ass in assenze_qs:
+        dip_id = ass.dipendente_id
+        if dip_id not in report_data:
+            continue
+        giorni = (min(ass.data_fine, data_fine) - max(ass.data_inizio, data_inizio)).days + 1
+        if ass.tipo == 'FERIE':
+            report_data[dip_id]['ferie'] += giorni
+        elif ass.tipo == 'PERMESSO':
+            report_data[dip_id]['permessi'] += giorni
+        elif ass.tipo == 'MALATTIA':
+            report_data[dip_id]['malattia'] += giorni
+        else:
+            report_data[dip_id]['altri'] += giorni
+
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"report_cedolini_paghe_{data_inizio.strftime('%d%m%Y')}_{data_fine.strftime('%d%m%Y')}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    doc = SimpleDocTemplate(
+        response,
+        pagesize=landscape(A4),
+        rightMargin=15, leftMargin=15, topMargin=15, bottomMargin=15
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        leading=20,
+        textColor=colors.HexColor('#0F172A'),
+        spaceAfter=4,
+    )
+    sub_style = ParagraphStyle(
+        'DocSub',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#475569'),
+        spaceAfter=12,
+    )
+    cell_style = ParagraphStyle(
+        'TableCell',
+        parent=styles['Normal'],
+        fontSize=8,
+        leading=10,
+    )
+    cell_bold = ParagraphStyle(
+        'TableCellBold',
+        parent=cell_style,
+        fontName='Helvetica-Bold',
+    )
+
+    story = []
+    story.append(Paragraph("KANDOR — REPORT ELABORAZIONE CEDOLINI PAGHE", title_style))
+    periodo_str = f"Periodo dal <b>{data_inizio.strftime('%d/%m/%Y')}</b> al <b>{data_fine.strftime('%d/%m/%Y')}</b> — Generato il {now.strftime('%d/%m/%Y')}"
+    story.append(Paragraph(periodo_str, sub_style))
+
+    table_data = [
+        [
+            Paragraph("Dipendente", cell_bold),
+            Paragraph("Codice Fiscale", cell_bold),
+            Paragraph("G. Lav.", cell_bold),
+            Paragraph("Ore Totali", cell_bold),
+            Paragraph("Ore Valid.", cell_bold),
+            Paragraph("Ferie", cell_bold),
+            Paragraph("Perm.", cell_bold),
+            Paragraph("Malatt.", cell_bold),
+            Paragraph("Altri/104", cell_bold),
+            Paragraph("Dettaglio Cantieri", cell_bold),
+        ]
+    ]
+
+    tot_gl = 0
+    tot_ore = 0.0
+    tot_val = 0.0
+    tot_ferie = 0
+    tot_perm = 0
+    tot_mal = 0
+    tot_altri = 0
+
+    for d_id, item in sorted(report_data.items(), key=lambda x: x[1]['cognome_nome']):
+        gl = len(item['giorni_set'])
+        tot_gl += gl
+        tot_ore += item['ore_lavorate']
+        tot_val += item['ore_validate']
+        tot_ferie += item['ferie']
+        tot_perm += item['permessi']
+        tot_mal += item['malattia']
+        tot_altri += item['altri']
+
+        cantieri_p = ", ".join([f"{n} ({round(o,1)}h)" for n, o in sorted(item['clienti_dict'].items())]) or "---"
+
+        table_data.append([
+            Paragraph(item['cognome_nome'], cell_bold),
+            Paragraph(item['cf'], cell_style),
+            Paragraph(str(gl), cell_style),
+            Paragraph(f"{round(item['ore_lavorate'], 1)}h", cell_style),
+            Paragraph(f"{round(item['ore_validate'], 1)}h", cell_style),
+            Paragraph(f"{item['ferie']}gg", cell_style),
+            Paragraph(f"{item['permessi']}gg", cell_style),
+            Paragraph(f"{item['malattia']}gg", cell_style),
+            Paragraph(f"{item['altri']}gg", cell_style),
+            Paragraph(cantieri_p, cell_style),
+        ])
+
+    table_data.append([
+        Paragraph("<b>TOTALE GENERALE</b>", cell_bold),
+        Paragraph("", cell_style),
+        Paragraph(f"<b>{tot_gl}</b>", cell_bold),
+        Paragraph(f"<b>{round(tot_ore, 1)}h</b>", cell_bold),
+        Paragraph(f"<b>{round(tot_val, 1)}h</b>", cell_bold),
+        Paragraph(f"<b>{tot_ferie}gg</b>", cell_bold),
+        Paragraph(f"<b>{tot_perm}gg</b>", cell_bold),
+        Paragraph(f"<b>{tot_mal}gg</b>", cell_bold),
+        Paragraph(f"<b>{tot_altri}gg</b>", cell_bold),
+        Paragraph("", cell_style),
+    ])
+
+    col_widths = [110, 100, 45, 55, 55, 40, 40, 45, 45, 230]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0F172A')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 5),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#FEF2F2')),
+    ]))
+
+    story.append(t)
+    doc.build(story)
+    return response
+
+
+@csrf_exempt
+def export_paghe_csv(request):
+    """Esporta i dati elaborazione paghe in formato CSV con codifica UTF-8 BOM per Excel."""
+    import csv
+    from .models import Dipendente, TimeTracking, Assenza
+    from datetime import date
+    import calendar
+    from django.db.models import Q
+    from django.utils import timezone
+    from django.http import HttpResponse
+
+    now = timezone.now().date()
+    str_inizio = request.GET.get('data_inizio', '')
+    str_fine = request.GET.get('data_fine', '')
+    dipendente_id = request.GET.get('dipendente_id', '')
+
+    try:
+        data_inizio = date.fromisoformat(str_inizio) if str_inizio else now.replace(day=1)
+    except Exception:
+        data_inizio = now.replace(day=1)
+
+    try:
+        if str_fine:
+            data_fine = date.fromisoformat(str_fine)
+        else:
+            last_day = calendar.monthrange(now.year, now.month)[1]
+            data_fine = now.replace(day=last_day)
+    except Exception:
+        last_day = calendar.monthrange(now.year, now.month)[1]
+        data_fine = now.replace(day=last_day)
+
+    dip_qs = Dipendente.objects.filter(stato='ATTIVO')
+    if dipendente_id and dipendente_id.isdigit():
+        dip_qs = dip_qs.filter(pk=int(dipendente_id))
+    dipendenti_map = {d.pk: d for d in dip_qs.order_by('cognome', 'nome')}
+
+    tt_qs = TimeTracking.objects.filter(
+        assegnazione__turno__data__gte=data_inizio,
+        assegnazione__turno__data__lte=data_fine,
+        dipendente_id__in=dipendenti_map.keys()
+    ).select_related('dipendente', 'assegnazione__cliente')
+
+    assenze_qs = Assenza.objects.filter(
+        Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio),
+        dipendente_id__in=dipendenti_map.keys()
+    ).select_related('dipendente')
+
+    report_data = {}
+    for dip_id, dip in dipendenti_map.items():
+        report_data[dip_id] = {
+            'dip_id': dip.pk,
+            'cognome': dip.cognome,
+            'nome': dip.nome,
+            'cf': dip.codice_fiscale or '',
+            'ore_lavorate': 0.0,
+            'ore_validate': 0.0,
+            'giorni_set': set(),
+            'ferie': 0, 'permessi': 0, 'malattia': 0, 'infortunio': 0, 'l104': 0, 'altri': 0,
+            'clienti_dict': {},
+        }
+
+    for tt in tt_qs:
+        dip_id = tt.dipendente_id
+        if dip_id not in report_data:
+            continue
+        ore = float(tt.ore_dichiarate or 0)
+        report_data[dip_id]['ore_lavorate'] += ore
+        if tt.is_validated:
+            report_data[dip_id]['ore_validate'] += ore
+        report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
+        cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
+        report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
+
+    for ass in assenze_qs:
+        dip_id = ass.dipendente_id
+        if dip_id not in report_data:
+            continue
+        giorni = (min(ass.data_fine, data_fine) - max(ass.data_inizio, data_inizio)).days + 1
+        if ass.tipo == 'FERIE':
+            report_data[dip_id]['ferie'] += giorni
+        elif ass.tipo == 'PERMESSO':
+            report_data[dip_id]['permessi'] += giorni
+        elif ass.tipo == 'MALATTIA':
+            report_data[dip_id]['malattia'] += giorni
+        elif ass.tipo == 'INFORTUNIO':
+            report_data[dip_id]['infortunio'] += giorni
+        elif ass.tipo == '104':
+            report_data[dip_id]['l104'] += giorni
+        else:
+            report_data[dip_id]['altri'] += giorni
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    filename = f"export_cedolini_paghe_{data_inizio.strftime('%Y%m%d')}_{data_fine.strftime('%Y%m%d')}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    response.write('\ufeff') # BOM per Microsoft Excel UTF-8
+    writer = csv.writer(response, delimiter=';')
+
+    writer.writerow([
+        'ID Dipendente', 'Cognome', 'Nome', 'Codice Fiscale',
+        'Data Inizio', 'Data Fine',
+        'Giorni Lavorati', 'Ore Lavorate Totali', 'Ore Validate', 'Ore Non Validate',
+        'Giorni Ferie', 'Giorni Permesso', 'Giorni Malattia', 'Giorni Infortunio', 'Giorni 104', 'Altri Giorni Assenza',
+        'Dettaglio Cantieri / Clienti'
+    ])
+
+    for d_id, item in sorted(report_data.items(), key=lambda x: (x[1]['cognome'], x[1]['nome'])):
+        cantieri_str = ", ".join([f"{n} ({round(o,1)}h)" for n, o in sorted(item['clienti_dict'].items())])
+        writer.writerow([
+            item['dip_id'], item['cognome'], item['nome'], item['cf'],
+            data_inizio.strftime('%d/%m/%Y'), data_fine.strftime('%d/%m/%Y'),
+            len(item['giorni_set']),
+            str(round(item['ore_lavorate'], 2)).replace('.', ','),
+            str(round(item['ore_validate'], 2)).replace('.', ','),
+            str(round(item['ore_lavorate'] - item['ore_validate'], 2)).replace('.', ','),
+            item['ferie'], item['permessi'], item['malattia'], item['infortunio'], item['l104'], item['altri'],
+            cantieri_str
+        ])
+
+    return response

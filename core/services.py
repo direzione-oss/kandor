@@ -469,7 +469,9 @@ def _notifica_completamento(richiesta):
 
 
 def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
-    """Notifica via Telegram: dipendenti con flag, Titolari e Responsabili Area."""
+    """Notifica via Telegram SOLO i Responsabili (Titolari, Responsabili Area) e il Gestionale su PC (Admin).
+    I dipendenti comuni NON ricevono i messaggi inviati da altri dipendenti.
+    """
     import requests
     from django.conf import settings
     from .models import Dipendente, Titolare, ResponsabileArea
@@ -494,15 +496,10 @@ def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
 
     chat_ids = set()
 
-    # 1. Dipendenti con flag riceve_notifiche_messaggi
-    try:
-        for ref in Dipendente.objects.filter(
-            riceve_notifiche_messaggi=True,
-            telegram_chat_id__isnull=False
-        ).exclude(telegram_chat_id='').exclude(pk=dipendente.pk):
-            chat_ids.add(str(ref.telegram_chat_id))
-    except Exception:
-        pass
+    # 1. Admin Telegram (Gestionale PC)
+    admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
+    if admin_chat_id:
+        chat_ids.add(str(admin_chat_id))
 
     # 2. Titolari con notifiche attive
     try:
@@ -520,6 +517,18 @@ def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
         ).exclude(dipendente__telegram_chat_id=''):
             if ra.dipendente and ra.dipendente.pk != dipendente.pk:
                 chat_ids.add(str(ra.dipendente.telegram_chat_id))
+    except Exception:
+        pass
+
+    # 4. Dipendenti con flag riceve_notifiche_messaggi SOLO se ricoprono un ruolo da responsabile o titolare
+    try:
+        for ref in Dipendente.objects.filter(
+            riceve_notifiche_messaggi=True,
+            telegram_chat_id__isnull=False
+        ).exclude(telegram_chat_id='').exclude(pk=dipendente.pk):
+            is_responsabile = hasattr(ref, 'ruolo_responsabile') or hasattr(ref, 'titolare_profilo')
+            if is_responsabile:
+                chat_ids.add(str(ref.telegram_chat_id))
     except Exception:
         pass
 

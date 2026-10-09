@@ -1,0 +1,385 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Report Elaborazione Cedolini Paghe | Kandor{% endblock %}
+
+{% block content %}
+<style>
+    .paghe-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+        font-family: var(--font-family);
+    }
+
+    .paghe-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
+        background: #0F172A;
+        color: #FFFFFF;
+        padding: 20px 24px;
+        border-radius: var(--radius-md);
+        border-left: 4px solid var(--primary-color);
+        box-shadow: var(--shadow-md);
+    }
+
+    .paghe-header h1 {
+        margin: 0;
+        font-size: 1.35rem;
+        font-weight: 700;
+    }
+
+    .paghe-header p {
+        margin: 4px 0 0 0;
+        font-size: 0.85rem;
+        color: #94A3B8;
+    }
+
+    .paghe-filter-card {
+        background: #FFFFFF;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        box-shadow: var(--shadow-sm);
+    }
+
+    .paghe-filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: 16px;
+    }
+
+    .paghe-filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .paghe-filter-group label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .paghe-filter-group input,
+    .paghe-filter-group select {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        font-size: 0.875rem;
+        min-height: 38px;
+        box-sizing: border-box;
+    }
+
+    .paghe-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+
+    .paghe-kpi-card {
+        background: #FFFFFF;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 18px 20px;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .paghe-kpi-title {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 8px;
+    }
+
+    .paghe-kpi-value {
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: var(--text-main);
+        line-height: 1.2;
+    }
+
+    .paghe-kpi-sub {
+        font-size: 0.8rem;
+        color: var(--text-light);
+        margin-top: 6px;
+    }
+
+    .paghe-table-card {
+        background: #FFFFFF;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+        margin-bottom: 32px;
+    }
+
+    .paghe-table-header {
+        background: #F8FAFC;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .paghe-table-header h2 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-main);
+    }
+
+    .paghe-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-paghe-pdf {
+        background: #DC2626 !important;
+        color: #FFFFFF !important;
+        padding: 8px 16px !important;
+        border-radius: var(--radius-sm) !important;
+        font-weight: 700 !important;
+        font-size: 0.85rem !important;
+        text-decoration: none !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-paghe-csv {
+        background: #059669 !important;
+        color: #FFFFFF !important;
+        padding: 8px 16px !important;
+        border-radius: var(--radius-sm) !important;
+        font-weight: 700 !important;
+        font-size: 0.85rem !important;
+        text-decoration: none !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .paghe-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .paghe-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    .paghe-table th {
+        background: #F1F5F9;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 12px 14px;
+        border-bottom: 2px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .paghe-table td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-main);
+        word-wrap: break-word;
+        vertical-align: middle;
+    }
+
+    .paghe-table tr:hover td {
+        background: #F8FAFC;
+    }
+
+    .paghe-table tr.totale-row td {
+        background: #FEF2F2;
+        font-weight: 800;
+        border-top: 2px solid var(--primary-border);
+        color: #B91C1C;
+    }
+
+    .badge-val {
+        background: #ECFDF5;
+        color: #047857;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border: 1px solid #A7F3D0;
+    }
+
+    .badge-non-val {
+        background: #FEF2F2;
+        color: #B91C1C;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border: 1px solid #FECACA;
+    }
+</style>
+
+<div class="paghe-container">
+    <!-- Header -->
+    <div class="paghe-header">
+        <div>
+            <h1>📋 Report Cedolini Paghe</h1>
+            <p>Riepilogo ore lavorate, convalidate ed assenze per l'elaborazione delle buste paga dal <b>{{ data_inizio_formatted }}</b> al <b>{{ data_fine_formatted }}</b></p>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <a href="{% url 'pdf_report_paghe' %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}&dipendente_id={{ dipendente_id }}" target="_blank" class="btn-paghe-pdf">
+                🖨️ Scarica PDF
+            </a>
+            <a href="{% url 'export_paghe_csv' %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}&dipendente_id={{ dipendente_id }}" class="btn-paghe-csv">
+                📊 Esporta CSV per Paghe
+            </a>
+        </div>
+    </div>
+
+    <!-- Filtri -->
+    <div class="paghe-filter-card">
+        <form method="get" action="{% url 'report_paghe' %}" class="paghe-filter-form">
+            <div class="paghe-filter-group">
+                <label for="data_inizio">Data Inizio Periodo</label>
+                <input type="date" id="data_inizio" name="data_inizio" value="{{ data_inizio }}" required>
+            </div>
+            <div class="paghe-filter-group">
+                <label for="data_fine">Data Fine Periodo</label>
+                <input type="date" id="data_fine" name="data_fine" value="{{ data_fine }}" required>
+            </div>
+            <div class="paghe-filter-group">
+                <label for="dipendente_id">Dipendente</label>
+                <select id="dipendente_id" name="dipendente_id" style="min-width: 220px;">
+                    <option value="">Tutti i Dipendenti Attivi</option>
+                    {% for dip in all_dipendenti %}
+                    <option value="{{ dip.pk }}" {% if dipendente_id == dip.pk %}selected{% endif %}>
+                        {{ dip.cognome }} {{ dip.nome }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="paghe-filter-group">
+                <button type="submit" class="button" style="height: 38px; padding: 0 20px;">🔍 Genera Report</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- KPI Totali -->
+    <div class="paghe-kpi-grid">
+        <div class="paghe-kpi-card">
+            <div class="paghe-kpi-title">👥 Dipendenti Elaborati</div>
+            <div class="paghe-kpi-value">{{ totale_generale.dipendenti_count }}</div>
+            <div class="paghe-kpi-sub">{{ totale_generale.giorni_lavorati_totali }} giorni totali lavorati</div>
+        </div>
+        <div class="paghe-kpi-card">
+            <div class="paghe-kpi-title">⏱️ Ore Totali Svolte</div>
+            <div class="paghe-kpi-value">{{ totale_generale.ore_lavorate_totali }} h</div>
+            <div class="paghe-kpi-sub">Media: {% if totale_generale.dipendenti_count %}{% widthratio totale_generale.ore_lavorate_totali totale_generale.dipendenti_count 1 %}{% else %}0{% endif %}h / dipendente</div>
+        </div>
+        <div class="paghe-kpi-card">
+            <div class="paghe-kpi-title">✅ Ore Convalidate</div>
+            <div class="paghe-kpi-value" style="color: #059669;">{{ totale_generale.ore_validate_totali }} h</div>
+            <div class="paghe-kpi-sub">Pronte per l'elaborazione paghe</div>
+        </div>
+        <div class="paghe-kpi-card">
+            <div class="paghe-kpi-title">🏖️ Giorni Assenza Totali</div>
+            <div class="paghe-kpi-value" style="color: #3B82F6;">{{ totale_generale.giorni_assenza_totali }} gg</div>
+            <div class="paghe-kpi-sub">Ferie: {{ totale_generale.ferie_totali }}gg | Malattia: {{ totale_generale.malattia_totale }}gg | Permessi: {{ totale_generale.permessi_totali }}gg</div>
+        </div>
+    </div>
+
+    <!-- Tabella Dettaglio Dipendenti -->
+    <div class="paghe-table-card">
+        <div class="paghe-table-header">
+            <h2>Prospetto Analitico per Buste Paga ({{ data_inizio_formatted }} - {{ data_fine_formatted }})</h2>
+        </div>
+        <div class="paghe-table-wrapper">
+            <table class="paghe-table">
+                <thead>
+                    <tr>
+                        <th>Dipendente</th>
+                        <th>Codice Fiscale</th>
+                        <th style="text-align: center;">G. Lavorati</th>
+                        <th style="text-align: right;">Ore Totali</th>
+                        <th style="text-align: right;">Ore Validate</th>
+                        <th style="text-align: center;">Ferie</th>
+                        <th style="text-align: center;">Permessi</th>
+                        <th style="text-align: center;">Malattia</th>
+                        <th style="text-align: center;">104 / Altro</th>
+                        <th>Dettaglio Cantieri / Clienti</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in report_list %}
+                    <tr>
+                        <td>
+                            <b>{{ item.cognome_nome }}</b><br>
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">{{ item.ruolo }}</span>
+                        </td>
+                        <td><code style="font-size: 0.8rem; background:#F1F5F9; padding:2px 6px; border-radius:4px;">{{ item.codice_fiscale }}</code></td>
+                        <td style="text-align: center;"><b>{{ item.giorni_lavorati }}</b> gg</td>
+                        <td style="text-align: right; font-weight: 700;">{{ item.ore_lavorate }} h</td>
+                        <td style="text-align: right;">
+                            <span class="badge-val">{{ item.ore_validate }} h</span>
+                            {% if item.ore_non_validate > 0 %}
+                            <br><span class="badge-non-val" title="Ore non ancora validate">{{ item.ore_non_validate }} h in attesa</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">{% if item.assenze_dict.FERIE > 0 %}<b style="color:#059669;">{{ item.assenze_dict.FERIE }} gg</b>{% else %}-{% endif %}</td>
+                        <td style="text-align: center;">{% if item.assenze_dict.PERMESSO > 0 %}<b style="color:#D97706;">{{ item.assenze_dict.PERMESSO }} gg</b>{% else %}-{% endif %}</td>
+                        <td style="text-align: center;">{% if item.assenze_dict.MALATTIA > 0 %}<b style="color:#DC2626;">{{ item.assenze_dict.MALATTIA }} gg</b>{% else %}-{% endif %}</td>
+                        <td style="text-align: center;">
+                            {% if item.assenze_dict.104 > 0 or item.assenze_dict.INFORTUNIO > 0 or item.assenze_dict.ALTRO > 0 %}
+                            <b>{% if item.assenze_dict.104 > 0 %}104: {{ item.assenze_dict.104 }}gg {% endif %}{% if item.assenze_dict.INFORTUNIO > 0 %}Inf: {{ item.assenze_dict.INFORTUNIO }}gg {% endif %}</b>
+                            {% else %}-{% endif %}
+                        </td>
+                        <td style="font-size: 0.82rem; color: var(--text-main);">{{ item.clienti_str }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                            Nessun dato registrato nel periodo selezionato (<b>{{ data_inizio_formatted }} - {{ data_fine_formatted }}</b>).
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if report_list %}
+                <tfoot>
+                    <tr class="totale-row">
+                        <td colspan="2">TOTALE GENERALE ({{ totale_generale.dipendenti_count }} Dipendenti)</td>
+                        <td style="text-align: center;">{{ totale_generale.giorni_lavorati_totali }} gg</td>
+                        <td style="text-align: right;">{{ totale_generale.ore_lavorate_totali }} h</td>
+                        <td style="text-align: right;">{{ totale_generale.ore_validate_totali }} h</td>
+                        <td style="text-align: center;">{{ totale_generale.ferie_totali }} gg</td>
+                        <td style="text-align: center;">{{ totale_generale.permessi_totali }} gg</td>
+                        <td style="text-align: center;">{{ totale_generale.malattia_totale }} gg</td>
+                        <td style="text-align: center;">{{ totale_generale.l104_totale }} gg</td>
+                        <td>---</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

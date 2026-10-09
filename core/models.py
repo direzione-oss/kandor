@@ -73,8 +73,8 @@ class Dipendente(models.Model):
     # Notifiche messaggi
     riceve_notifiche_messaggi = models.BooleanField(
         default=False,
-        verbose_name="Riceve notifiche messaggi",
-        help_text="Se attivo, questo dipendente/referente riceve una notifica Telegram quando arriva un messaggio nel Centro Messaggi"
+        verbose_name="Riceve notifiche messaggi (Solo Responsabili)",
+        help_text="Se attivo e l'utente ricopre un ruolo di Responsabile/Titolare, riceve una notifica Telegram quando un dipendente invia un messaggio."
     )
 
     # Foto profilo
