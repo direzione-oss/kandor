@@ -50,7 +50,10 @@ def handler500(request, *args, **kwargs):
     tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
     return HttpResponseServerError(f"<h1>500 Internal Server Error</h1><pre>{tb_str}</pre>", content_type="text/html")
 
+from core.views_cron import invia_auguri_cron_view
+
 urlpatterns = [
+    path('api/cron/invia-auguri/', invia_auguri_cron_view),
     path('debug-db/', debug_db_view),
     path('admin/', admin.site.urls),
     path('', include('core.urls')),

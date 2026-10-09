@@ -1,0 +1,17 @@
+name: Invia Auguri di Compleanno
+
+on:
+  schedule:
+    # Esegue ogni giorno alle 06:00 UTC (che corrisponde alle 08:00 ora italiana estiva, 07:00 solare)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Permette di avviarlo manualmente dal pannello Actions
+
+jobs:
+  invia_auguri:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Richiama endpoint cron auguri Kandor
+        # Usiamo il parametro curl per chiamare l'app. Render la riattiverà se in sleep.
+        # --max-time 120 garantisce tempo al server per svegliarsi.
+        run: |
+          curl -f -s -X GET "https://kandor.onrender.com/api/cron/invia-auguri/?token=kandor_cron_secure_auguri_2026" --max-time 120
