@@ -1363,25 +1363,41 @@ def analisi_contratti_view(request):
         })
     
     # Clienti con importo e ore configurati
-    clienti = Cliente.objects.filter(
+    clienti_qs = Cliente.objects.filter(
         ore_mensili_contratto__gt=0
     ).order_by('ragione_sociale')
     
+    # Group clienti by Partita IVA (if present)
+    grouped_clienti = {}
+    for c in clienti_qs:
+        piva = (c.partita_iva or '').strip().upper()
+        key = f"PIVA_{piva}" if piva else f"PK_{c.pk}"
+        if key not in grouped_clienti:
+            grouped_clienti[key] = {'piva': piva, 'clienti': []}
+        grouped_clienti[key]['clienti'].append(c)
+
     analisi = []
     sotto_soglia = []
     totale_fatturato = Decimal('0')
     somma_orari = []
     
-    for cliente in clienti:
-        importo = float(cliente.importo_mensile_contratto)
-        ore_contratto = float(cliente.ore_mensili_contratto)
+    for key, grp in grouped_clienti.items():
+        clienti_list = grp['clienti']
+        importo = sum(float(c.importo_mensile_contratto or 0) for c in clienti_list)
+        ore_contratto = sum(float(c.ore_mensili_contratto or 0) for c in clienti_list)
         importo_orario = round(importo / ore_contratto, 2) if ore_contratto > 0 else 0
         
-        # Ore effettivamente lavorate nel mese selezionato
-        from django.db.models import F, ExpressionWrapper, DurationField
-        
+        # Display name
+        piva_str = grp['piva']
+        if len(clienti_list) > 1 and piva_str:
+            nome_base = clienti_list[0].ragione_sociale.split('-')[0].strip()
+            ragione_display = f"{nome_base} ({len(clienti_list)} Sedi - P.IVA {piva_str})"
+        else:
+            ragione_display = clienti_list[0].ragione_sociale
+
+        # Ore effettivamente lavorate nel mese selezionato su tutte le sedi del gruppo
         tt_records = TimeTracking.objects.filter(
-            assegnazione__cliente=cliente,
+            assegnazione__cliente__in=clienti_list,
             check_out__year=anno,
             check_out__month=mese,
             check_in__isnull=False,
@@ -1425,8 +1441,8 @@ def analisi_contratti_view(request):
         costo_eff_display = f"&euro;{costo_effettivo}" if costo_effettivo else "&mdash;"
         
         row = {
-            'cliente': cliente.ragione_sociale,
-            'cliente_id': cliente.pk,
+            'cliente': ragione_display,
+            'cliente_id': clienti_list[0].pk,
             'importo_mensile': f"&euro;{importo:,.2f}",
             'ore_contratto': f"{ore_contratto}h",
             'importo_orario': f"&euro;{importo_orario:.2f}",
@@ -1441,7 +1457,7 @@ def analisi_contratti_view(request):
         if is_sotto_soglia:
             sotto_soglia.append(row)
         
-        totale_fatturato += cliente.importo_mensile_contratto
+        totale_fatturato += Decimal(str(importo))
         if importo_orario > 0:
             somma_orari.append(importo_orario)
     
@@ -1511,18 +1527,34 @@ def pdf_contratti_sotto_soglia(request):
     except (ValueError, TypeError):
         anno = today.year
 
-    # Calcola contratti sotto soglia
-    clienti = Cliente.objects.filter(ore_mensili_contratto__gt=0).order_by('ragione_sociale')
+    # Calcola contratti sotto soglia raggruppati per Partita IVA
+    clienti_qs = Cliente.objects.filter(ore_mensili_contratto__gt=0).order_by('ragione_sociale')
+    grouped_clienti = {}
+    for c in clienti_qs:
+        piva = (c.partita_iva or '').strip().upper()
+        key = f"PIVA_{piva}" if piva else f"PK_{c.pk}"
+        if key not in grouped_clienti:
+            grouped_clienti[key] = {'piva': piva, 'clienti': []}
+        grouped_clienti[key]['clienti'].append(c)
+
     sotto_soglia = []
 
-    for cliente in clienti:
-        importo = float(cliente.importo_mensile_contratto)
-        ore_contratto = float(cliente.ore_mensili_contratto)
+    for key, grp in grouped_clienti.items():
+        clienti_list = grp['clienti']
+        importo = sum(float(c.importo_mensile_contratto or 0) for c in clienti_list)
+        ore_contratto = sum(float(c.ore_mensili_contratto or 0) for c in clienti_list)
         importo_orario = round(importo / ore_contratto, 2) if ore_contratto > 0 else 0
+
+        piva_str = grp['piva']
+        if len(clienti_list) > 1 and piva_str:
+            nome_base = clienti_list[0].ragione_sociale.split('-')[0].strip()
+            ragione_display = f"{nome_base} ({len(clienti_list)} Sedi - P.IVA {piva_str})"
+        else:
+            ragione_display = clienti_list[0].ragione_sociale
 
         # Ore lavorate
         tt_records = TimeTracking.objects.filter(
-            assegnazione__cliente=cliente,
+            assegnazione__cliente__in=clienti_list,
             check_out__year=anno,
             check_out__month=mese,
             check_in__isnull=False,
@@ -1539,7 +1571,7 @@ def pdf_contratti_sotto_soglia(request):
 
         if importo_orario < soglia and importo > 0:
             sotto_soglia.append({
-                'cliente': cliente.ragione_sociale,
+                'cliente': ragione_display,
                 'importo': importo,
                 'ore_contratto': ore_contratto,
                 'importo_orario': importo_orario,
