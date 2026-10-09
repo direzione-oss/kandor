@@ -247,11 +247,17 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
-# CSRF cookie valido 30 giorni
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+# --- CSRF Configuration ---
+CSRF_USE_SESSIONS = True
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 30
+CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Gestione Proxy SSL (fondamentale per Render e ngrok dietro HTTPS)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
 # Origini fidate per CSRF (necessario in Django per richieste HTTPS)
 CSRF_TRUSTED_ORIGINS = [
@@ -260,4 +266,6 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok-free.app',
     'https://*.ngrok-free.dev',
     'https://*.railway.app',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
