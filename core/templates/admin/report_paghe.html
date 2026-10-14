@@ -237,6 +237,136 @@
         font-weight: 700;
         border: 1px solid #FECACA;
     }
+
+    .badge-rettificato {
+        background: #FEF3C7;
+        color: #92400E;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        border: 1px solid #FDE68A;
+        display: inline-block;
+        margin-top: 4px;
+    }
+
+    .btn-modifica-cedolino {
+        background: #2563EB;
+        color: #FFFFFF;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-modifica-cedolino:hover {
+        background: #1D4ED8;
+    }
+
+    /* Modal Overlay & Card */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(15, 23, 42, 0.65);
+        z-index: 99999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-card {
+        background: #FFFFFF;
+        border-radius: 14px;
+        max-width: 650px;
+        width: 92%;
+        padding: 24px 28px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+        from { opacity: 0; transform: translateY(-12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        border-bottom: 1px solid #E2E8F0;
+        padding-bottom: 12px;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #0F172A;
+    }
+
+    .modal-close-btn {
+        background: none;
+        border: none;
+        font-size: 1.4rem;
+        cursor: pointer;
+        color: #64748B;
+    }
+
+    .modal-form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+
+    .modal-form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .modal-form-group label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+    }
+
+    .modal-form-group input,
+    .modal-form-group textarea {
+        padding: 8px 12px;
+        border: 1px solid #CBD5E1;
+        border-radius: 6px;
+        font-size: 0.875rem;
+    }
+
+    .modal-form-group textarea {
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    .modal-calc-info {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        font-size: 0.8rem;
+        color: #475569;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        border-top: 1px solid #E2E8F0;
+        padding-top: 16px;
+    }
 </style>
 
 <div class="paghe-container">
@@ -327,6 +457,7 @@
                         <th style="text-align: center;">Malattia</th>
                         <th style="text-align: center;">104 / Altro</th>
                         <th>Dettaglio Cantieri / Clienti</th>
+                        <th style="text-align: center;">Azione Admin</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -335,29 +466,82 @@
                         <td>
                             <b>{{ item.cognome_nome }}</b><br>
                             <span style="font-size: 0.78rem; color: var(--text-muted);">{{ item.ruolo }}</span>
+                            {% if item.is_rettificato %}
+                            <br><span class="badge-rettificato" title="Motivazione: {{ item.modifica_note|default:'Nessuna nota' }}">✏️ Rettificato</span>
+                            {% endif %}
                         </td>
                         <td><code style="font-size: 0.8rem; background:#F1F5F9; padding:2px 6px; border-radius:4px;">{{ item.codice_fiscale }}</code></td>
-                        <td style="text-align: center;"><b>{{ item.giorni_lavorati }}</b> gg</td>
-                        <td style="text-align: right; font-weight: 700;">{{ item.ore_lavorate }} h</td>
+                        <td style="text-align: center;">
+                            <b>{{ item.giorni_lavorati }}</b> gg
+                            {% if item.is_rettificato and item.giorni_lavorati_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B;">(calc: {{ item.giorni_lavorati_orig }})</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; font-weight: 700;">
+                            {{ item.ore_lavorate }} h
+                            {% if item.is_rettificato and item.ore_lavorate_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B; font-weight: normal;">(calc: {{ item.ore_lavorate_orig }}h)</span>
+                            {% endif %}
+                        </td>
                         <td style="text-align: right;">
                             <span class="badge-val">{{ item.ore_validate }} h</span>
+                            {% if item.is_rettificato and item.ore_validate_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B;">(calc: {{ item.ore_validate_orig }}h)</span>
+                            {% endif %}
                             {% if item.ore_non_validate > 0 %}
                             <br><span class="badge-non-val" title="Ore non ancora validate">{{ item.ore_non_validate }} h in attesa</span>
                             {% endif %}
                         </td>
-                        <td style="text-align: center;">{% if item.assenze_dict.FERIE > 0 %}<b style="color:#059669;">{{ item.assenze_dict.FERIE }} gg</b>{% else %}-{% endif %}</td>
-                        <td style="text-align: center;">{% if item.assenze_dict.PERMESSO > 0 %}<b style="color:#D97706;">{{ item.assenze_dict.PERMESSO }} gg</b>{% else %}-{% endif %}</td>
-                        <td style="text-align: center;">{% if item.assenze_dict.MALATTIA > 0 %}<b style="color:#DC2626;">{{ item.assenze_dict.MALATTIA }} gg</b>{% else %}-{% endif %}</td>
+                        <td style="text-align: center;">
+                            {% if item.assenze_dict.FERIE > 0 %}<b style="color:#059669;">{{ item.assenze_dict.FERIE }} gg</b>{% else %}-{% endif %}
+                            {% if item.is_rettificato and item.giorni_ferie_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B;">(calc: {{ item.ferie_orig }}gg)</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            {% if item.assenze_dict.PERMESSO > 0 %}<b style="color:#D97706;">{{ item.assenze_dict.PERMESSO }} gg</b>{% else %}-{% endif %}
+                            {% if item.is_rettificato and item.giorni_permesso_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B;">(calc: {{ item.permessi_orig }}gg)</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">
+                            {% if item.assenze_dict.MALATTIA > 0 %}<b style="color:#DC2626;">{{ item.assenze_dict.MALATTIA }} gg</b>{% else %}-{% endif %}
+                            {% if item.is_rettificato and item.giorni_malattia_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B;">(calc: {{ item.malattia_orig }}gg)</span>
+                            {% endif %}
+                        </td>
                         <td style="text-align: center;">
                             {% if item.assenze_dict.104 > 0 or item.assenze_dict.INFORTUNIO > 0 or item.assenze_dict.ALTRO > 0 %}
                             <b>{% if item.assenze_dict.104 > 0 %}104: {{ item.assenze_dict.104 }}gg {% endif %}{% if item.assenze_dict.INFORTUNIO > 0 %}Inf: {{ item.assenze_dict.INFORTUNIO }}gg {% endif %}</b>
                             {% else %}-{% endif %}
                         </td>
                         <td style="font-size: 0.82rem; color: var(--text-main);">{{ item.clienti_str }}</td>
+                        <td style="text-align: center;">
+                            <button type="button" class="btn-modifica-cedolino" onclick="apriModalModifica(
+                                '{{ item.dip_id }}',
+                                '{{ item.cognome_nome|escapejs }}',
+                                '{{ item.giorni_lavorati_orig }}',
+                                '{{ item.ore_lavorate_orig }}',
+                                '{{ item.ore_validate_orig }}',
+                                '{{ item.ferie_orig }}',
+                                '{{ item.permessi_orig }}',
+                                '{{ item.malattia_orig }}',
+                                '{{ item.giorni_lavorati_override|default_if_none:"" }}',
+                                '{{ item.ore_lavorate_override|default_if_none:"" }}',
+                                '{{ item.ore_validate_override|default_if_none:"" }}',
+                                '{{ item.giorni_ferie_override|default_if_none:"" }}',
+                                '{{ item.giorni_permesso_override|default_if_none:"" }}',
+                                '{{ item.giorni_malattia_override|default_if_none:"" }}',
+                                '{{ item.modifica_note|escapejs }}',
+                                '{{ item.is_rettificato|yesno:"1,0" }}'
+                            )">
+                                ✏️ Rettifica
+                            </button>
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" style="text-align: center; padding: 32px; color: var(--text-muted);">
+                        <td colspan="11" style="text-align: center; padding: 32px; color: var(--text-muted);">
                             Nessun dato registrato nel periodo selezionato (<b>{{ data_inizio_formatted }} - {{ data_fine_formatted }}</b>).
                         </td>
                     </tr>
@@ -375,6 +559,7 @@
                         <td style="text-align: center;">{{ totale_generale.malattia_totale }} gg</td>
                         <td style="text-align: center;">{{ totale_generale.l104_totale }} gg</td>
                         <td>---</td>
+                        <td>---</td>
                     </tr>
                 </tfoot>
                 {% endif %}
@@ -382,4 +567,159 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Rettifica Cedolino -->
+<div id="modalModificaCedolino" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>✏️ Rettifica Cedolino Paghe</h3>
+            <button type="button" class="modal-close-btn" onclick="chiudiModalModifica()">&times;</button>
+        </div>
+        
+        <div style="font-size: 0.9rem; color: #475569; margin-bottom: 12px;">
+            Dipendente: <b id="modal_dipendente_nome" style="color: #0F172A;"></b><br>
+            Periodo: <b>{{ data_inizio_formatted }}</b> al <b>{{ data_fine_formatted }}</b>
+        </div>
+
+        <div id="modal_calc_info" class="modal-calc-info">
+            📊 <b>Valori Automatici Sistema:</b> <span id="modal_calc_str"></span>
+        </div>
+
+        <input type="hidden" id="modal_dipendente_id">
+
+        <div class="modal-form-grid">
+            <div class="modal-form-group">
+                <label for="modal_giorni_lavorati">G. Lavorati Rettificati</label>
+                <input type="number" id="modal_giorni_lavorati" placeholder="Lascia vuoto per calcolo auto">
+            </div>
+            <div class="modal-form-group">
+                <label for="modal_ore_lavorate">Ore Totali Rettificate (h)</label>
+                <input type="number" step="0.5" id="modal_ore_lavorate" placeholder="Lascia vuoto per calcolo auto">
+            </div>
+            <div class="modal-form-group">
+                <label for="modal_ore_validate">Ore Validate Rettificate (h)</label>
+                <input type="number" step="0.5" id="modal_ore_validate" placeholder="Lascia vuoto per calcolo auto">
+            </div>
+            <div class="modal-form-group">
+                <label for="modal_giorni_ferie">Giorni Ferie Rettificati</label>
+                <input type="number" id="modal_giorni_ferie" placeholder="Lascia vuoto per calcolo auto">
+            </div>
+            <div class="modal-form-group">
+                <label for="modal_giorni_permesso">Giorni Permesso Rettificati</label>
+                <input type="number" id="modal_giorni_permesso" placeholder="Lascia vuoto per calcolo auto">
+            </div>
+            <div class="modal-form-group">
+                <label for="modal_giorni_malattia">Giorni Malattia Rettificati</label>
+                <input type="number" id="modal_giorni_malattia" placeholder="Lascia vuoto per calcolo auto">
+            </div>
+        </div>
+
+        <div class="modal-form-group" style="margin-bottom: 16px;">
+            <label for="modal_note">Motivazione / Note Rettifica <span style="color:#DC2626;">*</span></label>
+            <textarea id="modal_note" placeholder="Spiega la motivazione della rettifica (es. integrazione straordinari cantiere o correzione assenza)"></textarea>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" id="btn_reset_rettifica" onclick="salvaRettifica(true)" style="background: #EF4444; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer; display: none;">
+                🔄 Ripristina Calcolo Auto
+            </button>
+            <button type="button" onclick="chiudiModalModifica()" style="background: #E2E8F0; color: #475569; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                Annulla
+            </button>
+            <button type="button" onclick="salvaRettifica(false)" style="background: #2563EB; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer;">
+                💾 Salva Rettifica
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function apriModalModifica(dipId, dipNome, glOrig, oreLavOrig, oreValOrig, ferieOrig, permOrig, malOrig, glOv, oreLavOv, oreValOv, ferieOv, permOv, malOv, note, isRett) {
+        document.getElementById('modal_dipendente_id').value = dipId;
+        document.getElementById('modal_dipendente_nome').innerText = dipNome;
+
+        document.getElementById('modal_calc_str').innerText = 
+            glOrig + ' gg lavorati | ' + oreLavOrig + 'h totali | ' + oreValOrig + 'h validate | Ferie: ' + ferieOrig + 'gg | Permessi: ' + permOrig + 'gg | Malattia: ' + malOrig + 'gg';
+
+        document.getElementById('modal_giorni_lavorati').value = glOv;
+        document.getElementById('modal_ore_lavorate').value = oreLavOv;
+        document.getElementById('modal_ore_validate').value = oreValOv;
+        document.getElementById('modal_giorni_ferie').value = ferieOv;
+        document.getElementById('modal_giorni_permesso').value = permOv;
+        document.getElementById('modal_giorni_malattia').value = malOv;
+        document.getElementById('modal_note').value = note;
+
+        const btnReset = document.getElementById('btn_reset_rettifica');
+        if (isRett === '1') {
+            btnReset.style.display = 'inline-block';
+        } else {
+            btnReset.style.display = 'none';
+        }
+
+        document.getElementById('modalModificaCedolino').style.display = 'flex';
+    }
+
+    function chiudiModalModifica() {
+        document.getElementById('modalModificaCedolino').style.display = 'none';
+    }
+
+    function salvaRettifica(isReset) {
+        const dipId = document.getElementById('modal_dipendente_id').value;
+        const dataInizio = '{{ data_inizio }}';
+        const dataFine = '{{ data_fine }}';
+
+        if (!isReset) {
+            const note = document.getElementById('modal_note').value.trim();
+            if (!note) {
+                alert('Inserisci una motivazione o nota per spiegare la rettifica.');
+                document.getElementById('modal_note').focus();
+                return;
+            }
+        }
+
+        const payload = {
+            dipendente_id: dipId,
+            data_inizio: dataInizio,
+            data_fine: dataFine,
+            reset: isReset,
+            giorni_lavorati_override: document.getElementById('modal_giorni_lavorati').value,
+            ore_lavorate_override: document.getElementById('modal_ore_lavorate').value,
+            ore_validate_override: document.getElementById('modal_ore_validate').value,
+            giorni_ferie_override: document.getElementById('modal_giorni_ferie').value,
+            giorni_permesso_override: document.getElementById('modal_giorni_permesso').value,
+            giorni_malattia_override: document.getElementById('modal_giorni_malattia').value,
+            note: document.getElementById('modal_note').value,
+        };
+
+        fetch('{% url "salva_modifica_cedolino" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Errore: ' + (data.error || 'Impossibile salvare la rettifica.'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Si è verificato un errore di rete durante il salvataggio.');
+        });
+    }
+
+    // Chiudi modal cliccando fuori
+    window.onclick = function(event) {
+        const modal = document.getElementById('modalModificaCedolino');
+        if (event.target === modal) {
+            chiudiModalModifica();
+        }
+    };
+</script>
 {% endblock %}

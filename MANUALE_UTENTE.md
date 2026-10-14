@@ -63,18 +63,24 @@
 
 ## 2. Accesso al Sistema
 
-### URL di Accesso
+### URL di Accesso (Cloud)
 
 Apri il browser e vai a: **[kandor.onrender.com](https://kandor.onrender.com)**
 
 Il sistema reindirizzerà automaticamente al pannello di amministrazione.
+
+### Avvio Locale (Installazione Desktop)
+
+Per la massima velocità operativa e per lavorare in locale:
+1. Fai doppio click sul file **`kandor_avvia.pyw`** (oppure esegui `kandor_avvia.bat`).
+2. Grazie all'avvio rapido con polling a 0.2s e alle ottimizzazioni del database (SQLite WAL Mode), il server si avvia in **circa 1 secondo** e apre automaticamente il browser su **`http://127.0.0.1:8000/`**.
 
 ### Login
 
 1. Inserisci **Nome utente** e **Password**
 2. Clicca **"Accedi"**
 
-> ⚠️ **Nota**: L'istanza gratuita di Render si "addormenta" dopo 15 minuti di inattività. Il primo accesso potrebbe richiedere fino a 50 secondi.
+> ⚠️ **Nota Cloud**: L'istanza gratuita di Render si "addormenta" dopo 15 minuti di inattività. Il primo accesso sulla versione Cloud potrebbe richiedere fino a 50 secondi. L'avvio in locale è invece sempre istantaneo.
 
 ### Cambio Password
 

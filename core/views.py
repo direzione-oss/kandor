@@ -1813,6 +1813,164 @@ def trova_sostituti_api(request):
         })
     
     return JsonResponse({'ok': True, 'sostituti': sostituti_list})
+
+
+@csrf_exempt
+def get_sostituti_richiesta_api(request, richiesta_id):
+    """
+    Ritorna l'elenco di tutti i sostituti compatibili/disponibili per una richiesta di sostituzione,
+    evidenziando quali sono stati precedentemente selezionati e l'ordine di selezione.
+    """
+    from .models import RichiestaSostituzione, Dipendente
+    from .services import trova_sostituti
+
+    try:
+        richiesta = RichiestaSostituzione.objects.select_related(
+            'assegnazione_originale__cliente',
+            'assegnazione_originale__turno__squadra',
+            'dipendente_assente'
+        ).get(pk=richiesta_id)
+    except RichiestaSostituzione.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Richiesta di sostituzione non trovata'}, status=404)
+
+    assegnazione = richiesta.assegnazione_originale
+    cliente = assegnazione.cliente
+    turno = assegnazione.turno
+    squadra = turno.squadra
+
+    qualifica = None
+    if assegnazione.programmazione_feriale and assegnazione.programmazione_feriale.qualifica_richiesta:
+        qualifica = assegnazione.programmazione_feriale.qualifica_richiesta
+
+    componenti_ids = []
+    if squadra:
+        componenti_ids = list(squadra.componenti.values_list('id', flat=True))
+        if squadra.caposquadra:
+            componenti_ids.append(squadra.caposquadra.id)
+
+    candidati_trovati = trova_sostituti(
+        cliente=cliente,
+        data=turno.data,
+        ora_inizio=assegnazione.orario_inizio_previsto,
+        ora_fine=assegnazione.orario_fine_previsto,
+        escludi_dipendenti_ids=componenti_ids,
+        qualifica_richiesta=qualifica
+    )
+
+    salvati_ids = richiesta.sostituti_candidati or []
+
+    list_data = []
+    for r in candidati_trovati:
+        dip = r['dipendente']
+        dist_str = f"{r['distanza_km']:.1f} km" if r['distanza_km'] != float('inf') else "N/D"
+        selezionato = dip.id in salvati_ids
+        ordine = (salvati_ids.index(dip.id) + 1) if selezionato else None
+
+        list_data.append({
+            'id': dip.id,
+            'nome': f"{dip.cognome} {dip.nome}",
+            'distanza_km': dist_str,
+            'qualifiche': r['skills'],
+            'telefono': dip.telefono or 'N/D',
+            'categoria_protetta': getattr(dip, 'categoria_protetta', False),
+            'selezionato': selezionato,
+            'ordine': ordine
+        })
+
+    trovati_ids = {item['id'] for item in list_data}
+    for sid in salvati_ids:
+        if sid not in trovati_ids:
+            try:
+                dip = Dipendente.objects.get(pk=sid)
+                list_data.append({
+                    'id': dip.id,
+                    'nome': f"{dip.cognome} {dip.nome}",
+                    'distanza_km': 'N/D',
+                    'qualifiche': [q.nome for q in dip.qualifiche.all()],
+                    'telefono': dip.telefono or 'N/D',
+                    'categoria_protetta': getattr(dip, 'categoria_protetta', False),
+                    'selezionato': True,
+                    'ordine': salvati_ids.index(sid) + 1
+                })
+            except Dipendente.DoesNotExist:
+                pass
+
+    orario_str = f"{assegnazione.orario_inizio_previsto.strftime('%H:%M')}-{assegnazione.orario_fine_previsto.strftime('%H:%M')}" if (assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto) else "N/D"
+
+    return JsonResponse({
+        'ok': True,
+        'richiesta_id': richiesta.id,
+        'cliente_nome': cliente.ragione_sociale if cliente else 'N/D',
+        'data_turno': turno.data.strftime('%d/%m/%Y'),
+        'orario_turno': orario_str,
+        'dipendente_assente': str(richiesta.dipendente_assente),
+        'motivo_assenza': richiesta.motivo_assenza,
+        'stato': richiesta.stato,
+        'sostituti': list_data
+    })
+
+
+@csrf_exempt
+def invia_notifiche_sostituti_api(request):
+    """
+    Riceve l'elenco dei sostituti selezionati e il loro ordine di preferenza,
+    aggiorna la RichiestaSostituzione e invia la notifica al primo sostituto in lista.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'ok': False, 'error': 'Dati JSON non validi'}, status=400)
+
+    richiesta_id = data.get('richiesta_id')
+    sostituti_ids = data.get('sostituti_ids', [])
+
+    if not richiesta_id:
+        return JsonResponse({'ok': False, 'error': 'richiesta_id obbligatorio'}, status=400)
+
+    if not isinstance(sostituti_ids, list) or len(sostituti_ids) == 0:
+        return JsonResponse({'ok': False, 'error': 'Seleziona almeno un sostituto a cui inviare la notifica'}, status=400)
+
+    from .models import RichiestaSostituzione, Dipendente
+    from .services import approva_e_invia_sostituto
+
+    try:
+        richiesta = RichiestaSostituzione.objects.get(pk=richiesta_id)
+    except RichiestaSostituzione.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Richiesta di sostituzione non trovata'}, status=404)
+
+    valid_ids = []
+    for sid in sostituti_ids:
+        try:
+            val = int(sid)
+            if val not in valid_ids and Dipendente.objects.filter(pk=val).exists():
+                valid_ids.append(val)
+        except (ValueError, TypeError):
+            pass
+
+    if not valid_ids:
+        return JsonResponse({'ok': False, 'error': 'Nessun sostituto valido selezionato'}, status=400)
+
+    richiesta.sostituti_candidati = valid_ids
+    richiesta.sostituto_corrente_idx = 0
+    richiesta.stato = 'APPROVATA_RA'
+    richiesta.approvata_ra_il = timezone.now()
+    richiesta.save()
+
+    res_richiesta = approva_e_invia_sostituto(richiesta.pk)
+
+    primo_dip_nome = str(res_richiesta.sostituto) if (res_richiesta and res_richiesta.sostituto) else 'primo sostituto'
+
+    return JsonResponse({
+        'ok': True,
+        'message': f"Notifica inviata con successo a {primo_dip_nome} (1° in ordine di selezione). Totalizzati {len(valid_ids)} sostituti in coda.",
+        'sostituto_corrente': primo_dip_nome,
+        'totale_selezionati': len(valid_ids)
+    })
+
+
 @csrf_exempt
 def verifica_ore_view(request):
     """Dashboard verifica ore mensili: confronto ore lavorate vs contrattuali."""
@@ -3123,9 +3281,9 @@ def report_paghe_view(request):
     """
     Report Elaborazione Cedolini Paghe da Data Inizio a Data Fine.
     Aggrega ore lavorate (totali e validate), presenze, assenze (ferie, permessi, malattia, 104)
-    per ciascun dipendente.
+    per ciascun dipendente e applica eventuali rettifiche apportate dall'amministrazione.
     """
-    from .models import Dipendente, TimeTracking, Assenza
+    from .models import Dipendente, TimeTracking, Assenza, ModificaCedolino
     from datetime import date
     import calendar
     from django.db.models import Q
@@ -3172,9 +3330,18 @@ def report_paghe_view(request):
         dipendente_id__in=dipendenti_map.keys()
     ).select_related('dipendente')
 
+    # Query Modifiche/Rettifiche Cedolino Amministrazione
+    modifiche_qs = ModificaCedolino.objects.filter(
+        data_inizio=data_inizio,
+        data_fine=data_fine,
+        dipendente_id__in=dipendenti_map.keys()
+    )
+    modifiche_map = {m.dipendente_id: m for m in modifiche_qs}
+
     report_data = {}
     for dip_id, dip in dipendenti_map.items():
         report_data[dip_id] = {
+            'dip_id': dip_id,
             'dipendente': dip,
             'cognome_nome': f"{dip.cognome} {dip.nome}",
             'codice_fiscale': dip.codice_fiscale or '---',
@@ -3246,11 +3413,55 @@ def report_paghe_view(request):
         })
 
     report_list = []
-    for item in report_data.values():
-        item['giorni_lavorati'] = len(item['giorni_lavorati_set'])
-        item['ore_lavorate'] = round(item['ore_lavorate'], 2)
-        item['ore_validate'] = round(item['ore_validate'], 2)
-        item['ore_non_validate'] = round(item['ore_lavorate'] - item['ore_validate'], 2)
+    for dip_id, item in report_data.items():
+        giorni_orig = len(item['giorni_lavorati_set'])
+        ore_lav_orig = round(item['ore_lavorate'], 2)
+        ore_val_orig = round(item['ore_validate'], 2)
+
+        item['giorni_lavorati_orig'] = giorni_orig
+        item['ore_lavorate_orig'] = ore_lav_orig
+        item['ore_validate_orig'] = ore_val_orig
+        item['ferie_orig'] = item['assenze_dict']['FERIE']
+        item['permessi_orig'] = item['assenze_dict']['PERMESSO']
+        item['malattia_orig'] = item['assenze_dict']['MALATTIA']
+
+        modifica = modifiche_map.get(dip_id)
+        if modifica:
+            item['is_rettificato'] = True
+            item['modifica_note'] = modifica.note or ''
+            item['modifica_id'] = modifica.pk
+            item['giorni_lavorati_override'] = modifica.giorni_lavorati_override
+            item['ore_lavorate_override'] = modifica.ore_lavorate_override
+            item['ore_validate_override'] = modifica.ore_validate_override
+            item['giorni_ferie_override'] = modifica.giorni_ferie_override
+            item['giorni_permesso_override'] = modifica.giorni_permesso_override
+            item['giorni_malattia_override'] = modifica.giorni_malattia_override
+
+            item['giorni_lavorati'] = modifica.giorni_lavorati_override if modifica.giorni_lavorati_override is not None else giorni_orig
+            item['ore_lavorate'] = round(modifica.ore_lavorate_override, 2) if modifica.ore_lavorate_override is not None else ore_lav_orig
+            item['ore_validate'] = round(modifica.ore_validate_override, 2) if modifica.ore_validate_override is not None else ore_val_orig
+
+            if modifica.giorni_ferie_override is not None:
+                item['assenze_dict']['FERIE'] = modifica.giorni_ferie_override
+            if modifica.giorni_permesso_override is not None:
+                item['assenze_dict']['PERMESSO'] = modifica.giorni_permesso_override
+            if modifica.giorni_malattia_override is not None:
+                item['assenze_dict']['MALATTIA'] = modifica.giorni_malattia_override
+        else:
+            item['is_rettificato'] = False
+            item['modifica_note'] = ''
+            item['modifica_id'] = None
+            item['giorni_lavorati_override'] = None
+            item['ore_lavorate_override'] = None
+            item['ore_validate_override'] = None
+            item['giorni_ferie_override'] = None
+            item['giorni_permesso_override'] = None
+            item['giorni_malattia_override'] = None
+            item['giorni_lavorati'] = giorni_orig
+            item['ore_lavorate'] = ore_lav_orig
+            item['ore_validate'] = ore_val_orig
+
+        item['ore_non_validate'] = max(0.0, round(item['ore_lavorate'] - item['ore_validate'], 2))
 
         clienti_str = ", ".join([f"{n} ({round(o,1)}h)" for n, o in sorted(item['clienti_dict'].items())])
         item['clienti_str'] = clienti_str or "Nessun cantiere"
@@ -3290,7 +3501,7 @@ def report_paghe_view(request):
 @csrf_exempt
 def pdf_report_paghe(request):
     """Genera report PDF per la consulenza paghe da data ad altra data."""
-    from .models import Dipendente, TimeTracking, Assenza
+    from .models import Dipendente, TimeTracking, Assenza, ModificaCedolino
     from datetime import date
     import calendar
     from django.db.models import Q
@@ -3336,6 +3547,13 @@ def pdf_report_paghe(request):
         Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio),
         dipendente_id__in=dipendenti_map.keys()
     ).select_related('dipendente')
+
+    modifiche_qs = ModificaCedolino.objects.filter(
+        data_inizio=data_inizio,
+        data_fine=data_fine,
+        dipendente_id__in=dipendenti_map.keys()
+    )
+    modifiche_map = {m.dipendente_id: m for m in modifiche_qs}
 
     report_data = {}
     for dip_id, dip in dipendenti_map.items():
@@ -3441,28 +3659,47 @@ def pdf_report_paghe(request):
     tot_perm = 0
     tot_mal = 0
     tot_altri = 0
+    ha_rettifiche = False
 
     for d_id, item in sorted(report_data.items(), key=lambda x: x[1]['cognome_nome']):
-        gl = len(item['giorni_set'])
+        modifica = modifiche_map.get(d_id)
+        if modifica:
+            ha_rettifiche = True
+            gl = modifica.giorni_lavorati_override if modifica.giorni_lavorati_override is not None else len(item['giorni_set'])
+            ore_lav = modifica.ore_lavorate_override if modifica.ore_lavorate_override is not None else item['ore_lavorate']
+            ore_val = modifica.ore_validate_override if modifica.ore_validate_override is not None else item['ore_validate']
+            ferie = modifica.giorni_ferie_override if modifica.giorni_ferie_override is not None else item['ferie']
+            permessi = modifica.giorni_permesso_override if modifica.giorni_permesso_override is not None else item['permessi']
+            malattia = modifica.giorni_malattia_override if modifica.giorni_malattia_override is not None else item['malattia']
+            nome_disp = f"{item['cognome_nome']} *"
+        else:
+            gl = len(item['giorni_set'])
+            ore_lav = item['ore_lavorate']
+            ore_val = item['ore_validate']
+            ferie = item['ferie']
+            permessi = item['permessi']
+            malattia = item['malattia']
+            nome_disp = item['cognome_nome']
+
         tot_gl += gl
-        tot_ore += item['ore_lavorate']
-        tot_val += item['ore_validate']
-        tot_ferie += item['ferie']
-        tot_perm += item['permessi']
-        tot_mal += item['malattia']
+        tot_ore += ore_lav
+        tot_val += ore_val
+        tot_ferie += ferie
+        tot_perm += permessi
+        tot_mal += malattia
         tot_altri += item['altri']
 
         cantieri_p = ", ".join([f"{n} ({round(o,1)}h)" for n, o in sorted(item['clienti_dict'].items())]) or "---"
 
         table_data.append([
-            Paragraph(item['cognome_nome'], cell_bold),
+            Paragraph(nome_disp, cell_bold),
             Paragraph(item['cf'], cell_style),
             Paragraph(str(gl), cell_style),
-            Paragraph(f"{round(item['ore_lavorate'], 1)}h", cell_style),
-            Paragraph(f"{round(item['ore_validate'], 1)}h", cell_style),
-            Paragraph(f"{item['ferie']}gg", cell_style),
-            Paragraph(f"{item['permessi']}gg", cell_style),
-            Paragraph(f"{item['malattia']}gg", cell_style),
+            Paragraph(f"{round(ore_lav, 1)}h", cell_style),
+            Paragraph(f"{round(ore_val, 1)}h", cell_style),
+            Paragraph(f"{ferie}gg", cell_style),
+            Paragraph(f"{permessi}gg", cell_style),
+            Paragraph(f"{malattia}gg", cell_style),
             Paragraph(f"{item['altri']}gg", cell_style),
             Paragraph(cantieri_p, cell_style),
         ])
@@ -3492,6 +3729,10 @@ def pdf_report_paghe(request):
     ]))
 
     story.append(t)
+    if ha_rettifiche:
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("<i>* Note: I dipendenti contrassegnati con (*) presentano modifiche/rettifiche manuali apportate dall'Amministrazione.</i>", cell_style))
+
     doc.build(story)
     return response
 
@@ -3500,7 +3741,7 @@ def pdf_report_paghe(request):
 def export_paghe_csv(request):
     """Esporta i dati elaborazione paghe in formato CSV con codifica UTF-8 BOM per Excel."""
     import csv
-    from .models import Dipendente, TimeTracking, Assenza
+    from .models import Dipendente, TimeTracking, Assenza, ModificaCedolino
     from datetime import date
     import calendar
     from django.db.models import Q
@@ -3542,6 +3783,13 @@ def export_paghe_csv(request):
         Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio),
         dipendente_id__in=dipendenti_map.keys()
     ).select_related('dipendente')
+
+    modifiche_qs = ModificaCedolino.objects.filter(
+        data_inizio=data_inizio,
+        data_fine=data_fine,
+        dipendente_id__in=dipendenti_map.keys()
+    )
+    modifiche_map = {m.dipendente_id: m for m in modifiche_qs}
 
     report_data = {}
     for dip_id, dip in dipendenti_map.items():
@@ -3599,20 +3847,136 @@ def export_paghe_csv(request):
         'Data Inizio', 'Data Fine',
         'Giorni Lavorati', 'Ore Lavorate Totali', 'Ore Validate', 'Ore Non Validate',
         'Giorni Ferie', 'Giorni Permesso', 'Giorni Malattia', 'Giorni Infortunio', 'Giorni 104', 'Altri Giorni Assenza',
+        'Rettificato Admin', 'Note Rettifica',
         'Dettaglio Cantieri / Clienti'
     ])
 
     for d_id, item in sorted(report_data.items(), key=lambda x: (x[1]['cognome'], x[1]['nome'])):
+        modifica = modifiche_map.get(d_id)
+        if modifica:
+            gl = modifica.giorni_lavorati_override if modifica.giorni_lavorati_override is not None else len(item['giorni_set'])
+            ore_lav = modifica.ore_lavorate_override if modifica.ore_lavorate_override is not None else item['ore_lavorate']
+            ore_val = modifica.ore_validate_override if modifica.ore_validate_override is not None else item['ore_validate']
+            ferie = modifica.giorni_ferie_override if modifica.giorni_ferie_override is not None else item['ferie']
+            permessi = modifica.giorni_permesso_override if modifica.giorni_permesso_override is not None else item['permessi']
+            malattia = modifica.giorni_malattia_override if modifica.giorni_malattia_override is not None else item['malattia']
+            is_rett_str = "SÌ"
+            note_str = modifica.note or ''
+        else:
+            gl = len(item['giorni_set'])
+            ore_lav = item['ore_lavorate']
+            ore_val = item['ore_validate']
+            ferie = item['ferie']
+            permessi = item['permessi']
+            malattia = item['malattia']
+            is_rett_str = "NO"
+            note_str = ''
+
         cantieri_str = ", ".join([f"{n} ({round(o,1)}h)" for n, o in sorted(item['clienti_dict'].items())])
         writer.writerow([
             item['dip_id'], item['cognome'], item['nome'], item['cf'],
             data_inizio.strftime('%d/%m/%Y'), data_fine.strftime('%d/%m/%Y'),
-            len(item['giorni_set']),
-            str(round(item['ore_lavorate'], 2)).replace('.', ','),
-            str(round(item['ore_validate'], 2)).replace('.', ','),
-            str(round(item['ore_lavorate'] - item['ore_validate'], 2)).replace('.', ','),
-            item['ferie'], item['permessi'], item['malattia'], item['infortunio'], item['l104'], item['altri'],
+            gl,
+            str(round(ore_lav, 2)).replace('.', ','),
+            str(round(ore_val, 2)).replace('.', ','),
+            str(round(ore_lav - ore_val, 2)).replace('.', ','),
+            ferie, permessi, malattia, item['infortunio'], item['l104'], item['altri'],
+            is_rett_str, note_str,
             cantieri_str
         ])
 
     return response
+
+
+@csrf_exempt
+def salva_modifica_cedolino_ajax(request):
+    """
+    Endpoint AJAX per l'amministrazione per salvare o resettare
+    le rettifiche manuali del cedolino paghe (ore e giornate).
+    """
+    import json
+    from django.http import JsonResponse
+    from .models import ModificaCedolino, Dipendente
+    from datetime import date
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Metodo non consentito.'}, status=405)
+
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        dipendente_id = data.get('dipendente_id')
+        str_inizio = data.get('data_inizio')
+        str_fine = data.get('data_fine')
+        reset = data.get('reset')
+
+        if not dipendente_id or not str_inizio or not str_fine:
+            return JsonResponse({'success': False, 'error': 'Parametri mancanti.'}, status=400)
+
+        data_inizio = date.fromisoformat(str_inizio)
+        data_fine = date.fromisoformat(str_fine)
+        dipendente = Dipendente.objects.get(pk=int(dipendente_id))
+
+        if reset in (True, 'true', '1', 1):
+            ModificaCedolino.objects.filter(
+                dipendente=dipendente,
+                data_inizio=data_inizio,
+                data_fine=data_fine
+            ).delete()
+            return JsonResponse({
+                'success': True,
+                'message': f'Rettifica per {dipendente.cognome} {dipendente.nome} eliminata. Ripristinati i valori automatici.'
+            })
+
+        def parse_optional_int(val):
+            if val is not None and str(val).strip() != '':
+                try:
+                    return int(val)
+                except ValueError:
+                    pass
+            return None
+
+        def parse_optional_float(val):
+            if val is not None and str(val).strip() != '':
+                try:
+                    return float(str(val).replace(',', '.'))
+                except ValueError:
+                    pass
+            return None
+
+        giorni_lavorati = parse_optional_int(data.get('giorni_lavorati_override'))
+        ore_lavorate = parse_optional_float(data.get('ore_lavorate_override'))
+        ore_validate = parse_optional_float(data.get('ore_validate_override'))
+        giorni_ferie = parse_optional_int(data.get('giorni_ferie_override'))
+        giorni_permesso = parse_optional_int(data.get('giorni_permesso_override'))
+        giorni_malattia = parse_optional_int(data.get('giorni_malattia_override'))
+        note = data.get('note', '').strip()
+
+        modifica, created = ModificaCedolino.objects.update_or_create(
+            dipendente=dipendente,
+            data_inizio=data_inizio,
+            data_fine=data_fine,
+            defaults={
+                'giorni_lavorati_override': giorni_lavorati,
+                'ore_lavorate_override': ore_lavorate,
+                'ore_validate_override': ore_validate,
+                'giorni_ferie_override': giorni_ferie,
+                'giorni_permesso_override': giorni_permesso,
+                'giorni_malattia_override': giorni_malattia,
+                'note': note,
+                'modificato_da': request.user if request.user.is_authenticated else None,
+            }
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Rettifica cedolino per {dipendente.cognome} {dipendente.nome} salvata con successo.'
+        })
+
+    except Dipendente.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Dipendente non trovato.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

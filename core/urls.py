@@ -8,8 +8,9 @@ from .views import (
     add_turno_ajax, edit_turno_ajax, delete_turno_ajax, get_squadre_clienti_json,
     copy_move_turno_ajax, get_assegnazione_componenti_json,
     validate_ore_ajax, verifica_ore_view, pdf_verifica_ore,
-    report_paghe_view, pdf_report_paghe, export_paghe_csv,
+    report_paghe_view, pdf_report_paghe, export_paghe_csv, salva_modifica_cedolino_ajax,
     richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
+    get_sostituti_richiesta_api, invia_notifiche_sostituti_api,
     titolari_dashboard_view, titolari_riepilogo_view,
     settimana_pdf_view,
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup,
@@ -58,6 +59,7 @@ urlpatterns = [
     path('report-paghe/', report_paghe_view, name='report_paghe'),
     path('report-paghe/pdf/', pdf_report_paghe, name='pdf_report_paghe'),
     path('report-paghe/csv/', export_paghe_csv, name='export_paghe_csv'),
+    path('report-paghe/salva-modifica/', salva_modifica_cedolino_ajax, name='salva_modifica_cedolino'),
     path('pdf-verifica-ore/', pdf_verifica_ore, name='pdf_verifica_ore'),
     path('settimana-pdf/', settimana_pdf_view, name='settimana_pdf'),
     
@@ -65,6 +67,8 @@ urlpatterns = [
     path('api/richiesta-sostituzione/', richiesta_sostituzione_api, name='richiesta_sostituzione'),
     path('api/risposta-sostituto/<int:richiesta_id>/', risposta_sostituto_api, name='risposta_sostituto'),
     path('api/trova-sostituti/', trova_sostituti_api, name='trova_sostituti'),
+    path('api/sostituti-disponibili/<int:richiesta_id>/', get_sostituti_richiesta_api, name='get_sostituti_richiesta_api'),
+    path('api/invia-notifiche-sostituti/', invia_notifiche_sostituti_api, name='invia_notifiche_sostituti_api'),
 
     # Dashboard Titolari
     path('titolari/', titolari_dashboard_view, name='titolari_dashboard'),

@@ -11,12 +11,19 @@ def genera_turni_automatici(days=365):
     Rispetta le date di inizio/fine contratto.
     Ritorna il numero di assegnazioni create.
     """
-    start_date = timezone.now().date()
-    end_date = start_date + timedelta(days=days)
+    today = timezone.now().date()
+    end_date = today + timedelta(days=days)
     
     count = 0
     programmazioni = ProgrammazioneRicorrente.objects.filter(squadra_abituale__isnull=False)
 
+    # Trova la data piu' remota tra i contratti attivi e oggi
+    min_start = today
+    for prog in programmazioni:
+        if prog.data_inizio_contratto and prog.data_inizio_contratto < min_start:
+            min_start = prog.data_inizio_contratto
+
+    start_date = min_start
     current_date = start_date
     while current_date <= end_date:
         weekday = current_date.weekday()
@@ -583,4 +590,168 @@ def notifica_titolari_sostituzione_fallita(richiesta):
         f"❌ Nessun sostituto disponibile. Intervento manuale richiesto."
     )
     notifica_titolari(msg)
+
+
+def avvia_sostituzione_per_assenza(assenza):
+    """
+    Esegue la procedura automatica di sostituzione per un'assenza già AVVALATA dall'amministrazione.
+    Trova i turni scoperti nel periodo dell'assenza e crea una RichiestaSostituzione per ciascuno.
+    """
+    if assenza.stato_approvazione != 'APPROVATA' or assenza.is_processed:
+        return 0
+
+    from .models import Assenza, AssegnazioneTurno, Squadra, RichiestaSostituzione
+    from django.db.models import Q
+    import datetime
+
+    # Evita ricorsione via signal usando update() atomico
+    Assenza.objects.filter(pk=assenza.pk).update(is_processed=True)
+    assenza.is_processed = True
+
+    dip = assenza.dipendente
+    squadre = Squadra.objects.filter(Q(componenti=dip) | Q(caposquadra=dip)).distinct()
+    
+    if not squadre.exists():
+        return 0
+
+    totale_create = 0
+    data = assenza.data_inizio
+    while data <= assenza.data_fine:
+        assegnazioni = AssegnazioneTurno.objects.filter(
+            turno__data=data,
+            turno__squadra__in=squadre
+        ).select_related('turno', 'turno__squadra', 'cliente')
+
+        for a in assegnazioni:
+            # Se è un permesso ad ore, verifica eventuale sovrapposizione oraria
+            if assenza.ora_inizio and assenza.ora_fine and a.orario_inizio_previsto and a.orario_fine_previsto:
+                if a.orario_fine_previsto <= assenza.ora_inizio or a.orario_inizio_previsto >= assenza.ora_fine:
+                    continue  # Il permesso non copre l'orario del turno
+
+            gia_pres = RichiestaSostituzione.objects.filter(
+                assegnazione_originale=a,
+                dipendente_assente=dip,
+                stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA']
+            ).exists()
+
+            if not gia_pres:
+                try:
+                    orario_str = f" ({assenza.get_orario_display()})" if assenza.ora_inizio else ""
+                    crea_richiesta_sostituzione(
+                        a, dip, assenza.tipo,
+                        f"Avvallata da Amministrazione — {assenza.tipo}{orario_str}"
+                    )
+                    totale_create += 1
+                except Exception as e:
+                    print(f"[Avvallo Assenza] Errore sostituzione per {a.pk}: {e}")
+
+        data += datetime.timedelta(days=1)
+
+    return totale_create
+
+
+
+def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
+    """
+    Procedura di avvallo dell'amministrazione:
+    1. Imposta lo stato a APPROVATA
+    2. Avvia la procedura automatica di sostituzione
+    3. Notifica il dipendente via Telegram
+    """
+    from .models import Assenza
+    import requests
+    from django.conf import settings
+
+    try:
+        assenza = Assenza.objects.get(pk=assenza_id)
+    except Assenza.DoesNotExist:
+        return {'ok': False, 'error': 'Assenza non trovata'}
+
+    assenza.stato_approvazione = 'APPROVATA'
+    assenza.approvata_da_admin_il = timezone.now()
+    if note_admin:
+        assenza.note = f"{assenza.note}\nNote Admin: {note_admin}".strip()
+    assenza.save()
+
+    num_sostituzioni = avvia_sostituzione_per_assenza(assenza)
+
+    # Notifica Telegram al Dipendente
+    dip = assenza.dipendente
+    if dip.telegram_chat_id:
+        bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+        if bot_token:
+            if assenza.data_inizio == assenza.data_fine:
+                periodo_str = assenza.data_inizio.strftime('%d/%m/%Y')
+            else:
+                periodo_str = f"{assenza.data_inizio.strftime('%d/%m/%Y')} - {assenza.data_fine.strftime('%d/%m/%Y')}"
+
+            orario_str = f" ({assenza.get_orario_display()})" if assenza.ora_inizio else ""
+
+            msg_dip = (
+                f"✅ AVVALLO AMMINISTRAZIONE\n\n"
+                f"La tua comunicazione di {assenza.tipo} per il periodo {periodo_str}{orario_str} "
+                f"è stata AVVALATA E APPROVATA dall'Amministrazione.\n\n"
+            )
+            if num_sostituzioni > 0:
+                msg_dip += f"🔄 È stata avviata la procedura automatica di sostituzione per {num_sostituzioni} turno/i scoperti."
+            else:
+                msg_dip += f"ℹ️ Nessun turno da sostituire nel periodo."
+
+            try:
+                requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={'chat_id': dip.telegram_chat_id, 'text': msg_dip},
+                    timeout=5
+                )
+            except Exception:
+                pass
+
+    return {'ok': True, 'assenza': assenza, 'num_sostituzioni': num_sostituzioni}
+
+
+def rifiuta_assenza_da_amministrazione(assenza_id, note_admin=''):
+    """
+    Rifiuta l'assenza da parte dell'amministrazione.
+    """
+    from .models import Assenza
+    import requests
+    from django.conf import settings
+
+    try:
+        assenza = Assenza.objects.get(pk=assenza_id)
+    except Assenza.DoesNotExist:
+        return {'ok': False, 'error': 'Assenza non trovata'}
+
+    assenza.stato_approvazione = 'RIFIUTATA'
+    if note_admin:
+        assenza.note = f"{assenza.note}\nNote Admin Rifiuto: {note_admin}".strip()
+    assenza.save()
+
+    # Notifica Telegram al Dipendente
+    dip = assenza.dipendente
+    if dip.telegram_chat_id:
+        bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+        if bot_token:
+            if assenza.data_inizio == assenza.data_fine:
+                periodo_str = assenza.data_inizio.strftime('%d/%m/%Y')
+            else:
+                periodo_str = f"{assenza.data_inizio.strftime('%d/%m/%Y')} - {assenza.data_fine.strftime('%d/%m/%Y')}"
+
+            msg_dip = (
+                f"❌ COMUNICAZIONE NON AVVALATA\n\n"
+                f"La tua comunicazione di {assenza.tipo} per il periodo {periodo_str} "
+                f"NON è stata avvallata dall'Amministrazione.\n\n"
+                f"Ti invitiamo a contattare la gestione per chiarimenti."
+            )
+            try:
+                requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={'chat_id': dip.telegram_chat_id, 'text': msg_dip},
+                    timeout=5
+                )
+            except Exception:
+                pass
+
+    return {'ok': True, 'assenza': assenza}
+
 

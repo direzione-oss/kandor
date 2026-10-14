@@ -3,8 +3,20 @@ from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
     ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
-    ResponsabileArea, RichiestaSostituzione, Titolare
+    ResponsabileArea, RichiestaSostituzione, Titolare, ModificaCedolino
 )
+
+@admin.register(ModificaCedolino)
+class ModificaCedolinoAdmin(admin.ModelAdmin):
+    list_display = (
+        'dipendente', 'data_inizio', 'data_fine',
+        'giorni_lavorati_override', 'ore_lavorate_override', 'ore_validate_override',
+        'modificato_da', 'updated_at'
+    )
+    list_filter = ('data_inizio', 'data_fine', 'modificato_da')
+    search_fields = ('dipendente__cognome', 'dipendente__nome', 'note')
+    readonly_fields = ('created_at', 'updated_at')
+
 
 @admin.register(Titolare)
 class TitolareAdmin(admin.ModelAdmin):
@@ -27,15 +39,19 @@ class TitolareAdmin(admin.ModelAdmin):
 
 @admin.register(Assenza)
 class AssenzaAdmin(admin.ModelAdmin):
-    list_display = ('dipendente', 'tipo', 'data_inizio', 'data_fine', 'get_orario_display', 'source', 'is_processed', 'cerca_sostituto_action')
-    list_filter = ('tipo', 'data_inizio', 'is_processed', 'source')
+    list_display = (
+        'dipendente', 'tipo', 'data_inizio', 'data_fine',
+        'get_orario_display', 'source', 'stato_approvazione',
+        'avvallo_action_button', 'is_processed'
+    )
+    list_filter = ('stato_approvazione', 'tipo', 'data_inizio', 'is_processed', 'source')
     search_fields = ('dipendente__cognome', 'dipendente__nome', 'note')
-    readonly_fields = ('source', 'created_at')
-    actions = ['gestisci_sostituti_periodo']
+    readonly_fields = ('source', 'created_at', 'approvata_da_admin_il')
+    actions = ['avvalla_assenze_action', 'gestisci_sostituti_periodo']
 
     fieldsets = (
         ('👤 Dipendente e Tipo', {
-            'fields': ('dipendente', 'tipo', 'source', 'is_processed')
+            'fields': ('dipendente', 'tipo', 'source', 'stato_approvazione', 'approvata_da_admin_il', 'is_processed')
         }),
         ('📅 Periodo Assenza', {
             'fields': ('data_inizio', 'data_fine')
@@ -49,102 +65,78 @@ class AssenzaAdmin(admin.ModelAdmin):
         }),
     )
 
-    def cerca_sostituto_action(self, obj):
+    def avvallo_action_button(self, obj):
         from django.utils.html import format_html
-        from django.urls import reverse
-        url = f"{reverse('admin:core_richiestasostituzione_changelist')}?q={obj.dipendente.cognome}"
-        return format_html(
-            '<a class="button" style="background:#2980b9; color:white; font-size:11px; padding:3px 8px; border-radius:4px; text-decoration:none;" href="{}">🔄 Trova Sostituto</a>',
-            url
-        )
-    cerca_sostituto_action.short_description = "Procedura Sostituzione"
+        if obj.stato_approvazione == 'APPROVATA':
+            from .models import RichiestaSostituzione
+            richiesta = RichiestaSostituzione.objects.filter(
+                dipendente_assente=obj.dipendente,
+                assegnazione_originale__turno__data__gte=obj.data_inizio,
+                assegnazione_originale__turno__data__lte=obj.data_fine
+            ).first()
+            if richiesta:
+                return format_html(
+                    '<span style="color:#16A34A; font-weight:bold;">✅ Avvallata</span> &nbsp;'
+                    '<button type="button" class="button" style="background:#059669; color:#fff; border:none; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">👥 Sostituti</button>',
+                    richiesta.id
+                )
+            return format_html('<span style="color:#16A34A; font-weight:bold;">✅ Avvallata</span>')
+        elif obj.stato_approvazione == 'RIFIUTATA':
+            return format_html('<span style="color:#DC2626; font-weight:bold;">❌ Rifiutata</span>')
+        else:
+            return format_html(
+                '<a class="button" style="background:#16A34A; color:white; font-size:11px; padding:3px 8px; border-radius:4px; text-decoration:none;" href="?avvalla={}">✅ Avvalla ora</a>',
+                obj.pk
+            )
+    avvallo_action_button.short_description = "Avvallo Amministrazione"
+
+    def changelist_view(self, request, extra_context=None):
+        if 'avvalla' in request.GET:
+            try:
+                assenza_id = int(request.GET['avvalla'])
+                from .services import avvalla_assenza_da_amministrazione
+                res = avvalla_assenza_da_amministrazione(assenza_id)
+                if res.get('ok'):
+                    self.message_user(request, f"✅ Assenza ID {assenza_id} avvallata con successo! ({res.get('num_sostituzioni', 0)} sostituzioni avviate)")
+                else:
+                    self.message_user(request, f"Errore nell'avvallo dell'assenza: {res.get('error')}", level=messages.ERROR)
+            except Exception as e:
+                self.message_user(request, f"Errore: {e}", level=messages.ERROR)
+            from django.http import HttpResponseRedirect
+            from django.urls import reverse
+            return HttpResponseRedirect(reverse('admin:core_assenza_changelist'))
+        return super().changelist_view(request, extra_context=extra_context)
+
+    @admin.action(description='✅ Avvalla assenze selezionate e avvia procedura sostituzione')
+    def avvalla_assenze_action(self, request, queryset):
+        from .services import avvalla_assenza_da_amministrazione
+        totale = 0
+        totale_sost = 0
+        for assenza in queryset:
+            if assenza.stato_approvazione != 'APPROVATA':
+                res = avvalla_assenza_da_amministrazione(assenza.pk)
+                if res.get('ok'):
+                    totale += 1
+                    totale_sost += res.get('num_sostituzioni', 0)
+        self.message_user(request, f"✅ {totale} assenze avvallate dall'Amministrazione ({totale_sost} richieste di sostituzione create).", messages.SUCCESS)
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        # Avvia automaticamente la ricerca sostituto per ogni turno scoperto
-        from .services import crea_richiesta_sostituzione
-        from .models import AssegnazioneTurno, Squadra, RichiestaSostituzione
-        from django.db.models import Q
-        import datetime
-
-        dip = obj.dipendente
-        squadre = Squadra.objects.filter(Q(componenti=dip) | Q(caposquadra=dip)).distinct()
-        data = obj.data_inizio
-        totale_create = 0
-
-        while data <= obj.data_fine:
-            assegnazioni = AssegnazioneTurno.objects.filter(
-                turno__data=data,
-                turno__squadra__in=squadre
-            ).select_related('turno', 'turno__squadra')
-
-            for a in assegnazioni:
-                # Se è un permesso ad ore, verifica eventuale sovrapposizione oraria
-                if obj.ora_inizio and obj.ora_fine and a.orario_inizio_previsto and a.orario_fine_previsto:
-                    if a.orario_fine_previsto <= obj.ora_inizio or a.orario_inizio_previsto >= obj.ora_fine:
-                        continue # Il permesso non copre l'orario del turno
-
-                gia_pres = RichiestaSostituzione.objects.filter(
-                    assegnazione_originale=a,
-                    dipendente_assente=dip
-                ).exists()
-                if not gia_pres:
-                    try:
-                        crea_richiesta_sostituzione(a, dip, obj.tipo, f"Registrata da Admin: {obj.note}")
-                        totale_create += 1
-                    except Exception as e:
-                        pass
-            data += datetime.timedelta(days=1)
-
-        if totale_create > 0:
-            self.message_user(request, f"⚡ Procedura sostituzione avviata: create {totale_create} richieste di sostituzione Jolly.")
+        if obj.stato_approvazione == 'APPROVATA':
+            from .services import avvia_sostituzione_per_assenza
+            totale_create = avvia_sostituzione_per_assenza(obj)
+            if totale_create > 0:
+                self.message_user(request, f"⚡ Assenza avvallata: create {totale_create} richieste di sostituzione per i turni scoperti.")
 
     @admin.action(description='🔄 Gestisci sostituti per il periodo (tutti i turni)')
     def gestisci_sostituti_periodo(self, request, queryset):
-        from .models import AssegnazioneTurno, RichiestaSostituzione, Squadra
-        from .services import crea_richiesta_sostituzione
-        from django.db.models import Q
-        import datetime
-
-        totale_turni = 0
-        totale_create = 0
-        totale_skip = 0
-
+        from .services import avvia_sostituzione_per_assenza
+        totale = 0
         for assenza in queryset:
-            dip = assenza.dipendente
-            squadre = Squadra.objects.filter(Q(componenti=dip) | Q(caposquadra=dip)).distinct()
-            data = assenza.data_inizio
-            while data <= assenza.data_fine:
-                assegnazioni = AssegnazioneTurno.objects.filter(
-                    turno__data=data,
-                    turno__squadra__in=squadre
-                ).select_related('turno', 'turno__squadra')
+            if assenza.stato_approvazione == 'APPROVATA':
+                totale += avvia_sostituzione_per_assenza(assenza)
+        self.message_user(request, f"✅ Procedura sostituzione gestita: create {totale} richieste per le assenze avvallate.", messages.SUCCESS)
 
-                for assegnazione in assegnazioni:
-                    totale_turni += 1
-                    if assenza.ora_inizio and assenza.ora_fine and assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto:
-                        if assegnazione.orario_fine_previsto <= assenza.ora_inizio or assegnazione.orario_inizio_previsto >= assenza.ora_fine:
-                            continue
-
-                    gia_presente = RichiestaSostituzione.objects.filter(
-                        assegnazione_originale=assegnazione,
-                        dipendente_assente=dip
-                    ).exists()
-                    if gia_presente:
-                        totale_skip += 1
-                        continue
-                    try:
-                        crea_richiesta_sostituzione(assegnazione, dip, assenza.tipo, assenza.note)
-                        totale_create += 1
-                    except Exception as e:
-                        self.message_user(request, f'Errore su {dip} - {data}: {e}', level='error')
-
-                data += datetime.timedelta(days=1)
-
-        self.message_user(
-            request,
-            f'✅ {totale_turni} turni analizzati: {totale_create} richieste di sostituzione create, {totale_skip} già esistenti.'
-        )
 
 # -- Branding Configuration --
 admin.site.site_header = "Kandor Administration"
@@ -565,7 +557,7 @@ class ResponsabileAreaAdmin(admin.ModelAdmin):
 
 @admin.register(RichiestaSostituzione)
 class RichiestaSostituzioneAdmin(admin.ModelAdmin):
-    list_display = ('creata_il', 'get_data_turno', 'get_cliente', 'dipendente_assente', 'motivo_assenza', 'sostituto', 'stato', 'distanza_km')
+    list_display = ('creata_il', 'get_data_turno', 'get_cliente', 'dipendente_assente', 'motivo_assenza', 'sostituto', 'stato', 'distanza_km', 'azione_seleziona_sostituti')
     list_filter = ('stato', 'motivo_assenza')
     search_fields = ('dipendente_assente__cognome', 'sostituto__cognome', 'assegnazione_originale__cliente__ragione_sociale')
     readonly_fields = ('creata_il', 'approvata_ra_il', 'inviata_sostituto_il', 'risposta_sostituto_il', 'sostituti_candidati', 'sostituto_corrente_idx')
@@ -581,6 +573,16 @@ class RichiestaSostituzioneAdmin(admin.ModelAdmin):
         return obj.assegnazione_originale.cliente.ragione_sociale
     get_cliente.short_description = 'Cliente'
 
+    def azione_seleziona_sostituti(self, obj):
+        count = len(obj.sostituti_candidati or [])
+        lbl = f"👥 Seleziona Sostituti ({count})" if count > 0 else "👥 Seleziona Sostituti"
+        btn_color = "#059669" if obj.stato in ['APERTA', 'APPROVATA_RA'] else "#475569"
+        return format_html(
+            '<button type="button" class="button" style="background:{}; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">{}</button>',
+            btn_color, obj.id, lbl
+        )
+    azione_seleziona_sostituti.short_description = 'Selezione Sostituti'
+
     def approva_selezionate(self, request, queryset):
         from .services import approva_e_invia_sostituto
         count = 0
@@ -593,3 +595,4 @@ class RichiestaSostituzioneAdmin(admin.ModelAdmin):
             count += 1
         self.message_user(request, f"{count} richieste approvate e inviate.", messages.SUCCESS)
     approva_selezionate.short_description = "✅ Approva e invia ai sostituti"
+

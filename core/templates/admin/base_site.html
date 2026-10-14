@@ -19,3 +19,8 @@
 {% endblock %}
 
 {% block nav-global %}{% endblock %}
+
+{% block footer %}
+{{ block.super }}
+{% include "admin/includes/sostituti_modal.html" %}
+{% endblock %}

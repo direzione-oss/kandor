@@ -423,6 +423,12 @@ class Assenza(models.Model):
         ('ALTRO', 'Altro'),
     ]
     
+    STATO_APPROVAZIONE = [
+        ('IN_ATTESA', 'In Attesa Avvallo Amministrazione'),
+        ('APPROVATA', 'Approvata (Avvallata)'),
+        ('RIFIUTATA', 'Rifiutata dall\'Amministrazione'),
+    ]
+
     dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='assenze')
     tipo = models.CharField(max_length=20, choices=TIPO_ASSENZA)
     data_inizio = models.DateField()
@@ -433,6 +439,13 @@ class Assenza(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, null=True) # Allow null for existing rows
     source = models.CharField(max_length=20, default='MANUAL') # MANUAL, TELEGRAM
     is_processed = models.BooleanField(default=False, verbose_name="Processato")
+    stato_approvazione = models.CharField(
+        max_length=20,
+        choices=STATO_APPROVAZIONE,
+        default='IN_ATTESA',
+        verbose_name="Stato Avvallo Amministrazione"
+    )
+    approvata_da_admin_il = models.DateTimeField(null=True, blank=True, verbose_name="Avvallata il")
 
     @property
     def ore_permesso(self):
@@ -639,6 +652,35 @@ class RichiestaSostituzione(models.Model):
         verbose_name = "Richiesta Sostituzione"
         verbose_name_plural = "Richieste Sostituzione"
         ordering = ['-creata_il']
+
+
+class ModificaCedolino(models.Model):
+    """
+    Rettifiche manuali apportate dall'amministrazione alle ore e giornate
+    nell'elaborazione dei cedolini paghe per un determinato periodo.
+    """
+    dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='modifiche_cedolino')
+    data_inizio = models.DateField(verbose_name="Data Inizio Periodo")
+    data_fine = models.DateField(verbose_name="Data Fine Periodo")
+    giorni_lavorati_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Lavorati Rettificati")
+    ore_lavorate_override = models.FloatField(null=True, blank=True, verbose_name="Ore Totali Rettificate")
+    ore_validate_override = models.FloatField(null=True, blank=True, verbose_name="Ore Validate Rettificate")
+    giorni_ferie_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Ferie Rettificati")
+    giorni_permesso_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Permesso Rettificati")
+    giorni_malattia_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Malattia Rettificati")
+    note = models.TextField(blank=True, verbose_name="Motivazione / Note Rettifica")
+    modificato_da = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, verbose_name="Modificato da")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Modifica / Rettifica Cedolino"
+        verbose_name_plural = "Modifiche / Rettifiche Cedolino"
+        unique_together = ('dipendente', 'data_inizio', 'data_fine')
+
+    def __str__(self):
+        return f"Rettifica Cedolino — {self.dipendente} ({self.data_inizio} - {self.data_fine})"
+
 
 
 # --- Geocoding Signals ---

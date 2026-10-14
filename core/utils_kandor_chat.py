@@ -370,8 +370,8 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
 
 def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, msg_aggiuntivo, data_inizio=None, data_fine=None, ora_inizio=None, ora_fine=None):
     """
-    Registra l'assenza e verifica se il dipendente aveva turni nel periodo.
-    Se si, avvia automaticamente la procedura di sostituzione per ogni turno.
+    Registra l'assenza in stato 'IN_ATTESA' e notifica l'Amministrazione.
+    La procedura automatica di sostituzione per ogni turno partirà SOLTANTO DOPO l'avvallo dell'Amministrazione.
     """
     today = timezone.now().date()
     if not data_inizio:
@@ -379,18 +379,24 @@ def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, m
     if not data_fine:
         data_fine = data_inizio
 
-    from .models import Assenza, AssegnazioneTurno, Squadra
+    from .models import Assenza, AssegnazioneTurno, Squadra, Titolare
     from django.db.models import Q
+    from django.conf import settings
+    import requests as req
+    import json
     
-    # 1. Registra l'assenza
-    Assenza.objects.create(
+    # 1. Registra l'assenza in attesa di avvallo amministrazione
+    assenza = Assenza.objects.create(
         dipendente=dipendente, tipo=tipo_assenza,
         data_inizio=data_inizio, data_fine=data_fine,
         ora_inizio=ora_inizio, ora_fine=ora_fine,
-        note="Via bottone Telegram", source='TELEGRAM'
+        note="Via bot Telegram (in attesa di avvallo)",
+        source='TELEGRAM',
+        stato_approvazione='IN_ATTESA',
+        is_processed=False
     )
     
-    # 2. Cerca turni nel periodo dove il dipendente e coinvolto
+    # 2. Cerca turni nel periodo dove il dipendente è coinvolto
     squadre_dipendente = Squadra.objects.filter(
         Q(componenti=dipendente) | Q(caposquadra=dipendente)
     ).distinct()
@@ -402,102 +408,97 @@ def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, m
     
     turni_scoperti = list(assegnazioni_oggi)
     
-    # 3. Componi messaggio base
+    # 3. Componi messaggio per il dipendente
     if data_inizio == data_fine:
         periodo_str = data_inizio.strftime('%d/%m/%Y')
     else:
         periodo_str = f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}"
         
-    testo = f"{msg_conferma} per il periodo: {periodo_str}."
+    testo = f"📩 {msg_conferma} per il periodo: {periodo_str}."
     if ora_inizio and ora_fine:
         testo += f" Dalle {ora_inizio.strftime('%H:%M')} alle {ora_fine.strftime('%H:%M')}."
     if msg_aggiuntivo:
         testo += f" {msg_aggiuntivo}"
-    
-    # 4. Se ci sono turni, avvia la sostituzione automatica
+        
+    testo += "\n\n⏳ **In attesa di avvallo dell'Amministrazione**"
     if turni_scoperti:
-        testo += f"\n\n🚨 ATTENZIONE: Hai {len(turni_scoperti)} turno/i nel periodo indicato!\n"
-        
-        richieste_create = 0
-        for assegnazione in turni_scoperti:
-            testo += f"  👉 {assegnazione.cliente.ragione_sociale} ({assegnazione.orario_inizio_previsto.strftime('%H:%M')}-{assegnazione.orario_fine_previsto.strftime('%H:%M')})\n"
+        testo += f"\nHai {len(turni_scoperti)} turno/i nel periodo indicato. La procedura di sostituzione si avvierà in automatico **non appena l'Amministrazione avrà avvallato** la tua richiesta."
+    else:
+        testo += "\nNessun turno previsto per te nel periodo indicato."
+
+    # 4. Notifica l'AMMINISTRAZIONE con tasti interattivi di Avvallo / Rifiuto
+    token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if token:
+        admin_chat_ids = set()
+        admin_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
+        if admin_id:
+            admin_chat_ids.add(str(admin_id))
             
+        try:
+            for titolare in Titolare.objects.filter(notifiche_attive=True):
+                cid = titolare.get_chat_id()
+                if cid:
+                    admin_chat_ids.add(str(cid))
+        except Exception:
+            pass
+
+        orario_info = f"🕒 Orario: {ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}\n" if (ora_inizio and ora_fine) else ""
+        
+        turni_detail = ""
+        if turni_scoperti:
+            turni_detail = f"\n🚨 **Turni scoperti interessati ({len(turni_scoperti)}):**\n"
+            for a in turni_scoperti:
+                turni_detail += f"  👉 {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')}) 👥 {a.turno.squadra.nome}\n"
+        else:
+            turni_detail = "\nℹ️ Nessun turno previsto nel periodo."
+
+        alert_admin = (
+            f"⚠️ **COMUNICAZIONE ASSENZA DA AVVALLARE**\n\n"
+            f"👤 **Dipendente**: {dipendente.cognome} {dipendente.nome}\n"
+            f"📋 **Tipo**: {tipo_assenza}\n"
+            f"📅 **Periodo**: {periodo_str}\n"
+            f"{orario_info}"
+            f"{turni_detail}\n"
+            f"Clicca su **Avvalla** per approvare l'assenza e far partire in automatico la procedura di sostituzione."
+        )
+
+        keyboard_admin = {
+            "inline_keyboard": [[
+                {"text": "✅ Avvalla e Avvia Sostituzione", "callback_data": f"avvalla_assenza_{assenza.pk}"},
+                {"text": "❌ Rifiuta Assenza", "callback_data": f"rifiuta_assenza_{assenza.pk}"}
+            ]]
+        }
+
+        for cid in admin_chat_ids:
             try:
-                from .services import crea_richiesta_sostituzione
-                motivo_map = {
-                    'MALATTIA': 'MALATTIA',
-                    'FERIE': 'FERIE',
-                    'PERMESSO': 'PERMESSO',
-                }
-                crea_richiesta_sostituzione(
-                    assegnazione, 
-                    dipendente, 
-                    motivo_map.get(tipo_assenza, 'ALTRO'),
-                    f"Comunicato via Telegram"
-                )
-                richieste_create += 1
-            except Exception as e:
-                print(f"[Sostituzione Auto] Errore per assegnazione {assegnazione.pk}: {e}")
-        
-        if richieste_create > 0:
-            testo += f"\n✅ Procedura sostituzione avviata per {richieste_create} turno/i."
-            testo += "\nIl Responsabile Area e stato notificato."
-        
-    # Notifica anche l'admin via Telegram (sempre)
-    try:
-        from django.conf import settings
-        admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
-        if admin_chat_id:
-            token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
-            if token:
-                alert_msg = (
-                    f"⚠️ ALERT ASSENZA\n\n"
-                    f"👤 {dipendente.cognome} {dipendente.nome} ha comunicato {tipo_assenza}\n"
-                    f"📅 Periodo: {periodo_str}\n"
-                )
-                if ora_inizio and ora_fine:
-                    alert_msg += f"🕒 Orario: {ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}\n"
-                
-                if not turni_scoperti:
-                    alert_msg += "\nℹ️ Nessun turno previsto nel periodo indicato."
-                else:
-                    alert_msg += f"🚨 Turni scoperti: {len(turni_scoperti)}\n"
-                    for a in turni_scoperti:
-                        alert_msg += f"  👉 {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')}) 👥 Squadra: {a.turno.squadra.nome}\n"
-                    alert_msg += "\n✅ Procedura sostituzione avviata automaticamente."
-                
-                import requests as req
                 req.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={'chat_id': admin_chat_id, 'text': alert_msg},
+                    json={
+                        'chat_id': cid,
+                        'text': alert_admin,
+                        'reply_markup': json.dumps(keyboard_admin),
+                        'parse_mode': 'Markdown'
+                    },
                     timeout=5
                 )
-    except Exception as e:
-        print(f"[Telegram Alert Admin Error] {e}")
+            except Exception as e:
+                print(f"[Alert Admin Error] {e}")
 
-    # --- NOTIFICA DIRETTA AL RESPONSABILE AREA (sempre, anche senza turni) ---
+    # 5. Notifica preventiva al Responsabile Area
     try:
         from .models import ResponsabileArea
-        from django.conf import settings
-        import requests as _req
-        _token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
         ras = ResponsabileArea.objects.filter(squadre__in=squadre_dipendente).distinct()
         for ra in ras:
-            if ra.dipendente.telegram_chat_id and _token:
+            if ra.dipendente.telegram_chat_id and token:
                 msg_ra = (
-                    f"⚠️ COMUNICAZIONE ASSENZA\n\n"
-                    f"👤 {dipendente.nome} {dipendente.cognome} ha comunicato: {tipo_assenza}\n"
-                    f"📅 Dal {data_inizio.strftime('%d/%m/%Y')} al {data_fine.strftime('%d/%m/%Y')}\n"
+                    f"ℹ️ COMUNICAZIONE ASSENZA (IN ATTESA AVVALLO ADMIN)\n\n"
+                    f"👤 {dipendente.nome} {dipendente.cognome} ha registrato: {tipo_assenza}\n"
+                    f"📅 Periodo: {periodo_str}\n"
+                    f"⏳ La procedura di sostituzione si avvierà non appena l'Amministrazione avvallerà la richiesta."
                 )
-                if ora_inizio and ora_fine:
-                    msg_ra += f"🕒 Orario: {ora_inizio.strftime('%H:%M')} - {ora_fine.strftime('%H:%M')}\n"
-                if not turni_scoperti:
-                    msg_ra += "\nℹ️ Nessun turno previsto nel periodo indicato."
-                else:
-                    msg_ra += f"\n🚨 {len(turni_scoperti)} turno/i scoperti: procedura di sostituzione avviata."
                 try:
-                    _req.post(
-                        f"https://api.telegram.org/bot{_token}/sendMessage",
+                    req.post(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
                         json={'chat_id': ra.dipendente.telegram_chat_id, 'text': msg_ra},
                         timeout=5
                     )
@@ -507,6 +508,7 @@ def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, m
         print(f"[Notify RA Error] {e}")
 
     return {'text': testo, 'reply_markup': get_main_menu()}
+
 
 
 def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utente"):
@@ -710,6 +712,34 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
                 }
             except Exception as e:
                 return {'text': f"Errore nell'esclusione: {e}", 'reply_markup': get_main_menu()}
+
+    # ===== GESTIONE AVVALLO AMMINISTRAZIONE ASSENZE =====
+
+    if callback_data.startswith('avvalla_assenza_'):
+        assenza_id = callback_data.replace('avvalla_assenza_', '')
+        try:
+            from .services import avvalla_assenza_da_amministrazione
+            res = avvalla_assenza_da_amministrazione(assenza_id)
+            if res.get('ok'):
+                return {
+                    'text': f"✅ ASSENZA AVVALATA DALL'AMMINISTRAZIONE!\n\n"
+                            f"Procedura automatica di sostituzione avviata.\n"
+                            f"Richieste sostituzione create: {res.get('num_sostituzioni', 0)}"
+                }
+            return {'text': f"❌ Errore nell'avvallo dell'assenza: {res.get('error')}"}
+        except Exception as e:
+            return {'text': f"❌ Errore: {e}"}
+
+    if callback_data.startswith('rifiuta_assenza_'):
+        assenza_id = callback_data.replace('rifiuta_assenza_', '')
+        try:
+            from .services import rifiuta_assenza_da_amministrazione
+            res = rifiuta_assenza_da_amministrazione(assenza_id)
+            if res.get('ok'):
+                return {'text': "❌ Comunicazione di assenza RIFIUTATA dall'Amministrazione.\nIl dipendente è stato notificato."}
+            return {'text': f"❌ Errore nel rifiuto: {res.get('error')}"}
+        except Exception as e:
+            return {'text': f"❌ Errore: {e}"}
 
     # ===== GESTIONE SOSTITUTI =====
     

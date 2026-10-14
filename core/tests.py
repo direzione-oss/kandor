@@ -1,5 +1,6 @@
 
 import datetime
+import json
 import pandas as pd
 import io
 from django.test import TestCase
@@ -359,3 +360,221 @@ class ProximityTestCase(TestCase):
         log_cli.refresh_from_db()
         self.assertFalse(log_cli.is_near)
         self.assertIsNotNone(log_cli.exited_at)
+
+from core.models import ProgrammazioneRicorrente, Squadra, Cliente, Turno, AssegnazioneTurno
+from core.services import genera_turni_automatici
+
+class PastShiftsGenerationTestCase(TestCase):
+    def test_past_shifts_generated_from_contract_start_date(self):
+        today = timezone.now().date()
+        past_start = today - timedelta(days=14)
+        
+        dip = Dipendente.objects.create(nome='Capo', cognome='Test', codice_fiscale='CAPO002')
+        squadra = Squadra.objects.create(nome='Squadra Past', caposquadra=dip)
+        cliente = Cliente.objects.create(ragione_sociale='Cliente Past', ore_mensili_contratto=20)
+        
+        # Create recurring schedule starting 14 days ago on the weekday of past_start
+        prog = ProgrammazioneRicorrente.objects.create(
+            cliente=cliente,
+            tipo_ripetizione='SETTIMANALE',
+            giorno_settimana=past_start.weekday(),
+            ora_inizio=datetime.time(8, 0),
+            durata=4.0,
+            squadra_abituale=squadra,
+            data_inizio_contratto=past_start
+        )
+        
+        # Verify that an AssegnazioneTurno was created for past_start
+        past_assign = AssegnazioneTurno.objects.filter(
+            programmazione_feriale=prog,
+            turno__data=past_start
+        )
+        self.assertTrue(past_assign.exists(), "Shift for past_start should have been generated upon saving ProgrammazioneRicorrente.")
+        
+        # Call genera_turni_automatici() and verify it runs smoothly without removing or missing past shifts
+        count = genera_turni_automatici()
+        self.assertTrue(AssegnazioneTurno.objects.filter(programmazione_feriale=prog, turno__data=past_start).exists())
+
+
+from core.models import Assenza, RichiestaSostituzione
+from core.utils_kandor_chat import _gestisci_assenza_con_sostituzione, handle_telegram_callback
+from core.services import avvalla_assenza_da_amministrazione, rifiuta_assenza_da_amministrazione
+
+class AvvalloAssenzaTestCase(TestCase):
+    def setUp(self):
+        self.today = timezone.now().date()
+        self.dip = Dipendente.objects.create(
+            nome='Mario', cognome='Rossi', codice_fiscale='MRORSS80A01H501U',
+            telegram_chat_id='12345678', stato='ATTIVO', is_sostituto=False
+        )
+        self.sostituto = Dipendente.objects.create(
+            nome='Giuseppe', cognome='Verdi', codice_fiscale='VRDGPP80A01H501Z',
+            telegram_chat_id='87654321', stato='ATTIVO', is_sostituto=True
+        )
+        self.squadra = Squadra.objects.create(nome='Squadra Alfa', caposquadra=self.dip)
+        self.cliente = Cliente.objects.create(ragione_sociale='Cliente Test', ore_mensili_contratto=100)
+        self.turno = Turno.objects.create(data=self.today, squadra=self.squadra)
+        self.assegnazione = AssegnazioneTurno.objects.create(
+            turno=self.turno, cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(16, 0)
+        )
+
+    def test_assenza_requires_admin_avvallo_before_replacement(self):
+        # 1. Dipendente manda messaggio di Malattia via Telegram
+        res = _gestisci_assenza_con_sostituzione(
+            self.dip, 'MALATTIA', 'Registrata malattia', 'Invia certificato',
+            data_inizio=self.today, data_fine=self.today
+        )
+        
+        # L'assenza deve essere in stato IN_ATTESA
+        assenza = Assenza.objects.get(dipendente=self.dip, tipo='MALATTIA')
+        self.assertEqual(assenza.stato_approvazione, 'IN_ATTESA')
+        self.assertFalse(assenza.is_processed)
+
+        # NESSUNA richiesta di sostituzione deve essere stata creata finché non c'è l'avvallo
+        req_count = RichiestaSostituzione.objects.filter(dipendente_assente=self.dip).count()
+        self.assertEqual(req_count, 0)
+
+        # 2. L'Amministrazione avvalla la richiesta (tramite servizio / callback Telegram)
+        res_avvallo = avvalla_assenza_da_amministrazione(assenza.pk)
+        self.assertTrue(res_avvallo['ok'])
+        
+        assenza.refresh_from_db()
+        self.assertEqual(assenza.stato_approvazione, 'APPROVATA')
+        self.assertTrue(assenza.is_processed)
+
+        # DOPO L'AVVALLO, la procedura di sostituzione deve essere stata avviata in automatico
+        req_count_after = RichiestaSostituzione.objects.filter(dipendente_assente=self.dip).count()
+        self.assertEqual(req_count_after, 1)
+
+    def test_assenza_rejected_by_admin(self):
+        # Dipendente richiede Ferie
+        _gestisci_assenza_con_sostituzione(
+            self.dip, 'FERIE', 'Richiesta ferie', '',
+            data_inizio=self.today, data_fine=self.today
+        )
+        assenza = Assenza.objects.get(dipendente=self.dip, tipo='FERIE')
+        
+        # Admin Rifiuta l'assenza
+        res_rifiuto = rifiuta_assenza_da_amministrazione(assenza.pk)
+        self.assertTrue(res_rifiuto['ok'])
+
+        assenza.refresh_from_db()
+        self.assertEqual(assenza.stato_approvazione, 'RIFIUTATA')
+        
+    def test_selezione_ordinata_sostituti(self):
+        # 1. Crea assenza e avvalla per generare la RichiestaSostituzione
+        _gestisci_assenza_con_sostituzione(
+            self.dip, 'MALATTIA', 'Registrata malattia', '',
+            data_inizio=self.today, data_fine=self.today
+        )
+        assenza = Assenza.objects.get(dipendente=self.dip, tipo='MALATTIA')
+        avvalla_assenza_da_amministrazione(assenza.pk)
+
+        richiesta = RichiestaSostituzione.objects.get(dipendente_assente=self.dip)
+
+        # 2. Test GET API sostituti disponibili
+        response_get = self.client.get(f'/api/sostituti-disponibili/{richiesta.id}/')
+        self.assertEqual(response_get.status_code, 200)
+        data_get = response_get.json()
+        self.assertTrue(data_get['ok'])
+        self.assertIn('sostituti', data_get)
+
+        # 3. Test POST API invia notifiche in ordine scelto
+        payload = {
+            'richiesta_id': richiesta.id,
+            'sostituti_ids': [self.sostituto.id]
+        }
+        response_post = self.client.post(
+            '/api/invia-notifiche-sostituti/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response_post.status_code, 200)
+        data_post = response_post.json()
+        self.assertTrue(data_post['ok'])
+        
+        richiesta.refresh_from_db()
+        self.assertEqual(richiesta.sostituti_candidati, [self.sostituto.id])
+        self.assertEqual(richiesta.stato, 'INVIATA')
+        self.assertEqual(richiesta.sostituto, self.sostituto)
+
+
+from core.models import ModificaCedolino
+
+class ModificaCedolinoTestCase(TestCase):
+    def setUp(self):
+        self.today = timezone.now().date()
+        self.data_inizio = self.today.replace(day=1)
+        self.data_fine = self.today
+        self.dip = Dipendente.objects.create(
+            nome='Mario', cognome='Rossi', codice_fiscale='MRORSS80A01H501U',
+            stato='ATTIVO'
+        )
+
+    def test_salva_modifica_cedolino_ajax(self):
+        # 1. Salva una nuova rettifica via AJAX
+        payload = {
+            'dipendente_id': self.dip.id,
+            'data_inizio': self.data_inizio.isoformat(),
+            'data_fine': self.data_fine.isoformat(),
+            'giorni_lavorati_override': 18,
+            'ore_lavorate_override': 144.0,
+            'ore_validate_override': 144.0,
+            'giorni_ferie_override': 2,
+            'giorni_permesso_override': 0,
+            'giorni_malattia_override': 0,
+            'note': 'Straordinari cantiere approvati manuale',
+            'reset': False
+        }
+        res = self.client.post(
+            '/report-paghe/salva-modifica/',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertTrue(data['success'])
+
+        modifica = ModificaCedolino.objects.get(
+            dipendente=self.dip, data_inizio=self.data_inizio, data_fine=self.data_fine
+        )
+        self.assertEqual(modifica.giorni_lavorati_override, 18)
+        self.assertEqual(modifica.ore_lavorate_override, 144.0)
+        self.assertEqual(modifica.note, 'Straordinari cantiere approvati manuale')
+
+        # 2. Verifica che report_paghe_view applichi i dati rettificati
+        url = f'/report-paghe/?data_inizio={self.data_inizio.isoformat()}&data_fine={self.data_fine.isoformat()}&dipendente_id={self.dip.id}'
+        res_view = self.client.get(url)
+        self.assertEqual(res_view.status_code, 200)
+        report_list = res_view.context['report_list']
+        self.assertEqual(len(report_list), 1)
+        item = report_list[0]
+        self.assertTrue(item['is_rettificato'])
+        self.assertEqual(item['giorni_lavorati'], 18)
+        self.assertEqual(item['ore_lavorate'], 144.0)
+
+        # 3. Ripristina i valori calcolati via AJAX (reset=True)
+        reset_payload = {
+            'dipendente_id': self.dip.id,
+            'data_inizio': self.data_inizio.isoformat(),
+            'data_fine': self.data_fine.isoformat(),
+            'reset': True
+        }
+        res_reset = self.client.post(
+            '/report-paghe/salva-modifica/',
+            data=json.dumps(reset_payload),
+            content_type='application/json'
+        )
+        self.assertEqual(res_reset.status_code, 200)
+        self.assertFalse(
+            ModificaCedolino.objects.filter(
+                dipendente=self.dip, data_inizio=self.data_inizio, data_fine=self.data_fine
+            ).exists()
+        )
+
+
+
+
+

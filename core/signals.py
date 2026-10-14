@@ -44,10 +44,16 @@ def _genera_turni_singola_programmazione(prog, days=365):
         return 0
     
     today = timezone.now().date()
+    # Se la data di inizio contratto e' nel passato, la generazione inizia da quella data
+    if prog.data_inizio_contratto and prog.data_inizio_contratto < today:
+        start_date = prog.data_inizio_contratto
+    else:
+        start_date = today
+
     end_date = today + timedelta(days=days)
     count = 0
     
-    current_date = today
+    current_date = start_date
     while current_date <= end_date:
         # Controllo periodo contrattuale
         if prog.data_inizio_contratto and current_date < prog.data_inizio_contratto:
@@ -129,108 +135,20 @@ def on_programmazione_save(sender, instance, raw=False, **kwargs):
 @receiver(post_save, sender='core.Assenza')
 def on_assenza_save(sender, instance, created, raw=False, **kwargs):
     """
-    Quando viene creata un'assenza (soprattutto programmata/futura):
-    raw=True durante loaddata/fixtures: salta.
+    Quando un'assenza viene salvata ed è AVVALATA dall'Amministrazione (stato_approvazione == 'APPROVATA'):
+    Avvia la procedura automatica di sostituzione per i turni scoperti.
     """
-    if raw:
-        return
-    if not created:
-        return  # Solo nuove assenze, non aggiornamenti
-    
-    today = timezone.now().date()
-    
-    # Se l'assenza è Telegram e copre solo oggi, la sostituzione
-    # è già stata gestita da _gestisci_assenza_con_sostituzione()
-    if instance.source == 'TELEGRAM' and instance.data_inizio == today and instance.data_fine == today:
+    if raw or instance.is_processed:
         return
     
-    from core.models import AssegnazioneTurno, Squadra, RichiestaSostituzione
-    from django.db.models import Q
-    
-    dipendente = instance.dipendente
-    
-    # Trova le squadre del dipendente
-    squadre = Squadra.objects.filter(
-        Q(componenti=dipendente) | Q(caposquadra=dipendente)
-    ).distinct()
-    
-    if not squadre.exists():
+    # REQUISITO FONDAMENTALE: La sostituzione parte SOLO DOPO l'avvallo dell'amministrazione
+    if instance.stato_approvazione != 'APPROVATA':
         return
     
-    # Trova tutti i turni nel range dell'assenza
-    assegnazioni = AssegnazioneTurno.objects.filter(
-        turno__data__gte=instance.data_inizio,
-        turno__data__lte=instance.data_fine,
-        turno__squadra__in=squadre
-    ).select_related('turno', 'turno__squadra', 'cliente')
-    
-    turni_scoperti = []
-    for a in assegnazioni:
-        if instance.ora_inizio and instance.ora_fine and a.orario_inizio_previsto and a.orario_fine_previsto:
-            if a.orario_fine_previsto <= instance.ora_inizio or a.orario_inizio_previsto >= instance.ora_fine:
-                continue
-        turni_scoperti.append(a)
-
-    if not turni_scoperti:
-        return
-    
-    # Mappa tipo assenza → motivo sostituzione
-    motivo_map = {
-        'MALATTIA': 'MALATTIA', 'FERIE': 'FERIE',
-        'PERMESSO': 'PERMESSO', '104': '104', 'ALTRO': 'ALTRO',
-    }
-    motivo = motivo_map.get(instance.tipo, 'ALTRO')
-    
-    richieste_create = 0
-    for assegnazione in turni_scoperti:
-        # Verifica che non esista già una richiesta per questa assegnazione/dipendente
-        gia_esistente = RichiestaSostituzione.objects.filter(
-            assegnazione_originale=assegnazione,
-            dipendente_assente=dipendente,
-            stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA']
-        ).exists()
-        
-        if gia_esistente:
-            continue
-        
-        try:
-            from core.services import crea_richiesta_sostituzione
-            orario_str = f" ({instance.get_orario_display()})" if instance.ora_inizio else ""
-            crea_richiesta_sostituzione(
-                assegnazione, dipendente, motivo,
-                f"Assenza programmata {instance.tipo}{orario_str}: {instance.data_inizio.strftime('%d/%m')}→{instance.data_fine.strftime('%d/%m')}"
-            )
-            richieste_create += 1
-        except Exception as e:
-            print(f"[Assenza Signal] Errore sostituzione assegnazione {assegnazione.pk}: {e}")
-    
+    from core.services import avvia_sostituzione_per_assenza
+    richieste_create = avvia_sostituzione_per_assenza(instance)
     if richieste_create > 0:
-        print(f"[Assenza Signal] {dipendente}: {richieste_create} richieste sostituzione create ({instance.data_inizio}→{instance.data_fine})")
-        
-        # Notifica admin
-        try:
-            from django.conf import settings
-            admin_chat_id = getattr(settings, 'TELEGRAM_ADMIN_CHAT_ID', None)
-            if admin_chat_id:
-                token = settings.TELEGRAM_BOT_TOKEN
-                orario_info = f"\n🕒 Orario: {instance.get_orario_display()}" if instance.ora_inizio else ""
-                alert_msg = (
-                    f"📋 ASSENZA PROGRAMMATA\n\n"
-                    f"👤 {dipendente.cognome} {dipendente.nome}\n"
-                    f"📅 {instance.data_inizio.strftime('%d/%m/%Y')} → {instance.data_fine.strftime('%d/%m/%Y')}"
-                    f"{orario_info}\n"
-                    f"📝 Motivo: {instance.tipo}\n"
-                    f"⚠️ Turni scoperti: {len(turni_scoperti)}\n"
-                    f"🔄 Richieste sostituzione create: {richieste_create}\n"
-                )
-                for a in turni_scoperti:
-                    alert_msg += f"  • {a.turno.data.strftime('%d/%m')} — {a.cliente.ragione_sociale} ({a.orario_inizio_previsto.strftime('%H:%M')}-{a.orario_fine_previsto.strftime('%H:%M')})\n"
-                
-                import requests as req
-                req.post(
-                    f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={'chat_id': admin_chat_id, 'text': alert_msg}
-                )
-        except Exception:
-            pass
+        print(f"[Assenza Signal] Assenza ID {instance.pk} avvallata per {instance.dipendente}: {richieste_create} sostituzioni create.")
+
+
 
