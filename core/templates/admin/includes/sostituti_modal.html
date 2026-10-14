@@ -1,0 +1,292 @@
+<!-- Modal Window per la Selezione e Ordinamento dei Sostituti -->
+<div id="modal-seleziona-sostituti-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.7); backdrop-filter:blur(4px); z-index:999999; align-items:center; justify-content:center;" onclick="if(event.target===this)chiudiModalSostituti()">
+  <div style="background:#fff; border-radius:12px; width:720px; max-width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; border:1px solid #CBD5E1;">
+    
+    <!-- Header -->
+    <div style="background:#0F172A; color:#fff; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#F8FAFC; display:flex; align-items:center; gap:8px;">
+          <span>👥</span> Seleziona Sostituti per Turno
+        </h3>
+        <div id="sost-modal-subtitle" style="font-size:12px; color:#94A3B8; margin-top:4px;">Caricamento informazioni turno...</div>
+      </div>
+      <button onclick="chiudiModalSostituti()" style="background:transparent; border:none; color:#94A3B8; font-size:22px; cursor:pointer; font-weight:bold; line-height:1;">✕</button>
+    </div>
+
+    <!-- Instructions / Info Box -->
+    <div style="padding:16px 24px 0 24px;">
+      <div style="background:#EFF6FF; border-left:4px solid #2563EB; padding:12px 16px; border-radius:6px; font-size:13px; color:#1E40AF; line-height:1.4;">
+        <strong>ℹ️ Selezione in Ordine di Chiamata:</strong> Seleziona i dipendenti a cui inviare l'avviso. 
+        <strong>L'ordine di spunta definisce la sequenza di contatto</strong> (1° sostituto, 2° in caso di rifiuto, 3°...).
+      </div>
+    </div>
+
+    <!-- Body / List -->
+    <div style="padding:16px 24px; overflow-y:auto; flex:1;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #E2E8F0;">
+        <span style="font-size:13px; font-weight:700; color:#334155;">
+          Dipendenti Disponibili (<span id="sost-candidati-count">0</span>)
+        </span>
+        <div style="display:flex; gap:8px;">
+          <button type="button" onclick="selezionaTuttiSostituti()" style="font-size:11px; padding:5px 10px; background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px; font-weight:600; cursor:pointer; color:#334155;">Check Tutti (GPS)</button>
+          <button type="button" onclick="deselezionaTuttiSostituti()" style="font-size:11px; padding:5px 10px; background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px; font-weight:600; cursor:pointer; color:#334155;">Deseleziona Tutti</button>
+        </div>
+      </div>
+
+      <div id="sost-list-container" style="display:flex; flex-direction:column; gap:8px;">
+        <div style="text-align:center; padding:30px; color:#94A3B8; font-size:13px;">Caricamento sostituti in corso...</div>
+      </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <div style="background:#F8FAFC; border-top:1px solid #E2E8F0; padding:16px 24px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-size:13px; font-weight:600; color:#475569;">
+        Persone selezionate: <span id="sost-selezionati-badge" style="background:#059669; color:#fff; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <button type="button" onclick="chiudiModalSostituti()" style="padding:10px 18px; background:#E2E8F0; color:#334155; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px;">Annulla</button>
+        <button type="button" id="btn-invia-notifiche-sost" onclick="inviaNotificheSostitutiSelezionati()" style="padding:10px 22px; background:#059669; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
+          <span>🚀</span> Invia Notifiche ai Selezionati
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+var _currentRichiestaId = null;
+var _sostitutiData = [];
+var _selezionatiOrder = [];
+
+function getCsrfToken() {
+  var cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    var cookies = document.cookie.split(';');
+    for (var i = 0; i < cookies.length; i++) {
+      var cookie = cookies[i].trim();
+      if (cookie.substring(0, 10) === ('csrftoken=')) {
+        cookieValue = decodeURIComponent(cookie.substring(10));
+        break;
+      }
+    }
+  }
+  if (!cookieValue && document.querySelector('[name=csrfmiddlewaretoken]')) {
+    cookieValue = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  }
+  return cookieValue || '';
+}
+
+function apriModalSelezionaSostituti(richiestaId) {
+  _currentRichiestaId = richiestaId;
+  _sostitutiData = [];
+  _selezionatiOrder = [];
+  
+  var overlay = document.getElementById('modal-seleziona-sostituti-overlay');
+  if (overlay) {
+    overlay.style.display = 'flex';
+  }
+  
+  document.getElementById('sost-modal-subtitle').textContent = 'Caricamento...';
+  document.getElementById('sost-list-container').innerHTML = '<div style="text-align:center; padding:30px; color:#94A3B8; font-size:13px;">Caricamento sostituti disponibili in corso...</div>';
+  document.getElementById('sost-selezionati-badge').textContent = '0';
+
+  fetch('/api/sostituti-disponibili/' + richiestaId + '/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.ok) {
+        alert('Errore: ' + (data.error || 'Impossibile caricare sostituti'));
+        chiudiModalSostituti();
+        return;
+      }
+      
+      document.getElementById('sost-modal-subtitle').innerHTML = 
+        '📍 <strong>' + data.cliente_nome + '</strong> &nbsp;|&nbsp; 📅 ' + data.data_turno + ' (' + data.orario_turno + ') &nbsp;|&nbsp; Assente: <strong>' + data.dipendente_assente + '</strong> (' + data.motivo_assenza + ')';
+      
+      _sostitutiData = data.sostituti || [];
+      document.getElementById('sost-candidati-count').textContent = _sostitutiData.length;
+      
+      _selezionatiOrder = [];
+      _sostitutiData.sort(function(a, b) {
+        if (a.selezionato && b.selezionato) return (a.ordine || 999) - (b.ordine || 999);
+        if (a.selezionato) return -1;
+        if (b.selezionato) return 1;
+        return 0;
+      });
+
+      _sostitutiData.forEach(function(item) {
+        if (item.selezionato) {
+          _selezionatiOrder.push(item.id);
+        }
+      });
+
+      renderSostitutiList();
+    })
+    .catch(function(err) {
+      alert('Errore durante la connessione al server.');
+      chiudiModalSostituti();
+    });
+}
+
+function chiudiModalSostituti() {
+  var overlay = document.getElementById('modal-seleziona-sostituti-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function toggleSostitutoSelection(dipId) {
+  var idx = _selezionatiOrder.indexOf(dipId);
+  if (idx > -1) {
+    _selezionatiOrder.splice(idx, 1);
+  } else {
+    _selezionatiOrder.push(dipId);
+  }
+  renderSostitutiList();
+}
+
+function selezionaTuttiSostituti() {
+  _selezionatiOrder = [];
+  _sostitutiData.forEach(function(item) {
+    _selezionatiOrder.push(item.id);
+  });
+  renderSostitutiList();
+}
+
+function deselezionaTuttiSostituti() {
+  _selezionatiOrder = [];
+  renderSostitutiList();
+}
+
+function renderSostitutiList() {
+  var container = document.getElementById('sost-list-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  document.getElementById('sost-selezionati-badge').textContent = _selezionatiOrder.length;
+
+  if (!_sostitutiData || _sostitutiData.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:24px; color:#DC2626; background:#FEF2F2; border-radius:8px; font-weight:600;">⚠️ Nessun sostituto attivo disponibile per questo turno.</div>';
+    return;
+  }
+
+  _sostitutiData.forEach(function(item) {
+    var orderIdx = _selezionatiOrder.indexOf(item.id);
+    var isSelected = orderIdx > -1;
+    var orderNum = isSelected ? (orderIdx + 1) : null;
+
+    var card = document.createElement('div');
+    card.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:8px; border:1.5px solid ' + (isSelected ? '#059669' : '#E2E8F0') + '; background:' + (isSelected ? '#ECFDF5' : '#FFFFFF') + '; cursor:pointer; transition:all 0.15s ease;';
+    card.onclick = function(e) {
+      if (e.target.tagName !== 'INPUT') {
+        toggleSostitutoSelection(item.id);
+      }
+    };
+
+    var leftDiv = document.createElement('div');
+    leftDiv.style.cssText = 'display:flex; align-items:center; gap:12px;';
+
+    var badgeOrder = document.createElement('div');
+    badgeOrder.style.cssText = 'width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; transition:all 0.15s ease; ' + (isSelected ? 'background:#059669; color:#fff;' : 'background:#F1F5F9; color:#94A3B8; border:1px solid #CBD5E1;');
+    badgeOrder.textContent = isSelected ? (orderNum + '°') : '—';
+    leftDiv.appendChild(badgeOrder);
+
+    var chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = isSelected;
+    chk.style.cssText = 'transform:scale(1.2); cursor:pointer;';
+    chk.onchange = function() {
+      toggleSostitutoSelection(item.id);
+    };
+    leftDiv.appendChild(chk);
+
+    var infoDiv = document.createElement('div');
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-weight:700; font-size:14px; color:#0F172A;';
+    nameEl.textContent = item.nome;
+    if (item.categoria_protetta) {
+      nameEl.innerHTML += ' <span style="font-size:10px; background:#FEE2E2; color:#991B1B; padding:1px 6px; border-radius:4px; margin-left:4px;">Cat. Protetta</span>';
+    }
+    infoDiv.appendChild(nameEl);
+
+    var skillsDiv = document.createElement('div');
+    skillsDiv.style.cssText = 'font-size:11px; color:#64748B; margin-top:2px; display:flex; gap:4px; flex-wrap:wrap;';
+    if (item.qualifiche && item.qualifiche.length) {
+      item.qualifiche.forEach(function(q) {
+        var skBadge = document.createElement('span');
+        skBadge.style.cssText = 'background:#E0F2FE; color:#0369A1; padding:1px 6px; border-radius:4px; font-weight:600;';
+        skBadge.textContent = q;
+        skillsDiv.appendChild(skBadge);
+      });
+    } else {
+      skillsDiv.textContent = 'Nessuna qualifica spec.';
+    }
+    infoDiv.appendChild(skillsDiv);
+    leftDiv.appendChild(infoDiv);
+
+    var rightDiv = document.createElement('div');
+    rightDiv.style.cssText = 'text-align:right; font-size:12px;';
+    
+    var distEl = document.createElement('div');
+    distEl.style.cssText = 'font-weight:700; color:#1E293B;';
+    distEl.textContent = '📏 ' + item.distanza_km;
+    rightDiv.appendChild(distEl);
+
+    if (item.telefono && item.telefono !== 'N/D') {
+      var telEl = document.createElement('div');
+      telEl.style.cssText = 'color:#64748B; font-size:11px; margin-top:2px;';
+      telEl.textContent = '📞 ' + item.telefono;
+      rightDiv.appendChild(telEl);
+    }
+
+    card.appendChild(leftDiv);
+    card.appendChild(rightDiv);
+    container.appendChild(card);
+  });
+}
+
+function inviaNotificheSostitutiSelezionati() {
+  if (!_currentRichiestaId) return;
+  if (!_selezionatiOrder || _selezionatiOrder.length === 0) {
+    alert('Seleziona almeno un sostituto a cui inviare la notifica.');
+    return;
+  }
+
+  var btn = document.getElementById('btn-invia-notifiche-sost');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Invio notifiche in corso...';
+  }
+
+  fetch('/api/invia-notifiche-sostituti/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      richiesta_id: _currentRichiestaId,
+      sostituti_ids: _selezionatiOrder
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🚀</span> Invia Notifiche ai Selezionati';
+    }
+    if (data.ok) {
+      alert('✅ ESITO INVIO:\n' + data.message);
+      chiudiModalSostituti();
+      location.reload();
+    } else {
+      alert('❌ ERRORE: ' + (data.error || 'Impossibile inviare le notifiche'));
+    }
+  })
+  .catch(function(err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🚀</span> Invia Notifiche ai Selezionati';
+    }
+    alert('Errore di connessione durante l\'invio.');
+  });
+}
+</script>
