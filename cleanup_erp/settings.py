@@ -127,7 +127,6 @@ if use_postgres:
             'OPTIONS': {
                 'sslmode': 'require',
                 'connect_timeout': 15,
-                'DISABLE_SERVER_SIDE_CURSORS': True,
             },
             'CONN_MAX_AGE': 0,
             'DISABLE_SERVER_SIDE_CURSORS': True,
