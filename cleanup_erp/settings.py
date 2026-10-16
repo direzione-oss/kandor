@@ -125,8 +125,9 @@ if use_postgres:
             'HOST': db_host,
             'PORT': db_port,
             'OPTIONS': {
-                'sslmode': 'prefer',
-                'connect_timeout': 10,
+                'sslmode': 'require',
+                'connect_timeout': 15,
+                'DISABLE_SERVER_SIDE_CURSORS': True,
             },
             'CONN_MAX_AGE': 0,
             'DISABLE_SERVER_SIDE_CURSORS': True,
