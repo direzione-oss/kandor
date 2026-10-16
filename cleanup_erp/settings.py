@@ -27,8 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-66-qje)8zh_9*$a0pf5&llh9jn6&s0q68&p(w*s!wq*jl*cz_g')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
+is_render = 'RENDER' in os.environ or os.environ.get('RENDER') == 'true'
+DEBUG = os.environ.get('DEBUG', 'False' if is_render else 'True').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app', '.ngrok-free.dev',
                  '.railway.app', '.render.com', '.onrender.com']
