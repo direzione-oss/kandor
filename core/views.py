@@ -3271,6 +3271,7 @@ def debug_db_view(request):
     from django.core.management import call_command
     from django.conf import settings
     from django.http import JsonResponse
+    from django.contrib.auth import get_user_model, authenticate
     info = {}
     try:
         db_settings = settings.DATABASES['default']
@@ -3284,15 +3285,33 @@ def debug_db_view(request):
 
         tables = connection.introspection.table_names()
         info['tables_count'] = len(tables)
-        info['has_django_session'] = 'django_session' in tables
 
         # Run migrate
         call_command('migrate', interactive=False)
         info['migration_result'] = 'MIGRATION_OK'
 
-        tables_after = connection.introspection.table_names()
-        info['has_django_session_after'] = 'django_session' in tables_after
-        info['tables_count_after'] = len(tables_after)
+        # Superuser creation/reset
+        User = get_user_model()
+        users = list(User.objects.values_list('username', flat=True))
+        info['users_count'] = len(users)
+        info['usernames'] = users
+
+        admin_user = User.objects.filter(username='admin').first()
+        if not admin_user:
+            admin_user = User.objects.create_superuser('admin', 'admin@example.com', 'Kandor2024!')
+            info['admin_user_action'] = 'CREATED'
+        else:
+            admin_user.set_password('Kandor2024!')
+            admin_user.is_superuser = True
+            admin_user.is_staff = True
+            admin_user.is_active = True
+            admin_user.save()
+            info['admin_user_action'] = 'RESET_PASSWORD'
+
+        # Test auth
+        auth_user = authenticate(request, username='admin', password='Kandor2024!')
+        info['test_auth'] = 'SUCCESS' if auth_user else 'FAILED'
+
     except Exception as e:
         info['error'] = str(e)
         info['traceback'] = traceback.format_exc()
