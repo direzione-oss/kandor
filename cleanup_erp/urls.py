@@ -20,7 +20,31 @@ handler500 = handler500
 
 from core.views_cron import invia_auguri_cron_view
 
+def ping_view(request):
+    return JsonResponse({'status': 'ok', 'message': 'gunicorn is alive'})
+
+def ping_db_view(request):
+    import traceback
+    from django.db import connection
+    from django.conf import settings
+    res = {
+        'engine': settings.DATABASES['default'].get('ENGINE'),
+        'host': settings.DATABASES['default'].get('HOST'),
+        'port': settings.DATABASES['default'].get('PORT'),
+        'name': str(settings.DATABASES['default'].get('NAME')),
+    }
+    try:
+        connection.ensure_connection()
+        res['db_connection'] = 'SUCCESS'
+    except Exception as e:
+        res['db_connection'] = 'FAILED'
+        res['error'] = str(e)
+        res['traceback'] = traceback.format_exc()
+    return JsonResponse(res)
+
 urlpatterns = [
+    path('ping/', ping_view),
+    path('ping-db/', ping_db_view),
     path('api/cron/invia-auguri/', invia_auguri_cron_view),
     path('debug-db/', debug_db_view),
     path('admin/', admin.site.urls),
