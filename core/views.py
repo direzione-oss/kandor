@@ -650,27 +650,44 @@ def delete_turno_ajax(request, assign_id):
 
 @csrf_exempt
 def validate_ore_ajax(request, assign_id):
-    """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra."""
+    """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra (escludendo gli assenti)."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     try:
-        from .models import TimeTracking, AssegnazioneTurno, Dipendente
+        from .models import TimeTracking, AssegnazioneTurno, Dipendente, Assenza
         from decimal import Decimal
 
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
+        data_turno = assign.turno.data
         esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
-        # Raccogli componenti attivi (non esclusi dal turno)
+        # Trova dipendenti della squadra in ASSENZA per questa data
+        assenti_ids = set(Assenza.objects.filter(
+            data_inizio__lte=data_turno,
+            data_fine__gte=data_turno
+        ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
+
+        # Raccogli componenti attivi (non esclusi dal turno E NON IN ASSENZA)
         active_dips = []
-        if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids:
+        if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids and squadra.caposquadra.pk not in assenti_ids:
             active_dips.append(squadra.caposquadra)
         for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-            if c.pk not in esclusi_ids and c not in active_dips:
+            if c.pk not in esclusi_ids and c.pk not in assenti_ids and c not in active_dips:
                 active_dips.append(c)
 
+        # Rimuovi eventuali TimeTracking registrati per i dipendenti in ASSENZA per questo turno
+        if assenti_ids:
+            TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=assenti_ids).delete()
+
         if not active_dips:
-            return JsonResponse({'status': 'error', 'error': 'Nessun dipendente attivo nella squadra per questo turno'})
+            # Se tutti sono in assenza o esclusi
+            return JsonResponse({
+                'status': 'ok',
+                'message': f"Tutti i componenti della squadra {squadra.nome} sono in assenza o esclusi per la data {data_turno.strftime('%d/%m')}.",
+                'validated': False,
+                'count': 0,
+            })
 
         data = json.loads(request.body) if request.body else {}
         action = data.get('action', 'validate')
@@ -683,7 +700,7 @@ def validate_ore_ajax(request, assign_id):
             ore_val = Decimal(str(float(str(ore_param).replace(',', '.'))))
         else:
             # Cerca ore esistenti registrate dal primo dipendente che ha scritto
-            first_tt = TimeTracking.objects.filter(assegnazione=assign).order_by('id').first()
+            first_tt = TimeTracking.objects.filter(assegnazione=assign, dipendente__in=active_dips).order_by('id').first()
             if first_tt and (first_tt.ore_dichiarate is not None or first_tt.durata_ore):
                 ore_val = Decimal(str(first_tt.ore_dichiarate or first_tt.durata_ore))
             elif assign.ore_previste_contratto:
@@ -696,7 +713,7 @@ def validate_ore_ajax(request, assign_id):
                     minuti += 24 * 60
                 ore_val = Decimal(str(round(minuti / 60.0, 2)))
 
-        # Applica a TUTTI i componenti attivi della squadra
+        # Applica a TUTTI i componenti attivi (non assenti) della squadra
         updated_count = 0
         for dip in active_dips:
             tt, created = TimeTracking.objects.get_or_create(
@@ -752,25 +769,36 @@ def get_squadre_clienti_json(request):
 
 
 def get_assegnazione_componenti_json(request, assign_id):
-    """Per una specifica assegnazione: restituisce i componenti della squadra, le ore dichiarate e gli ID degli esclusi."""
+    """Per una specifica assegnazione: restituisce i componenti della squadra, le ore dichiarate, assenze e ID degli esclusi."""
     try:
-        from .models import AssegnazioneTurno, TimeTracking
+        from .models import AssegnazioneTurno, TimeTracking, Assenza
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
+        data_turno = assign.turno.data
         esclusi_ids = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
         tt_map = {tt.dipendente_id: tt for tt in TimeTracking.objects.filter(assegnazione=assign)}
+        
+        assenze_qs = Assenza.objects.filter(
+            data_inizio__lte=data_turno,
+            data_fine__gte=data_turno
+        ).exclude(stato_approvazione='RIFIUTATA')
+        assenze_map = {ass.dipendente_id: ass for ass in assenze_qs}
 
         def _build_comp_dict(dip, ruolo):
             tt = tt_map.get(dip.pk)
+            ass = assenze_map.get(dip.pk)
             ore_d = float(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else (float(tt.durata_ore) if (tt and tt.durata_ore) else None)
             return {
                 'id': dip.pk,
                 'nome': f"{dip.cognome} {dip.nome}",
                 'ruolo': ruolo,
                 'escluso': dip.pk in esclusi_ids,
-                'ore_dichiarate': ore_d,
-                'is_validated': tt.is_validated if tt else False,
+                'in_assenza': ass is not None,
+                'tipo_assenza': ass.tipo if ass else None,
+                'assenza_display': f"🏥 {ass.get_tipo_display()}" if ass else None,
+                'ore_dichiarate': ore_d if not ass else None,
+                'is_validated': (tt.is_validated if tt else False) if not ass else False,
                 'source': tt.source if tt else None,
                 'note': tt.note if tt else '',
             }

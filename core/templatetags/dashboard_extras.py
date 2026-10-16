@@ -237,6 +237,30 @@ def weekly_schedule_widget(context):
     for tt_obj in all_tt:
         tt_map[tt_obj.assegnazione_id].append(tt_obj)
 
+    # Pre-carica ASSENZE per la settimana
+    from core.models import Assenza, RichiestaSostituzione
+    assenze_qs = Assenza.objects.filter(
+        data_inizio__lte=dates[-1],
+        data_fine__gte=dates[0]
+    ).exclude(stato_approvazione='RIFIUTATA').select_related('dipendente')
+
+    assenze_by_dip_date = defaultdict(list)
+    for ass in assenze_qs:
+        curr_d = ass.data_inizio
+        while curr_d <= ass.data_fine:
+            if dates[0] <= curr_d <= dates[-1]:
+                assenze_by_dip_date[(ass.dipendente_id, curr_d)].append(ass)
+            curr_d += timedelta(days=1)
+
+    sostituzioni_qs = RichiestaSostituzione.objects.filter(
+        assegnazione_originale__turno_id__in=shift_ids,
+        stato__in=['ACCETTATA', 'COMPLETATA', 'APPROVATA_RA']
+    ).select_related('sostituto', 'assegnazione_originale')
+    sostituzioni_by_turno = defaultdict(list)
+    for sost in sostituzioni_qs:
+        if sost.assegnazione_originale and sost.assegnazione_originale.turno_id:
+            sostituzioni_by_turno[sost.assegnazione_originale.turno_id].append(sost)
+
     # Raggruppa turni per data
     turni_per_data = defaultdict(list)
     for shift in shifts_qs_all:
@@ -264,9 +288,18 @@ def weekly_schedule_widget(context):
             STATO_COLORS = {
                 'green': '#27ae60', 'yellow': '#f39c12',
                 'red': '#e74c3c',   'white':  '#bdc3c7',
+                'purple': '#8e44ad',
             }
             HOUR_PX = 80
             grid_start_min = 4 * 60
+
+            # Componenti squadra
+            squadra_members = []
+            if shift.squadra.caposquadra:
+                squadra_members.append(shift.squadra.caposquadra)
+            for c in shift.squadra.componenti.exclude(pk=shift.squadra.caposquadra.pk if shift.squadra.caposquadra else None):
+                if c not in squadra_members:
+                    squadra_members.append(c)
 
             # Filtra solo assegnazioni con orari previsti non nulli
             valid_assigns = [
@@ -279,6 +312,24 @@ def weekly_schedule_widget(context):
 
                 tt_list = tt_map.get(assign.id, [])
                 tt = tt_list[0] if tt_list else None
+
+                esclusi_pks = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
+                active_squadra = [m for m in squadra_members if m.pk not in esclusi_pks]
+
+                # Rileva assenze per i componenti di questo turno in data d
+                comp_assenti = []
+                for m in active_squadra:
+                    ass_list = assenze_by_dip_date.get((m.pk, d), [])
+                    if ass_list:
+                        a_obj = ass_list[0]
+                        comp_assenti.append({
+                            'dipendente_id': m.pk,
+                            'nome': f"{m.cognome} {m.nome}",
+                            'tipo': a_obj.tipo,
+                            'tipo_display': a_obj.get_tipo_display()
+                        })
+
+                has_sostituti = bool(sostituzioni_by_turno.get(shift.id))
 
                 def _fmt_ore(ore_float):
                     """Converte 7.5 → '7h30'' | 7.0 → '7h' | 0.5 → '30'"""
@@ -300,7 +351,17 @@ def weekly_schedule_widget(context):
                 is_all_val = all(t.is_validated for t in tt_list) if tt_list else (tt.is_validated if tt else False)
                 has_hours = bool(tt_list and any(t.ore_dichiarate or t.check_out for t in tt_list)) or bool(durata_tot > 0)
 
-                if tt_list and is_all_val and durata_tot > 0:
+                # Se TUTTI i componenti attivi sono in assenza e non c'è sostituto con ore lavorate
+                if comp_assenti and len(comp_assenti) >= len(active_squadra) and not (has_hours or has_sostituti):
+                    ore_stato = 'purple'
+                    t_ass = comp_assenti[0]['tipo']
+                    if t_ass == 'MALATTIA':
+                        ore_label = '🏥 Malattia'
+                    elif t_ass == 'FERIE':
+                        ore_label = '🏖️ Ferie'
+                    else:
+                        ore_label = f"📝 {comp_assenti[0]['tipo_display']}"
+                elif tt_list and is_all_val and durata_tot > 0:
                     ore_stato = 'green'
                     ore_label = _fmt_ore(durata_tot) + ' ✓'
                 elif tt_list and has_hours:
@@ -358,6 +419,8 @@ def weekly_schedule_widget(context):
                     'ore_label':    ore_label,
                     'ore_badge_html': ore_badge_html,
                     'is_ricorrente': assign.programmazione_feriale_id is not None,
+                    'has_assenza':  bool(comp_assenti),
+                    'assenti_names': ", ".join([a['nome'] for a in comp_assenti]),
                 })
 
             capo = shift.squadra.caposquadra

@@ -1,835 +1,564 @@
-# 📘 KANDOR — Manuale d'Uso Completo
+# 📘 KANDOR — Manuale d'Uso Completo e Guida Operativa
 
-> **Versione**: 2.2  
+> **Versione**: 2.5  
 > **Ultimo aggiornamento**: Ottobre 2026  
-> **URL**: [kandor.onrender.com](https://kandor.onrender.com)
+> **Applicazione Web**: [kandor.onrender.com](https://kandor.onrender.com)  
+> **Sistema ERP per Imprese di Pulizie e Facility Management**
 
 ---
 
-## Sommario
+## 📋 Sommario Generale
 
-1. [Introduzione](#1-introduzione)
-2. [Accesso al Sistema](#2-accesso-al-sistema)
-3. [Dashboard Principale](#3-dashboard-principale)
-4. [Gestione Dipendenti](#4-gestione-dipendenti)
-5. [Gestione Clienti](#5-gestione-clienti)
-6. [Gestione Qualifiche](#6-gestione-qualifiche)
-7. [Gestione Mezzi Aziendali](#7-gestione-mezzi-aziendali)
-8. [Gestione Squadre](#8-gestione-squadre)
-9. [Responsabili Area](#9-responsabili-area)
-10. [Pianificazione Turni e Calendario](#10-pianificazione-turni-e-calendario)
-11. [Programmazione Ricorrente](#11-programmazione-ricorrente)
-12. [Richieste Straordinarie](#12-richieste-straordinarie)
-13. [Gestione Sostituti](#13-gestione-sostituti)
-14. [Registrazione Ore (Time Tracking)](#14-registrazione-ore-time-tracking)
-15. [Verifica Ore Mensili](#15-verifica-ore-mensili)
-16. [Gestione Assenze](#16-gestione-assenze)
-17. [Segnalazioni](#17-segnalazioni)
-18. [Riconciliazione Ore](#18-riconciliazione-ore)
-19. [Analisi Economica Contratti](#19-analisi-economica-contratti)
-20. [Integrazione Telegram](#20-integrazione-telegram)
-21. [Messaggi Programmati](#21-messaggi-programmati)
-22. [Centro Messaggi Telegram](#22-centro-messaggi-telegram)
-23. [Gestione Dati (Import/Export)](#23-gestione-dati-importexport)
-24. [Backup e Ripristino](#24-backup-e-ripristino)
-25. [Widget Dashboard](#25-widget-dashboard)
-26. [FAQ e Risoluzione Problemi](#26-faq-e-risoluzione-problemi)
-27. [Report Paghe e Stampa Buste Paga](#27-report-paghe-e-stampa-buste-paga)
-
----
-
-## 1. Introduzione
-
-**KANDOR** è un sistema ERP (Enterprise Resource Planning) progettato per la gestione operativa di imprese di servizi, in particolare aziende di pulizie e facility management. Il sistema permette di:
-
-- **Gestire dipendenti** con dati anagrafici, qualifiche, stato e ruolo sostituto
-- **Gestire clienti** con indirizzi, programmazione lavori e importi contrattuali
-- **Pianificare turni** automaticamente con calendario settimanale interattivo
-- **Tracciare le ore lavorate** in tempo reale, anche via Telegram
-- **Gestire assenze** (malattia, ferie, permessi)
-- **Gestire sostituti** con flusso di approvazione Responsabile Area e notifiche Telegram
-- **Verificare ore mensili** con report dettagliati e PDF per l'amministrazione
-- **Analizzare i contratti** per individuare quelli sotto soglia economica
-- **Riconciliare le ore** previste vs lavorate per ogni cliente
-- **Comunicare con i dipendenti** tramite Telegram (bottoni inline, assenze, ore)
-
-### Requisiti di Sistema
-
-- Un browser web moderno (Chrome, Firefox, Edge, Safari)
-- Connessione Internet
-- Per l'integrazione Telegram: l'app Telegram sul telefono del dipendente
+1. [Introduzione e Architettura di Sistema](#1-introduzione-e-architettura-di-sistema)
+2. [Accesso al Sistema e Sicurezza](#2-accesso-al-sistema-e-sicurezza)
+3. [Dashboard Principale e Navigazione](#3-dashboard-principale-e-navigazione)
+4. [Gestione Anagrafica Dipendenti](#4-gestione-anagrafica-dipendenti)
+5. [Gestione Anagrafica Clienti e Sedi](#5-gestione-anagrafica-clienti-e-sedi)
+6. [Gestione Qualifiche e Competenze](#6-gestione-qualifiche-e-competenze)
+7. [Gestione Parco Mezzi Aziendali](#7-gestione-parco-mezzi-aziendali)
+8. [Gestione Squadre Operative](#8-gestione-squadre-operative)
+9. [Gestione Responsabili Area (RA)](#9-gestione-responsabili-area-ra)
+10. [Pianificazione Turni, Calendario e Composizione Retroattiva](#10-pianificazione-turni-calendario-e-composizione-retroattiva)
+11. [Programmazione Ricorrente Contratti](#11-programmazione-ricorrente-contratti)
+12. [Richieste e Interventi Straordinari](#12-richieste-e-interventi-straordinari)
+13. [Gestione Sostituti e Ricerca "Trova Jolly"](#13-gestione-sostituti-e-ricerca-trova-jolly)
+14. [Registrazione Ore (Time Tracking) e Validazione 1-Click](#14-registrazione-ore-time-tracking-e-validazione-1-click)
+15. [Verifica Ore Mensili e Riconciliazione Storica](#15-verifica-ore-mensili-e-riconciliazione-storica)
+16. [Report Paghe, Buste Paga e Rettifiche Amministrative](#16-report-paghe-buste-paga-e-rettifiche-amministrative)
+17. [Gestione Assenze, Avvallo e Sostituzioni Automatiche](#17-gestione-assenze-avvallo-e-sostituzioni-automatiche)
+18. [Segnalazioni dagli Operatori](#18-segnalazioni-dagli-operatori)
+19. [Riconciliazione Ore e Monitoraggio Cantieri](#19-riconciliazione-ore-e-monitoraggio-cantieri)
+20. [Analisi Economica Contratti e Marginalità](#20-analisi-economica-contratti-e-marginalita)
+21. [Integrazione Bot Telegram per Lavoratori](#21-integrazione-bot-telegram-per-lavoratori)
+22. [Messaggi Programmati e Comunicazioni di Massa](#22-messaggi-programmati-e-comunicazioni-di-massa)
+23. [Centro Messaggi e Chat Bidirezionale Telegram](#23-centro-messaggi-e-chat-bidirezionale-telegram)
+24. [Gestione Dati, Import/Export Excel e Backup](#24-gestione-dati-importexport-excel-e-backup)
+25. [Widget Dashboard e Monitoraggio Scadenze](#25-widget-dashboard-e-monitoraggio-scadenze)
+26. [FAQ, Risoluzione Problemi e Domande Frequenti](#26-faq-risoluzione-problemi-e-domande-frequenti)
 
 ---
 
-## 2. Accesso al Sistema
+## 1. Introduzione e Architettura di Sistema
 
-### URL di Accesso (Cloud)
+### Scopo del Sistema
+**KANDOR** è una piattaforma ERP (Enterprise Resource Planning) verticale appositamente progettata per coprire l'intero ciclo operativo di un'impresa di pulizie e servizi integrati (facility management). Il software unisce in un unico ambiente le esigenze contabili dell'amministrazione e le necessità quotidiane dei responsabili di cantiere e dei lavoratori sul campo.
 
-Apri il browser e vai a: **[kandor.onrender.com](https://kandor.onrender.com)**
+Con Kandor l'azienda ottiene:
+- **Pianificazione automatizzata dei turni**: Trasformazione dei contratti cliente in calendarizzazioni settimanali o mensili senza inserimenti manuali ripetitivi.
+- **Supporto ai contratti storici e in essere**: Generazione retroattiva dei turni passati con marcatura automatica delle ore in attesa di conferma.
+- **Tracciamento presenze in tempo reale via Telegram**: Gli operatori registrano le ore o segnalano assenze tramite bot con bottoni interattivi direttamente dallo smartphone.
+- **Ricerca Intelligente del Sostituto (Algoritmo "Jolly")**: Calcolo istantaneo delle distanze chilometriche GPS casa-cantiere per individuare i lavoratori idonei e disponibili in caso di emergenza.
+- **Gestione Avvallo Assenze**: Workflow autorizzativo da parte dell'amministrazione con generazione automatica delle richieste di copertura verso i Responsabili Area.
+- **Elaborazione Prospetto Paghe e Rettifiche Admin**: Report per lo studio di consulenza del lavoro con possibilità per l'amministrazione di rettificare giorni, ore e assenze prima della stampa o dell'esportazione.
 
-Il sistema reindirizzerà automaticamente al pannello di amministrazione.
-
-### Avvio Locale (Installazione Desktop)
-
-Per la massima velocità operativa e per lavorare in locale:
-1. Fai doppio click sul file **`kandor_avvia.pyw`** (oppure esegui `kandor_avvia.bat`).
-2. Grazie all'avvio rapido con polling a 0.2s e alle ottimizzazioni del database (SQLite WAL Mode), il server si avvia in **circa 1 secondo** e apre automaticamente il browser su **`http://127.0.0.1:8000/`**.
-
-### Login
-
-1. Inserisci **Nome utente** e **Password**
-2. Clicca **"Accedi"**
-
-> ⚠️ **Nota Cloud**: L'istanza gratuita di Render si "addormenta" dopo 15 minuti di inattività. Il primo accesso sulla versione Cloud potrebbe richiedere fino a 50 secondi. L'avvio in locale è invece sempre istantaneo.
-
-### Cambio Password
-
-1. Dopo il login, clicca sul tuo nome utente in alto a destra
-2. Seleziona **"Cambia password"**
-3. Inserisci la vecchia password e la nuova (2 volte)
-4. Clicca **"Cambia la mia password"**
+### Requisiti Tecnici
+- **Browser consigliati**: Google Chrome, Mozilla Firefox, Microsoft Edge o Apple Safari (versione aggiornata).
+- **Connessione**: Connessione Internet attiva per l'utilizzo Cloud su Render, oppure rete locale in caso di installazione desktop locale.
+- **Dispositivi Mobili**: L'app Telegram (gratuita per Android e iOS) installata sugli smartphone dei lavoratori per la messaggistica bidirezionale.
 
 ---
 
-## 3. Dashboard Principale
+## 2. Accesso al Sistema e Sicurezza
 
-La homepage del pannello mostra la scritta **"Benvenuto in Kandor"** e si divide in sezioni:
+### Accesso alla Piattaforma Cloud
+L'indirizzo di riferimento per accedere al gestionale da qualsiasi postazione web è:
+👉 **[https://kandor.onrender.com](https://kandor.onrender.com)**
 
-### Barra Laterale — Operazioni Frequenti
+Qualora l'utente non sia ancora autenticato, il sistema reindirizzerà automaticamente alla pagina di Login protetta.
 
-| Link | Funzione |
-|------|----------|
-| **Trova Jolly** | Cerca sostituti disponibili |
-| **Riconciliazione** | Confronta ore previste vs lavorate |
-| **Analisi Contratti** | Analisi economica contratti sotto soglia |
-| **Gestione Dati** | Import/Export dati Excel |
-| **Guide** | Manuali (Admin + Dipendente) |
-| **Centro Messaggi** | Chat diretta con i dipendenti via Telegram |
-| **Genera Turni** | Genera turni automatici per 7 giorni |
-| **Vedi Report** | Report verifica ore mensili con PDF |
-| **Manuale** | Apri questo manuale |
+> ℹ️ **Nota sull'inattività dell'ambiente Cloud**:  
+> Il server Cloud (piano gratuito Render) entra in modalità di sospensione automatica dopo 15 minuti di inattività. Quando si effettua il primo accesso della giornata, il caricamento iniziale potrebbe richiedere circa 45–60 secondi per il "risveglio" dell'applicazione. Una volta avviato, il sistema risponderà ad alta velocità.
 
-### Sezione Risorse
+### Avvio Rapido su Installazione Locale (Desktop)
+In presenza di installazione locale sulla macchina aziendale:
+1. Apri la cartella del progetto e fai doppio click sul file **`kandor_avvia.pyw`** (o in alternativa esegui il file **`start_app.bat`**).
+2. Il server locale si avvia istantaneamente (utilizzando la modalità SQLite WAL ad alte prestazioni) e apre in automatico il browser all'indirizzo **`http://127.0.0.1:8000/`**.
 
-Accesso a: Clienti, Dipendenti, Mezzi, Qualifiche, Squadre, Responsabili Area, Messaggi Programmati
+### Procedura di Login
+1. Digita il tuo **Nome utente** e la **Password** nei rispettivi campi.
+2. Clicca sul pulsante azzurro **"Accedi"**.
+3. Se le credenziali sono corrette, verrai reindirizzato al pannello principale della Dashboard.
 
-### Sezione Operativa
-
-Accesso a: Assegnazioni Turno, Assenze, Registrazioni Ore, Turni, Richieste Sostituzione
-
-### Widget (Pannello Destro)
-
-Vedi la sezione [Widget Dashboard](#25-widget-dashboard) per i dettagli.
+### Modifica della Password Utente
+Per garantire la sicurezza dell'account, si consiglia di modificare la password al primo accesso:
+1. In alto a destra nella barra di navigazione, clicca sul tuo Nome Utente.
+2. Nel menu a comparsa, seleziona **"Cambia password"**.
+3. Inserisci la password attuale e successivamente la nuova password due volte per conferma.
+4. Clicca su **"Cambia la mia password"**.
 
 ---
 
-## 4. Gestione Dipendenti
+## 3. Dashboard Principale e Navigazione
 
-### Accesso
-**Dashboard** → **Dipendenti** → **Aggiungi Dipendente** o clicca su un dipendente esistente
+La Dashboard di Kandor costituisce il centro di controllo di tutte le attività operative.
 
-### Campi Disponibili
-
-#### Dati Anagrafici
-| Campo | Descrizione | Obbligatorio |
-|-------|-------------|:---:|
-| **Nome** | Nome del dipendente | ✅ |
-| **Cognome** | Cognome del dipendente | ✅ |
-| **Codice Fiscale** | CF univoco, 16 caratteri | ✅ |
-| **Data di Nascita** | Calcolata automaticamente dal CF se non inserita | ❌ |
-| **Indirizzo Residenza** | Indirizzo completo (geocodificato automaticamente) | ✅ |
-| **Email** | Indirizzo email | ❌ |
-| **Telefono** | Numero di telefono | ❌ |
-
-#### Dati Contrattuali e Ruoli
-| Campo | Descrizione |
-|-------|-------------|
-| **Categoria Protetta** | Checkbox, indica se è categoria protetta |
-| **File Contratto** | Upload del file contratto (PDF, ecc.) |
-| **Qualifiche Possedute** | Selezione multipla delle qualifiche |
-| **Disponibile come Sostituto** | ✅ Se attivo, il dipendente può essere chiamato come sostituto |
-
-#### Integrazione Telegram
-| Campo | Descrizione |
-|-------|-------------|
-| **Telegram Chat ID** | ID univoco della chat Telegram del dipendente |
-
-#### Stato
-| Stato | Significato |
-|-------|-------------|
-| **Attivo** | In servizio regolare |
-| **In Malattia** | Assente per malattia |
-| **In Ferie** | Assente per ferie |
-| **In Permesso** | Assente per permesso |
-| **Legge 104** | Assente per legge 104 |
-| **Licenziato/Inattivo** | Non più in servizio |
-
-### Funzionalità Speciali
-
-- **Geocodifica automatica**: Quando inserisci l'indirizzo, il sistema calcola automaticamente le coordinate GPS. Queste vengono usate per il calcolo della distanza nella ricerca sostituti.
-- **Data di nascita dal CF**: Se non inserisci la data di nascita, il sistema la estrarrà automaticamente dal codice fiscale.
-- **Flag Sostituto**: I dipendenti con "Disponibile come Sostituto" attivo appariranno nella ricerca sostituti quando serve una copertura.
-
-### Ricerca e Filtri
-
-- **Barra di ricerca**: Cerca per cognome, nome, codice fiscale o Telegram Chat ID
-- **Filtri laterali**: Filtra per stato, per flag sostituto (Sì/No) e per qualifiche
-
-### Azione: Invia Messaggio Telegram
-
-1. Seleziona uno o più dipendenti tramite le checkbox
-2. Dal menu **"Azione"** in basso, scegli **"💬 Invia Messaggio Telegram"**
-3. Clicca **"Esegui"**
-4. Scrivi il messaggio nella pagina intermedia
-5. Clicca **"Invia"**
+### Layout della Schermata
+- **Barra Superiore di Navigazione**: Mostra il logo Kandor, il nome dell'utente connesso, il link rapido al sito e il pulsante per il Logout.
+- **Barra Laterale Sinistra (Operazioni Frequenti)**: Contiene i link rapidi alle funzionalità usate più spesso:
+  - 🔄 **Trova Jolly**: Ricerca rapida sostituti per cantiere
+  - 📊 **Riconciliazione**: Confronto ore contrattuali vs consuntivate
+  - 📈 **Analisi Contratti**: Verifica redditività e contratti sotto soglia
+  - 📥 **Gestione Dati**: Importazione ed esportazione file Excel/CSV
+  - 📖 **Guide e Manuali**: Accesso alla documentazione completa
+  - 💬 **Centro Messaggi**: Chat diretta bidirezionale via Telegram
+  - ⚡ **Genera Turni**: Generazione automatica dei turni ordinari
+  - 📄 **Vedi Report / Verifica Ore**: Report mensile ore e assenze con PDF
+  - 💼 **Report Paghe**: Elaborazione prospetto paghe per il consulente del lavoro
+- **Corpo Centrale**: Presenta la suddivisione modulare per **Risorse Anagrafiche** (Dipendenti, Clienti, Qualifiche, Mezzi, Squadre, Responsabili Area) e **Sezione Operativa** (Turni, Assenze, Time Tracking, Richieste Sostituzione).
+- **Pannello Destro (Widget Dinamici)**: Contiene i box informativi ad aggiornamento automatico (Scadenze Veicoli, Compleanni in arrivo, Feed Telegram e Scadenze Contratti).
 
 ---
 
-## 5. Gestione Clienti
+## 4. Gestione Anagrafica Dipendenti
 
-### Accesso
-**Dashboard** → **Clienti**
+### Scopo Operativo
+Il modulo Dipendenti censisce tutti i lavoratori aziendali, raccogliendo le informazioni anagrafiche, le qualifiche professionali, i recapiti di contatto e la disponibilità ad effettuare sostituzioni d'emergenza.
 
-### Campi Disponibili
+### Percorso di Navigazione
+👉 **Dashboard** → **Dipendenti** (oppure `/admin/core/dipendente/`)
 
-| Campo | Descrizione | Obbligatorio |
-|-------|-------------|:---:|
-| **Ragione Sociale** | Nome dell'azienda cliente | ✅ |
-| **Partita IVA** | P.IVA univoca (max 20 caratteri) | ❌ |
-| **Codice Fiscale** | CF del cliente | ❌ |
-| **Indirizzo Sede** | Indirizzo completo (geocodificato autom.) | ✅ |
-| **Nome Titolare/Referente** | Nome della persona di riferimento | ❌ |
-| **Ruolo** | Ruolo del referente | ❌ |
-| **Data Nascita Referente** | Per auguri compleanno (widget dashboard) | ❌ |
-| **Ore Mensili Contratto** | Ore che il contratto prevede al mese | ❌ |
-| **Importo Mensile Contratto (€)** | Importo mensile concordato | ❌ |
-| **Note Mansioni** | Descrizione delle mansioni richieste | ❌ |
-
-### Sezioni Inline (nella scheda cliente)
-
-#### Programmazione Ricorrente
-Permette di definire gli appuntamenti fissi (settimanali, bisettimanali o mensili) per quel cliente.
-
-#### Richieste Straordinarie
-Permette di inserire lavori extra non ricorrenti.
-
-### Azione: Duplica per Nuova Sede
-
-Seleziona un cliente e usa l'azione **"📋 Duplica per nuova sede"** per creare una copia con tutti i dati, utile per clienti con più sedi.
+### Guida Passo-Passo per l'Inserimento di un Nuovo Dipendente
+1. Clicca su **Dipendenti** e poi sul pulsante in alto a destra **"+ Aggiungi Dipendente"**.
+2. **Dati Anagrafici**:
+   - Inserisci **Nome** e **Cognome**.
+   - Inserisci il **Codice Fiscale** (16 caratteri alfanumerici).  
+     *Automazione*: Se lasci il campo "Data di Nascita" vuoto, il sistema estrapolerà automaticamente la data di nascita corretta decodificando il Codice Fiscale.
+   - Digita l'**Indirizzo di Residenza** completo (Via/Piazza, Numero Civico, CAP, Comune, Provincia).  
+     *Automazione GPS*: Al salvataggio della scheda, Kandor invierà l'indirizzo al servizio di geocodifica integrato per calcolare la latitudine e la longitudine GPS. Tali coordinate sono indispensabili per calcolare i km di distanza quando si cercano sostituti per i cantieri.
+3. **Contatti e Telegram**:
+   - Inserisci il **Telefono** e l'**Email** del lavoratore.
+   - **Telegram Chat ID**: Inserisci l'identificativo univoco dell'account Telegram del dipendente per abilitare l'invio e la ricezione di messaggi dal Bot aziendale.
+4. **Competenze e Sostituzioni**:
+   - Seleziona le **Qualifiche Possedute** nella lista a scelta multipla (es. Pulizie Industriali, Uso Monospazzola, Trattamento Cotto).
+   - Se il lavoratore è disponibile a coprire i turni dei colleghi assenti, spunta la casella **"Disponibile come Sostituto"**.
+5. **Stato Operativo**:
+   - Imposta lo stato su **Attivo** per i lavoratori in servizio regolare. Gli altri stati (In Malattia, In Ferie, In Permesso, Legge 104, Licenziato/Inattivo) vengono aggiornati automaticamente dal sistema o dall'amministrazione.
+6. Clicca **"Salva"** in basso a destra.
 
 ---
 
-## 6. Gestione Qualifiche
+## 5. Gestione Anagrafica Clienti e Sedi
 
-### Accesso
-**Dashboard** → **Qualifiche**
+### Scopo Operativo
+Anagrafica di tutti i clienti o cantieri aziendali presso i quali si svolgono i servizi di pulizia o manutenzione.
 
-Le qualifiche definiscono le competenze dei dipendenti (es. "Pulizie industriali", "Giardinaggio", "Sanificazione").
+### Percorso di Navigazione
+👉 **Dashboard** → **Clienti** (oppure `/admin/core/cliente/`)
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Nome** | Nome della qualifica |
-| **Descrizione** | Descrizione dettagliata (opzionale) |
+### Descrizione dei Campi
+- **Ragione Sociale**: Denominazione ufficiale dell'azienda cliente o del condominio/ente.
+- **Partita IVA / Codice Fiscale**: Dati fiscali del cliente.
+- **Indirizzo Sede / Cantiere**: Ubicazione esatta del cantiere. Come per i dipendenti, l'indirizzo viene geocodificato in coordinate GPS per calcolare le distanze dai lavoratori.
+- **Nome Referente / Ruolo / Telefono**: Dati della persona di contatto in loco (es. Direttore di Cantiere, Amministratore di Condominio).
+- **Data Nascita Referente**: Utilizzata dal widget della dashboard per segnalare i compleanni imminenti a scopo relazionale.
+- **Ore Mensili Contratto**: Monte ore mensile pattuito nel contratto commerciale (utilizzato nel modulo di Riconciliazione Ore).
+- **Importo Mensile Contratto (€)**: Corrispettivo economico mensile fatturato al cliente (utilizzato nel modulo di Analisi Economica Contratti).
+- **Note / Istruzioni Cantiere**: Indicazioni operative specifiche (es. "Codice allarme 4321", "Chiavi presso la portineria").
 
-Le qualifiche vengono usate nel sistema sostituti per filtrare candidati con competenze compatibili.
-
----
-
-## 7. Gestione Mezzi Aziendali
-
-### Accesso
-**Dashboard** → **Mezzi Aziendali**
-
-| Campo | Descrizione |
-|-------|-------------|
-| **Modello Mezzo** | Modello del veicolo (es. "Fiat Ducato") |
-| **Targa** | Targa univoca del veicolo |
-| **Stato Attuale** | Disponibile / In Manutenzione / In Riparazione |
-| **Km Percorsi** | Chilometraggio attuale |
-| **Scadenza Polizza** | Data scadenza assicurazione |
-| **Scadenza Bollo** | Data scadenza bollo |
-
-### Alert Scadenze
-
-Il widget nella dashboard mostra i mezzi con scadenze nei prossimi 45 giorni o già scadute, ordinati per scadenza più vicina. Il widget si apre automaticamente se ci sono scadenze entro 7 giorni.
+### Sezioni Inline all'interno della Scheda Cliente
+All'interno della scheda del cliente è possibile gestire direttamente:
+- **Programmazione Ricorrente**: Definizione dei giorni e degli orari fissi di pulizia.
+- **Richieste Straordinarie**: Interventi una tantum o lavori speciali richiesti dal cliente.
 
 ---
 
-## 8. Gestione Squadre
+## 6. Gestione Qualifiche e Competenze
 
-### Accesso
-**Dashboard** → **Squadre**
+### Scopo Operativo
+Le qualifiche rappresentano i requisiti tecnici e le idoneità professionali necessarie per eseguire determinati lavori nei cantieri.
 
-Le squadre raggruppano dipendenti sotto un caposquadra e vengono assegnate ai turni.
+### Percorso di Navigazione
+👉 **Dashboard** → **Qualifiche** (oppure `/admin/core/qualifica/`)
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Nome** | Nome della squadra (es. "Squadra Alpha") |
-| **Caposquadra** | Dipendente responsabile |
-| **Componenti** | Lista dei dipendenti che fanno parte della squadra |
-
-Nella lista squadre è visibile anche il **Responsabile Area** associato.
-
-### Azione: Invia Messaggio alla Squadra
-
-1. Seleziona una o più squadre
-2. Scegli **"💬 Invia Messaggio alla Squadra"**
-3. Scrivi il messaggio
-4. Il messaggio verrà inviato a tutti i membri che hanno Telegram configurato
+### Utilizzo nel Sistema
+- **Assegnazione al Dipendente**: Ogni lavoratore può possedere una o più qualifiche.
+- **Requisito nella Programmazione**: Quando si definisce un lavoro per un cliente, è possibile specificare la qualifica obbligatoria.
+- **Filtro nel "Trova Jolly"**: Quando si cerca un sostituto per un cantiere con qualifica speciale (es. "Lavori in Quota"), l'algoritmo esclude automaticamente i dipendenti che non possiedono quella specifica qualifica.
 
 ---
 
-## 9. Responsabili Area
+## 7. Gestione Parco Mezzi Aziendali
 
-### Accesso
-**Dashboard** → **Responsabili Area**
+### Scopo Operativo
+Monitoraggio e assegnazione dei veicoli commerciali e delle autovetture aziendali utilizzate dalle squadre per raggiungere i cantieri.
 
-Il Responsabile Area è un ruolo **al di sopra delle squadre**. Supervisiona una o più squadre e approva le richieste di sostituzione.
+### Percorso di Navigazione
+👉 **Dashboard** → **Mezzi Aziendali** (oppure `/admin/core/mezzo/`)
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Dipendente** | Il dipendente che ricopre il ruolo di RA |
-| **Nome Area** | Nome dell'area gestita (es. "Area Nord", "Area Centro") |
-| **Squadre Supervisionate** | Selezione multipla delle squadre sotto la sua responsabilità |
+### Descrizione dei Campi
+- **Modello Mezzo**: Descrizione del veicolo (es. *Fiat Doblo 1.3 Multijet*).
+- **Targa**: Targa del veicolo (univoca nel sistema).
+- **Stato Attuale**: Selezionabile tra *Disponibile*, *In Manutenzione*, *In Riparazione*, *Dismesso*.
+- **Km Percorsi**: Chilometraggio aggiornato del veicolo.
+- **Scadenza Polizza Assicurativa**: Data di scadenza dell'assicurazione.
+- **Scadenza Bollo**: Data di scadenza della tassa di circolazione.
 
-### Ruolo nel Sistema Sostituti
-
-Quando viene creata una richiesta di sostituzione per una squadra, il sistema:
-1. Cerca il Responsabile Area associato a quella squadra
-2. Gli invia una notifica Telegram con i dettagli
-3. Il RA approva o rifiuta la sostituzione
-4. Solo dopo l'approvazione il sostituto viene contattato
+### Alert Scadenze Automatico
+Il sistema controlla costantemente le date di scadenza di polizze e bolli. I veicoli con scadenze nei successivi 45 giorni o già scaduti vengono evidenziati nel widget **Scadenze Veicoli** nella Dashboard principale.
 
 ---
 
-## 10. Pianificazione Turni e Calendario
+## 8. Gestione Squadre Operative
 
-### Accesso
-**Dashboard** → **Turni** oppure usa il **Calendario Settimanale** nella dashboard
+### Scopo Operativo
+Raggruppamento organizzativo dei dipendenti che lavorano abitualmente insieme nello stesso turno o cantiere.
 
-### Calendario Interattivo
+### Percorso di Navigazione
+👉 **Dashboard** → **Squadre** (oppure `/admin/core/squadra/`)
 
-La dashboard mostra un **calendario settimanale** con vista oraria:
+### Configurazione di una Squadra
+1. **Nome Squadra**: Denominazione identificativa (es. *Squadra Alpha - Sanità*, *Squadra Notturna Uffici*).
+2. **Caposquadra**: Selezione del dipendente con funzioni di coordinatore di squadra.
+3. **Componenti**: Selezione multipla di tutti gli operatori che fanno parte della squadra.
+4. **Responsabile Area Collegato**: Il sistema associa automaticamente la squadra al Responsabile Area che la supervisiona.
 
-- **Navigazione**: Frecce ← / → per cambiare settimana, filtri per squadra
-- **Visualizzazione**: Ogni evento mostra il cliente, la squadra e un badge colorato per le ore
-- **Interazione**: Clicca su un evento per vedere i dettagli
-
-### Dettaglio Turno (click su un evento)
-
-Si apre un modal con:
-- **Cliente** (link alla scheda)
-- **Squadra** (link alla scheda)
-- **Orario** previsto
-- **Note**
-- **Ore dichiarate** con stato (verde=validato, giallo=da validare, rosso=mancanti)
-- **Inserimento ore** diretto per l'admin
-- **Bottoni**: Valida Ore, 🔄 Trova Sostituto, Elimina, Salva Modifiche
-
-### Aggiungere un Nuovo Turno
-
-Clicca il **"+"** sulla cella del calendario → compila: Tipo (Ricorrente/Straordinario), Squadra, Cliente, Orari, Note → Salva.
-
-### Generazione Automatica Turni
-
-Dalla sidebar, clicca **"Genera Turni"** per creare le assegnazioni per i prossimi 7 giorni basandosi sulle programmazioni ricorrenti.
-
-### Badge Ore nel Calendario
-
-| Colore | Significato |
-|--------|-------------|
-| 🟢 **Verde** | Ore validate dall'admin |
-| 🟡 **Giallo** | Ore dichiarate, in attesa di validazione |
-| 🔴 **Rosso** | Ore non ancora dichiarate |
-| ⚪ **Nessuno** | Turno futuro |
+### Funzionalità Speciale: Messaggio di Gruppo alla Squadra
+Dalla lista delle squadre, selezionando una squadra e scegliendo dal menu in basso **"💬 Invia Messaggio alla Squadra"**, l'amministrazione può inviare istantaneamente una comunicazione Telegram a tutti i componenti della squadra contemporaneamente.
 
 ---
 
-## 11. Programmazione Ricorrente
+## 9. Gestione Responsabili Area (RA)
 
-Accessibile dalla **scheda del Cliente** oppure dalla sezione panoramica **Programmazioni Ricorrenti** nel menu Admin.
+### Scopo Operativo
+I Responsabili Area costituiscono il livello intermedio di coordinamento tra l'amministrazione aziendale e le singole squadre operative sul territorio.
 
-### Modalità di Visualizzazione e Gestione Riorganizzata
+### Percorso di Navigazione
+👉 **Dashboard** → **Responsabili Area** (oppure `/admin/core/responsabilearea/`)
 
-Per facilitare la consultazione e l'inserimento senza sovrapposizioni visive:
-- **Gestione nel Cliente (`StackedInline`)**: Nella scheda di ciascun cliente, ogni programmazione è organizzata come un blocco ordinato suddiviso in tre gruppi:
-  1. **Frequenza e Orari**: Ripetizione (Settimanale, Bisettimanale, Mensile), Giorno della settimana/mese, Ora Inizio/Fine, Flessibilità.
-  2. **Risorse Abituali**: Squadra abituale, Mezzo e Qualifica/Mansione richiesta.
-  3. **Periodo Contratto**: Data Inizio Contratto e Data Fine Contratto.
-- **Vista Dedicata Generale (`/admin/core/programmazionericorrente/`)**: Accessibile direttamente dal menu laterale di Django Admin, consente di visualizzare, cercare e filtrare **tutte le programmazioni ricorrenti aziendali** in una singola lista con filtri rapidi per giorno, squadra e tipo di frequenza.
-
-| Campo | Descrizione |
-|-------|-------------|
-| **Tipo Ripetizione** | Settimanale / Bisettimanale / Mensile |
-| **Giorno della Settimana** | Per ripetizione settimanale (Lunedì-Domenica) |
-| **Giorno del Mese** | Per ripetizione mensile (1-31) |
-| **Ora Inizio** | Orario di inizio (formato HH:MM) |
-| **Durata** | Durata in ore (es. 2.5 = 2 ore e 30 minuti) |
-| **Ora Fine** | ⚡ Calcolata automaticamente |
-| **Orario Flessibile** | Se attivo, gli orari sono indicativi |
-| **Mansione/Qualifica** | Qualifica richiesta per questo lavoro |
-| **Squadra Abituale** | La squadra che normalmente svolge il lavoro |
-| **Mezzo Abituale** | Il veicolo normalmente utilizzato |
-| **Data Inizio Contratto** | Data dalla quale iniziano i turni |
-| **Data Fine Contratto** | Data fine (vuoto = a tempo indeterminato) |
-
-### Validazioni Automatiche
-
-- Verifica che non ci siano **sovrapposizioni orarie** per la stessa squadra o mezzo
-- Per ripetizione **Bisettimanale**, è obbligatoria la Data Inizio Contratto
+### Ruolo nel Workflow Sostituzioni
+Quando un dipendente risulta assente e si avvia la ricerca di un sostituto:
+1. Il sistema individua qual è la squadra interessata dal turno scoperto.
+2. Identifica il **Responsabile Area** associato a quella squadra.
+3. Invia una notifica Telegram al Responsabile Area richiedendo la sua **autorizzazione/approvazione**.
+4. Soltanto dopo che il RA ha confermato la richiesta, il bot invia la proposta di lavoro ai dipendenti sostituti.
 
 ---
 
-## 12. Richieste Straordinarie
+## 10. Pianificazione Turni, Calendario e Composizione Retroattiva
 
-Accessibili dalla **scheda del Cliente** (sezione inline).
+### Scopo Operativo
+Pianificazione delle attività lavorative quotidiane con visualizzazione a calendario e gestione avanzata sia per la programmazione futura sia per la regolarizzazione dei contratti storici già avviati nel passato.
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Data Inizio** | Data del lavoro straordinario |
-| **Data Fine** | Data di fine (se più giorni) |
-| **Ora Inizio/Fine** | Orari del lavoro |
-| **Descrizione Attività** | Cosa bisogna fare |
-| **Completata** | Checkbox per segnare come completata |
+### Percorso di Navigazione
+👉 **Dashboard** → **Turni** oppure **Pianificazione Settimanale** (Calendario Interattivo)
 
----
+### Caratteristiche del Calendario Interattivo
+- **Vista Oraria Settimanale**: Mostra tutti i turni disposti nei vari giorni della settimana con l'indicazione del cliente, della squadra e degli orari previsti.
+- **Filtri e Navigazione**: Pulsanti ← / → per spostarsi tra le settimane dell'anno e menu a tendina per filtrare per specifica squadra.
+- **Badge di Stato delle Ore**:
+  - 🟢 **Verde (`✅ Validate: Xh`)**: Le ore lavorate sono state verificate e approvate dall'amministrazione.
+  - 🟡 **Giallo / Ambra (`⏳ Provvisorie: Xh`)**: Ore comunicate dal lavoratore via Telegram ma non ancora convalidate.
+  - 🔴 **Rosso con punto esclamativo (`! In attesa di conferma`)**: Turno passato i cui consuntivi non sono ancora stati confermati.
 
-## 13. Gestione Sostituti
+### Generazione Automatica dei Turni
+Dalla barra laterale, cliccando su **"⚡ Genera Turni"**, il sistema prende tutte le *Programmazioni Ricorrenti* attive dei clienti e genera automaticamente le assegnazioni per i **prossimi 7 giorni**, evitando la creazione di duplicati.
 
-### Panoramica
-
-Il sistema sostituti permette di gestire la copertura di dipendenti assenti con un flusso strutturato:
-
-1. **Admin** identifica un turno scoperto nel calendario
-2. Clicca **"🔄 Trova Sostituto"** nel dettaglio turno
-3. Il sistema mostra la lista dei sostituti disponibili ordinata per distanza
-4. L'admin seleziona il dipendente assente e il motivo, poi invia la richiesta
-5. Il **Responsabile Area** riceve una notifica Telegram e approva/rifiuta
-6. Il **sostituto** riceve il dettaglio completo: cliente, indirizzo, orari, compagni di squadra con contatti
-7. Il sostituto ha **1 ora** per accettare. Se non risponde, il sistema passa al successivo
-
-### Come Usare il Bottone "Trova Sostituto"
-
-1. Nel **calendario settimanale**, clicca su un turno
-2. Nel modal, clicca **"🔄 Trova Sostituto"**
-3. Appare un pannello con la **tabella dei sostituti** (Nome, Distanza, Qualifiche, Telefono)
-4. Seleziona il **motivo assenza** e il **dipendente assente**
-5. Clicca **"📩 Invia Richiesta al Responsabile Area"**
-
-### Criteri di Ricerca Sostituti
-
-Il sistema filtra automaticamente i candidati che:
-- ✅ Sono in stato **ATTIVO** e hanno il flag **"Disponibile come Sostituto"**
-- ✅ **NON** sono in ferie/malattia/permesso in quella data
-- ✅ **NON** sono già impegnati in un turno sovrapposto
-- ✅ Possiedono la **qualifica** compatibile (se richiesta)
-
-I risultati sono ordinati per **distanza** (indirizzo del dipendente → indirizzo del cliente).
-
-### Messaggio al Sostituto via Telegram
-
-Il sostituto riceve un messaggio con:
-- 📍 Cliente e indirizzo
-- 📅 Data e 🕐 orario
-- 📏 Distanza da casa
-- 👥 Compagni di squadra con numeri di telefono
-- Bottoni **"✅ Accetto"** / **"❌ Rifiuto"**
-
-### Pannello Admin — Richieste Sostituzione
-
-**Dashboard** → **Richieste Sostituzione**
-
-| Colonna | Descrizione |
-|---------|-------------|
-| **Data creazione** | Quando è stata creata la richiesta |
-| **Data turno** | Data del turno da coprire |
-| **Cliente** | Il cliente interessato |
-| **Dipendente assente** | Chi è assente |
-| **Motivo** | Malattia, Ferie, Permesso, ecc. |
-| **Sostituto** | Chi è stato assegnato |
-| **Stato** | Aperta / Approvata RA / Inviata / Accettata / Completata / Annullata |
-| **Distanza km** | Distanza casa-cliente del sostituto |
-
-Azione rapida: **"✅ Approva e invia ai sostituti"** per approvare in blocco.
+### Composizione Retroattiva per Contratti Storici e in Essere
+Quando viene inserito un nuovo contratto o una nuova programmazione ricorrente che ha una **Data Inizio Contratto nel passato** (es. un contratto partito 2 mesi fa):
+1. Al momento del salvataggio, Kandor calcola e compone in automatico tutti i turni giorno per giorno a partire dalla data d'inizio storica fino ad oggi.
+2. I turni passati nascono nello stato **"In attesa di conferma delle ore lavorate"** (evidenziati con l'icona rossa **`!`** sul calendario).
+3. Questo permette all'amministrazione di censire in qualsiasi momento i contratti già avviati nel passato e procedere alla verifica delle ore storiche.
+4. **Protezione dello Storico**: Se successivamente si modifica la programmazione di un contratto, il sistema rigenera soltanto i turni da oggi in poi, lasciando intatti e protetti i turni passati già convalidati.
 
 ---
 
-## 14. Registrazione Ore (Time Tracking)
+## 11. Programmazione Ricorrente Contratti
 
-### Accesso
-**Dashboard** → **Time Tracking** oppure via **Telegram**
+### Scopo Operativo
+Definizione delle regole di ripetizione periodica delle pulizie e dei servizi per ciascun cliente.
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Dipendente** | Chi ha lavorato |
-| **Assegnazione** | L'assegnazione turno collegata |
-| **Ore Dichiarate** | Numero di ore lavorate |
-| **Origine** | Manuale, Telegram o WhatsApp |
-| **Validato** | Checkbox per conferma amministrativa |
+### Percorso di Navigazione
+👉 **Scheda Cliente** → Sezione **Programmazione Ricorrente** oppure dal menu Admin `/admin/core/programmazionericorrente/`
 
-### Validazione Ore e Gestione Ore Provvisorie sul Calendario
-
-Quando i dipendenti comunicano le ore lavorate (tramite bot Telegram o chat):
-1. **Ore Provvisorie nel Calendario**: Sulla scheda del turno nel calendario compare direttamente il badge ambra **`⏳ Provvisorie: Xh`** (es. `⏳ Provvisorie: 7h30'`).
-2. **Validazione Rapida 1-Click**: Il pulsante con la spunta `✓` sul turno si illumina in arancione brillante con bordo in rilievo. Cliccandolo direttamente dal calendario, l'amministrazione approva le ore con un solo click.
-3. **Modale di Dettaglio Turno**: Cliccando su un turno per modificarlo, un banner d'avviso evidenzia:
-   > **⏳ Ore dichiarate dal dipendente: Xh (Provvisorie - In attesa di validazione)**  
-   È possibile salvare e validare subito con il bottone **"✔ Salva e valida"** oppure confermare le ore esistenti con **"✅ Valida ore esistenti"**.
-4. **Badge Validato**: Una volta approvate, la scheda sul calendario mostra il badge verde **`✅ Validate: Xh`**.
+### Parametri della Programmazione
+- **Tipo Ripetizione**:
+  - **Settimanale**: Ripetizione in specifici giorni della settimana (es. tutti i Lunedì, Mercoledì e Venerdì).
+  - **Bisettimanale**: Ripetizione a settimane alternate (calcolata a partire dalla Data Inizio Contratto).
+  - **Mensile**: Ripetizione in un giorno fisso del mese (es. il giorno 1 o 15 di ogni mese).
+- **Ora Inizio** e **Durata (ore)**:
+  - *Calcolo Automatico*: Digitando l'Ora Inizio (es. `08:00`) e la Durata (es. `2.5`), il sistema calcola e imposta automaticamente l'**Ora Fine** (`10:30`).
+- **Orario Flessibile**: Se spuntato, indica che la squadra può effettuare il turno in una fascia oraria libera della giornata.
+- **Squadra Abituale** e **Mezzo Abituale**: Assegnazioni predefinite per la generazione automatica.
+- **Periodo di Validità**: `Data Inizio Contratto` e `Data Fine Contratto` (se lasciata vuota, s'intende a tempo indeterminato).
 
 ---
 
-## 15. Verifica Ore Mensili
+## 12. Richieste e Interventi Straordinari
 
-### Accesso
-**Dashboard** → **Vedi Report** (nelle Operazioni Frequenti) oppure URL: `/verifica-ore/`
+### Scopo Operativo
+Gestione dei lavori extra-contrattuali o una tantum richiesti dai clienti (es. lavaggio vetrate straordinario, pulizia post-cantiere/ristrutturazione).
 
-Questa pagina mostra un report dettagliato delle ore lavorate per ciascun dipendente in un dato mese.
+### Percorso di Navigazione
+👉 **Scheda Cliente** → Sezione **Richieste Straordinarie**
 
-### Come Usarlo
-
-1. Seleziona **Mese** e **Anno** dai menu a tendina
-2. Clicca **"Aggiorna"**
-
-### Informazioni Mostrate
-
-Per ogni dipendente:
-- **Ore Contrattuali** (somma delle ore previste dai turni del mese)
-- **Ore Lavorate** (solo ore **validate** — badge verde)
-- **Differenza** (Lavorate − Contrattuali, positiva o negativa)
-
-### Struttura del Report
-
-Il report mensile è suddiviso in **tre tabelle**:
-
-1. **Riepilogo per Cliente** — ore contratto, ore lavorate, ore validate, differenza, importo
-2. **Riepilogo per Squadra e Dipendente** — ore totali per squadra con dettaglio per dipendente
-3. **Riepilogo Assenze del Mese** — tabella con i giorni di assenza per ogni dipendente suddivisi per tipo
-
-### Tabella Assenze nel Report
-
-| Colonna | Descrizione |
-|---------|-------------|
-| **Dipendente** | Nome e cognome |
-| **Malattia** | Giorni di malattia nel mese |
-| **Ferie** | Giorni di ferie nel mese |
-| **Permesso** | Giorni di permesso |
-| **L.104** | Giorni Legge 104 |
-| **Altro** | Altre tipologie |
-| **Totale gg** | Totale giorni assenza |
-
-> 💡 Clicca sul nome di un dipendente nella tabella assenze per espandere il **dettaglio** di ogni singola assenza (date, tipo, note).
-
-### Stampa PDF
-
-Clicca **"📄 Scarica PDF"** — il PDF contiene tutte e tre le tabelle, incluse le assenze del mese.
-
-> ⚠️ **Importante**: Nel report vengono contabilizzate **solo le ore validate** (badge verde nel calendario).
+### Inserimento di un Intervento Straordinario
+1. Specifica la **Data Inizio** e la **Data Fine** dell'intervento.
+2. Inserisci gli **Orari di Lavoro** previsti.
+3. Compila la **Descrizione Attività** dettagliando le operazioni da svolgere e i prodotti necessari.
+4. Assegna la squadra o il dipendente preposto.
+5. Al termine delle attività, spunta la casella **"Completata"** per archiviare l'intervento ed includere le ore nelle rendicontazioni.
 
 ---
 
-## 16. Gestione Assenze
+## 13. Gestione Sostituti e Ricerca "Trova Jolly"
 
-### Accesso
-**Dashboard** → **Assenze**
+### Scopo Operativo
+Procedura d'emergenza guidata per coprire rapidamente i turni rimasti scoperti a causa dell'assenza improvvisa di un operatore.
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Dipendente** | Chi è assente |
-| **Tipo** | Ferie / Malattia / Permesso / Legge 104 / Altro |
-| **Data Inizio** | Primo giorno di assenza |
-| **Data Fine** | Ultimo giorno di assenza |
-| **Note** | Note aggiuntive |
-| **Origine** | Manuale o Telegram |
-| **Processato** | Checkbox per conferma amministrativa |
+### Percorso di Navigazione
+👉 **Calendario Turni** → Clicca sul turno scoperto → **"🔄 Trova Sostituto"**  
+oppure dalla barra laterale **"Trova Jolly"** (`/admin/jolly-finder/`)
 
-### 🚨 Alert Automatico Assenza → Sostituzione
+### Come Funziona l'Algoritmo "Jolly Finder"
+1. **Selezione del Turno**: L'amministratore seleziona il turno o il cantiere scoperto.
+2. **Filtro Automatico di Idoneità**: Kandor analizza l'intero organico aziendale ed esclude automaticamente:
+   - I dipendenti non attivi o non abilitati come sostituti.
+   - I lavoratori che risultano già in ferie, malattia o permesso in quella data.
+   - I lavoratori che hanno già un altro turno di lavoro sovrapposto negli stessi orari.
+   - I lavoratori privi della qualifica tecnica eventualmente richiesta dal cantiere.
+3. **Calcolo Geometrico della Distanza GPS**: L'algoritmo calcola la distanza stradale esatta (in km) tra l'indirizzo di residenza di ciascun lavoratore disponibile e l'indirizzo del cantiere da coprire.
+4. **Ordinamento dei Risultati**: Presenta la lista dei candidati ordinata dal più vicino al più lontano.
+5. **Invio della Richiesta al Responsabile Area**: L'amministratore seleziona il motivo dell'assenza e clicca su **"📩 Invia Richiesta al Responsabile Area"**.
 
-Quando un dipendente comunica **Malattia, Ferie o Permesso** tramite Telegram, il sistema:
+### Risposta del Sostituto via Telegram
+Dopo l'approvazione del RA, il sostituto riceve sul suo telefono un messaggio Telegram completo di:
+- Nome e indirizzo esatto del cantiere.
+- Data e orari del turno.
+- Distanza da casa sua in km.
+- Nomi e numeri di telefono dei compagni di squadra presenti.
+- Bottoni interattivi **"✅ Accetto"** e **"❌ Rifiuto"**.
 
-1. Registra l'assenza
-2. **Verifica automaticamente** se il dipendente ha turni nella giornata corrente
-3. Se trova turni scoperti, **avvia la procedura di sostituzione** per ciascuno
-4. Notifica il **Responsabile Area** via Telegram
-5. Il dipendente riceve una conferma con il numero di turni scoperti
-
-Esempio di risposta al dipendente:
-```
-Registrata MALATTIA per oggi (08/03). Riposati!
-
-⚠️ ATTENZIONE: Hai 2 turno/i oggi!
-  • Hotel Roma (06:00-14:00)
-  • Centro Pulizie (14:30-18:00)
-
-🔄 Procedura sostituzione avviata per 2 turno/i.
-Il Responsabile Area è stato notificato.
-```
-
-### 📅 Ferie Programmate (date future)
-
-Quando si crea un'assenza dall'admin per **date future** (anche su più giorni), il sistema:
-
-1. Cerca tutti i turni del dipendente nel range di date dell'assenza
-2. Per ogni turno trovato, crea automaticamente una `RichiestaSostituzione`
-3. Notifica il **Responsabile Area** per ciascun turno
-4. L'admin riceve un riepilogo completo via Telegram (se `TELEGRAM_ADMIN_CHAT_ID` è configurato)
-
-> 💡 **Anti-duplicati**: se per quel turno esiste già una richiesta di sostituzione attiva, non viene creata una nuova.
-
-### Registrazione via Telegram
-
-I dipendenti possono comunicare assenze tramite i **bottoni inline** del bot Telegram: Malattia, Ferie, Permesso. Il sistema attiverà automaticamente l'alert sostituzione se ci sono turni.
+Il sostituto ha **1 ora di tempo** per accettare. Qualora rifiuti o non risponda, il sistema notifica l'amministrazione e permette di inoltrare la richiesta al successivo sostituto in graduatoria.
 
 ---
 
-## 17. Segnalazioni
+## 14. Registrazione Ore (Time Tracking) e Validazione 1-Click
 
-Le segnalazioni vengono inviate dai dipendenti tramite Telegram.
+### Scopo Operativo
+Consuntivazione delle ore di lavoro effettivamente svolte dagli operatori sul campo e relativo processo di approvazione contabile.
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Dipendente** | Chi ha fatto la segnalazione |
-| **Testo** | Contenuto della segnalazione |
-| **Data Inserimento** | Quando è stata inserita |
-| **Risolto** | Checkbox per chiudere la segnalazione |
-| **Note Amministrazione** | Risposta dell'amministratore |
+### Modalità di Registrazione delle Ore
+Le ore possono entrare nel sistema attraverso due canali:
+1. **Via Telegram (da parte del lavoratore)**: A fine giornata l'operatore seleziona il turno dal bot Telegram e digita le ore svolte (es. `8` o `7.5`).
+2. **Inserimento Manuale Admin**: Dall'interfaccia di gestione `Time Tracking` o direttamente dal Calendario dei turni.
 
----
-
-## 18. Riconciliazione Ore
-
-### Accesso
-**Dashboard** → **Riconciliazione** oppure URL: `/reconciliation/`
-
-Confronta le **ore contrattuali** con le **ore lavorate** per ogni cliente in un mese.
-
-| Colore | Significato |
-|--------|-------------|
-| 🟢 **Verde (OK)** | Differenza entro ±5 ore |
-| 🟠 **Arancione (WARNING)** | Più di +5 ore |
-| 🔴 **Rosso (ALARM)** | Meno di −5 ore |
+### Procedura di Validazione Rapida 1-Click dal Calendario
+Per velocizzare il lavoro quotidiano dell'amministrazione:
+1. Apri la vista **Pianificazione Settimanale** nella Dashboard.
+2. I turni per i quali il lavoratore ha inserito le ore via Telegram presentano il badge ambra **`⏳ Provvisorie: Xh`** e il pulsante con l'icona della spunta `✓` evidenziato in colore arancione.
+3. Cliccando direttamente sull'icona `✓`, le ore vengono **convalidate al volo** con un solo click e il badge diventa verde **`✅ Validate: Xh`**.
+4. In alternativa, cliccando sul turno si apre la scheda di dettaglio da cui è possibile rettificare le ore e cliccare su **"✔ Salva e valida"**.
 
 ---
 
-## 19. Analisi Economica Contratti
+## 15. Verifica Ore Mensili e Riconciliazione Storica
 
-### Accesso
-**Dashboard** → **Analisi Contratti** oppure URL: `/analisi-contratti/`
+### Scopo Operativo
+Pannello di controllo per la verifica globale delle ore lavorate, contrattuali e non validate relative a qualsiasi mese presente o passato.
 
-Analizza i contratti sotto soglia economica, mostrando:
+### Percorso di Navigazione
+👉 **Operazioni Frequenti** → **Vedi Report** (oppure `/verifica-ore/`)
 
-- Importo mensile e orario per ogni cliente
-- Ore previste vs ore effettive
-- Contratti sotto la soglia minima
-- Report PDF scaricabile
-
----
-
-## 20. Integrazione Telegram
-
-### Configurazione Iniziale
-
-Il bot Telegram aziendale si chiama **Kandor Assistente** (`@kandor_gestionale_bot`).  
-Link diretto: [t.me/kandor_gestionale_bot](https://t.me/kandor_gestionale_bot)
-
-1. Ogni dipendente deve cercare **Kandor Assistente** su Telegram o cliccare il link sopra
-2. Il bot comunicherà il proprio **Chat ID**
-3. L'amministratore inserisce il Chat ID nella scheda del dipendente
-
-### Menu Bot (Bottoni Inline)
-
-All'invio di qualsiasi messaggio, il bot risponde con un **menu a bottoni**:
-
-| Bottone | Azione |
-|---------|--------|
-| **📊 Registra Ore** | Mostra i turni di oggi, seleziona e inserisci ore |
-| **📋 Turni Mancanti** | Mostra turni senza ore degli ultimi 7 giorni |
-| **🤒 Malattia** | Registra assenza malattia per oggi |
-| **🏖️ Ferie** | Registra ferie per oggi |
-| **📝 Permesso** | Registra permesso per oggi |
-| **⚠️ Segnalazione** | Avvia segnalazione testuale |
-
-### Flusso Registrazione Ore
-
-1. Il dipendente preme **"📊 Registra Ore"**
-2. Il bot mostra i turni di oggi con cliente e orari
-3. Il dipendente seleziona il turno
-4. Scrive il numero di ore (es. "8" o "7.5")
-5. Le ore vengono salvate nel sistema
-
-### Notifiche Sostituzione
-
-I **Responsabili Area** ricevono richieste di approvazione con bottoni **"✅ Approva"** / **"❌ Rifiuta"**.
-
-I **Sostituti** ricevono proposte dettagliate con bottoni **"✅ Accetto"** / **"❌ Rifiuto"** e hanno 1 ora per rispondere.
+### Utilizzo del Report per la Verifica dei Mesi Precedenti
+1. Dai menu a tendina in alto, seleziona il **Mese** e l'**Anno** da analizzare (es. *Maggio 2026*).
+2. Clicca sul pulsante **"Aggiorna"**.
+3. Il sistema rielabora istantaneamente tutti i dati del mese selezionato presentando tre tabelle riassuntive:
+   - **Tabella 1: Riepilogo per Cliente**: Confronto tra ore di contratto previste, ore effettivamente lavorate e validate, differenza in ore e valore economico.
+   - **Tabella 2: Riepilogo per Squadra e Dipendente**: Dettaglio delle ore svolte da ogni singolo lavoratore suddivise per squadra.
+   - **Tabella 3: Riepilogo Assenze del Mese**: Conteggio dettagliato per lavoratore dei giorni di assenza usufruiti nel mese (Malattia, Ferie, Permessi, Legge 104). Cliccando sul nome del dipendente si espande il dettaglio analitico di ciascun periodo di assenza.
+4. **Stampa PDF**: Cliccando su **"📄 Scarica PDF"** viene generato il documento ufficiale stampabile con il riepilogo contabile completo.
 
 ---
 
-## 21. Messaggi Programmati
+## 16. Report Paghe, Buste Paga e Rettifiche Amministrative
 
-### Accesso
-**Dashboard** → **Messaggi Programmabili**
+### Scopo Operativo
+Modulo dedicato all'elaborazione del prospetto retributivo mensile da trasmettere allo Studio del Consulente del Lavoro per la stampa delle buste paga, integrato con la possibilità di effettuare rettifiche amministrative.
 
-| Campo | Descrizione |
-|-------|-------------|
-| **Titolo** | Titolo/descrizione del messaggio |
-| **Testo** | Contenuto del messaggio |
-| **Data e Ora di Invio** | Quando inviare |
-| **Destinatari Specifici** | Selezione multipla dei dipendenti |
-| **Invia a TUTTI** | Se attivo, invia a tutti i dipendenti attivi |
-| **Inviato** | Stato dell'invio (automatico) |
+### Percorso di Navigazione
+👉 **Operazioni Frequenti** → **Report Paghe** (oppure `/admin/report-paghe/`)
 
----
-
-## 22. Centro Messaggi Telegram
-
-### Accesso
-**Dashboard** → **Centro Messaggi** oppure URL: `/chat-simulator/`
-
-Il Centro Messaggi è una vera **chat bidirezionale** che permette di comunicare con i dipendenti via Telegram direttamente dalla piattaforma web.
-
-### Funzionalità
-
-| Funzione | Descrizione |
-|----------|-------------|
-| **Chat individuale** | Seleziona un dipendente dal pannello sinistro per vedere la cronologia dei messaggi e inviarne di nuovi |
-| **Messaggi non letti** | Badge rosso sul nome di chi ha messaggi non letti |
-| **Broadcast a tutti** | Invia un messaggio a tutti i dipendenti attivi con Telegram configurato |
-| **Invio per squadra** | Seleziona una squadra e invia il messaggio a tutti i componenti |
-| **Foto** | Supporto alla visualizzazione di foto inviate dai dipendenti |
-| **Cronologia** | Ultimi 50 messaggi per ogni conversazione (IN e OUT) |
+### Funzionalità di Rettifica Amministrativa ("✏️ Rettifica")
+Qualora vi siano stati errori nella timbratura delle ore via Telegram, omissioni o accordi correttivi dell'ultimo minuto:
+1. Nella tabella del Report Paghe, individua la riga del dipendente interessato (es. *AVOGADRO CLARA*).
+2. Nella colonna **Azione Admin** sulla destra, clicca sul pulsante **`✏️ Rettifica`**.
+3. Si aprirà un modale interattivo denominato **"Rettifica Cedolino Paghe - [Nome Dipendente]"**.
+4. **Campi di Override Modificabili**:
+   - **Giorni Lavorati Override**: Inserisci il numero corretto di giornate lavorate nel mese.
+   - **Ore Totali Override**: Inserisci le ore complessive rettificate.
+   - **Ore Validate Override**: Correggi il totale delle ore validate.
+   - **Giorni Ferie / Permessi / Malattia Override**: Rettifica i giorni di assenza del mese.
+   - **Note Rettifica (Obbligatorio)**: Inserisci la motivazione amministrativa della modifica (es. *"Corrette ore per mancata timbratura cantiere c/o Hotel Roma approvata dal responsabile"*).
+5. Clicca su **"💾 Salva Rettifica"**.
+6. **Effetto Immediato**: La riga del dipendente mostrerà il badge **`✏️ Rettificato`**, la tabella aggiornerà istantaneamente i totali generali ed i KPI del mese e l'annotazione comparirà sia nel **PDF stampabile per il Consulente** sia nell'**Esportazione Excel/CSV**.
+7. Per annullare una rettifica e ripristinare i valori originali calcolati dal sistema, basta riaprire il modale e cliccare sul pulsante rosso **"🗑️ Elimina Rettifica"**.
 
 ---
 
-## 23. Gestione Dati (Import/Export)
+## 17. Gestione Assenze, Avvallo e Sostituzioni Automatiche
 
-### Accesso
-**Dashboard** → **Gestione Dati** oppure URL: `/data-management/`
+### Scopo Operativo
+Censimento delle assenze dei lavoratori con workflow autorizzativo dell'amministrazione ed automazione della ricerca sostituti.
 
-### Scarica Template Excel
+### Percorso di Navigazione
+👉 **Dashboard** → **Assenze** (oppure `/admin/core/assenza/`)
 
-| Template | Contenuto |
-|----------|-----------|
-| **Dipendenti** | Cognome, Nome, CF, Indirizzo, ecc. |
-| **Clienti** | Ragione Sociale, P.IVA, Indirizzo, ecc. |
-| **Mezzi** | Modello, Targa, Km, Scadenze, ecc. |
-| **Qualifiche** | Nome, Descrizione |
-
-### Importa Dati
-
-1. Scarica il template, compilalo
-2. Seleziona tipo di dato e file
-3. Scegli modalità: **AGGIORNA** (update + crea) o **SOVRASCRIVI** (sostituisci)
-4. Clicca **"Importa"**
+### Workflow con Avvallo Amministrativo
+1. **Segnalazione**: L'assenza viene inserita dall'operatore via Telegram o registrata dall'amministrazione. Inizialmente nasce nello stato **"In Attesa Avvallo Amministrazione"**.
+2. **Valutazione e Avvallo**: L'amministratore apre la scheda dell'assenza, verifica i certificati o le motivazioni e imposta lo stato su **"Approvata (Avvallata)"**.
+3. **Generazione Automatica Richieste di Sostituzione**: Soltanto dopo l'avvallo, Kandor esamina tutti i turni di lavoro in cui era programmato il dipendente durante i giorni di assenza e genera automaticamente le richieste di sostituzione per i Responsabili Area, inviando le notifiche Telegram per la copertura dei cantieri scoperti.
 
 ---
 
-## 24. Backup e Ripristino
+## 18. Segnalazioni dagli Operatori
 
-### Accesso
-**Gestione Dati** → sezione **Backup e Ripristino**
+### Scopo Operativo
+Gestione delle comunicazioni di servizio, anomalie o guasti inviati dai lavoratori dai cantieri.
 
-> ⚠️ **Solo per Superuser**
+### Percorso di Navigazione
+👉 **Dashboard** → **Segnalazioni** (oppure `/admin/core/segnalazione/`)
 
-- **Backup**: Scarica un JSON completo del database
-- **Ripristino**: Carica un backup precedente (sovrascrive i dati!)
-
----
-
-## 25. Widget Dashboard
-
-La dashboard mostra widget informativi collassabili nella parte destra.
-
-### 🚗 Scadenze Veicoli (Collassabile)
-
-- **Chiuso di default**, si apre automaticamente se ci sono scadenze entro 7 giorni
-- Mostra mezzi con scadenze polizza/bollo nei prossimi 45 giorni
-- Ordinati dal più urgente al meno urgente
-- 🔴 Rosso = scaduto | 🟠 Arancione = scade entro 45 giorni
-- Cliccando l'intestazione ▶/▼ si apre/chiude
-
-### 🎂 Compleanni in Arrivo (Collassabile)
-
-- **Chiuso di default**, si apre automaticamente se ci sono compleanni entro 7 giorni
-- Mostra i compleanni nei prossimi 20 giorni
-- Include dipendenti attivi e referenti clienti
-
-### 📅 Pianificazione Settimanale
-
-- Vista settimanale dei turni con calendario interattivo
-- Badge colorati per ore (verde/giallo/rosso)
-- Click per dettaglio, modifica, inserimento ore e ricerca sostituti
-
-### 📱 Feed Telegram
-
-Mostra le ultime registrazioni via Telegram:
-
-| Scheda | Contenuto |
-|--------|-----------|
-| **Ore Lavorate** | Ultime 10 registrazioni ore |
-| **Assenze** | Ultime 10 assenze segnalate |
-| **Segnalazioni** | Ultime 10 segnalazioni |
-
-### 📋 Scadenze Contratti
-
-Mostra i contratti con programmazione ricorrente in scadenza prossima, con possibilità di proroga rapida.
+### Gestione delle Segnalazioni
+- Quando un lavoratore scrive al bot Telegram una segnalazione (o invia una fotografia di un danno o di una macchina guasta), la segnalazione compare in tempo reale nel pannello Admin.
+- L'amministratore può prendere in carico la segnalazione, inserire le **Note Amministrazione** e spuntare la casella **"Risolto"** una volta completata l'assistenza.
 
 ---
 
-## 26. FAQ e Risoluzione Problemi
+## 19. Riconciliazione Ore e Monitoraggio Cantieri
 
-### Il sito è lento al primo accesso
+### Scopo Operativo
+Controllo di gestione tra le ore pattuite a contratto con il cliente e le ore effettivamente lavorate e pagate al personale.
 
-L'istanza Render va in standby dopo 15 minuti di inattività. Il riavvio richiede ~50 secondi.
+### Percorso di Navigazione
+👉 **Operazioni Frequenti** → **Riconciliazione** (oppure `/reconciliation/`)
 
-### Un dipendente non riceve i messaggi Telegram
-
-1. Verifica il **Telegram Chat ID** nella scheda dipendente
-2. Il dipendente deve aver avviato una conversazione con il bot
-3. Il bot deve essere attivo con webhook configurato
-
-### Come ottenere il Chat ID
-
-Il dipendente invia un messaggio al bot. Se non registrato, il bot risponde: *"Non ti conosco! Il tuo ID Telegram è: XXXXXXX"*. Inserire quel numero nella scheda dipendente.
-
-### Le coordinate GPS non funzionano
-
-- Inserire indirizzo completo (via, numero, città, provincia)
-- Riprovare salvando nuovamente la scheda
-
-### Non trovo sostituti disponibili
-
-- Verificare che esistano dipendenti con **"Disponibile come Sostituto"** attivo
-- Verificare che abbiano **qualifiche compatibili**
-- Verificare che non siano **assenti o già impegnati** in quel giorno
-
-### Come configurare il Responsabile Area
-
-1. Vai in **Admin → Responsabili Area → Aggiungi**
-2. Seleziona il dipendente
-3. Dai un nome all'area
-4. Assegna le squadre supervisionate
+### Indicatori di Scostamento
+La tabella di riconciliazione evidenzia i cantieri con codici colore:
+- 🟢 **Verde (Soglia OK)**: Le ore effettive scostano di meno di ±5 ore rispetto al contratto.
+- 🟠 **Arancione (Warning - Eccesso Ore)**: Sono state lavorate più di +5 ore rispetto al pattuito (rischio di calo di marginalità se non fatturate extra).
+- 🔴 **Rosso (Alarm - Carenza Ore)**: Sono state svolte meno di −5 ore rispetto al contratto (rischio di contestazione da parte del cliente per servizio incompleto).
 
 ---
 
-## 27. Report Paghe e Stampa Buste Paga
+## 20. Analisi Economica Contratti e Marginalità
 
-La sezione **Report Paghe** (`/admin/report-paghe/`) permette all'amministrazione di verificare ed esportare i conteggi mensili di tutti i dipendenti pronti per l'elaborazione delle buste paga da parte dello studio consulente del lavoro.
+### Scopo Operativo
+Modulo di analisi finanziaria per identificare i contratti clienti che risultano sotto la soglia di redditività economica aziendale.
 
-### Funzionalità Principali
+### Percorso di Navigazione
+👉 **Operazioni Frequenti** → **Analisi Contratti** (oppure `/analisi-contratti/`)
 
-- **Filtro Mese e Anno**: Seleziona qualsiasi mese e anno per calcolare istantaneamente il prospetto contabile.
-- **Ricerca Dipendente**: Filtra rapidamente per nome o cognome del lavoratore.
-- **Dettaglio Totali e Ore**:
-  - **Ore Lavorate Totali**: Somma complessiva delle ore consuntivate nel mese.
-  - **Ore Ordinarie e Straordinari**: Distinzione automatica delle ore di straordinario approvate.
-  - **Ore Validate vs In Attesa**: Evidenza immediata dello stato di validazione contabile.
-  - **Gestione Assenze**: Conteggio dei giorni di malattia, ferie, permessi o infortuni usufruiti nel periodo.
-- **Esportazione Pronta**:
-  - **Pulsante "Stampa / Export PDF"**: Genera un documento PDF ufficiale, pronto per la stampa o l'invio via email al consulente del lavoro.
-  - **Export Excel / CSV**: Download dei dati in formato foglio di calcolo per archiviazione e integrazione con altri software gestionali.
+### Report di Reditività
+Il sistema confronta l'importo mensile fatturato al cliente con la somma del costo orario dei lavoratori impiegati sul cantiere:
+- Calcola il **Costo Orario Effettivo per Cantiere**.
+- Segnala con alert visivi i contratti che generano una perdita o un margine inferiore alla soglia minima impostata.
+- Permette di esportare il **Report Economico in PDF** per le riunioni di direzione.
 
 ---
 
-> **Kandor** — Sistema ERP per la gestione operativa aziendale  
-> Sviluppato da Studio Serra — © 2026
+## 21. Integrazione Bot Telegram per Lavoratori
+
+### Scopo Operativo
+Fornire ai lavoratori uno strumento semplice ed immediato sul proprio smartphone per interagire con l'azienda senza installare app complesse.
+
+### Nome e Contatto del Bot
+- Nome Bot: **Kandor Assistente** (`@kandor_gestionale_bot`)
+- Link di avvio: **[https://t.me/kandor_gestionale_bot](https://t.me/kandor_gestionale_bot)**
+
+### Bottoni del Menu Principale Telegram
+All'invio di qualsiasi testo, il bot risponde mostrando i bottoni guida:
+- ⏱ **Registra Ore**: Mostra i turni della giornata e permette di digitare le ore svolte.
+- 📋 **Turni Non Compilati**: Elenca i turni degli ultimi 7 giorni ancora privi di consuntivo.
+- 🤒 **Malattia** / 🏖️ **Ferie** / 📝 **Permesso**: Registrazione immediata dello stato di assenza per la giornata.
+- ⚠️ **Segnalazione**: Invio di note o fotografie direttamente all'ufficio.
+- 📖 **Guida**: Apertura del manuale istruzioni per il lavoratore.
+
+---
+
+## 22. Messaggi Programmati e Comunicazioni di Massa
+
+### Scopo Operativo
+Pianificazione dell'invio differito di comunicazioni o circolari aziendali via Telegram.
+
+### Percorso di Navigazione
+👉 **Dashboard** → **Messaggi Programmabili** (oppure `/admin/core/messaggioprogrammato/`)
+
+### Configurazione Invio
+1. Inserisci il **Titolo** ed il **Testo del Messaggio**.
+2. Imposta la **Data e Ora di Invio** programmata.
+3. Seleziona i **Destinatari Specifici** oppure spunta la casella **"Invia a TUTTI"** per raggiungere l'intero organico attivo.
+4. Il sistema eseguirà l'invio automatico all'orario stabilito.
+
+---
+
+## 23. Centro Messaggi e Chat Bidirezionale Telegram
+
+### Scopo Operativo
+Console di messaggistica bidirezionale in tempo reale per conversare direttamente con i dipendenti via Telegram senza uscire dall'interfaccia di Kandor.
+
+### Percorso di Navigazione
+👉 **Operazioni Frequenti** → **Centro Messaggi** (oppure `/chat-simulator/`)
+
+### Funzionalità della Chat
+- **Lista Conversazioni**: Elenco a sinistra dei lavoratori con badge rosso per i messaggi non letti.
+- **Visualizzazione Foto**: Possibilità di ingrandire e scaricare le foto inviate dagli operatori dai cantieri.
+- **Invio Broadcast / Per Squadra**: Pulsanti dedicati per inviare comunicazioni istantanee ad una specifica squadra o a tutti i lavoratori.
+
+---
+
+## 24. Gestione Dati, Import/Export Excel e Backup
+
+### Scopo Operativo
+Strumenti di caricamento massivo dati da fogli di calcolo e salvataggio di sicurezza dell'intero database aziendale.
+
+### Percorso di Navigazione
+👉 **Operazioni Frequenti** → **Gestione Dati** (oppure `/data-management/`)
+
+### Importazione da Excel
+1. Scarica i **Template Excel ufficiali** (Dipendenti, Clienti, Mezzi, Qualifiche).
+2. Compila le colonne rispettando i formati indicati.
+3. Carica il file selezionando la modalità:
+   - **AGGIORNA**: Aggiorna i record esistenti e crea quelli nuovi.
+   - **SOVRASCRIVI**: Sostituisce integralmente la tabella.
+
+### Backup e Ripristino Database (Riservato a Superuser)
+- **Crea Backup**: Genera e scarica un file JSON contenente l'intera banca dati di Kandor.
+- **Ripristina Backup**: Permette di caricare un file JSON di backup precedentemente salvato per ripristinare il sistema.
+
+---
+
+## 25. Widget Dashboard e Monitoraggio Scadenze
+
+Il pannello informativo destro della Dashboard include widget ad aggiornamento automatico:
+
+1. 🚗 **Scadenze Veicoli**:
+   - Visualizza i veicoli con assicurazione o bollo in scadenza nei successivi 45 giorni (colore arancione) o già scaduti (colore rosso).
+2. 🎂 **Compleanni in Arrivo**:
+   - Mostra i compleanni dei dipendenti e dei referenti clienti nei successivi 20 giorni.
+3. 📅 **Pianificazione Settimanale**:
+   - Calendario sintetico dei turni con stato delle ore e navigazione rapida.
+4. 📱 **Feed Telegram**:
+   - Flusso in tempo reale degli ultimi messaggi, timbrature e segnalazioni ricevute dagli operatori.
+
+---
+
+## 26. FAQ, Risoluzione Problemi e Domande Frequenti
+
+### ❓ Il primo caricamento del sito Cloud è lento. È un malfunzionamento?
+**Risposta**: No. Su Render (piano gratuito) il server va in standby dopo 15 minuti di inattività per risparmiare risorse. Il riavvio richiede circa 45-60 secondi, trascorsi i quali la navigazione torna ad essere velocissima.
+
+### ❓ Un dipendente dice di non ricevere i messaggi dal Bot Telegram. Cosa verificare?
+**Risposta**:
+1. Verifica che nella scheda del dipendente sia stato inserito il **Telegram Chat ID** corretto.
+2. Assicurati che il dipendente abbia cliccato su **"AVVIA"** / **"/start"** all'interno del Bot `@kandor_gestionale_bot`.
+
+### ❓ Come si recupera il Telegram Chat ID di un dipendente?
+**Risposta**: Fai scrivere un messaggio qualsiasi al lavoratore verso il bot `@kandor_gestionale_bot`. Se il suo ID non è ancora registrato, il bot gli risponderà comunicandogli il suo numero univoco (es. `123456789`). L'amministratore dovrà semplicemente copiare quel numero nella scheda del dipendente.
+
+### ❓ Perché nel report delle buste paga le ore non corrispondono con quelle che dichiara il dipendente?
+**Risposta**: Il report contabile contabilizza soltanto le **ore convalidate** (badge verde). Se il dipendente ha inserito le ore ma l'amministrazione non le ha ancora convalidate (badge ambra ⏳), le ore rimarranno in stato provvisorio. Inoltre, l'amministrazione può intervenire in qualsiasi momento tramite il pulsante **`✏️ Rettifica`** per impostare gli override correttivi.
+
+---
+
+> **KANDOR ERP** — Gestionale Operativo per Imprese di Servizi  
+> *Sviluppato da Studio Serra — © 2026*
