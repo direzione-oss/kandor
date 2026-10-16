@@ -119,11 +119,8 @@ if use_postgres:
     # Test preventivo di connessione socket TCP all'host del DB
     is_reachable = False
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(2)
-        s.connect((db_host, int(db_port)))
-        s.close()
-        is_reachable = True
+        with socket.create_connection((db_host, int(db_port)), timeout=3):
+            is_reachable = True
     except Exception:
         pass
 
