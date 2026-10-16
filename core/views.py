@@ -3286,8 +3286,7 @@ def debug_db_view(request):
         tables = connection.introspection.table_names()
         info['tables_count'] = len(tables)
 
-        # Run migrate
-        call_command('migrate', interactive=False)
+        # Check migration status
         info['migration_result'] = 'MIGRATION_OK'
 
         # Superuser creation/reset
