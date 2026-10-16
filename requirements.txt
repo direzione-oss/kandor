@@ -13,3 +13,4 @@ whitenoise
 requests
 python-dateutil
 reportlab
+markdown

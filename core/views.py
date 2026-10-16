@@ -1195,10 +1195,98 @@ def manuale_pdf_view(request):
     raise Http404("File PDF del manuale non trovato.")
 
 
-def manuale_view(request):
-    """Visualizza il manuale utente admin completo in formato HTML rendermmando MANUALE_UTENTE.md."""
+def manuale_screenshot_view(request, filename):
+    """Serve le immagini screenshot del manuale dalla cartella screenshots/."""
     import os
-    import markdown
+    from django.http import FileResponse, Http404
+    safe_name = os.path.basename(filename)
+    img_path = os.path.join(settings.BASE_DIR, 'screenshots', safe_name)
+    if os.path.exists(img_path) and safe_name.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+        content_type = 'image/png' if safe_name.lower().endswith('.png') else 'image/jpeg'
+        return FileResponse(open(img_path, 'rb'), content_type=content_type)
+    raise Http404("Immagine non trovata.")
+
+
+def _convert_markdown_safe(content):
+    """Converte Markdown in HTML usando la libreria markdown se presente, altrimenti parser Python nativo."""
+    try:
+        import markdown
+        return markdown.markdown(content, extensions=['tables', 'fenced_code', 'toc', 'nl2br'])
+    except ImportError:
+        import re
+        html = content
+        # Fenced code blocks
+        html = re.sub(
+            r'```[\w]*\n(.*?)```',
+            lambda m: '<pre style="background:#f1f5f9;padding:12px;border-radius:6px;overflow-x:auto;"><code>' + m.group(1).replace('<', '&lt;').replace('>', '&gt;') + '</code></pre>',
+            html,
+            flags=re.DOTALL
+        )
+        # Headers
+        html = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html, flags=re.MULTILINE)
+        html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+        html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+        html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+        # Bold & Italic
+        html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+        html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+        # Blockquotes
+        html = re.sub(r'^> (.+)$', r'<blockquote>\1</blockquote>', html, flags=re.MULTILINE)
+        # Inline code
+        html = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', html)
+        # Links
+        html = re.sub(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', html)
+
+        lines = html.split('\n')
+        in_table = False
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('|') and stripped.endswith('|'):
+                cells = [c.strip() for c in stripped.split('|')[1:-1]]
+                if all(c.replace('-', '').replace(':', '') == '' for c in cells):
+                    continue
+                if not in_table:
+                    new_lines.append('<table><thead><tr>')
+                    for c in cells:
+                        new_lines.append(f'<th>{c}</th>')
+                    new_lines.append('</tr></thead><tbody>')
+                    in_table = True
+                else:
+                    new_lines.append('<tr>')
+                    for c in cells:
+                        new_lines.append(f'<td>{c}</td>')
+                    new_lines.append('</tr>')
+            else:
+                if in_table:
+                    new_lines.append('</tbody></table>')
+                    in_table = False
+                img_match = re.match(r'^!\[(.*?)\]\((.+?)\)$', stripped)
+                if img_match:
+                    alt = img_match.group(1)
+                    src = img_match.group(2)
+                    new_lines.append(f'<div style="text-align:center;margin:20px 0;"><img src="{src}" alt="{alt}"><p style="font-size:12px;color:#64748b;margin-top:4px;"><em>{alt}</em></p></div>')
+                elif stripped.startswith('- ') or stripped.startswith('* '):
+                    new_lines.append(f'<li>{stripped[2:]}</li>')
+                elif re.match(r'^\d+\.\s+', stripped):
+                    text = re.sub(r'^\d+\.\s+', '', stripped)
+                    new_lines.append(f'<li>{text}</li>')
+                elif stripped == '---':
+                    new_lines.append('<hr>')
+                elif stripped == '':
+                    new_lines.append('')
+                elif stripped.startswith('<h') or stripped.startswith('<pre') or stripped.startswith('<blockquote') or stripped.startswith('</'):
+                    new_lines.append(line)
+                else:
+                    new_lines.append(f'<p>{line}</p>')
+        if in_table:
+            new_lines.append('</tbody></table>')
+        return '\n'.join(new_lines)
+
+
+def manuale_view(request):
+    """Visualizza il manuale utente admin completo in formato HTML."""
+    import os
     md_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE.md')
     try:
         with open(md_path, 'r', encoding='utf-8', errors='replace') as f:
@@ -1206,7 +1294,7 @@ def manuale_view(request):
     except Exception:
         content = "# Manuale Utente Kandor\n\nImpossibile caricare il file MANUALE_UTENTE.md."
 
-    content_html = markdown.markdown(content, extensions=['tables', 'fenced_code', 'toc', 'nl2br'])
+    content_html = _convert_markdown_safe(content)
     return render(request, 'core/manuale.html', {'content_html': content_html})
 
 
