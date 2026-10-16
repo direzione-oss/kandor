@@ -128,8 +128,8 @@ try:
         stderr=subprocess.PIPE,
     )
 
-    log("Attesa server (max 20s)...")
-    ok = wait_for_server()
+    log("Attesa server (max 25s)...")
+    ok = wait_for_server(timeout=25)
 
     if ok:
         log("Server pronto — apertura browser")
