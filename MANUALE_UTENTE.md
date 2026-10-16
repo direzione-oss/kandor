@@ -1,7 +1,7 @@
 # 📘 KANDOR — Manuale d'Uso Completo e Guida Operativa
 
-> **Versione**: 2.5  
-> **Ultimo aggiornamento**: Ottobre 2026  
+> **Versione**: 2.6  
+> **Ultimo aggiornamento**: Ottobre 2026 (Integrazione Avvallo Sostituzione & Validazione Form)  
 > **Applicazione Web**: [kandor.onrender.com](https://kandor.onrender.com)  
 > **Sistema ERP per Imprese di Pulizie e Facility Management**
 
@@ -86,11 +86,21 @@ Per garantire la sicurezza dell'account, si consiglia di modificare la password 
 3. Inserisci la password attuale e successivamente la nuova password due volte per conferma.
 4. Clicca su **"Cambia la mia password"**.
 
+### Controllo Validazione e Gestione Errori nei Form
+Durante l'inserimento o la modifica dei dati (anagrafiche dipendenti, clienti, mezzi, assenze, turni):
+- **Evidenziazione Diretta dell'Errore**: In caso di dati errati, incompleti o duplicati (es. Codice Fiscale errato, Targa già esistente, date di licenziamento antecedenti all'assunzione), il sistema **non mostra mai schermate di errore generico (500)** e **non disconnette l'utente**.
+- **Banner Informativo e Conservazione Dati**: Viene visualizzato un banner rosso in cima al form con il dettaglio dell'errore. L'utente rimane all'interno della pagina corrente mantenendo tutti i campi già compilati per poter effettuare immediatamente le correzioni necessarie.
+- **Sanitizzazione Automatica**: I Codici Fiscali, le Partite IVA e le Targhe dei veicoli vengono automaticamente puliti da spazi bianchi superflui e convertiti in caratteri maiuscoli al momento del salvataggio.
+
+![Validazione Form ed Evidenziazione Errori in Banner Rosso](screenshots/03_validazione_form_errore.png)
+
 ---
 
 ## 3. Dashboard Principale e Navigazione
 
 La Dashboard di Kandor costituisce il centro di controllo di tutte le attività operative.
+
+![Schermata Dashboard Principale Kandor ERP](screenshots/01_dashboard.png)
 
 ### Layout della Schermata
 - **Barra Superiore di Navigazione**: Mostra il logo Kandor, il nome dell'utente connesso, il link rapido al sito e il pulsante per il Logout.
@@ -309,26 +319,29 @@ Procedura d'emergenza guidata per coprire rapidamente i turni rimasti scoperti a
 👉 **Calendario Turni** → Clicca sul turno scoperto → **"🔄 Trova Sostituto"**  
 oppure dalla barra laterale **"Trova Jolly"** (`/admin/jolly-finder/`)
 
-### Come Funziona l'Algoritmo "Jolly Finder"
-1. **Selezione del Turno**: L'amministratore seleziona il turno o il cantiere scoperto.
+### Come Funziona l'Algoritmo "Jolly Finder" e la Selezione Ordinata
+1. **Selezione del Turno Scoperto**: L'amministratore seleziona il turno o la richiesta di sostituzione generata dall'assenza.
 2. **Filtro Automatico di Idoneità**: Kandor analizza l'intero organico aziendale ed esclude automaticamente:
    - I dipendenti non attivi o non abilitati come sostituti.
    - I lavoratori che risultano già in ferie, malattia o permesso in quella data.
    - I lavoratori che hanno già un altro turno di lavoro sovrapposto negli stessi orari.
    - I lavoratori privi della qualifica tecnica eventualmente richiesta dal cantiere.
 3. **Calcolo Geometrico della Distanza GPS**: L'algoritmo calcola la distanza stradale esatta (in km) tra l'indirizzo di residenza di ciascun lavoratore disponibile e l'indirizzo del cantiere da coprire.
-4. **Ordinamento dei Risultati**: Presenta la lista dei candidati ordinata dal più vicino al più lontano.
-5. **Invio della Richiesta al Responsabile Area**: L'amministratore seleziona il motivo dell'assenza e clicca su **"📩 Invia Richiesta al Responsabile Area"**.
+4. **Finestra di Selezione Ordinata dei Sostituti**: Prima di inviare le notifiche Telegram o gli avvisi, il sistema apre una finestra interattiva pop-up con l'elenco dei sostituti idonei ordinati per distanza e qualifiche.
+5. **Ordinamento di Preferenza**: L'amministrazione può spuntare i candidati desiderati definendo **l'ordine esatto di selezione/invio** (es. 1° scelta, 2° scelta, 3° scelta).
+6. **Inoltro Notifiche Sequenziale**: Confermata la selezione, il sistema invia la notifica prioritariamente ai candidati scelti nell'ordine stabilito.
+
+![Schermata Gestione Richieste Sostituzione](screenshots/02_gestione_sostituzioni.png)
 
 ### Risposta del Sostituto via Telegram
-Dopo l'approvazione del RA, il sostituto riceve sul suo telefono un messaggio Telegram completo di:
+Dopo l'invio della notifica, il sostituto riceve sul suo telefono un messaggio Telegram completo di:
 - Nome e indirizzo esatto del cantiere.
 - Data e orari del turno.
 - Distanza da casa sua in km.
 - Nomi e numeri di telefono dei compagni di squadra presenti.
 - Bottoni interattivi **"✅ Accetto"** e **"❌ Rifiuto"**.
 
-Il sostituto ha **1 ora di tempo** per accettare. Qualora rifiuti o non risponda, il sistema notifica l'amministrazione e permette di inoltrare la richiesta al successivo sostituto in graduatoria.
+Il sostituto ha tempo per accettare. Qualora rifiuti o non risponda, il sistema notifica l'amministrazione e procede automaticamente con la notifica al successivo sostituto selezionato in ordine di priorità.
 
 ---
 
@@ -393,6 +406,8 @@ Qualora vi siano stati errori nella timbratura delle ore via Telegram, omissioni
 6. **Effetto Immediato**: La riga del dipendente mostrerà il badge **`✏️ Rettificato`**, la tabella aggiornerà istantaneamente i totali generali ed i KPI del mese e l'annotazione comparirà sia nel **PDF stampabile per il Consulente** sia nell'**Esportazione Excel/CSV**.
 7. Per annullare una rettifica e ripristinare i valori originali calcolati dal sistema, basta riaprire il modale e cliccare sul pulsante rosso **"🗑️ Elimina Rettifica"**.
 
+![Schermata Report Paghe e Modale Rettifica Cedolino](screenshots/04_report_paghe.png)
+
 ---
 
 ## 17. Gestione Assenze, Avvallo e Sostituzioni Automatiche
@@ -403,10 +418,13 @@ Censimento delle assenze dei lavoratori con workflow autorizzativo dell'amminist
 ### Percorso di Navigazione
 👉 **Dashboard** → **Assenze** (oppure `/admin/core/assenza/`)
 
-### Workflow con Avvallo Amministrativo
-1. **Segnalazione**: L'assenza viene inserita dall'operatore via Telegram o registrata dall'amministrazione. Inizialmente nasce nello stato **"In Attesa Avvallo Amministrazione"**.
-2. **Valutazione e Avvallo**: L'amministratore apre la scheda dell'assenza, verifica i certificati o le motivazioni e imposta lo stato su **"Approvata (Avvallata)"**.
-3. **Generazione Automatica Richieste di Sostituzione**: Soltanto dopo l'avvallo, Kandor esamina tutti i turni di lavoro in cui era programmato il dipendente durante i giorni di assenza e genera automaticamente le richieste di sostituzione per i Responsabili Area, inviando le notifiche Telegram per la copertura dei cantieri scoperti.
+### Workflow con Avvallo Amministrativo e Avvio Automatico Sostituzioni
+1. **Segnalazione Assenza**: L'assenza per malattia, ferie o permesso viene inviata dall'operatore via Telegram o registrata dall'amministrazione. Inizialmente nasce nello stato **"In Attesa Avvallo Amministrazione"**.
+2. **Valutazione e Avvallo dell'Amministrazione**: L'amministratore apre la scheda dell'assenza, verifica i certificati/motivazioni e clicca su **"Approvata (Avvallata)"** o **"Approva e Avvia Sostituzione"**.
+3. **Avvio Automatico Procedura di Sostituzione**: Subito dopo l'avvallo dell'amministrazione, Kandor esamina tutti i turni in cui era programmato l'assente e attiva in automatico la procedura di sostituzione.
+4. **Apertura Finestra Selezione Sostituti**: Prima di inviare le notifiche, il sistema visualizza la finestra pop-up con i candidati disponibili. L'amministrazione seleziona i sostituti desiderati e imposta l'ordine di priorità (1°, 2°, 3° scelta) prima dell'invio automatico delle notifiche via Telegram.
+
+![Schermata Gestione Assenze e Avvallo Amministrazione](screenshots/05_gestione_assenze.png)
 
 ---
 
@@ -557,6 +575,12 @@ Il pannello informativo destro della Dashboard include widget ad aggiornamento a
 
 ### ❓ Perché nel report delle buste paga le ore non corrispondono con quelle che dichiara il dipendente?
 **Risposta**: Il report contabile contabilizza soltanto le **ore convalidate** (badge verde). Se il dipendente ha inserito le ore ma l'amministrazione non le ha ancora convalidate (badge ambra ⏳), le ore rimarranno in stato provvisorio. Inoltre, l'amministrazione può intervenire in qualsiasi momento tramite il pulsante **`✏️ Rettifica`** per impostare gli override correttivi.
+
+### ❓ Cosa succede se inserisco un dato errato o incompleto in un form? Il sistema mi disconnette?
+**Risposta**: No. In caso di inserimento di dati errati o non validi (es. Codice Fiscale di lunghezza errata, targa duplicata o date incongruenti), il sistema evidenzia l'errore in un banner rosso e segnala il campo specifico. L'utente rimane all'interno della pagina con le informazioni già compilate conservate, senza venire disconnesso o reindirizzato a schermate di errore generico (500).
+
+### ❓ Come funziona la selezione ordinata dei sostituti all'approvazione dell'assenza?
+**Risposta**: All'approvazione dell'assenza (malattia, ferie, permesso) parte in automatico la procedura di sostituzione. Prima dell'invio dei messaggi, si apre la finestra pop-up con l'elenco dei sostituti idonei trovati dal sistema. L'amministrazione può selezionare le persone desiderate e definirne l'ordine numerico di invio dell'avviso (1°, 2°, 3° scelta), così che le notifiche vengano inoltrate secondo le preferenze stabilite.
 
 ---
 

@@ -1,23 +1,17 @@
-"""Genera il PDF del manuale utente KANDOR da MANUALE_UTENTE.md"""
+"""Genera il PDF del manuale utente KANDOR completo e senza alcuna troncatura di testo."""
 import re
 import os
 from fpdf import FPDF
 
-# Percorso font DejaVuSans (supporta Unicode)
-FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts')
-os.makedirs(FONT_DIR, exist_ok=True)
-
 class ManualePDF(FPDF):
     def __init__(self):
         super().__init__()
-        # Usa font built-in con encoding che supporta caratteri base
-        # Useremo - come bullet al posto di unicode bullet
     
     def header(self):
         if self.page_no() > 1:
             self.set_font('Helvetica', 'I', 8)
             self.set_text_color(150, 150, 150)
-            self.cell(0, 8, 'KANDOR - Manuale d\'Uso Completo', align='C')
+            self.cell(0, 8, 'KANDOR ERP - Manuale d\'Uso Completo e Guida Operativa', align='C')
             self.ln(4)
             self.set_draw_color(41, 128, 185)
             self.set_line_width(0.5)
@@ -32,32 +26,32 @@ class ManualePDF(FPDF):
 
     def cover_page(self):
         self.add_page()
-        self.ln(60)
+        self.ln(50)
         # Logo/Titolo
-        self.set_font('Helvetica', 'B', 42)
+        self.set_font('Helvetica', 'B', 40)
         self.set_text_color(26, 82, 118)
-        self.cell(0, 20, 'KANDOR', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.ln(5)
+        self.cell(0, 18, 'KANDOR ERP', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.ln(4)
         # Sottotitolo
-        self.set_font('Helvetica', '', 18)
+        self.set_font('Helvetica', '', 16)
         self.set_text_color(41, 128, 185)
-        self.cell(0, 12, "Manuale d'Uso Completo", align='C', new_x="LMARGIN", new_y="NEXT")
-        self.ln(5)
+        self.cell(0, 10, "Manuale d'Uso Completo e Guida Operativa", align='C', new_x="LMARGIN", new_y="NEXT")
+        self.ln(4)
         # Linea decorativa
         self.set_draw_color(41, 128, 185)
         self.set_line_width(1)
-        self.line(60, self.get_y(), 150, self.get_y())
+        self.line(50, self.get_y(), 160, self.get_y())
         self.ln(15)
         # Info
-        self.set_font('Helvetica', '', 12)
+        self.set_font('Helvetica', '', 11)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 8, 'Versione 1.0 - Marzo 2026', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 8, 'Sistema ERP per la Gestione Operativa Aziendale', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.ln(10)
-        self.cell(0, 8, 'URL: kandor.onrender.com', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.ln(40)
+        self.cell(0, 7, 'Versione 2.6 - Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Sistema ERP per Imprese di Pulizie e Facility Management', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.ln(8)
+        self.cell(0, 7, 'URL: https://kandor.onrender.com', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.ln(35)
         self.set_font('Helvetica', 'I', 10)
-        self.cell(0, 8, 'Sviluppato per Studio Serra', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Sviluppato per Studio Serra - (c) 2026', align='C', new_x="LMARGIN", new_y="NEXT")
 
 def clean_text(text):
     """Rimuove markup markdown e caratteri non-latin1 dal testo."""
@@ -84,68 +78,35 @@ def clean_text(text):
         '\u26a1': '', '\u2190': '<', '\u2192': '>',
         '\u2714': '[OK]', '\u23f1': '[...]', '\u23f3': '[...]',
         '⏳': '[...]', '✔': '[OK]', '✅': '[OK]', '🗓️': '', '👥': '', '🏢': '', '📦': '', '📄': '',
+        '🎯': '', '🚀': '', '🔘': '', '⏱': '', '📋': '', '🤒': '', '🏖️': '', '📝': '', '🏖': '',
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
-    # Rimuovi qualsiasi carattere non-latin1 rimanente convertendolo
     text = text.encode('latin-1', errors='ignore').decode('latin-1')
     return text.strip()
 
 def parse_table(lines, start_idx):
-    """Parsa una tabella markdown e ritorna (headers, rows, end_idx)."""
     headers = []
     rows = []
     i = start_idx
-    
-    # Header row
     if i < len(lines) and '|' in lines[i]:
         cells = [c.strip() for c in lines[i].split('|') if c.strip()]
         headers = [clean_text(c) for c in cells]
         i += 1
-    
-    # Separator row
     if i < len(lines) and '---' in lines[i]:
         i += 1
-    
-    # Data rows
     while i < len(lines) and '|' in lines[i]:
         cells = [c.strip() for c in lines[i].split('|') if c.strip()]
         rows.append([clean_text(c) for c in cells])
         i += 1
-    
     return headers, rows, i
 
-def main():
-    # Leggi il file markdown
-    with open('MANUALE_UTENTE.md', 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    lines = content.split('\n')
-    
-    # Crea PDF
-    pdf = ManualePDF()
-    pdf.alias_nb_pages()
-    pdf.set_auto_page_break(auto=True, margin=20)
-    
-    # Pagina copertina
-    pdf.cover_page()
-    
-    # Processa le linee
-    pdf.add_page()
+def render_markdown_content(pdf, lines, skip_first_h1=False):
     i = 0
     in_code_block = False
-    in_blockquote = False
-    skip_first_h1 = True
     
     while i < len(lines):
         line = lines[i].rstrip()
-        
-        # Skip sommario section lines that are just links
-        if line.startswith('1. [') or (line.startswith('2') and line.startswith('2. [')):
-            # Skip TOC entries
-            if re.match(r'^\d+\. \[', line):
-                i += 1
-                continue
         
         # Code blocks
         if line.startswith('```'):
@@ -156,15 +117,16 @@ def main():
         if in_code_block:
             clean_l = clean_text(line)
             pdf.set_font('Courier', '', 9)
-            pdf.set_fill_color(44, 62, 80)
-            pdf.set_text_color(236, 240, 241)
-            pdf.cell(0, 5, f'  {clean_l}', fill=True, new_x="LMARGIN", new_y="NEXT")
+            pdf.set_fill_color(240, 243, 244)
+            pdf.set_text_color(44, 62, 80)
+            pdf.multi_cell(0, 5, f'  {clean_l}', fill=True)
             pdf.set_text_color(0, 0, 0)
             i += 1
             continue
         
         # Empty lines
         if not line:
+            pdf.ln(2)
             i += 1
             continue
         
@@ -178,6 +140,24 @@ def main():
             i += 1
             continue
         
+        # Images ![caption](path)
+        img_match = re.match(r'^!\[(.*?)\]\((.*?)\)', line)
+        if img_match:
+            caption, img_path = img_match.groups()
+            full_img_path = os.path.normpath(os.path.join(os.path.dirname(__file__), img_path))
+            if os.path.exists(full_img_path):
+                pdf.ln(4)
+                if pdf.get_y() > 190:
+                    pdf.add_page()
+                pdf.image(full_img_path, w=170)
+                if caption:
+                    pdf.set_font('Helvetica', 'I', 9)
+                    pdf.set_text_color(100, 100, 100)
+                    pdf.cell(0, 6, clean_text(caption), align='C', new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(4)
+            i += 1
+            continue
+
         # H1
         if line.startswith('# ') and not line.startswith('##'):
             title = clean_text(line[2:])
@@ -186,13 +166,13 @@ def main():
                 i += 1
                 continue
             pdf.ln(8)
-            pdf.set_font('Helvetica', 'B', 22)
+            pdf.set_font('Helvetica', 'B', 20)
             pdf.set_text_color(26, 82, 118)
-            pdf.cell(0, 12, title, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 11, title, new_x="LMARGIN", new_y="NEXT")
             pdf.set_draw_color(41, 128, 185)
             pdf.set_line_width(0.8)
             pdf.line(10, pdf.get_y()+1, 200, pdf.get_y()+1)
-            pdf.ln(6)
+            pdf.ln(5)
             i += 1
             continue
         
@@ -200,9 +180,9 @@ def main():
         if line.startswith('## '):
             title = clean_text(line[3:])
             pdf.ln(6)
-            pdf.set_font('Helvetica', 'B', 16)
+            pdf.set_font('Helvetica', 'B', 15)
             pdf.set_text_color(41, 128, 185)
-            pdf.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 9, title, new_x="LMARGIN", new_y="NEXT")
             pdf.set_draw_color(189, 195, 199)
             pdf.set_line_width(0.3)
             pdf.line(10, pdf.get_y(), 140, pdf.get_y())
@@ -214,9 +194,9 @@ def main():
         if line.startswith('### '):
             title = clean_text(line[4:])
             pdf.ln(4)
-            pdf.set_font('Helvetica', 'B', 13)
+            pdf.set_font('Helvetica', 'B', 12)
             pdf.set_text_color(39, 174, 96)
-            pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
             pdf.ln(2)
             i += 1
             continue
@@ -225,9 +205,9 @@ def main():
         if line.startswith('#### '):
             title = clean_text(line[5:])
             pdf.ln(3)
-            pdf.set_font('Helvetica', 'B', 11)
+            pdf.set_font('Helvetica', 'B', 10.5)
             pdf.set_text_color(142, 68, 173)
-            pdf.cell(0, 7, title, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 6, title, new_x="LMARGIN", new_y="NEXT")
             pdf.ln(2)
             i += 1
             continue
@@ -235,19 +215,15 @@ def main():
         # Tables
         if '|' in line and i + 1 < len(lines) and '---' in lines[i + 1]:
             headers, rows, end_idx = parse_table(lines, i)
-            
             if headers and rows:
                 pdf.ln(3)
-                # Calculate column widths
                 num_cols = len(headers)
                 available_width = 190
                 col_widths = [available_width / num_cols] * num_cols
-                
-                # Adjust for common patterns
                 if num_cols == 2:
-                    col_widths = [70, 120]
+                    col_widths = [60, 130]
                 elif num_cols == 3:
-                    col_widths = [55, 90, 45]
+                    col_widths = [50, 30, 110]
                 
                 # Header
                 pdf.set_font('Helvetica', 'B', 9)
@@ -255,11 +231,11 @@ def main():
                 pdf.set_text_color(255, 255, 255)
                 for j, h in enumerate(headers):
                     w = col_widths[j] if j < len(col_widths) else col_widths[-1]
-                    pdf.cell(w, 7, h[:30], border=1, fill=True, align='C')
+                    pdf.cell(w, 7, h, border=1, fill=True, align='C')
                 pdf.ln()
                 
                 # Rows
-                pdf.set_font('Helvetica', '', 9)
+                pdf.set_font('Helvetica', '', 8.5)
                 for row_idx, row in enumerate(rows):
                     if row_idx % 2 == 0:
                         pdf.set_fill_color(248, 249, 250)
@@ -269,11 +245,9 @@ def main():
                     
                     for j, cell in enumerate(row):
                         w = col_widths[j] if j < len(col_widths) else col_widths[-1]
-                        pdf.cell(w, 6, cell[:50], border=1, fill=True)
+                        pdf.cell(w, 6, cell, border=1, fill=True)
                     pdf.ln()
-                
                 pdf.ln(3)
-            
             i = end_idx
             continue
         
@@ -281,40 +255,36 @@ def main():
         if line.startswith('>'):
             text = clean_text(line.lstrip('> '))
             if text:
-                pdf.set_font('Helvetica', 'I', 10)
+                pdf.set_font('Helvetica', 'I', 9.5)
                 pdf.set_text_color(125, 102, 8)
                 pdf.set_fill_color(254, 249, 231)
                 pdf.set_draw_color(243, 156, 18)
-                x = pdf.get_x()
-                y = pdf.get_y()
-                pdf.rect(10, y, 190, 8, style='F')
-                pdf.set_line_width(0.8)
-                pdf.line(10, y, 10, y + 8)
-                pdf.set_xy(14, y)
-                pdf.cell(186, 8, text[:100])
-                pdf.ln(9)
-                pdf.set_text_color(0, 0, 0)
+                pdf.multi_cell(0, 5.5, f"  {text}", fill=True, border=1)
+                pdf.ln(2)
             i += 1
             continue
         
-        # List items
+        # List items - NO TRUNCATION
         if line.startswith('- ') or line.startswith('* '):
             text = clean_text(line[2:])
             pdf.set_font('Helvetica', '', 10)
             pdf.set_text_color(44, 62, 80)
-            pdf.cell(8, 6, '-')  # bullet
-            pdf.cell(0, 6, text[:120], new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(6, 5.5, '-', new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(0, 5.5, text)
+            pdf.ln(1)
             i += 1
             continue
         
-        # Numbered list
+        # Numbered list - NO TRUNCATION
         if re.match(r'^\d+\. ', line):
-            text = clean_text(re.sub(r'^\d+\. ', '', line))
-            num = re.match(r'^(\d+)\. ', line).group(1)
+            m = re.match(r'^(\d+)\. (.*)', line)
+            num = m.group(1) if m else "1"
+            text = clean_text(m.group(2)) if m else clean_text(line)
             pdf.set_font('Helvetica', '', 10)
             pdf.set_text_color(44, 62, 80)
-            pdf.cell(8, 6, f'{num}.')
-            pdf.cell(0, 6, text[:120], new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(8, 5.5, f"{num}.", new_x="RIGHT", new_y="TOP")
+            pdf.multi_cell(0, 5.5, text)
+            pdf.ln(1)
             i += 1
             continue
         
@@ -324,15 +294,50 @@ def main():
             pdf.set_font('Helvetica', '', 10)
             pdf.set_text_color(44, 62, 80)
             pdf.multi_cell(0, 5.5, text)
-            pdf.ln(1)
+            pdf.ln(1.5)
         
         i += 1
+
+def main():
+    # Read both MANUALE_UTENTE.md and MANUALE_DIPENDENTE_TELEGRAM.md
+    with open('MANUALE_UTENTE.md', 'r', encoding='utf-8') as f:
+        content_main = f.read()
     
-    # Salva
+    with open('MANUALE_DIPENDENTE_TELEGRAM.md', 'r', encoding='utf-8') as f:
+        content_telegram = f.read()
+    
+    pdf = ManualePDF()
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    
+    # Copertina
+    pdf.cover_page()
+    
+    # Parte I: Manuale Amministrazione ed ERP
+    pdf.add_page()
+    render_markdown_content(pdf, content_main.split('\n'), skip_first_h1=True)
+    
+    # Parte II: Guida Operativa per il Dipendente - Bot Telegram
+    pdf.add_page()
+    pdf.ln(10)
+    pdf.set_font('Helvetica', 'B', 24)
+    pdf.set_text_color(26, 82, 118)
+    pdf.cell(0, 15, 'PARTE II: GUIDA OPERATIVA DIPENDENTE', new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf.set_font('Helvetica', 'I', 14)
+    pdf.set_text_color(41, 128, 185)
+    pdf.cell(0, 10, 'Istruzioni e utilizzo del Bot Telegram (@kandor_gestionale_bot)', new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf.ln(10)
+    pdf.set_draw_color(41, 128, 185)
+    pdf.set_line_width(0.8)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(10)
+    
+    render_markdown_content(pdf, content_telegram.split('\n'), skip_first_h1=True)
+    
     output = 'MANUALE_UTENTE_KANDOR.pdf'
     pdf.output(output)
     print(f"PDF generato con successo: {output}")
-    print(f"Pagine: {pdf.page_no()}")
+    print(f"Pagine totali: {pdf.page_no()}")
 
 if __name__ == '__main__':
     main()

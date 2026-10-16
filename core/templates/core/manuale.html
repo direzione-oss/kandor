@@ -1,139 +1,159 @@
 {% extends "admin/base_site.html" %}
 
 {% block content %}
-<div style="max-width: 1000px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); line-height: 1.7; font-size: 14px;">
+<style>
+    .manuale-container {
+        max-width: 1050px;
+        margin: 20px auto;
+        background: white;
+        padding: 40px 50px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        line-height: 1.75;
+        font-size: 15px;
+        color: #1f2937;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .manuale-banner {
+        background: linear-gradient(135deg, #1e3a8a, #2563eb);
+        color: white;
+        padding: 24px 30px;
+        border-radius: 10px;
+        margin-bottom: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 6px 16px rgba(37,99,235,0.25);
+    }
+    .manuale-banner h2 {
+        margin: 0 0 6px 0;
+        color: white;
+        font-size: 22px;
+        font-weight: 700;
+        border: none;
+        padding: 0;
+    }
+    .manuale-banner p {
+        margin: 0;
+        opacity: 0.92;
+        font-size: 14px;
+    }
+    .btn-download-pdf {
+        background: #f59e0b;
+        color: #1e1b4b;
+        padding: 12px 22px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+        transition: all 0.2s ease;
+        white-space: nowrap;
+    }
+    .btn-download-pdf:hover {
+        background: #d97706;
+        color: #ffffff;
+        transform: translateY(-1px);
+    }
+    .manuale-content h1 {
+        color: #1e3a8a;
+        border-bottom: 3px solid #2563eb;
+        padding-bottom: 12px;
+        font-size: 26px;
+        margin-top: 25px;
+        margin-bottom: 20px;
+    }
+    .manuale-content h2 {
+        color: #1e40af;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 8px;
+        font-size: 20px;
+        margin-top: 35px;
+        margin-bottom: 15px;
+    }
+    .manuale-content h3 {
+        color: #1f2937;
+        font-size: 17px;
+        margin-top: 25px;
+        margin-bottom: 10px;
+    }
+    .manuale-content blockquote {
+        background: #eff6ff;
+        border-left: 5px solid #3b82f6;
+        padding: 14px 20px;
+        margin: 20px 0;
+        border-radius: 0 8px 8px 0;
+        font-style: normal;
+        color: #1e3a8a;
+    }
+    .manuale-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 25px 0;
+        font-size: 14px;
+    }
+    .manuale-content th {
+        background: #1e3a8a;
+        color: white;
+        padding: 10px 14px;
+        text-align: left;
+    }
+    .manuale-content td {
+        padding: 10px 14px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .manuale-content tr:nth-child(even) td {
+        background: #f8fafc;
+    }
+    .manuale-content code {
+        background: #f1f5f9;
+        color: #0f172a;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 13px;
+    }
+    .manuale-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        margin: 20px 0;
+    }
+    .manuale-footer {
+        text-align: center;
+        margin-top: 50px;
+        padding-top: 20px;
+        border-top: 1px solid #e2e8f0;
+    }
+</style>
 
-    <h1 style="color: #1a5276; border-bottom: 3px solid #2980b9; padding-bottom: 10px; font-size: 28px;">📘 Manuale d'Uso Completo e Guida Operativa — Kandor</h1>
-    <p style="color: #777;">Versione 2.5 — Ottobre 2026 | URL: <a href="https://kandor.onrender.com" target="_blank">kandor.onrender.com</a></p>
-
-    <!-- SOMMARIO -->
-    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #e9ecef;">
-        <h3 style="margin-top: 0; color: #333;">Sommario Generale</h3>
-        <div style="columns: 2; column-gap: 30px; font-size: 13px;">
-            <ol style="margin: 0; padding-left: 20px;">
-                <li><a href="#intro">Introduzione e Architettura</a></li>
-                <li><a href="#accesso">Accesso e Sicurezza</a></li>
-                <li><a href="#dashboard">Dashboard e Navigazione</a></li>
-                <li><a href="#dipendenti">Gestione Dipendenti</a></li>
-                <li><a href="#clienti">Gestione Clienti</a></li>
-                <li><a href="#qualifiche">Gestione Qualifiche</a></li>
-                <li><a href="#mezzi">Parco Mezzi Aziendali</a></li>
-                <li><a href="#squadre">Gestione Squadre</a></li>
-                <li><a href="#responsabili">Responsabili Area (RA)</a></li>
-                <li><a href="#turni">Turni e Calendario Retroattivo</a></li>
-                <li><a href="#programmazione">Programmazione Ricorrente</a></li>
-                <li><a href="#straordinarie">Interventi Straordinari</a></li>
-                <li><a href="#jolly">Sostituti e "Trova Jolly"</a></li>
-                <li><a href="#timetracking">Registrazione Ore e Validazione 1-Click</a></li>
-                <li><a href="#verifica">Verifica Ore e Mesi Storici</a></li>
-                <li><a href="#paghe">Report Paghe e Rettifiche Admin</a></li>
-                <li><a href="#assenze">Gestione Assenze e Avvallo</a></li>
-                <li><a href="#segnalazioni">Segnalazioni Operatori</a></li>
-                <li><a href="#riconciliazione">Riconciliazione Ore</a></li>
-                <li><a href="#analisi">Analisi Economica Contratti</a></li>
-                <li><a href="#telegram">Integrazione Bot Telegram</a></li>
-                <li><a href="#messaggi">Messaggi Programmati</a></li>
-                <li><a href="#chat">Centro Messaggi / Chat</a></li>
-                <li><a href="#dati">Import/Export Excel e Backup</a></li>
-                <li><a href="#widget">Widget Dashboard</a></li>
-                <li><a href="#faq">FAQ e Risoluzione Problemi</a></li>
-            </ol>
+<div class="manuale-container">
+    <!-- BANNER PER IL DOWNLOAD DEL PDF -->
+    <div class="manuale-banner">
+        <div>
+            <h2>📘 Manuale Utente Completo — Kandor ERP</h2>
+            <p>Manuale d'uso e guida operativa integrale di 33 pagine con screenshot e dettagli dell'applicazione.</p>
+        </div>
+        <div>
+            <a href="{% url 'manuale_pdf' %}" target="_blank" class="btn-download-pdf">
+                ⬇️ Scarica PDF (33 Pagine)
+            </a>
         </div>
     </div>
 
-    <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
-
-    <!-- 1. INTRODUZIONE -->
-    <h2 id="intro" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">1. Introduzione e Architettura di Sistema</h2>
-    <p><strong>KANDOR</strong> è un sistema ERP (Enterprise Resource Planning) verticale progettato per la gestione operativa e contabile di imprese di pulizie e facility management.</p>
-    <ul>
-        <li><strong>Pianificazione automatizzata dei turni</strong>: Trasformazione delle programmazioni contrattuali in assegnazioni settimanali o mensili senza inserimenti manuali.</li>
-        <li><strong>Supporto ai contratti storici e in essere</strong>: Composizione retroattiva dei turni passati con marcatura delle ore in attesa di conferma.</li>
-        <li><strong>Tracciamento presenze in tempo reale via Telegram</strong>: Registrazione ore e segnalazione assenze tramite bot con bottoni interattivi.</li>
-        <li><strong>Ricerca Intelligente del Sostituto (Algoritmo "Jolly")</strong>: Calcolo istantaneo delle distanze stradali GPS casa-cantiere per individuare i lavoratori idonei.</li>
-        <li><strong>Report Paghe e Rettifiche Admin</strong>: Prospetto retributivo per il consulente del lavoro con possibilità per l'amministrazione di effettuare rettifiche prima dell'esportazione.</li>
-    </ul>
-
-    <!-- 2. ACCESSO -->
-    <h2 id="accesso" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">2. Accesso al Sistema e Sicurezza</h2>
-    <p>Apri il browser e vai a: <strong><a href="https://kandor.onrender.com" target="_blank">kandor.onrender.com</a></strong></p>
-    <div style="background: #fff3cd; padding: 12px 15px; border-left: 5px solid #ffc107; margin: 15px 0;">
-        <strong>Nota Cloud:</strong> L'istanza gratuita di Render si sospende dopo 15 minuti di inattività. Il primo caricamento della giornata può richiedere ~45-60 secondi per il risveglio dell'applicazione.
+    <!-- CONTENUTO MANUALE MD -->
+    <div class="manuale-content">
+        {{ content_html|safe }}
     </div>
 
-    <!-- 3. DASHBOARD -->
-    <h2 id="dashboard" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">3. Dashboard Principale e Navigazione</h2>
-    <p>La Dashboard di Kandor costituisce il centro di controllo operativo:</p>
-    <table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px;">
-        <tr style="background: #2980b9; color: white;">
-            <th style="padding: 8px 12px; text-align: left;">Sezione Sidebar</th>
-            <th style="padding: 8px 12px; text-align: left;">Funzione e Strumento</th>
-        </tr>
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 8px 12px;"><strong>Trova Jolly</strong></td>
-            <td style="padding: 8px 12px;">Ricerca rapida sostituti per cantiere ordinati per km GPS</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
-            <td style="padding: 8px 12px;"><strong>Riconciliazione</strong></td>
-            <td style="padding: 8px 12px;">Confronto tra ore di contratto previste e ore consuntivate</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 8px 12px;"><strong>Analisi Contratti</strong></td>
-            <td style="padding: 8px 12px;">Verifica redditività economica e cantieri sotto soglia</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #eee; background: #f8f9fa;">
-            <td style="padding: 8px 12px;"><strong>Report Paghe</strong></td>
-            <td style="padding: 8px 12px;">Elaborazione prospetto paghe per il consulente con rettifiche admin</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 8px 12px;"><strong>Centro Messaggi</strong></td>
-            <td style="padding: 8px 12px;">Chat diretta bidirezionale con i lavoratori via Telegram</td>
-        </tr>
-    </table>
-
-    <!-- 4. DIPENDENTI -->
-    <h2 id="dipendenti" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">4. Gestione Anagrafica Dipendenti</h2>
-    <p><strong>Dashboard → Dipendenti</strong></p>
-    <ul>
-        <li><strong>Geocodifica Automatica GPS</strong>: Inserendo l'indirizzo di residenza, Kandor calcola automaticamente le coordinate GPS per il calcolo dei km di distanza nei turni di sostituzione.</li>
-        <li><strong>Data di Nascita da Codice Fiscale</strong>: Se lasciata vuota, la data di nascita viene estratta automaticamente decodificando il CF.</li>
-        <li><strong>Flag Sostituto</strong>: Spuntando "Disponibile come Sostituto", il dipendente verrà incluso nell'algoritmo Jolly Finder.</li>
-    </ul>
-
-    <!-- 5. CLIENTI -->
-    <h2 id="clienti" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">5. Gestione Anagrafica Clienti e Sedi</h2>
-    <p><strong>Dashboard → Clienti</strong></p>
-    <p>Permette di censire le sedi di cantiere, i referenti in loco, le ore mensili a contratto e gli importi economici pattuiti.</p>
-
-    <!-- 10. TURNI E RETROATTIVITA -->
-    <h2 id="turni" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">10. Pianificazione Turni, Calendario e Composizione Retroattiva</h2>
-    <p><strong>Dashboard → Turni / Pianificazione Settimanale</strong></p>
-    <div style="background: #e8f4fd; padding: 12px 15px; border-left: 5px solid #0277bd; margin: 15px 0;">
-        <strong>Composizione Retroattiva Contratti Storici:</strong> Quando si inserisce un contratto con una <code>Data Inizio Contratto</code> nel passato, il sistema calcola e compone automaticamente tutti i turni storici dal passato ad oggi, ponendoli nello stato di <em>"In attesa di conferma delle ore lavorate"</em> (icona 🔴 <code>!</code>).
-    </div>
-
-    <!-- 14. TIMETRACKING -->
-    <h2 id="timetracking" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">14. Registrazione Ore (Time Tracking) e Validazione 1-Click</h2>
-    <p>Le ore inserite dai lavoratori tramite il Bot Telegram compaiono sul calendario della Dashboard con il badge ambra <code>⏳ Provvisorie: Xh</code>. Cliccando sull'icona della spunta <code>✓</code> sul turno, l'amministrazione convalida le ore con un solo click (badge verde <code>✅ Validate: Xh</code>).</p>
-
-    <!-- 16. REPORT PAGHE -->
-    <h2 id="paghe" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">16. Report Paghe, Buste Paga e Rettifiche Amministrative ("✏️ Rettifica")</h2>
-    <p><strong>Dashboard → Report Paghe</strong> (`/admin/report-paghe/`)</p>
-    <p>Il prospetto mensile elabora i totali per lo Studio del Consulente del Lavoro. Cliccando sul pulsante <strong>`✏️ Rettifica`</strong> accanto al nome del dipendente, l'amministrazione può inserire un override per giorni lavorati, ore e assenze prima di generare il PDF o l'export Excel.</p>
-
-    <!-- 17. ASSENZE E AVVALLO -->
-    <h2 id="assenze" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">17. Gestione Assenze, Avvallo e Sostituzioni Automatiche</h2>
-    <p>Le assenze segnalate nascono nello stato <em>"In Attesa Avvallo Amministrazione"</em>. Soltanto quando l'amministratore imposta lo stato su <strong>"Approvata (Avvallata)"</strong>, Kandor avvia la ricerca automatica dei sostituti per coprire i turni scoperti.</p>
-
-    <!-- 21. TELEGRAM -->
-    <h2 id="telegram" style="color: #2980b9; border-bottom: 2px solid #bdc3c7; padding-bottom: 6px;">21. Integrazione Bot Telegram per Lavoratori</h2>
-    <p>I lavoratori utilizzano il Bot <strong>`@kandor_gestionale_bot`</strong> per registrare le ore, richiedere assenze o accettare proposte di lavoro in sostituzione.</p>
-
-    <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
-
-    <div style="text-align: center; margin-top: 30px;">
-        <p style="color: #999; font-size: 12px;">Kandor ERP — Sistema Gestione Operativa Aziendale<br>Sviluppato per Studio Serra — © 2026</p>
-        <a href="/admin/" style="background: #2980b9; color: white; padding: 10px 25px; text-decoration: none; border-radius: 4px; font-weight: bold;">← Torna alla Dashboard</a>
+    <div class="manuale-footer">
+        <p style="color: #6b7280; font-size: 13px;">Kandor ERP — Sistema Gestione Operativa Aziendale<br>© 2026 Studio Serra — Tutti i diritti riservati</p>
+        <a href="/admin/" style="background: #1e3a8a; color: white; padding: 10px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-top: 10px;">← Torna alla Dashboard</a>
     </div>
 </div>
 {% endblock %}

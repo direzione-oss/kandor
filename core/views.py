@@ -1185,8 +1185,29 @@ def toggle_telegram_status(request, model_name, item_id):
     except Exception as e:
         return HttpResponse(f'Error: {str(e)}', status=500)
 
+def manuale_pdf_view(request):
+    """Restituisce il file PDF completo di 33 pagine con screenshot del Manuale Utente Kandor."""
+    import os
+    from django.http import FileResponse, Http404
+    pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE_KANDOR.pdf')
+    if os.path.exists(pdf_path):
+        return FileResponse(open(pdf_path, 'rb'), content_type='application/pdf', filename='MANUALE_UTENTE_KANDOR.pdf')
+    raise Http404("File PDF del manuale non trovato.")
+
+
 def manuale_view(request):
-    return render(request, 'core/manuale.html')
+    """Visualizza il manuale utente admin completo in formato HTML rendermmando MANUALE_UTENTE.md."""
+    import os
+    import markdown
+    md_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE.md')
+    try:
+        with open(md_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+    except Exception:
+        content = "# Manuale Utente Kandor\n\nImpossibile caricare il file MANUALE_UTENTE.md."
+
+    content_html = markdown.markdown(content, extensions=['tables', 'fenced_code', 'toc', 'nl2br'])
+    return render(request, 'core/manuale.html', {'content_html': content_html})
 
 
 def titolari_dashboard_view(request):
@@ -2189,9 +2210,14 @@ def conferma_sostituto_ufficio_api(request):
         applica_a_periodo=applica_a_periodo
     )
     if not res.get('ok'):
-        return JsonResponse(res, status=400)
+        return JsonResponse({'ok': False, 'error': res.get('error', 'Errore durante la conferma')}, status=400)
 
-    return JsonResponse(res)
+    return JsonResponse({
+        'ok': True,
+        'message': res.get('message', 'Sostituto confermato con successo'),
+        'sostituto_nome': res.get('sostituto_nome'),
+        'turni_aggiornati': res.get('turni_aggiornati', 1)
+    })
 
 
 @csrf_exempt
