@@ -240,16 +240,20 @@ GITHUB_REPO_URL = os.environ.get(
 )
 
 # --- Sessione e CSRF Configuration ---
+is_local_dev = os.environ.get('LOCAL_DEV') == '1'
+
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = not is_local_dev
 
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 30
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not is_local_dev
 
 # Gestione Proxy SSL (fondamentale per Render e ngrok dietro HTTPS)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -259,7 +263,9 @@ USE_X_FORWARDED_PORT = True
 # Origini fidate per CSRF (necessario in Django per richieste HTTPS)
 CSRF_TRUSTED_ORIGINS = [
     'https://kandor.onrender.com',
+    'http://kandor.onrender.com',
     'https://*.onrender.com',
+    'http://*.onrender.com',
     'https://*.ngrok-free.app',
     'https://*.ngrok-free.dev',
     'https://*.railway.app',
