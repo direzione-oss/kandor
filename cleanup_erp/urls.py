@@ -43,63 +43,58 @@ def ping_db_view(request):
     return JsonResponse(res)
 
 def test_admin_debug_view(request):
+    step = request.GET.get('step', '0')
     import traceback
-    from django.contrib.auth import get_user_model
-    from django.http import JsonResponse
-    
-    User = get_user_model()
-    admin_user = User.objects.filter(username='admin').first()
-    request.user = admin_user
-    
-    steps = {}
+    res = {'requested_step': step}
     try:
-        steps['1_user'] = str(admin_user)
-        
-        from core.templatetags.dashboard_extras import (
-            expiring_vehicles_widget, upcoming_birthdays_widget,
-            weekly_schedule_widget, telegram_feed_widget, expiring_contracts_widget
-        )
-        
-        try:
-            expiring_vehicles_widget()
-            steps['widget_expiring_vehicles'] = 'OK'
-        except Exception as e:
-            steps['widget_expiring_vehicles'] = f"ERR: {e}"
-            
-        try:
-            upcoming_birthdays_widget()
-            steps['widget_upcoming_birthdays'] = 'OK'
-        except Exception as e:
-            steps['widget_upcoming_birthdays'] = f"ERR: {e}"
-            
-        try:
-            weekly_schedule_widget({'request': request})
-            steps['widget_weekly_schedule'] = 'OK'
-        except Exception as e:
-            steps['widget_weekly_schedule'] = f"ERR: {e}"
-            
-        try:
-            telegram_feed_widget()
-            steps['widget_telegram_feed'] = 'OK'
-        except Exception as e:
-            steps['widget_telegram_feed'] = f"ERR: {e}"
-            
-        try:
-            expiring_contracts_widget()
-            steps['widget_expiring_contracts'] = 'OK'
-        except Exception as e:
-            steps['widget_expiring_contracts'] = f"ERR: {e}"
-            
-        try:
-            rendered = admin.site.index(request)
-            steps['admin_site_index'] = f"OK status {rendered.status_code}"
-        except Exception as e:
-            steps['admin_site_index'] = f"ERR: {e}\n{traceback.format_exc()}"
-
+        if step == '0':
+            res['status'] = 'Step 0 OK - View reached'
+        elif step == '1':
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            res['status'] = 'Step 1 OK - User model loaded'
+        elif step == '2':
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            admin_user = User.objects.filter(username='admin').first()
+            res['status'] = f"Step 2 OK - Admin user query done: {admin_user}"
+        elif step == '3':
+            from core.models import Cliente, Dipendente, Turno
+            res['status'] = f"Step 3 OK - Models count: clients={Cliente.objects.count()}, dip={Dipendente.objects.count()}, turni={Turno.objects.count()}"
+        elif step == '4':
+            from core.templatetags.dashboard_extras import expiring_vehicles_widget
+            res['widget'] = expiring_vehicles_widget()
+            res['status'] = "Step 4 OK - expiring_vehicles_widget"
+        elif step == '5':
+            from core.templatetags.dashboard_extras import upcoming_birthdays_widget
+            res['widget'] = upcoming_birthdays_widget()
+            res['status'] = "Step 5 OK - upcoming_birthdays_widget"
+        elif step == '6':
+            from core.templatetags.dashboard_extras import weekly_schedule_widget
+            res['widget_keys'] = list(weekly_schedule_widget({'request': request}).keys())
+            res['status'] = "Step 6 OK - weekly_schedule_widget"
+        elif step == '7':
+            from core.templatetags.dashboard_extras import telegram_feed_widget
+            res['widget_keys'] = list(telegram_feed_widget().keys())
+            res['status'] = "Step 7 OK - telegram_feed_widget"
+        elif step == '8':
+            from core.templatetags.dashboard_extras import expiring_contracts_widget
+            res['widget_keys'] = list(expiring_contracts_widget().keys())
+            res['status'] = "Step 8 OK - expiring_contracts_widget"
+        elif step == '9':
+            from django.contrib import admin
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            admin_user = User.objects.filter(username='admin').first()
+            request.user = admin_user
+            res['admin_index_status'] = admin.site.index(request).status_code
+            res['status'] = "Step 9 OK - admin.site.index rendered"
+        else:
+            res['status'] = "Unknown step"
     except Exception as e:
-        steps['catastrophic_error'] = f"{e}\n{traceback.format_exc()}"
-        
-    return JsonResponse(steps)
+        res['error'] = str(e)
+        res['traceback'] = traceback.format_exc()
+    return JsonResponse(res)
 
 urlpatterns = [
     path('ping/', ping_view),
