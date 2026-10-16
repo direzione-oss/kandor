@@ -187,12 +187,14 @@ def weekly_schedule_widget(context):
     squadra_colors = {}
     color_idx = 0
 
-    # OTTIMIZZAZIONE: Caricamento in 3 passaggi basato su ID diretti per evitare JOIN lente
+    # OTTIMIZZAZIONE: Caricamento in 3 passaggi con prefetch per azzerare le N+1 query
     from core.models import Turno, AssegnazioneTurno, TimeTracking
     shifts_qs_all = list(Turno.objects.filter(
         data__in=dates
     ).select_related(
         'squadra', 'squadra__caposquadra', 'mezzo'
+    ).prefetch_related(
+        'squadra__componenti'
     ).order_by('data', 'squadra__nome'))
 
     if squadra_filter:
@@ -200,15 +202,29 @@ def weekly_schedule_widget(context):
 
     shift_ids = [s.id for s in shifts_qs_all]
 
-    # Carica assegnazioni con query diretta per ID turno
+    # Carica assegnazioni con query diretta per ID turno e prefetch di dipendenti_esclusi
     all_assigns = list(AssegnazioneTurno.objects.filter(
         turno_id__in=shift_ids
-    ).select_related('cliente', 'turno__squadra'))
+    ).select_related('cliente', 'turno__squadra').prefetch_related('dipendenti_esclusi'))
 
     # Mappa assegnazioni per turno
     assigns_per_shift = defaultdict(list)
     for a in all_assigns:
         assigns_per_shift[a.turno_id].append(a)
+
+    # Cache membri squadra in memoria per evitare query N+1
+    squadra_members_cache = {}
+    for shift in shifts_qs_all:
+        sq_id = shift.squadra_id
+        if sq_id not in squadra_members_cache:
+            members = []
+            if shift.squadra.caposquadra:
+                members.append(shift.squadra.caposquadra)
+            capo_pk = shift.squadra.caposquadra.pk if shift.squadra.caposquadra else None
+            for c in shift.squadra.componenti.all():
+                if c.pk != capo_pk and c not in members:
+                    members.append(c)
+            squadra_members_cache[sq_id] = members
 
     # RILEVAMENTO SOVRAPPOSIZIONI
     overlaps = []
@@ -296,13 +312,8 @@ def weekly_schedule_widget(context):
             HOUR_PX = 80
             grid_start_min = 4 * 60
 
-            # Componenti squadra
-            squadra_members = []
-            if shift.squadra.caposquadra:
-                squadra_members.append(shift.squadra.caposquadra)
-            for c in shift.squadra.componenti.exclude(pk=shift.squadra.caposquadra.pk if shift.squadra.caposquadra else None):
-                if c not in squadra_members:
-                    squadra_members.append(c)
+            # Componenti squadra (da cache in memoria)
+            squadra_members = squadra_members_cache.get(sq_id, [])
 
             # Filtra solo assegnazioni con orari previsti non nulli
             valid_assigns = [
@@ -316,7 +327,7 @@ def weekly_schedule_widget(context):
                 tt_list = tt_map.get(assign.id, [])
                 tt = tt_list[0] if tt_list else None
 
-                esclusi_pks = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
+                esclusi_pks = {m.pk for m in assign.dipendenti_esclusi.all()}
                 active_squadra = [m for m in squadra_members if m.pk not in esclusi_pks]
 
                 # Rileva assenze per i componenti di questo turno in data d
