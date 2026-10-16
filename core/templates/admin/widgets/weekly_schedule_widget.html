@@ -441,15 +441,16 @@ try {
     var maxOreDichiarate = null;
     d.componenti.forEach(function(c){
       var isAssente = c.in_assenza;
-      var bgCol = isAssente ? '#f3e8ff' : (c.escluso ? '#ffeaea' : '#f0fff4');
-      var brdCol = isAssente ? '#d8b4fe' : (c.escluso ? '#f5c6cb' : '#c3e6cb');
+      var isSostituto = c.is_sostituto_turno;
+      var bgCol = isAssente ? '#f3e8ff' : (isSostituto ? '#ecfdf5' : (c.escluso ? '#ffeaea' : '#f0fff4'));
+      var brdCol = isAssente ? '#d8b4fe' : (isSostituto ? '#10b981' : (c.escluso ? '#f5c6cb' : '#c3e6cb'));
       
       var lbl=document.createElement('label');
-      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+bgCol+';padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+brdCol;
+      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+bgCol+';padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+brdCol+';flex-wrap:wrap';
       var chk=document.createElement('input');
       chk.type='checkbox';chk.value=c.id;chk.dataset.dipId=c.id;chk.className='comp-check';
       chk.checked=!c.escluso && !isAssente;
-      chk.disabled=isAssente;
+      chk.disabled=isAssente || isSostituto;
       chk.style.transform='scale(0.85)';
       chk.onchange=function(){lbl.style.background=this.checked?'#f0fff4':'#ffeaea';lbl.style.borderColor=this.checked?'#c3e6cb':'#f5c6cb';};
       lbl.appendChild(chk);
@@ -457,11 +458,51 @@ try {
       var txtNode = document.createTextNode(c.nome+(c.ruolo==='Caposquadra'?' ⭐':''));
       lbl.appendChild(txtNode);
 
+      if (isSostituto) {
+        var sostTag = document.createElement('span');
+        sostTag.style.cssText = 'background:#059669;color:#fff;padding:2px 7px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px';
+        sostTag.textContent = '🔄 SOSTITUTO';
+        lbl.appendChild(sostTag);
+      }
+
       if (isAssente) {
         var assSpan = document.createElement('span');
         assSpan.style.cssText = 'background:#8e44ad;color:#fff;padding:2px 7px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px';
         assSpan.textContent = c.assenza_display || '🏥 ASSENTE';
         lbl.appendChild(assSpan);
+
+        if (c.sostituto_assegnato && c.richiesta_sostituzione_id) {
+          var sostAssignedBtn = document.createElement('button');
+          sostAssignedBtn.type = 'button';
+          sostAssignedBtn.style.cssText = 'background:#16a34a;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px;cursor:pointer';
+          sostAssignedBtn.textContent = '✅ Sost: ' + c.sostituto_assegnato;
+          sostAssignedBtn.title = 'Clicca per modificare il sostituto';
+          sostAssignedBtn.onclick = function(ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            if (typeof apriModalSelezionaSostituti === 'function') apriModalSelezionaSostituti(c.richiesta_sostituzione_id);
+          };
+          lbl.appendChild(sostAssignedBtn);
+        } else if (c.richiesta_sostituzione_id) {
+          var chooseSostBtn = document.createElement('button');
+          chooseSostBtn.type = 'button';
+          chooseSostBtn.style.cssText = 'background:#059669;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px;cursor:pointer';
+          chooseSostBtn.textContent = (c.richiesta_sostituzione_stato === 'INVIATA') ? '🏢 Conferma / Sostituto' : '👥 Scegli Sostituto';
+          chooseSostBtn.onclick = function(ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            if (typeof apriModalSelezionaSostituti === 'function') apriModalSelezionaSostituti(c.richiesta_sostituzione_id);
+          };
+          lbl.appendChild(chooseSostBtn);
+        } else if (c.assenza_id) {
+          var valAssBtn = document.createElement('button');
+          valAssBtn.type = 'button';
+          valAssBtn.style.cssText = 'background:#2563eb;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px;cursor:pointer';
+          valAssBtn.textContent = '✅ Valida e Sostituisci';
+          valAssBtn.onclick = function(ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            if (typeof validaAssenzaEApriSostituti === 'function') validaAssenzaEApriSostituti(c.assenza_id);
+          };
+          lbl.appendChild(valAssBtn);
+        }
       } else if (c.ore_dichiarate !== null && c.ore_dichiarate !== undefined) {
         if (maxOreDichiarate === null || c.ore_dichiarate > maxOreDichiarate) {
           maxOreDichiarate = c.ore_dichiarate;

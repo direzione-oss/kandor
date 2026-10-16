@@ -11,6 +11,7 @@ from .views import (
     report_paghe_view, pdf_report_paghe, export_paghe_csv, salva_modifica_cedolino_ajax,
     richiesta_sostituzione_api, risposta_sostituto_api, trova_sostituti_api,
     get_sostituti_richiesta_api, invia_notifiche_sostituti_api,
+    valida_assenza_api, conferma_sostituto_ufficio_api,
     titolari_dashboard_view, titolari_riepilogo_view,
     settimana_pdf_view,
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup, dev_tools_publish_code,
@@ -69,6 +70,8 @@ urlpatterns = [
     path('api/trova-sostituti/', trova_sostituti_api, name='trova_sostituti'),
     path('api/sostituti-disponibili/<int:richiesta_id>/', get_sostituti_richiesta_api, name='get_sostituti_richiesta_api'),
     path('api/invia-notifiche-sostituti/', invia_notifiche_sostituti_api, name='invia_notifiche_sostituti_api'),
+    path('api/valida-assenza/<int:assenza_id>/', valida_assenza_api, name='valida_assenza_api'),
+    path('api/conferma-sostituto-ufficio/', conferma_sostituto_ufficio_api, name='conferma_sostituto_ufficio_api'),
 
     # Dashboard Titolari
     path('titolari/', titolari_dashboard_view, name='titolari_dashboard'),

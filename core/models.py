@@ -82,7 +82,21 @@ class Dipendente(models.Model):
     foto_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="URL Foto (Supabase)")
     foto_profilo_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="URL Foto Profilo (Telegram/Supabase)")
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.codice_fiscale:
+            self.codice_fiscale = self.codice_fiscale.strip().upper()
+            if len(self.codice_fiscale) != 16:
+                raise ValidationError({'codice_fiscale': "Il codice fiscale deve contenere esattamente 16 caratteri."})
+        if self.data_assunzione and self.data_licenziamento:
+            if self.data_licenziamento < self.data_assunzione:
+                raise ValidationError({'data_licenziamento': "La data di licenziamento non può essere precedente alla data di assunzione."})
+        if self.is_part_time and (self.ore_settimanali_part_time is None or self.ore_settimanali_part_time <= 0):
+            raise ValidationError({'ore_settimanali_part_time': "Per i contratti Part-Time è necessario inserire le ore settimanali previste (maggiori di 0)."})
+
     def save(self, *args, **kwargs):
+        if self.codice_fiscale:
+            self.codice_fiscale = self.codice_fiscale.strip().upper()
         # Auto-calculate data_nascita from CF if missing
         if not self.data_nascita and self.codice_fiscale:
             from .utils_cf import extract_data_nascita
@@ -126,6 +140,17 @@ class Cliente(models.Model):
         if self.ore_mensili_contratto and self.ore_mensili_contratto > 0:
             return round(float(self.importo_mensile_contratto) / float(self.ore_mensili_contratto), 2)
         return 0
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.codice_fiscale:
+            self.codice_fiscale = self.codice_fiscale.strip().upper()
+        if self.partita_iva:
+            self.partita_iva = self.partita_iva.strip()
+        if self.ore_mensili_contratto is not None and self.ore_mensili_contratto < 0:
+            raise ValidationError({'ore_mensili_contratto': "Le ore mensili previste da contratto non possono essere un valore negativo."})
+        if self.importo_mensile_contratto is not None and self.importo_mensile_contratto < 0:
+            raise ValidationError({'importo_mensile_contratto': "L'importo mensile di contratto non può essere un valore negativo."})
 
     def __str__(self):
         return self.ragione_sociale
@@ -188,13 +213,20 @@ class ProgrammazioneRicorrente(models.Model):
         from django.db.models import Q
         import datetime
         
+        # Validazione Durata
+        if self.durata is None or self.durata <= 0:
+            raise ValidationError({'durata': "La durata del turno deve essere un valore numerico maggiore di zero."})
+
         # Validazione Tipo Ripetizione
         if self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE') and self.giorno_settimana is None:
-            raise ValidationError("Devi selezionare un Giorno della Settimana.")
+            raise ValidationError({'giorno_settimana': "Devi selezionare un Giorno della Settimana."})
         if self.tipo_ripetizione == 'BISETTIMANALE' and not self.data_inizio_contratto:
-            raise ValidationError("Per ripetizione Bisettimanale devi inserire la Data Inizio Contratto (usata come riferimento ciclo).")
-        if self.tipo_ripetizione == 'MENSILE' and self.giorno_mese is None:
-            raise ValidationError("Per ripetizione Mensile devi inserire un Giorno del Mese.")
+            raise ValidationError({'data_inizio_contratto': "Per ripetizione Bisettimanale devi inserire la Data Inizio Contratto (usata come riferimento ciclo)."})
+        if self.tipo_ripetizione == 'MENSILE':
+            if self.giorno_mese is None:
+                raise ValidationError({'giorno_mese': "Per la ripetizione Mensile devi inserire un Giorno del Mese."})
+            if self.giorno_mese < 1 or self.giorno_mese > 31:
+                raise ValidationError({'giorno_mese': "Il giorno del mese deve essere un numero compreso tra 1 e 31."})
         
         # Validazione date contratto
         if self.data_inizio_contratto and self.data_fine_contratto:
@@ -273,6 +305,13 @@ class RichiestaStraordinaria(models.Model):
     descrizione = models.TextField(verbose_name="Descrizione Attività")
     completata = models.BooleanField(default=False, verbose_name="Completata")
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.data_inizio and self.data_fine and self.data_fine < self.data_inizio:
+            raise ValidationError({'data_fine': "La data di fine lavoro non può essere precedente alla data di inizio."})
+        if self.ora_inizio and self.ora_fine and self.ora_fine <= self.ora_inizio:
+            raise ValidationError({'ora_fine': "L'ora di fine deve essere successiva all'ora di inizio."})
+
     def __str__(self):
         return f"Straordinario {self.cliente} - {self.data_inizio}"
 
@@ -293,6 +332,13 @@ class Mezzo(models.Model):
     km_attuali = models.IntegerField(default=0, verbose_name="Km Percorsi")
     scadenza_polizza = models.DateField(null=True, blank=True, verbose_name="Scadenza Polizza")
     scadenza_bollo = models.DateField(null=True, blank=True, verbose_name="Scadenza Bollo")
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.targa:
+            self.targa = self.targa.strip().upper()
+        if self.km_attuali is not None and self.km_attuali < 0:
+            raise ValidationError({'km_attuali': "I chilometri percorsi non possono essere un valore negativo."})
 
     def __str__(self):
         return f"{self.modello} ({self.targa})"
@@ -371,6 +417,11 @@ class AssegnazioneTurno(models.Model):
         from django.core.exceptions import ValidationError
         if self.programmazione_feriale and self.richiesta_straordinaria:
             raise ValidationError("Un'assegnazione non può essere legata contemporaneamente a una programmazione feriale e straordinaria.")
+        if self.orario_inizio_previsto and self.orario_fine_previsto:
+            if self.orario_fine_previsto == self.orario_inizio_previsto:
+                raise ValidationError({'orario_fine_previsto': "L'orario di fine non può essere uguale all'orario di inizio."})
+        if self.ore_previste_contratto is not None and self.ore_previste_contratto < 0:
+            raise ValidationError({'ore_previste_contratto': "Le ore previste non possono essere un valore negativo."})
 
     def save(self, *args, **kwargs):
         # Auto-fill orari se linkato a una programmazione e orari non specificati
@@ -473,10 +524,12 @@ class Assenza(models.Model):
 
     def clean(self):
         from django.core.exceptions import ValidationError
-        if self.data_fine < self.data_inizio:
-            raise ValidationError("La data di fine non può essere precedente all'inizio.")
-        if self.ora_inizio and self.ora_fine and self.ora_fine <= self.ora_inizio:
-            raise ValidationError("L'ora di fine deve essere successiva all'ora di inizio.")
+        if self.data_inizio and self.data_fine:
+            if self.data_fine < self.data_inizio:
+                raise ValidationError({'data_fine': "La data di fine assenza non può essere precedente alla data di inizio."})
+        if self.ora_inizio and self.ora_fine:
+            if self.ora_fine <= self.ora_inizio:
+                raise ValidationError({'ora_fine': "L'ora di fine deve essere successiva all'ora di inizio."})
 
     def __str__(self):
         orario = f" {self.get_orario_display()}" if self.ora_inizio else ""
@@ -592,6 +645,11 @@ class Titolare(models.Model):
     )
     notifiche_attive = models.BooleanField(default=True, verbose_name="Notifiche Telegram Attive")
 
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not self.dipendente and not self.telegram_chat_id:
+            raise ValidationError("È necessario collegare un Dipendente o inserire un Telegram Chat ID per ricevere le notifiche.")
+
     def get_chat_id(self):
         """Restituisce il Chat ID: dal Dipendente collegato se presente, altrimenti dal campo diretto."""
         if self.dipendente and self.dipendente.telegram_chat_id:
@@ -675,6 +733,11 @@ class ModificaCedolino(models.Model):
     modificato_da = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, verbose_name="Modificato da")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.data_inizio and self.data_fine and self.data_fine < self.data_inizio:
+            raise ValidationError({'data_fine': "La data di fine periodo non può essere precedente alla data di inizio."})
 
     class Meta:
         verbose_name = "Modifica / Rettifica Cedolino"

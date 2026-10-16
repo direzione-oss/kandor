@@ -98,83 +98,135 @@ def genera_turni_automatici(days=365):
     
     return count
 
-def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=None, qualifica_richiesta=None):
+def _is_qualifica_compatibile(qualifica_richiesta, dip_qualifiche_nomi):
+    """Verifica se le qualifiche del dipendente sono compatibili con la qualifica richiesta (anche per affinità, es. PULIZIA / ADD PULIZIE)."""
+    if not qualifica_richiesta:
+        return True
+    req_nome = (getattr(qualifica_richiesta, 'nome', str(qualifica_richiesta)) or '').upper().strip()
+    if not req_nome:
+        return True
+    dip_upper = [q.upper().strip() for q in dip_qualifiche_nomi]
+    if req_nome in dip_upper:
+        return True
+    # Gruppi di affinità semantica presenti in anagrafica
+    radici = ['PULIZI', 'PORTIN', 'RECEPTION', 'IMPIEG', 'MAGAZZIN', 'GIARDIN', 'MANUTEN']
+    for rad in radici:
+        if rad in req_nome and any(rad in dq for dq in dip_upper):
+            return True
+    return False
+
+
+def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=None, qualifica_richiesta=None, escludi_richiesta_id=None):
     """
-    Trova un elenco compatibile di dipendenti sostituti per una copertura improvvisa.
+    Trova l'elenco dei dipendenti pronti a sostituire (is_sostituto=True, stato='ATTIVO')
+    e LIBERI nella data e fascia oraria indicate.
     Filtri:
     1. Stato ATTIVO e is_sostituto=True
-    2. Non in Ferie/Malattia/Permesso in quella data
-    3. Non già impegnati in un Turno coincidente
-    4. Qualifica compatibile (se specificata)
-    
-    Ranking: Distanza geografica casa-cliente (crescente)
+    2. Non in Ferie/Malattia/Permesso (non rifiutata) sovrapposta in quella data/orario
+    3. Non già impegnati in un altro Turno coincidente (come caposquadra o componente attivo non escluso)
+    4. Non già impegnati come sostituto in un'altra RichiestaSostituzione coincidente
+
+    Ranking:
+    1. Compatibilità qualifica (se specificata)
+    2. Distanza geografica casa-cliente (crescente)
+    3. Ordine alfabetico (cognome, nome)
     """
-    
-    # 1. Filtro Dipendenti Attivi e Sostituti
-    candidati = Dipendente.objects.filter(stato='ATTIVO', is_sostituto=True)
+    from .models import Assenza, RichiestaSostituzione
 
-    # Filtro opzionale per Qualifica
-    if qualifica_richiesta:
-        candidati = candidati.filter(qualifiche=qualifica_richiesta)
-    
-    if escludi_dipendenti_ids:
-        candidati = candidati.exclude(id__in=escludi_dipendenti_ids)
+    # 1. Filtro Dipendenti Attivi e Pronti a Sostituire (Jolly/Sostituti)
+    candidati = Dipendente.objects.filter(stato='ATTIVO', is_sostituto=True).prefetch_related('qualifiche')
 
-    # 2. Escludi Assenze
-    data_check = data
-    if isinstance(data, datetime):
-        data_check = data.date()
-        
-    from .models import Assenza
-    dipendenti_assenti = Assenza.objects.filter(
+    escludi_set = set(escludi_dipendenti_ids or [])
+
+    # 2. Escludi Assenze (non rifiutate) che coprono la data e l'orario del turno
+    data_check = data.date() if isinstance(data, datetime) else data
+
+    assenze_giorno = Assenza.objects.filter(
         data_inizio__lte=data_check,
         data_fine__gte=data_check
-    ).values_list('dipendente_id', flat=True)
-    
-    candidati = candidati.exclude(id__in=dipendenti_assenti)
+    ).exclude(stato_approvazione='RIFIUTATA')
 
-    # 3. Escludi chi è già occupato in un turno sovrapposto (per squadra O individualmente)
+    for ass in assenze_giorno:
+        # Se l'assenza ha orario specifico (es. permesso orario), verifica sovrapposizione col turno
+        if ass.ora_inizio and ass.ora_fine and ora_inizio and ora_fine:
+            if ass.ora_fine <= ora_inizio or ass.ora_inizio >= ora_fine:
+                continue  # Il permesso non si sovrappone all'orario del turno
+        escludi_set.add(ass.dipendente_id)
+
+    # 3. Escludi chi è già occupato in un turno sovrapposto (come Caposquadra o Componente non escluso)
     assegnazioni_concomitanti = AssegnazioneTurno.objects.filter(
-        turno__data=data_check,
-        orario_inizio_previsto__lt=ora_fine,
-        orario_fine_previsto__gt=ora_inizio
-    )
-    
-    # Escludi per squadra di appartenenza
-    squadre_impegnate_ids = assegnazioni_concomitanti.values_list('turno__squadra_id', flat=True)
-    candidati = candidati.exclude(squadre_appartenenza__id__in=squadre_impegnate_ids)
-    
-    # Escludi chi ha un turno individuale sovrapposto (anche fuori dalla propria squadra)
-    # Cerca dipendenti che hanno un'assegnazione diretta in quella squadra/turno
-    dipendenti_con_turno = AssegnazioneTurno.objects.filter(
-        turno__data=data_check,
-        orario_inizio_previsto__lt=ora_fine,
-        orario_fine_previsto__gt=ora_inizio,
-        turno__squadra__componenti__isnull=False  # ha dipendenti assegnati
-    ).values_list('turno__squadra__componenti__id', flat=True).distinct()
-    candidati = candidati.exclude(id__in=dipendenti_con_turno)
+        turno__data=data_check
+    ).select_related('turno__squadra').prefetch_related('turno__squadra__componenti', 'dipendenti_esclusi')
 
-    # 4. Calcolo Distanza e Ranking
+    if ora_inizio and ora_fine:
+        assegnazioni_concomitanti = assegnazioni_concomitanti.filter(
+            orario_inizio_previsto__lt=ora_fine,
+            orario_fine_previsto__gt=ora_inizio
+        )
+
+    for a_conc in assegnazioni_concomitanti:
+        sq = a_conc.turno.squadra if a_conc.turno else None
+        if not sq:
+            continue
+        esclusi_turno_ids = {d.id for d in a_conc.dipendenti_esclusi.all()}
+        if sq.caposquadra_id and sq.caposquadra_id not in esclusi_turno_ids:
+            escludi_set.add(sq.caposquadra_id)
+        for comp in sq.componenti.all():
+            if comp.id not in esclusi_turno_ids:
+                escludi_set.add(comp.id)
+
+    # 4. Escludi chi è già assegnato come sostituto in un'altra sostituzione sovrapposta nello stesso giorno
+    sost_concomitanti = RichiestaSostituzione.objects.filter(
+        assegnazione_originale__turno__data=data_check,
+        stato__in=['INVIATA', 'ACCETTATA', 'COMPLETATA'],
+        sostituto__isnull=False
+    )
+    if escludi_richiesta_id:
+        sost_concomitanti = sost_concomitanti.exclude(pk=escludi_richiesta_id)
+    if ora_inizio and ora_fine:
+        sost_concomitanti = sost_concomitanti.filter(
+            assegnazione_originale__orario_inizio_previsto__lt=ora_fine,
+            assegnazione_originale__orario_fine_previsto__gt=ora_inizio
+        )
+    for sc in sost_concomitanti:
+        escludi_set.add(sc.sostituto_id)
+
+    if escludi_set:
+        candidati = candidati.exclude(id__in=escludi_set)
+
+    # 5. Calcolo Distanza, Compatibilità Qualifica e Ranking
     risultati = []
-    coord_cliente = (cliente.latitudine, cliente.longitudine)
+    coord_cliente = (cliente.latitudine, cliente.longitudine) if cliente else (None, None)
     has_client_coords = coord_cliente[0] is not None and coord_cliente[1] is not None
 
     for dip in candidati:
         distanza = float('inf')
         coord_dip = (dip.latitudine, dip.longitudine)
-        
+
         if has_client_coords and coord_dip[0] is not None and coord_dip[1] is not None:
-             distanza = geodesic(coord_dip, coord_cliente).km
-        
+            try:
+                distanza = geodesic(coord_dip, coord_cliente).km
+            except Exception:
+                distanza = float('inf')
+
+        skills = [q.nome for q in dip.qualifiche.all()]
+        compatibile = _is_qualifica_compatibile(qualifica_richiesta, skills)
+
         risultati.append({
             'dipendente': dip,
             'distanza_km': distanza,
-            'skills': [q.nome for q in dip.qualifiche.all()]
+            'skills': skills,
+            'qualifica_compatibile': compatibile,
         })
 
-    # Ordina per distanza crescente
-    risultati.sort(key=lambda x: x['distanza_km'])
-    
+    # Ordina: prima chi ha qualifica compatibile, poi per distanza crescente, infine per cognome/nome
+    risultati.sort(key=lambda x: (
+        0 if x['qualifica_compatibile'] else 1,
+        x['distanza_km'],
+        (x['dipendente'].cognome or '').upper(),
+        (x['dipendente'].nome or '').upper()
+    ))
+
     return risultati
 
 
@@ -182,32 +234,37 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
 trova_jolly = trova_sostituti
 
 
-def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note=''):
+def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note='', auto_invia=False):
     """
     Crea una richiesta di sostituzione:
-    1. Trova il Responsabile Area della squadra
-    2. Calcola lista sostituti ordinata per distanza
-    3. Crea RichiestaSostituzione con stato APERTA
-    4. Invia notifica Telegram al Responsabile Area per approvazione
+    1. Calcola lista sostituti pronti a sostituire (is_sostituto=True) e liberi nel turno
+    2. Crea RichiestaSostituzione con stato APERTA (così l'Amministrazione può scegliere
+       chi assegnare o a chi inviare la notifica)
+    3. Se presente un Responsabile Area con Telegram, gli invia notifica informativa.
     """
     from .models import ResponsabileArea, RichiestaSostituzione
     import requests
     from django.conf import settings
-    
+
     cliente = assegnazione.cliente
     turno = assegnazione.turno
     squadra = turno.squadra
-    
+
     # Trova qualifica richiesta (se esiste programmazione collegata)
     qualifica = None
     if assegnazione.programmazione_feriale and assegnazione.programmazione_feriale.qualifica_richiesta:
         qualifica = assegnazione.programmazione_feriale.qualifica_richiesta
-    
-    # Trova sostituti disponibili
-    componenti_ids = list(squadra.componenti.values_list('id', flat=True))
-    if squadra.caposquadra:
-        componenti_ids.append(squadra.caposquadra.id)
-    
+
+    # Escludi i componenti attivi di questo stesso turno e il dipendente assente
+    esclusi_turno_ids = set(assegnazione.dipendenti_esclusi.values_list('id', flat=True))
+    componenti_ids = [dipendente_assente.id]
+    if squadra:
+        for cid in squadra.componenti.values_list('id', flat=True):
+            if cid not in esclusi_turno_ids and cid not in componenti_ids:
+                componenti_ids.append(cid)
+        if squadra.caposquadra_id and squadra.caposquadra_id not in esclusi_turno_ids and squadra.caposquadra_id not in componenti_ids:
+            componenti_ids.append(squadra.caposquadra_id)
+
     sostituti = trova_sostituti(
         cliente=cliente,
         data=turno.data,
@@ -216,17 +273,17 @@ def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note='
         escludi_dipendenti_ids=componenti_ids,
         qualifica_richiesta=qualifica
     )
-    
+
     sostituti_ids = [s['dipendente'].id for s in sostituti]
-    
+
     # Trova Responsabile Area
     ra = None
     try:
         ra = ResponsabileArea.objects.filter(squadre=squadra).first()
     except Exception:
         pass
-    
-    # Crea la richiesta
+
+    # Crea la richiesta in stato APERTA (pronta per la selezione da parte dell'Amministrazione)
     richiesta = RichiestaSostituzione.objects.create(
         assegnazione_originale=assegnazione,
         dipendente_assente=dipendente_assente,
@@ -236,8 +293,8 @@ def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note='
         sostituti_candidati=sostituti_ids,
         note=note,
     )
-    
-    # Notifica Responsabile Area via Telegram
+
+    # Notifica Responsabile Area via Telegram se configurato
     if ra and ra.dipendente.telegram_chat_id:
         bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
         if bot_token:
@@ -246,7 +303,7 @@ def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note='
             if primo_sost:
                 dist = f"{primo_sost['distanza_km']:.1f} km" if primo_sost['distanza_km'] != float('inf') else "N/D"
                 sost_info = f"\nPrimo sostituto proposto: {primo_sost['dipendente']} ({dist})"
-            
+
             msg = (
                 f"⚠️ RICHIESTA SOSTITUZIONE\n"
                 f"Dipendente: {dipendente_assente} ({motivo})\n"
@@ -256,16 +313,16 @@ def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note='
                 f"Cliente: {cliente.ragione_sociale}\n"
                 f"Squadra: {squadra.nome}"
                 f"{sost_info}\n\n"
-                f"Candidati disponibili: {len(sostituti)}"
+                f"Candidati liberi disponibili: {len(sostituti)}"
             )
-            
+
             keyboard = {
                 "inline_keyboard": [[
                     {"text": "✅ Approva", "callback_data": f"approva_sost_{richiesta.pk}"},
                     {"text": "❌ Rifiuta", "callback_data": f"rifiuta_sost_ra_{richiesta.pk}"}
                 ]]
             }
-            
+
             try:
                 import json
                 requests.post(
@@ -279,13 +336,12 @@ def crea_richiesta_sostituzione(assegnazione, dipendente_assente, motivo, note='
                 )
             except Exception:
                 pass
-    else:
-        # Se non c'è RA, approva automaticamente
+    elif auto_invia:
         richiesta.stato = 'APPROVATA_RA'
         richiesta.approvata_ra_il = timezone.now()
         richiesta.save()
         approva_e_invia_sostituto(richiesta.pk)
-    
+
     return richiesta
 
 
@@ -595,12 +651,25 @@ def notifica_titolari_sostituzione_fallita(richiesta):
     notifica_titolari(msg)
 
 
+def get_richieste_sostituzione_per_assenza(assenza):
+    """Restituisce tutte le RichiestaSostituzione attive collegate al dipendente e al periodo dell'assenza."""
+    from .models import RichiestaSostituzione
+    qs = RichiestaSostituzione.objects.filter(
+        dipendente_assente=assenza.dipendente,
+        assegnazione_originale__turno__data__gte=assenza.data_inizio,
+        assegnazione_originale__turno__data__lte=assenza.data_fine,
+        stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA']
+    ).select_related('assegnazione_originale__cliente', 'assegnazione_originale__turno', 'sostituto').order_by('assegnazione_originale__turno__data', 'assegnazione_originale__orario_inizio_previsto')
+    return list(qs)
+
+
 def avvia_sostituzione_per_assenza(assenza):
     """
-    Esegue la procedura automatica di sostituzione per un'assenza già AVVALATA dall'amministrazione.
-    Trova i turni scoperti nel periodo dell'assenza e crea una RichiestaSostituzione per ciascuno.
+    Esegue la procedura di sostituzione per un'assenza già AVVALATA dall'amministrazione.
+    Trova i turni scoperti nel periodo dell'assenza e crea una RichiestaSostituzione (in stato APERTA)
+    per ciascun turno non ancora coperto.
     """
-    if assenza.stato_approvazione != 'APPROVATA' or assenza.is_processed:
+    if assenza.stato_approvazione != 'APPROVATA':
         return 0
 
     from .models import Assenza, AssegnazioneTurno, Squadra, RichiestaSostituzione
@@ -608,12 +677,13 @@ def avvia_sostituzione_per_assenza(assenza):
     import datetime
 
     # Evita ricorsione via signal usando update() atomico
-    Assenza.objects.filter(pk=assenza.pk).update(is_processed=True)
-    assenza.is_processed = True
+    if not assenza.is_processed:
+        Assenza.objects.filter(pk=assenza.pk).update(is_processed=True)
+        assenza.is_processed = True
 
     dip = assenza.dipendente
     squadre = Squadra.objects.filter(Q(componenti=dip) | Q(caposquadra=dip)).distinct()
-    
+
     if not squadre.exists():
         return 0
 
@@ -623,9 +693,13 @@ def avvia_sostituzione_per_assenza(assenza):
         assegnazioni = AssegnazioneTurno.objects.filter(
             turno__data=data,
             turno__squadra__in=squadre
-        ).select_related('turno', 'turno__squadra', 'cliente')
+        ).select_related('turno', 'turno__squadra', 'cliente').prefetch_related('dipendenti_esclusi')
 
         for a in assegnazioni:
+            # Se il dipendente era già escluso da questo turno, non serve sostituirlo
+            if any(d.id == dip.id for d in a.dipendenti_esclusi.all()):
+                continue
+
             # Se è un permesso ad ore, verifica eventuale sovrapposizione oraria
             if assenza.ora_inizio and assenza.ora_fine and a.orario_inizio_previsto and a.orario_fine_previsto:
                 if a.orario_fine_previsto <= assenza.ora_inizio or a.orario_inizio_previsto >= assenza.ora_fine:
@@ -642,7 +716,8 @@ def avvia_sostituzione_per_assenza(assenza):
                     orario_str = f" ({assenza.get_orario_display()})" if assenza.ora_inizio else ""
                     crea_richiesta_sostituzione(
                         a, dip, assenza.tipo,
-                        f"Avvallata da Amministrazione — {assenza.tipo}{orario_str}"
+                        f"Avvallata da Amministrazione — {assenza.tipo}{orario_str}",
+                        auto_invia=False
                     )
                     totale_create += 1
                 except Exception as e:
@@ -653,12 +728,128 @@ def avvia_sostituzione_per_assenza(assenza):
     return totale_create
 
 
+def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_periodo=False):
+    """
+    Permette all'Amministrazione di confermare direttamente dall'ufficio il sostituto
+    (sia scegliendo un candidato libero dalla lista, sia confermando il sostituto già in attesa
+    se il dipendente non riesce a rispondere su Telegram).
+    Se applica_a_periodo=True, assegna lo stesso sostituto anche agli altri turni scoperti
+    della stessa assenza.
+    """
+    from .models import RichiestaSostituzione, Dipendente, Assenza
+    import requests
+    from django.conf import settings
+
+    try:
+        richiesta = RichiestaSostituzione.objects.select_related(
+            'assegnazione_originale__cliente',
+            'assegnazione_originale__turno__squadra',
+            'dipendente_assente',
+            'sostituto'
+        ).get(pk=richiesta_id)
+    except RichiestaSostituzione.DoesNotExist:
+        return {'ok': False, 'error': 'Richiesta di sostituzione non trovata'}
+
+    if sostituto_id:
+        try:
+            sostituto = Dipendente.objects.get(pk=sostituto_id)
+        except Dipendente.DoesNotExist:
+            return {'ok': False, 'error': 'Sostituto selezionato non trovato'}
+    elif richiesta.sostituto:
+        sostituto = richiesta.sostituto
+    else:
+        return {'ok': False, 'error': 'Seleziona il sostituto da confermare'}
+
+    # Elenco delle richieste da completare
+    richieste_target = [richiesta]
+    if applica_a_periodo:
+        data_turno = richiesta.assegnazione_originale.turno.data
+        assenza_collegata = Assenza.objects.filter(
+            dipendente=richiesta.dipendente_assente,
+            data_inizio__lte=data_turno,
+            data_fine__gte=data_turno
+        ).exclude(stato_approvazione='RIFIUTATA').first()
+        if assenza_collegata:
+            altre = RichiestaSostituzione.objects.filter(
+                dipendente_assente=richiesta.dipendente_assente,
+                assegnazione_originale__turno__data__gte=assenza_collegata.data_inizio,
+                assegnazione_originale__turno__data__lte=assenza_collegata.data_fine,
+                stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA']
+            ).exclude(pk=richiesta.pk).select_related(
+                'assegnazione_originale__cliente',
+                'assegnazione_originale__turno__squadra'
+            )
+            richieste_target.extend(list(altre))
+
+    now = timezone.now()
+    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    confermate_count = 0
+
+    for req in richieste_target:
+        req.sostituto = sostituto
+        req.stato = 'COMPLETATA'
+        if not req.approvata_ra_il:
+            req.approvata_ra_il = now
+        if not req.inviata_sostituto_il:
+            req.inviata_sostituto_il = now
+        req.risposta_sostituto_il = now
+
+        assegn = req.assegnazione_originale
+        cliente = assegn.cliente
+        if sostituto.latitudine and sostituto.longitudine and cliente.latitudine and cliente.longitudine:
+            try:
+                req.distanza_km = geodesic(
+                    (sostituto.latitudine, sostituto.longitudine),
+                    (cliente.latitudine, cliente.longitudine)
+                ).km
+            except Exception:
+                pass
+
+        nota_uff = f"Confermata dall'Ufficio: {sostituto.cognome} {sostituto.nome}"
+        if nota_uff not in (req.note or ''):
+            req.note = f"{req.note}\n{nota_uff}".strip()
+        req.save()
+        confermate_count += 1
+
+        # Invia promemoria su Telegram al sostituto (se ha Telegram) e notifica completamento
+        if bot_token and sostituto.telegram_chat_id:
+            try:
+                orario_str = f"{assegn.orario_inizio_previsto.strftime('%H:%M')}-{assegn.orario_fine_previsto.strftime('%H:%M')}" if (assegn.orario_inizio_previsto and assegn.orario_fine_previsto) else "N/D"
+                msg_sost = (
+                    f"✅ SOSTITUZIONE CONFERMATA DALL'UFFICIO\n\n"
+                    f"📍 Cliente: {cliente.ragione_sociale}\n"
+                    f"📫 Indirizzo: {cliente.indirizzo_sede or 'N/D'}\n"
+                    f"📅 Data: {assegn.turno.data.strftime('%d/%m/%Y')}\n"
+                    f"🕐 Orario: {orario_str}\n"
+                    f"👤 In sostituzione di: {req.dipendente_assente}\n\n"
+                    f"L'Amministrazione ha registrato la tua assegnazione per questo turno. Buon lavoro! 👍"
+                )
+                requests.post(
+                    f"https://api.telegram.org/bot{bot_token}/sendMessage",
+                    json={"chat_id": sostituto.telegram_chat_id, "text": msg_sost},
+                    timeout=5
+                )
+            except Exception:
+                pass
+
+        try:
+            _notifica_completamento(req)
+        except Exception:
+            pass
+
+    return {
+        'ok': True,
+        'richiesta': richiesta,
+        'sostituto_nome': f"{sostituto.cognome} {sostituto.nome}",
+        'confermate_count': confermate_count,
+    }
+
 
 def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
     """
     Procedura di avvallo dell'amministrazione:
     1. Imposta lo stato a APPROVATA
-    2. Avvia la procedura automatica di sostituzione
+    2. Avvia la procedura di sostituzione creando le RichiestaSostituzione per i turni scoperti
     3. Notifica il dipendente via Telegram
     """
     from .models import Assenza
@@ -671,12 +862,16 @@ def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
         return {'ok': False, 'error': 'Assenza non trovata'}
 
     assenza.stato_approvazione = 'APPROVATA'
+    assenza.is_processed = True
     assenza.approvata_da_admin_il = timezone.now()
     if note_admin:
         assenza.note = f"{assenza.note}\nNote Admin: {note_admin}".strip()
     assenza.save()
 
-    num_sostituzioni = avvia_sostituzione_per_assenza(assenza)
+    avvia_sostituzione_per_assenza(assenza)
+    richieste_attive = get_richieste_sostituzione_per_assenza(assenza)
+    num_sostituzioni = len(richieste_attive)
+    richieste_ids = [r.id for r in richieste_attive]
 
     # Notifica Telegram al Dipendente
     dip = assenza.dipendente
@@ -696,7 +891,7 @@ def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
                 f"è stata AVVALATA E APPROVATA dall'Amministrazione.\n\n"
             )
             if num_sostituzioni > 0:
-                msg_dip += f"🔄 È stata avviata la procedura automatica di sostituzione per {num_sostituzioni} turno/i scoperti."
+                msg_dip += f"🔄 In gestione la sostituzione per {num_sostituzioni} turno/i nel periodo."
             else:
                 msg_dip += f"ℹ️ Nessun turno da sostituire nel periodo."
 
@@ -709,7 +904,13 @@ def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
             except Exception:
                 pass
 
-    return {'ok': True, 'assenza': assenza, 'num_sostituzioni': num_sostituzioni}
+    return {
+        'ok': True,
+        'assenza': assenza,
+        'num_sostituzioni': num_sostituzioni,
+        'richieste_ids': richieste_ids,
+        'prima_richiesta_id': richieste_ids[0] if richieste_ids else None,
+    }
 
 
 def rifiuta_assenza_da_amministrazione(assenza_id, note_admin=''):

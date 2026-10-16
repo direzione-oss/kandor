@@ -658,6 +658,7 @@ def validate_ore_ajax(request, assign_id):
     try:
         from .models import TimeTracking, AssegnazioneTurno, Dipendente, Assenza
         from decimal import Decimal
+        from .models import RichiestaSostituzione
 
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
@@ -678,12 +679,22 @@ def validate_ore_ajax(request, assign_id):
             if c.pk not in esclusi_ids and c.pk not in assenti_ids and c not in active_dips:
                 active_dips.append(c)
 
+        # Includi eventuali SOSTITUTI confermati (COMPLETATA / ACCETTATA) per questa assegnazione
+        sost_confermate = RichiestaSostituzione.objects.filter(
+            assegnazione_originale=assign,
+            stato__in=['ACCETTATA', 'COMPLETATA'],
+            sostituto__isnull=False
+        ).select_related('sostituto')
+        for sc in sost_confermate:
+            if sc.sostituto and sc.sostituto not in active_dips and sc.sostituto.pk not in assenti_ids:
+                active_dips.append(sc.sostituto)
+
         # Rimuovi eventuali TimeTracking registrati per i dipendenti in ASSENZA per questo turno
         if assenti_ids:
             TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=assenti_ids).delete()
 
         if not active_dips:
-            # Se tutti sono in assenza o esclusi
+            # Se tutti sono in assenza o esclusi e non c'è sostituto
             return JsonResponse({
                 'status': 'ok',
                 'message': f"Tutti i componenti della squadra {squadra.nome} sono in assenza o esclusi per la data {data_turno.strftime('%d/%m')}.",
@@ -715,7 +726,7 @@ def validate_ore_ajax(request, assign_id):
                     minuti += 24 * 60
                 ore_val = Decimal(str(round(minuti / 60.0, 2)))
 
-        # Applica a TUTTI i componenti attivi (non assenti) della squadra
+        # Applica a TUTTI i componenti attivi (inclusi i sostituti confermati)
         updated_count = 0
         for dip in active_dips:
             tt, created = TimeTracking.objects.get_or_create(
@@ -756,7 +767,7 @@ def validate_ore_ajax(request, assign_id):
 def get_squadre_clienti_json(request):
     """Ritorna JSON con squadre e clienti per la modale del calendario."""
     from .models import Squadra, Cliente
-    
+
     squadre_qs = Squadra.objects.all().prefetch_related('componenti')
     squadre = []
     for sq in squadre_qs:
@@ -764,41 +775,54 @@ def get_squadre_clienti_json(request):
         if sq.caposquadra:
             componenti.insert(0, {'id': sq.caposquadra.id, 'nome': f"{sq.caposquadra.cognome} {sq.caposquadra.nome} (CS)"})
         squadre.append({'id': sq.id, 'nome': sq.nome, 'componenti': componenti})
-    
+
     clienti = list(Cliente.objects.all().order_by('ragione_sociale').values('id', 'ragione_sociale'))
-    
+
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
 
 
 def get_assegnazione_componenti_json(request, assign_id):
-    """Per una specifica assegnazione: restituisce i componenti della squadra, le ore dichiarate, assenze e ID degli esclusi."""
+    """Per una specifica assegnazione: restituisce i componenti della squadra, i sostituti, le ore dichiarate, assenze e ID degli esclusi."""
     try:
-        from .models import AssegnazioneTurno, TimeTracking, Assenza
+        from .models import AssegnazioneTurno, TimeTracking, Assenza, RichiestaSostituzione
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
         data_turno = assign.turno.data
         esclusi_ids = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
         tt_map = {tt.dipendente_id: tt for tt in TimeTracking.objects.filter(assegnazione=assign)}
-        
+
         assenze_qs = Assenza.objects.filter(
             data_inizio__lte=data_turno,
             data_fine__gte=data_turno
         ).exclude(stato_approvazione='RIFIUTATA')
         assenze_map = {ass.dipendente_id: ass for ass in assenze_qs}
 
-        def _build_comp_dict(dip, ruolo):
+        richieste_sost_qs = RichiestaSostituzione.objects.filter(
+            assegnazione_originale=assign,
+            stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA']
+        ).select_related('sostituto', 'dipendente_assente')
+        sost_by_assente = {r.dipendente_assente_id: r for r in richieste_sost_qs}
+
+        def _build_comp_dict(dip, ruolo, sostituto_di=None):
             tt = tt_map.get(dip.pk)
-            ass = assenze_map.get(dip.pk)
+            ass = assenze_map.get(dip.pk) if not sostituto_di else None
+            req_sost = sost_by_assente.get(dip.pk) if not sostituto_di else None
             ore_d = float(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else (float(tt.durata_ore) if (tt and tt.durata_ore) else None)
             return {
                 'id': dip.pk,
                 'nome': f"{dip.cognome} {dip.nome}",
                 'ruolo': ruolo,
-                'escluso': dip.pk in esclusi_ids,
+                'sostituto_di': sostituto_di,
+                'escluso': (dip.pk in esclusi_ids) if not sostituto_di else False,
                 'in_assenza': ass is not None,
+                'assenza_id': ass.id if ass else None,
+                'stato_approvazione': ass.stato_approvazione if ass else None,
                 'tipo_assenza': ass.tipo if ass else None,
                 'assenza_display': f"🏥 {ass.get_tipo_display()}" if ass else None,
+                'richiesta_sostituzione_id': req_sost.id if req_sost else None,
+                'richiesta_sostituzione_stato': req_sost.stato if req_sost else None,
+                'sostituto_assegnato': f"{req_sost.sostituto.cognome} {req_sost.sostituto.nome}" if (req_sost and req_sost.sostituto) else None,
                 'ore_dichiarate': ore_d if not ass else None,
                 'is_validated': (tt.is_validated if tt else False) if not ass else False,
                 'source': tt.source if tt else None,
@@ -806,10 +830,23 @@ def get_assegnazione_componenti_json(request, assign_id):
             }
 
         componenti = []
+        presenti_ids = set()
         if squadra.caposquadra:
             componenti.append(_build_comp_dict(squadra.caposquadra, 'Caposquadra'))
+            presenti_ids.add(squadra.caposquadra.pk)
         for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
             componenti.append(_build_comp_dict(c, 'Componente'))
+            presenti_ids.add(c.pk)
+
+        # Aggiungi i sostituti confermati alla lista componenti del turno
+        for r in richieste_sost_qs:
+            if r.stato in ['ACCETTATA', 'COMPLETATA'] and r.sostituto and r.sostituto.pk not in presenti_ids:
+                componenti.append(_build_comp_dict(
+                    r.sostituto,
+                    'Sostituto',
+                    sostituto_di=f"{r.dipendente_assente.cognome} {r.dipendente_assente.nome}"
+                ))
+                presenti_ids.add(r.sostituto.pk)
 
         return JsonResponse({
             'componenti': componenti,
@@ -1119,18 +1156,29 @@ def toggle_telegram_status(request, model_name, item_id):
         item = ModelClass.objects.get(pk=item_id)
         
         new_state = False
+        extra_payload = {}
         if model_name.lower() == 'timetracking':
             item.is_validated = not item.is_validated
             new_state = item.is_validated
+            item.save()
         elif model_name.lower() == 'assenza':
-            item.is_processed = not item.is_processed
-            new_state = item.is_processed
+            new_state = not item.is_processed
+            if new_state:
+                from .services import avvalla_assenza_da_amministrazione
+                res = avvalla_assenza_da_amministrazione(item.pk)
+                extra_payload['richieste_ids'] = res.get('richieste_ids', [])
+                extra_payload['prima_richiesta_id'] = res.get('prima_richiesta_id')
+                extra_payload['stato_approvazione'] = 'APPROVATA_AMMINISTRAZIONE'
+            else:
+                item.is_processed = False
+                item.save()
         elif model_name.lower() == 'segnalazione':
             item.risolto = not item.risolto
             new_state = item.risolto
+            item.save()
             
-        item.save()
-        return HttpResponse(json.dumps({'status': 'ok', 'new_state': new_state}), content_type='application/json')
+        payload = {'status': 'ok', 'new_state': new_state, **extra_payload}
+        return HttpResponse(json.dumps(payload), content_type='application/json')
         
     except ModelClass.DoesNotExist:
         return HttpResponse('Item not found', status=404)
@@ -1849,16 +1897,18 @@ def trova_sostituti_api(request):
 def get_sostituti_richiesta_api(request, richiesta_id):
     """
     Ritorna l'elenco di tutti i sostituti compatibili/disponibili per una richiesta di sostituzione,
-    evidenziando quali sono stati precedentemente selezionati e l'ordine di selezione.
+    evidenziando quali sono stati precedentemente selezionati, l'ordine di selezione,
+    l'eventuale sostituto attualmente contattato/assegnato e gli altri turni collegati alla stessa assenza.
     """
-    from .models import RichiestaSostituzione, Dipendente
-    from .services import trova_sostituti
+    from .models import RichiestaSostituzione, Dipendente, Assenza
+    from .services import trova_sostituti, get_richieste_sostituzione_per_assenza
 
     try:
         richiesta = RichiestaSostituzione.objects.select_related(
             'assegnazione_originale__cliente',
             'assegnazione_originale__turno__squadra',
-            'dipendente_assente'
+            'dipendente_assente',
+            'sostituto'
         ).get(pk=richiesta_id)
     except RichiestaSostituzione.DoesNotExist:
         return JsonResponse({'ok': False, 'error': 'Richiesta di sostituzione non trovata'}, status=404)
@@ -1870,13 +1920,16 @@ def get_sostituti_richiesta_api(request, richiesta_id):
 
     qualifica = None
     if assegnazione.programmazione_feriale and assegnazione.programmazione_feriale.qualifica_richiesta:
-        qualifica = assegnazione.programmazione_feriale.qualifica_richiesta
+        q_obj = assegnazione.programmazione_feriale.qualifica_richiesta
+        qualifica = getattr(q_obj, 'nome', str(q_obj))
 
     componenti_ids = []
     if squadra:
         componenti_ids = list(squadra.componenti.values_list('id', flat=True))
         if squadra.caposquadra:
             componenti_ids.append(squadra.caposquadra.id)
+    if richiesta.dipendente_assente_id and richiesta.dipendente_assente_id not in componenti_ids:
+        componenti_ids.append(richiesta.dipendente_assente_id)
 
     candidati_trovati = trova_sostituti(
         cliente=cliente,
@@ -1901,29 +1954,63 @@ def get_sostituti_richiesta_api(request, richiesta_id):
             'nome': f"{dip.cognome} {dip.nome}",
             'distanza_km': dist_str,
             'qualifiche': r['skills'],
+            'qualifica_compatibile': r.get('qualifica_compatibile', True),
             'telefono': dip.telefono or 'N/D',
+            'ha_telegram': bool(getattr(dip, 'telegram_chat_id', None)),
             'categoria_protetta': getattr(dip, 'categoria_protetta', False),
             'selezionato': selezionato,
-            'ordine': ordine
+            'ordine': ordine,
+            'is_sostituto_corrente': (richiesta.sostituto_id == dip.id)
         })
 
     trovati_ids = {item['id'] for item in list_data}
-    for sid in salvati_ids:
+    extra_ids = list(salvati_ids)
+    if richiesta.sostituto_id and richiesta.sostituto_id not in extra_ids:
+        extra_ids.insert(0, richiesta.sostituto_id)
+
+    for sid in extra_ids:
         if sid not in trovati_ids:
             try:
                 dip = Dipendente.objects.get(pk=sid)
+                selezionato = sid in salvati_ids
                 list_data.append({
                     'id': dip.id,
                     'nome': f"{dip.cognome} {dip.nome}",
                     'distanza_km': 'N/D',
                     'qualifiche': [q.nome for q in dip.qualifiche.all()],
+                    'qualifica_compatibile': True,
                     'telefono': dip.telefono or 'N/D',
+                    'ha_telegram': bool(getattr(dip, 'telegram_chat_id', None)),
                     'categoria_protetta': getattr(dip, 'categoria_protetta', False),
-                    'selezionato': True,
-                    'ordine': salvati_ids.index(sid) + 1
+                    'selezionato': selezionato,
+                    'ordine': (salvati_ids.index(sid) + 1) if selezionato else None,
+                    'is_sostituto_corrente': (richiesta.sostituto_id == dip.id)
                 })
+                trovati_ids.add(dip.id)
             except Dipendente.DoesNotExist:
                 pass
+
+    # Cerca altre richieste di sostituzione collegate alla stessa assenza
+    richieste_collegate_data = []
+    assenza_corrente = Assenza.objects.filter(
+        dipendente=richiesta.dipendente_assente,
+        data_inizio__lte=turno.data,
+        data_fine__gte=turno.data
+    ).order_by('-id').first()
+
+    if assenza_corrente:
+        qs_collegate = get_richieste_sostituzione_per_assenza(assenza_corrente)
+        for rc in qs_collegate:
+            ao = rc.assegnazione_originale
+            ora_rc = f"{ao.orario_inizio_previsto.strftime('%H:%M')}-{ao.orario_fine_previsto.strftime('%H:%M')}" if (ao.orario_inizio_previsto and ao.orario_fine_previsto) else ""
+            richieste_collegate_data.append({
+                'id': rc.id,
+                'data': ao.turno.data.strftime('%d/%m/%Y'),
+                'orario': ora_rc,
+                'cliente': ao.cliente.ragione_sociale if ao.cliente else 'N/D',
+                'stato': rc.stato,
+                'sostituto_nome': f"{rc.sostituto.cognome} {rc.sostituto.nome}" if rc.sostituto else None
+            })
 
     orario_str = f"{assegnazione.orario_inizio_previsto.strftime('%H:%M')}-{assegnazione.orario_fine_previsto.strftime('%H:%M')}" if (assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto) else "N/D"
 
@@ -1933,9 +2020,13 @@ def get_sostituti_richiesta_api(request, richiesta_id):
         'cliente_nome': cliente.ragione_sociale if cliente else 'N/D',
         'data_turno': turno.data.strftime('%d/%m/%Y'),
         'orario_turno': orario_str,
+        'qualifica_richiesta': qualifica or 'Qualsiasi',
         'dipendente_assente': str(richiesta.dipendente_assente),
         'motivo_assenza': richiesta.motivo_assenza,
         'stato': richiesta.stato,
+        'sostituto_corrente_id': richiesta.sostituto_id,
+        'sostituto_corrente_nome': f"{richiesta.sostituto.cognome} {richiesta.sostituto.nome}" if richiesta.sostituto else None,
+        'richieste_collegate': richieste_collegate_data,
         'sostituti': list_data
     })
 
@@ -1945,6 +2036,7 @@ def invia_notifiche_sostituti_api(request):
     """
     Riceve l'elenco dei sostituti selezionati e il loro ordine di preferenza,
     aggiorna la RichiestaSostituzione e invia la notifica al primo sostituto in lista.
+    Se applica_a_periodo=True, imposta la stessa coda e invia anche agli altri turni scoperti dell'assenza.
     """
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
@@ -1956,6 +2048,7 @@ def invia_notifiche_sostituti_api(request):
 
     richiesta_id = data.get('richiesta_id')
     sostituti_ids = data.get('sostituti_ids', [])
+    applica_a_periodo = bool(data.get('applica_a_periodo', False))
 
     if not richiesta_id:
         return JsonResponse({'ok': False, 'error': 'richiesta_id obbligatorio'}, status=400)
@@ -1963,11 +2056,11 @@ def invia_notifiche_sostituti_api(request):
     if not isinstance(sostituti_ids, list) or len(sostituti_ids) == 0:
         return JsonResponse({'ok': False, 'error': 'Seleziona almeno un sostituto a cui inviare la notifica'}, status=400)
 
-    from .models import RichiestaSostituzione, Dipendente
-    from .services import approva_e_invia_sostituto
+    from .models import RichiestaSostituzione, Dipendente, Assenza
+    from .services import approva_e_invia_sostituto, get_richieste_sostituzione_per_assenza
 
     try:
-        richiesta = RichiestaSostituzione.objects.get(pk=richiesta_id)
+        richiesta = RichiestaSostituzione.objects.select_related('assegnazione_originale__turno', 'dipendente_assente').get(pk=richiesta_id)
     except RichiestaSostituzione.DoesNotExist:
         return JsonResponse({'ok': False, 'error': 'Richiesta di sostituzione non trovata'}, status=404)
 
@@ -1983,22 +2076,122 @@ def invia_notifiche_sostituti_api(request):
     if not valid_ids:
         return JsonResponse({'ok': False, 'error': 'Nessun sostituto valido selezionato'}, status=400)
 
-    richiesta.sostituti_candidati = valid_ids
-    richiesta.sostituto_corrente_idx = 0
-    richiesta.stato = 'APPROVATA_RA'
-    richiesta.approvata_ra_il = timezone.now()
-    richiesta.save()
+    richieste_target = [richiesta]
+    if applica_a_periodo:
+        data_turno = richiesta.assegnazione_originale.turno.data
+        assenza = Assenza.objects.filter(
+            dipendente=richiesta.dipendente_assente,
+            data_inizio__lte=data_turno,
+            data_fine__gte=data_turno
+        ).order_by('-id').first()
+        if assenza:
+            collegate = list(get_richieste_sostituzione_per_assenza(assenza).exclude(stato__in=['ACCETTATA', 'COMPLETATA']))
+            if collegate:
+                richieste_target = collegate
 
-    res_richiesta = approva_e_invia_sostituto(richiesta.pk)
+    res_richiesta = None
+    for req_obj in richieste_target:
+        req_obj.sostituti_candidati = valid_ids
+        req_obj.sostituto_corrente_idx = 0
+        req_obj.stato = 'APPROVATA_RA'
+        req_obj.approvata_ra_il = timezone.now()
+        req_obj.save()
+        r = approva_e_invia_sostituto(req_obj.pk)
+        if req_obj.pk == richiesta.pk:
+            res_richiesta = r
+
+    if not res_richiesta:
+        res_richiesta = richiesta
 
     primo_dip_nome = str(res_richiesta.sostituto) if (res_richiesta and res_richiesta.sostituto) else 'primo sostituto'
+    extra_msg = f" su {len(richieste_target)} turni dell'assenza" if len(richieste_target) > 1 else ""
 
     return JsonResponse({
         'ok': True,
-        'message': f"Notifica inviata con successo a {primo_dip_nome} (1° in ordine di selezione). Totalizzati {len(valid_ids)} sostituti in coda.",
+        'message': f"Notifica Telegram inviata a {primo_dip_nome} (1° in ordine di selezione){extra_msg}. In coda: {len(valid_ids)} candidati.",
         'sostituto_corrente': primo_dip_nome,
-        'totale_selezionati': len(valid_ids)
+        'totale_selezionati': len(valid_ids),
+        'turni_aggiornati': len(richieste_target)
     })
+
+
+@csrf_exempt
+def valida_assenza_api(request, assenza_id):
+    """
+    Endpoint per validare (avvallare) un'assenza dall'Amministrazione e creare
+    o recuperare le Richieste di Sostituzione per tutti i turni scoperti del periodo.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+
+    from .services import avvalla_assenza_da_amministrazione
+
+    res = avvalla_assenza_da_amministrazione(assenza_id)
+    if not res.get('ok'):
+        return JsonResponse({'ok': False, 'error': res.get('error', 'Errore durante la validazione')}, status=404)
+
+    return JsonResponse({
+        'ok': True,
+        'assenza_id': assenza_id,
+        'num_sostituzioni': res.get('num_sostituzioni', 0),
+        'richieste_ids': res.get('richieste_ids', []),
+        'prima_richiesta_id': res.get('prima_richiesta_id')
+    })
+
+
+@csrf_exempt
+def conferma_sostituto_ufficio_api(request):
+    """
+    Endpoint per confermare direttamente dall'ufficio (Amministrazione) il sostituto
+    per una RichiestaSostituzione, sia scegliendo un candidato libero dalla lista,
+    sia confermando per conto del dipendente a cui era già stata inviata la richiesta Telegram
+    (se non riesce a rispondere dal cellulare).
+    Supporta anche l'azione 'passa_successivo' per passare manualmente al candidato successivo in coda.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'ok': False, 'error': 'Dati JSON non validi'}, status=400)
+
+    richiesta_id = data.get('richiesta_id')
+    azione = data.get('azione', 'conferma')  # 'conferma' oppure 'passa_successivo'
+
+    if not richiesta_id:
+        return JsonResponse({'ok': False, 'error': 'richiesta_id obbligatorio'}, status=400)
+
+    if azione == 'passa_successivo':
+        from .services import gestisci_risposta_sostituto
+        richiesta = gestisci_risposta_sostituto(richiesta_id, accetta=False)
+        if not richiesta:
+            return JsonResponse({'ok': False, 'error': 'Impossibile passare al sostituto successivo'}, status=400)
+        if richiesta.stato == 'INVIATA' and richiesta.sostituto:
+            msg = f"Passato al candidato successivo: notifica inviata a {richiesta.sostituto.cognome} {richiesta.sostituto.nome}."
+        else:
+            msg = f"Lista candidati esaurita (stato: {richiesta.get_stato_display()}). Puoi confermare un sostituto direttamente dall'ufficio."
+        return JsonResponse({
+            'ok': True,
+            'message': msg,
+            'stato': richiesta.stato,
+            'sostituto_corrente_id': richiesta.sostituto_id,
+            'sostituto_corrente_nome': f"{richiesta.sostituto.cognome} {richiesta.sostituto.nome}" if richiesta.sostituto else None
+        })
+
+    sostituto_id = data.get('sostituto_id')
+    applica_a_periodo = bool(data.get('applica_a_periodo', False))
+
+    from .services import assegna_sostituto_da_ufficio
+    res = assegna_sostituto_da_ufficio(
+        richiesta_id=richiesta_id,
+        sostituto_id=sostituto_id,
+        applica_a_periodo=applica_a_periodo
+    )
+    if not res.get('ok'):
+        return JsonResponse(res, status=400)
+
+    return JsonResponse(res)
 
 
 @csrf_exempt

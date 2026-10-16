@@ -484,6 +484,7 @@ def is_resource_model(model_name):
 @register.inclusion_tag('admin/widgets/telegram_feed_widget.html')
 def telegram_feed_widget():
     from core.models import TimeTracking, Assenza, Segnalazione
+    from core.services import get_richieste_sostituzione_per_assenza
 
     # Ultime 10 Ore Lavorate da Telegram (usa -id per B-tree index istantaneo)
     latest_hours = TimeTracking.objects.filter(
@@ -492,10 +493,17 @@ def telegram_feed_widget():
         'dipendente', 'assegnazione__cliente', 'assegnazione__turno__squadra'
     ).order_by('-id')[:10]
 
-    # Ultime 10 Assenze da Telegram
-    latest_absences = Assenza.objects.filter(
-        source='TELEGRAM'
-    ).select_related('dipendente').order_by('-id')[:10]
+    # Ultime 10 Assenze
+    latest_absences = list(Assenza.objects.select_related('dipendente').order_by('-id')[:10])
+    for item in latest_absences:
+        richieste = list(get_richieste_sostituzione_per_assenza(item))
+        item.tot_richieste_sost = len(richieste)
+        item.coperte_sost = sum(1 for r in richieste if r.stato in ('ACCETTATA', 'COMPLETATA'))
+        item.in_attesa_tg_sost = sum(1 for r in richieste if r.stato == 'INVIATA')
+        aperta = next((r for r in richieste if r.stato not in ('ACCETTATA', 'COMPLETATA')), richieste[0] if richieste else None)
+        item.prima_richiesta_id = aperta.id if aperta else None
+        item.sostituto_corrente_nome = f"{aperta.sostituto.cognome} {aperta.sostituto.nome}" if (aperta and aperta.sostituto) else None
+        item.is_avvallata = item.stato_approvazione in ('APPROVATA_AMMINISTRAZIONE', 'APPROVATA') or item.is_processed
 
     # Ultime 10 Segnalazioni
     latest_reports = Segnalazione.objects.select_related(

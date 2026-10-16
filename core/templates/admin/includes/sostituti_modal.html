@@ -1,35 +1,54 @@
-<!-- Modal Window per la Selezione e Ordinamento dei Sostituti -->
-<div id="modal-seleziona-sostituti-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.7); backdrop-filter:blur(4px); z-index:999999; align-items:center; justify-content:center;" onclick="if(event.target===this)chiudiModalSostituti()">
-  <div style="background:#fff; border-radius:12px; width:720px; max-width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.3); overflow:hidden; border:1px solid #CBD5E1;">
+<!-- Modal Window per la Selezione, Invio Telegram e Conferma dall'Ufficio dei Sostituti -->
+<div id="modal-seleziona-sostituti-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.72); backdrop-filter:blur(4px); z-index:999999; align-items:center; justify-content:center;" onclick="if(event.target===this)chiudiModalSostituti()">
+  <div style="background:#fff; border-radius:12px; width:820px; max-width:96%; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); overflow:hidden; border:1px solid #CBD5E1;">
     
     <!-- Header -->
-    <div style="background:#0F172A; color:#fff; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="background:#0F172A; color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center;">
       <div>
         <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#F8FAFC; display:flex; align-items:center; gap:8px;">
-          <span>👥</span> Seleziona Sostituti per Turno
+          <span>👥</span> Gestione Sostituzione Turno (Liberi e Pronti a Sostituire)
         </h3>
-        <div id="sost-modal-subtitle" style="font-size:12px; color:#94A3B8; margin-top:4px;">Caricamento informazioni turno...</div>
+        <div id="sost-modal-subtitle" style="font-size:12px; color:#CBD5E1; margin-top:4px;">Caricamento informazioni turno...</div>
       </div>
       <button onclick="chiudiModalSostituti()" style="background:transparent; border:none; color:#94A3B8; font-size:22px; cursor:pointer; font-weight:bold; line-height:1;">✕</button>
     </div>
 
+    <!-- Banner Stato Attuale / Conferma Rapida Ufficio per Sostituto in Attesa Telegram -->
+    <div id="sost-status-banner" style="display:none; padding:12px 24px 0 24px;"></div>
+
+    <!-- Turni collegati alla stessa assenza (se più di 1) -->
+    <div id="sost-period-bar" style="display:none; padding:12px 24px 0 24px;">
+      <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:10px 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+          <span style="font-size:12px; font-weight:700; color:#334155;">📅 Turni del periodo di assenza:</span>
+          <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#0F172A; cursor:pointer; background:#E0F2FE; padding:4px 10px; border-radius:6px; border:1px solid #7DD3FC;">
+            <input type="checkbox" id="sost-applica-periodo-chk" checked style="transform:scale(1.1); cursor:pointer;">
+            🔁 Applica la scelta a tutti i turni scoperti di questa assenza
+          </label>
+        </div>
+        <div id="sost-turni-tabs" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+      </div>
+    </div>
+
     <!-- Instructions / Info Box -->
-    <div style="padding:16px 24px 0 24px;">
-      <div style="background:#EFF6FF; border-left:4px solid #2563EB; padding:12px 16px; border-radius:6px; font-size:13px; color:#1E40AF; line-height:1.4;">
-        <strong>ℹ️ Selezione in Ordine di Chiamata:</strong> Seleziona i dipendenti a cui inviare l'avviso. 
-        <strong>L'ordine di spunta definisce la sequenza di contatto</strong> (1° sostituto, 2° in caso di rifiuto, 3°...).
+    <div style="padding:12px 24px 0 24px;">
+      <div style="background:#EFF6FF; border-left:4px solid #2563EB; padding:10px 14px; border-radius:6px; font-size:12.5px; color:#1E40AF; line-height:1.45;">
+        <strong>💡 Due modalità operative per l'Amministrazione:</strong><br>
+        1️⃣ <strong>🏢 Conferma dall'Ufficio (Immediata):</strong> Clicca su <strong>"🏢 Conferma dall'Ufficio"</strong> accanto al candidato scelto (o sul sostituto già contattato che non riesce a usare Telegram) per assegnarlo subito al turno.<br>
+        2️⃣ <strong>🚀 Coda Notifiche Telegram:</strong> Spunta uno o più candidati in ordine di preferenza (1°, 2°, 3°...) e clicca su <strong>"Invia Notifiche ai Selezionati"</strong>.
       </div>
     </div>
 
     <!-- Body / List -->
-    <div style="padding:16px 24px; overflow-y:auto; flex:1;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #E2E8F0;">
+    <div style="padding:14px 24px; overflow-y:auto; flex:1;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #E2E8F0; flex-wrap:wrap; gap:8px;">
         <span style="font-size:13px; font-weight:700; color:#334155;">
-          Dipendenti Disponibili (<span id="sost-candidati-count">0</span>)
+          Candidati Sostituti Liberi (<span id="sost-candidati-count">0</span>)
         </span>
-        <div style="display:flex; gap:8px;">
-          <button type="button" onclick="selezionaTuttiSostituti()" style="font-size:11px; padding:5px 10px; background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px; font-weight:600; cursor:pointer; color:#334155;">Check Tutti (GPS)</button>
-          <button type="button" onclick="deselezionaTuttiSostituti()" style="font-size:11px; padding:5px 10px; background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px; font-weight:600; cursor:pointer; color:#334155;">Deseleziona Tutti</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="text" id="sost-search-input" placeholder="🔍 Filtra per nome o qualifica..." oninput="renderSostitutiList()" style="font-size:12px; padding:5px 10px; border:1px solid #CBD5E1; border-radius:6px; width:210px;">
+          <button type="button" onclick="selezionaTuttiSostituti()" style="font-size:11px; padding:5px 10px; background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px; font-weight:600; cursor:pointer; color:#334155;">Seleziona Tutti</button>
+          <button type="button" onclick="deselezionaTuttiSostituti()" style="font-size:11px; padding:5px 10px; background:#F1F5F9; border:1px solid #CBD5E1; border-radius:4px; font-weight:600; cursor:pointer; color:#334155;">Deseleziona</button>
         </div>
       </div>
 
@@ -39,14 +58,14 @@
     </div>
 
     <!-- Footer Actions -->
-    <div style="background:#F8FAFC; border-top:1px solid #E2E8F0; padding:16px 24px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="background:#F8FAFC; border-top:1px solid #E2E8F0; padding:14px 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <div style="font-size:13px; font-weight:600; color:#475569;">
-        Persone selezionate: <span id="sost-selezionati-badge" style="background:#059669; color:#fff; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
+        In coda per Telegram: <span id="sost-selezionati-badge" style="background:#059669; color:#fff; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
       </div>
-      <div style="display:flex; gap:12px;">
-        <button type="button" onclick="chiudiModalSostituti()" style="padding:10px 18px; background:#E2E8F0; color:#334155; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px;">Annulla</button>
-        <button type="button" id="btn-invia-notifiche-sost" onclick="inviaNotificheSostitutiSelezionati()" style="padding:10px 22px; background:#059669; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
-          <span>🚀</span> Invia Notifiche ai Selezionati
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button type="button" onclick="chiudiModalSostituti()" style="padding:9px 16px; background:#E2E8F0; color:#334155; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px;">Chiudi</button>
+        <button type="button" id="btn-invia-notifiche-sost" onclick="inviaNotificheSostitutiSelezionati()" style="padding:9px 20px; background:#059669; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
+          <span>🚀</span> Invia Notifiche Telegram ai Selezionati
         </button>
       </div>
     </div>
@@ -58,6 +77,7 @@
 var _currentRichiestaId = null;
 var _sostitutiData = [];
 var _selezionatiOrder = [];
+var _richiestaMeta = {};
 
 function getCsrfToken() {
   var cookieValue = null;
@@ -77,19 +97,50 @@ function getCsrfToken() {
   return cookieValue || '';
 }
 
+function validaAssenzaEApriSostituti(assenzaId) {
+  fetch('/api/valida-assenza/' + assenzaId + '/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    }
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (!data.ok) {
+      alert('Errore durante la validazione dell\'assenza: ' + (data.error || 'Errore sconosciuto'));
+      return;
+    }
+    if (data.prima_richiesta_id) {
+      apriModalSelezionaSostituti(data.prima_richiesta_id);
+    } else {
+      alert('✅ Assenza validata dall\'Amministrazione.\nNessun turno scoperto trovato nel periodo dell\'assenza (oppure tutti i turni sono già stati coperti).');
+      location.reload();
+    }
+  })
+  .catch(function() {
+    alert('Errore di connessione durante la validazione dell\'assenza.');
+  });
+}
+
 function apriModalSelezionaSostituti(richiestaId) {
   _currentRichiestaId = richiestaId;
   _sostitutiData = [];
   _selezionatiOrder = [];
+  _richiestaMeta = {};
   
   var overlay = document.getElementById('modal-seleziona-sostituti-overlay');
   if (overlay) {
     overlay.style.display = 'flex';
   }
+  var searchInput = document.getElementById('sost-search-input');
+  if (searchInput) searchInput.value = '';
   
   document.getElementById('sost-modal-subtitle').textContent = 'Caricamento...';
-  document.getElementById('sost-list-container').innerHTML = '<div style="text-align:center; padding:30px; color:#94A3B8; font-size:13px;">Caricamento sostituti disponibili in corso...</div>';
+  document.getElementById('sost-list-container').innerHTML = '<div style="text-align:center; padding:30px; color:#94A3B8; font-size:13px;">Ricerca candidati sostituti liberi e compatibili...</div>';
   document.getElementById('sost-selezionati-badge').textContent = '0';
+  document.getElementById('sost-status-banner').style.display = 'none';
+  document.getElementById('sost-period-bar').style.display = 'none';
 
   fetch('/api/sostituti-disponibili/' + richiestaId + '/')
     .then(function(r) { return r.json(); })
@@ -99,15 +150,21 @@ function apriModalSelezionaSostituti(richiestaId) {
         chiudiModalSostituti();
         return;
       }
+      _richiestaMeta = data;
       
       document.getElementById('sost-modal-subtitle').innerHTML = 
-        '📍 <strong>' + data.cliente_nome + '</strong> &nbsp;|&nbsp; 📅 ' + data.data_turno + ' (' + data.orario_turno + ') &nbsp;|&nbsp; Assente: <strong>' + data.dipendente_assente + '</strong> (' + data.motivo_assenza + ')';
+        '📍 <strong>' + data.cliente_nome + '</strong> &nbsp;|&nbsp; 📅 ' + data.data_turno + ' (' + data.orario_turno + ') &nbsp;|&nbsp; Assente: <strong>' + data.dipendente_assente + '</strong> (' + data.motivo_assenza + ') &nbsp;|&nbsp; Qualifica: <strong>' + (data.qualifica_richiesta || 'Qualsiasi') + '</strong>';
       
+      renderStatusBanner(data);
+      renderPeriodTabs(data);
+
       _sostitutiData = data.sostituti || [];
       document.getElementById('sost-candidati-count').textContent = _sostitutiData.length;
       
       _selezionatiOrder = [];
       _sostitutiData.sort(function(a, b) {
+        if (a.is_sostituto_corrente && !b.is_sostituto_corrente) return -1;
+        if (!a.is_sostituto_corrente && b.is_sostituto_corrente) return 1;
         if (a.selezionato && b.selezionato) return (a.ordine || 999) - (b.ordine || 999);
         if (a.selezionato) return -1;
         if (b.selezionato) return 1;
@@ -126,6 +183,82 @@ function apriModalSelezionaSostituti(richiestaId) {
       alert('Errore durante la connessione al server.');
       chiudiModalSostituti();
     });
+}
+
+function renderStatusBanner(data) {
+  var banner = document.getElementById('sost-status-banner');
+  if (!banner) return;
+  banner.innerHTML = '';
+  banner.style.display = 'none';
+
+  if (data.stato === 'INVIATA' && data.sostituto_corrente_id) {
+    banner.style.display = 'block';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#FFFBEB; border:1.5px solid #F59E0B; border-radius:8px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;';
+    
+    var txtDiv = document.createElement('div');
+    txtDiv.style.cssText = 'font-size:12.5px; color:#92400E; line-height:1.4; flex:1; min-width:240px;';
+    txtDiv.innerHTML = '⏳ <strong>In attesa di risposta Telegram da: ' + data.sostituto_corrente_nome + '</strong><br>' +
+      '<span>Se il dipendente non riesce a inviare la notifica con Telegram ma ha confermato a voce/telefono, puoi confermarlo direttamente dall\'ufficio:</span>';
+    
+    var btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'display:flex; gap:8px; align-items:center; flex-wrap:wrap;';
+
+    var btnConf = document.createElement('button');
+    btnConf.type = 'button';
+    btnConf.style.cssText = 'background:#2563EB; color:#fff; border:none; padding:8px 14px; border-radius:6px; font-weight:700; font-size:12px; cursor:pointer; box-shadow:0 2px 4px rgba(37,99,235,0.25);';
+    btnConf.textContent = '🏢 Conferma dall\'Ufficio (' + data.sostituto_corrente_nome + ')';
+    btnConf.onclick = function() {
+      confermaSostitutoUfficio(data.sostituto_corrente_id, data.sostituto_corrente_nome);
+    };
+
+    var btnNext = document.createElement('button');
+    btnNext.type = 'button';
+    btnNext.style.cssText = 'background:#DC2626; color:#fff; border:none; padding:8px 12px; border-radius:6px; font-weight:700; font-size:12px; cursor:pointer;';
+    btnNext.textContent = '⏭️ Non disponibile / Passa al successivo';
+    btnNext.onclick = function() {
+      passaAlSostitutoSuccessivo();
+    };
+
+    btnGroup.appendChild(btnConf);
+    btnGroup.appendChild(btnNext);
+    box.appendChild(txtDiv);
+    box.appendChild(btnGroup);
+    banner.appendChild(box);
+  } else if ((data.stato === 'COMPLETATA' || data.stato === 'ACCETTATA') && data.sostituto_corrente_nome) {
+    banner.style.display = 'block';
+    banner.innerHTML = '<div style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:8px; padding:10px 16px; font-size:13px; color:#065F46; font-weight:600;">' +
+      '✅ Turno attualmente coperto da: <strong>' + data.sostituto_corrente_nome + '</strong>. (Puoi comunque selezionare un altro sostituto qui sotto se necessario).' +
+      '</div>';
+  }
+}
+
+function renderPeriodTabs(data) {
+  var bar = document.getElementById('sost-period-bar');
+  var tabs = document.getElementById('sost-turni-tabs');
+  if (!bar || !tabs) return;
+  tabs.innerHTML = '';
+
+  var collegate = data.richieste_collegate || [];
+  if (collegate.length <= 1) {
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'block';
+  collegate.forEach(function(rc) {
+    var isCurrent = (rc.id === data.richiesta_id);
+    var isCovered = (rc.stato === 'COMPLETATA' || rc.stato === 'ACCETTATA');
+    var isWaiting = (rc.stato === 'INVIATA');
+    var icon = isCovered ? '✅' : (isWaiting ? '⏳' : '🔴');
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.style.cssText = 'padding:5px 10px; border-radius:6px; font-size:11.5px; font-weight:' + (isCurrent ? '800' : '600') + '; cursor:pointer; border:' + (isCurrent ? '2px solid #0F172A' : '1px solid #CBD5E1') + '; background:' + (isCurrent ? '#0F172A' : (isCovered ? '#DCFCE7' : '#FFFFFF')) + '; color:' + (isCurrent ? '#FFFFFF' : '#1E293B') + ';';
+    btn.textContent = icon + ' ' + rc.data + ' (' + rc.orario + ')' + (rc.sostituto_nome ? ' → ' + rc.sostituto_nome : '');
+    btn.onclick = function() {
+      if (!isCurrent) apriModalSelezionaSostituti(rc.id);
+    };
+    tabs.appendChild(btn);
+  });
 }
 
 function chiudiModalSostituti() {
@@ -156,6 +289,110 @@ function deselezionaTuttiSostituti() {
   renderSostitutiList();
 }
 
+function _isApplicaPeriodoChecked() {
+  var bar = document.getElementById('sost-period-bar');
+  var chk = document.getElementById('sost-applica-periodo-chk');
+  if (bar && bar.style.display !== 'none' && chk) {
+    return chk.checked;
+  }
+  return false;
+}
+
+function confermaSostitutoUfficio(sostitutoId, nomeSostituto) {
+  if (!_currentRichiestaId) return;
+  var applicaPeriodo = _isApplicaPeriodoChecked();
+  var msgConfirm = 'Vuoi confermare dall\'Ufficio il sostituto ' + nomeSostituto + ' per questo turno?';
+  if (applicaPeriodo) {
+    msgConfirm += '\n\n(Verrà assegnato anche agli altri turni scoperti di questa assenza in cui è disponibile).';
+  }
+  if (!confirm(msgConfirm)) return;
+
+  fetch('/api/conferma-sostituto-ufficio/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      richiesta_id: _currentRichiestaId,
+      sostituto_id: sostitutoId,
+      applica_a_periodo: applicaPeriodo,
+      azione: 'conferma'
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      alert('✅ ' + data.message);
+      chiudiModalSostituti();
+      location.reload();
+    } else {
+      alert('❌ Errore: ' + (data.error || 'Impossibile confermare il sostituto'));
+    }
+  })
+  .catch(function() {
+    alert('Errore di connessione durante la conferma dall\'ufficio.');
+  });
+}
+
+function confermaSostitutoUfficioDiretto(richiestaId, sostitutoId, nomeSostituto) {
+  if (!confirm('Confermare dall\'Ufficio il sostituto ' + nomeSostituto + ' (senza attendere la risposta Telegram)?')) return;
+  fetch('/api/conferma-sostituto-ufficio/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      richiesta_id: richiestaId,
+      sostituto_id: sostitutoId,
+      applica_a_periodo: false,
+      azione: 'conferma'
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      alert('✅ ' + data.message);
+      location.reload();
+    } else {
+      alert('❌ Errore: ' + (data.error || 'Impossibile confermare il sostituto'));
+    }
+  })
+  .catch(function() {
+    alert('Errore di connessione.');
+  });
+}
+
+function passaAlSostitutoSuccessivo() {
+  if (!_currentRichiestaId) return;
+  if (!confirm('Segnare il sostituto corrente come non disponibile e passare al candidato successivo in coda?')) return;
+
+  fetch('/api/conferma-sostituto-ufficio/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      richiesta_id: _currentRichiestaId,
+      azione: 'passa_successivo'
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      alert('ℹ️ ' + data.message);
+      apriModalSelezionaSostituti(_currentRichiestaId);
+    } else {
+      alert('❌ Errore: ' + (data.error || 'Impossibile passare al successivo'));
+    }
+  })
+  .catch(function() {
+    alert('Errore di connessione.');
+  });
+}
+
 function renderSostitutiList() {
   var container = document.getElementById('sost-list-container');
   if (!container) return;
@@ -164,35 +401,52 @@ function renderSostitutiList() {
   document.getElementById('sost-selezionati-badge').textContent = _selezionatiOrder.length;
 
   if (!_sostitutiData || _sostitutiData.length === 0) {
-    container.innerHTML = '<div style="text-align:center; padding:24px; color:#DC2626; background:#FEF2F2; border-radius:8px; font-weight:600;">⚠️ Nessun sostituto attivo disponibile per questo turno.</div>';
+    container.innerHTML = '<div style="text-align:center; padding:24px; color:#DC2626; background:#FEF2F2; border-radius:8px; font-weight:600;">⚠️ Nessun sostituto attivo e libero disponibile per questo orario.</div>';
     return;
   }
 
-  _sostitutiData.forEach(function(item) {
+  var searchEl = document.getElementById('sost-search-input');
+  var query = (searchEl && searchEl.value) ? searchEl.value.trim().toLowerCase() : '';
+
+  var filtered = _sostitutiData.filter(function(item) {
+    if (!query) return true;
+    var matchName = (item.nome || '').toLowerCase().indexOf(query) > -1;
+    var matchSkill = (item.qualifiche || []).some(function(q) { return q.toLowerCase().indexOf(query) > -1; });
+    return matchName || matchSkill;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:#64748B; font-size:13px;">Nessun candidato corrisponde alla ricerca.</div>';
+    return;
+  }
+
+  filtered.forEach(function(item) {
     var orderIdx = _selezionatiOrder.indexOf(item.id);
     var isSelected = orderIdx > -1;
     var orderNum = isSelected ? (orderIdx + 1) : null;
 
     var card = document.createElement('div');
-    card.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:8px; border:1.5px solid ' + (isSelected ? '#059669' : '#E2E8F0') + '; background:' + (isSelected ? '#ECFDF5' : '#FFFFFF') + '; cursor:pointer; transition:all 0.15s ease;';
+    var borderCol = item.is_sostituto_corrente ? '#2563EB' : (isSelected ? '#059669' : '#E2E8F0');
+    var bgCol = item.is_sostituto_corrente ? '#EFF6FF' : (isSelected ? '#ECFDF5' : '#FFFFFF');
+    card.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-radius:8px; border:1.5px solid ' + borderCol + '; background:' + bgCol + '; cursor:pointer; transition:all 0.15s ease; gap:10px; flex-wrap:wrap;';
     card.onclick = function(e) {
-      if (e.target.tagName !== 'INPUT') {
+      if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') {
         toggleSostitutoSelection(item.id);
       }
     };
 
     var leftDiv = document.createElement('div');
-    leftDiv.style.cssText = 'display:flex; align-items:center; gap:12px;';
+    leftDiv.style.cssText = 'display:flex; align-items:center; gap:12px; flex:1; min-width:240px;';
 
     var badgeOrder = document.createElement('div');
-    badgeOrder.style.cssText = 'width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; transition:all 0.15s ease; ' + (isSelected ? 'background:#059669; color:#fff;' : 'background:#F1F5F9; color:#94A3B8; border:1px solid #CBD5E1;');
+    badgeOrder.style.cssText = 'width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; flex-shrink:0; transition:all 0.15s ease; ' + (isSelected ? 'background:#059669; color:#fff;' : 'background:#F1F5F9; color:#94A3B8; border:1px solid #CBD5E1;');
     badgeOrder.textContent = isSelected ? (orderNum + '°') : '—';
     leftDiv.appendChild(badgeOrder);
 
     var chk = document.createElement('input');
     chk.type = 'checkbox';
     chk.checked = isSelected;
-    chk.style.cssText = 'transform:scale(1.2); cursor:pointer;';
+    chk.style.cssText = 'transform:scale(1.2); cursor:pointer; flex-shrink:0;';
     chk.onchange = function() {
       toggleSostitutoSelection(item.id);
     };
@@ -200,42 +454,76 @@ function renderSostitutiList() {
 
     var infoDiv = document.createElement('div');
     var nameEl = document.createElement('div');
-    nameEl.style.cssText = 'font-weight:700; font-size:14px; color:#0F172A;';
+    nameEl.style.cssText = 'font-weight:700; font-size:14px; color:#0F172A; display:flex; align-items:center; gap:6px; flex-wrap:wrap;';
     nameEl.textContent = item.nome;
+
+    if (item.is_sostituto_corrente) {
+      var currBadge = document.createElement('span');
+      currBadge.style.cssText = 'font-size:10px; background:#2563EB; color:#FFFFFF; padding:2px 7px; border-radius:4px; font-weight:700;';
+      currBadge.textContent = (_richiestaMeta.stato === 'INVIATA') ? '⏳ Contattato su Telegram' : '✅ Sostituto Attuale';
+      nameEl.appendChild(currBadge);
+    }
     if (item.categoria_protetta) {
-      nameEl.innerHTML += ' <span style="font-size:10px; background:#FEE2E2; color:#991B1B; padding:1px 6px; border-radius:4px; margin-left:4px;">Cat. Protetta</span>';
+      var cpBadge = document.createElement('span');
+      cpBadge.style.cssText = 'font-size:10px; background:#FEE2E2; color:#991B1B; padding:1px 6px; border-radius:4px;';
+      cpBadge.textContent = 'Cat. Protetta';
+      nameEl.appendChild(cpBadge);
     }
     infoDiv.appendChild(nameEl);
 
     var skillsDiv = document.createElement('div');
-    skillsDiv.style.cssText = 'font-size:11px; color:#64748B; margin-top:2px; display:flex; gap:4px; flex-wrap:wrap;';
+    skillsDiv.style.cssText = 'font-size:11px; color:#64748B; margin-top:3px; display:flex; gap:5px; flex-wrap:wrap; align-items:center;';
     if (item.qualifiche && item.qualifiche.length) {
       item.qualifiche.forEach(function(q) {
         var skBadge = document.createElement('span');
-        skBadge.style.cssText = 'background:#E0F2FE; color:#0369A1; padding:1px 6px; border-radius:4px; font-weight:600;';
+        var isComp = (item.qualifica_compatibile !== false);
+        skBadge.style.cssText = 'background:' + (isComp ? '#DCFCE7' : '#F1F5F9') + '; color:' + (isComp ? '#166534' : '#475569') + '; padding:1px 6px; border-radius:4px; font-weight:600; border:1px solid ' + (isComp ? '#86EFAC' : '#CBD5E1') + ';';
         skBadge.textContent = q;
         skillsDiv.appendChild(skBadge);
       });
     } else {
       skillsDiv.textContent = 'Nessuna qualifica spec.';
     }
+
+    var tgSpan = document.createElement('span');
+    tgSpan.style.cssText = 'font-size:10.5px; color:' + (item.ha_telegram ? '#0284C7' : '#94A3B8') + '; font-weight:600; margin-left:4px;';
+    tgSpan.textContent = item.ha_telegram ? '📱 Telegram OK' : '📵 No Telegram';
+    skillsDiv.appendChild(tgSpan);
+
     infoDiv.appendChild(skillsDiv);
     leftDiv.appendChild(infoDiv);
 
     var rightDiv = document.createElement('div');
-    rightDiv.style.cssText = 'text-align:right; font-size:12px;';
+    rightDiv.style.cssText = 'display:flex; align-items:center; gap:12px;';
+
+    var metaRight = document.createElement('div');
+    metaRight.style.cssText = 'text-align:right; font-size:12px;';
     
     var distEl = document.createElement('div');
     distEl.style.cssText = 'font-weight:700; color:#1E293B;';
     distEl.textContent = '📏 ' + item.distanza_km;
-    rightDiv.appendChild(distEl);
+    metaRight.appendChild(distEl);
 
     if (item.telefono && item.telefono !== 'N/D') {
       var telEl = document.createElement('div');
       telEl.style.cssText = 'color:#64748B; font-size:11px; margin-top:2px;';
       telEl.textContent = '📞 ' + item.telefono;
-      rightDiv.appendChild(telEl);
+      metaRight.appendChild(telEl);
     }
+    rightDiv.appendChild(metaRight);
+
+    var btnUfficio = document.createElement('button');
+    btnUfficio.type = 'button';
+    btnUfficio.style.cssText = 'background:#2563EB; color:#FFFFFF; border:none; padding:7px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 1px 3px rgba(0,0,0,0.15); transition:background 0.15s;';
+    btnUfficio.onmouseenter = function() { this.style.background = '#1D4ED8'; };
+    btnUfficio.onmouseleave = function() { this.style.background = '#2563EB'; };
+    btnUfficio.textContent = '🏢 Conferma dall\'Ufficio';
+    btnUfficio.title = 'Assegna direttamente questo sostituto dall\'ufficio senza attendere risposta Telegram';
+    btnUfficio.onclick = function(e) {
+      e.stopPropagation();
+      confermaSostitutoUfficio(item.id, item.nome);
+    };
+    rightDiv.appendChild(btnUfficio);
 
     card.appendChild(leftDiv);
     card.appendChild(rightDiv);
@@ -246,10 +534,11 @@ function renderSostitutiList() {
 function inviaNotificheSostitutiSelezionati() {
   if (!_currentRichiestaId) return;
   if (!_selezionatiOrder || _selezionatiOrder.length === 0) {
-    alert('Seleziona almeno un sostituto a cui inviare la notifica.');
+    alert('Seleziona almeno un sostituto (spuntando la casella) a cui inviare la notifica Telegram, oppure usa il pulsante "🏢 Conferma dall\'Ufficio" sul candidato scelto.');
     return;
   }
 
+  var applicaPeriodo = _isApplicaPeriodoChecked();
   var btn = document.getElementById('btn-invia-notifiche-sost');
   if (btn) {
     btn.disabled = true;
@@ -264,14 +553,15 @@ function inviaNotificheSostitutiSelezionati() {
     },
     body: JSON.stringify({
       richiesta_id: _currentRichiestaId,
-      sostituti_ids: _selezionatiOrder
+      sostituti_ids: _selezionatiOrder,
+      applica_a_periodo: applicaPeriodo
     })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span>🚀</span> Invia Notifiche ai Selezionati';
+      btn.innerHTML = '<span>🚀</span> Invia Notifiche Telegram ai Selezionati';
     }
     if (data.ok) {
       alert('✅ ESITO INVIO:\n' + data.message);
@@ -284,7 +574,7 @@ function inviaNotificheSostitutiSelezionati() {
   .catch(function(err) {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<span>🚀</span> Invia Notifiche ai Selezionati';
+      btn.innerHTML = '<span>🚀</span> Invia Notifiche Telegram ai Selezionati';
     }
     alert('Errore di connessione durante l\'invio.');
   });

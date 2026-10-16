@@ -1,4 +1,29 @@
 from django.contrib import admin, messages
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+from django.http import HttpResponseRedirect
+from django.db import IntegrityError
+from django.core.exceptions import ValidationError
+
+class KandorBaseAdmin(admin.ModelAdmin):
+    """
+    Base ModelAdmin per Kandor.
+    Intercetta eccezioni di salvataggio (es. vincoli di integrità DB, dati duplicati)
+    mostrando un messaggio chiaro in cima alla pagina senza mandare in crash l'applicazione con 500.
+    """
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        try:
+            return super().changeform_view(request, object_id, form_url, extra_context)
+        except Exception as e:
+            err_msg = str(e)
+            if 'UNIQUE constraint failed' in err_msg or 'unique' in err_msg.lower():
+                err_msg = "È già presente un elemento con gli stessi dati univoci (es. Codice Fiscale, Targa, o combinazione unica già esistente)."
+            messages.error(request, f"⚠️ Errore nel salvataggio dei dati: {err_msg}")
+            referer = request.META.get('HTTP_REFERER')
+            if referer and request.method == 'POST':
+                return HttpResponseRedirect(referer)
+            raise
+
 from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
@@ -7,7 +32,7 @@ from .models import (
 )
 
 @admin.register(ModificaCedolino)
-class ModificaCedolinoAdmin(admin.ModelAdmin):
+class ModificaCedolinoAdmin(KandorBaseAdmin):
     list_display = (
         'dipendente', 'data_inizio', 'data_fine',
         'giorni_lavorati_override', 'ore_lavorate_override', 'ore_validate_override',
@@ -19,7 +44,7 @@ class ModificaCedolinoAdmin(admin.ModelAdmin):
 
 
 @admin.register(Titolare)
-class TitolareAdmin(admin.ModelAdmin):
+class TitolareAdmin(KandorBaseAdmin):
     list_display = ('nome', 'user', 'telegram_chat_id', 'notifiche_attive')
     list_editable = ('notifiche_attive',)
     search_fields = ('nome', 'user__username')
@@ -38,7 +63,7 @@ class TitolareAdmin(admin.ModelAdmin):
     invia_riepilogo_ora.short_description = 'Invia riepilogo settimanale adesso'
 
 @admin.register(Assenza)
-class AssenzaAdmin(admin.ModelAdmin):
+class AssenzaAdmin(KandorBaseAdmin):
     list_display = (
         'dipendente', 'tipo', 'data_inizio', 'data_fine',
         'get_orario_display', 'source', 'stato_approvazione',
@@ -66,29 +91,49 @@ class AssenzaAdmin(admin.ModelAdmin):
     )
 
     def avvallo_action_button(self, obj):
-        from django.utils.html import format_html
-        if obj.stato_approvazione == 'APPROVATA':
-            from .models import RichiestaSostituzione
-            richiesta = RichiestaSostituzione.objects.filter(
-                dipendente_assente=obj.dipendente,
-                assegnazione_originale__turno__data__gte=obj.data_inizio,
-                assegnazione_originale__turno__data__lte=obj.data_fine
-            ).first()
-            if richiesta:
-                return format_html(
-                    '<span style="color:#16A34A; font-weight:bold;">✅ Avvallata</span> &nbsp;'
-                    '<button type="button" class="button" style="background:#059669; color:#fff; border:none; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">👥 Sostituti</button>',
-                    richiesta.id
-                )
-            return format_html('<span style="color:#16A34A; font-weight:bold;">✅ Avvallata</span>')
-        elif obj.stato_approvazione == 'RIFIUTATA':
-            return format_html('<span style="color:#DC2626; font-weight:bold;">❌ Rifiutata</span>')
-        else:
+        from .services import get_richieste_sostituzione_per_assenza
+        is_avvallata = obj.stato_approvazione in ('APPROVATA_AMMINISTRAZIONE', 'APPROVATA')
+        if is_avvallata:
+            richieste = list(get_richieste_sostituzione_per_assenza(obj))
+            if richieste:
+                aperta = next((r for r in richieste if r.stato not in ('ACCETTATA', 'COMPLETATA')), richieste[0])
+                coperte = sum(1 for r in richieste if r.stato in ('ACCETTATA', 'COMPLETATA'))
+                in_attesa_tg = sum(1 for r in richieste if r.stato == 'INVIATA')
+                tot = len(richieste)
+                if coperte == tot:
+                    sost_names = ", ".join(sorted({f"{r.sostituto.cognome} {r.sostituto.nome}" for r in richieste if r.sostituto}))
+                    return format_html(
+                        '<span style="color:#16A34A; font-weight:bold;">✅ Sostituito ({})</span> &nbsp;'
+                        '<button type="button" class="button" style="background:#475569; color:#fff; border:none; padding:4px 9px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">👥 Dettagli ({}/{})</button>',
+                        sost_names or 'OK', aperta.id, coperte, tot
+                    )
+                elif in_attesa_tg > 0:
+                    sost_corr = aperta.sostituto
+                    sost_lbl = f"⏳ Attesa TG ({sost_corr.cognome})" if sost_corr else "⏳ Attesa TG"
+                    return format_html(
+                        '<span style="color:#D97706; font-weight:bold;">{}</span> &nbsp;'
+                        '<button type="button" class="button" style="background:#059669; color:#fff; border:none; padding:4px 9px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">🏢 Conferma / Sostituti ({}/{})</button>',
+                        sost_lbl, aperta.id, coperte, tot
+                    )
+                else:
+                    return format_html(
+                        '<span style="color:#16A34A; font-weight:bold;">✅ Avvallata</span> &nbsp;'
+                        '<button type="button" class="button" style="background:#059669; color:#fff; border:none; padding:4px 9px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">👥 Scegli Sostituto ({}/{})</button>',
+                        aperta.id, coperte, tot
+                    )
             return format_html(
-                '<a class="button" style="background:#16A34A; color:white; font-size:11px; padding:3px 8px; border-radius:4px; text-decoration:none;" href="?avvalla={}">✅ Avvalla ora</a>',
+                '<span style="color:#16A34A; font-weight:bold;">✅ Avvallata</span> &nbsp;'
+                '<button type="button" class="button" style="background:#0284C7; color:#fff; border:none; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="validaAssenzaEApriSostituti({})">🔍 Cerca Turni / Sostituti</button>',
                 obj.pk
             )
-    avvallo_action_button.short_description = "Avvallo Amministrazione"
+        elif obj.stato_approvazione == 'RIFIUTATA':
+            return mark_safe('<span style="color:#DC2626; font-weight:bold;">❌ Rifiutata</span>')
+        else:
+            return format_html(
+                '<button type="button" class="button" style="background:#16A34A; color:white; border:none; font-size:11px; padding:4px 10px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="validaAssenzaEApriSostituti({})">✅ Valida e Sostituisci</button>',
+                obj.pk
+            )
+    avvallo_action_button.short_description = "Validazione & Sostituzione"
 
     def changelist_view(self, request, extra_context=None):
         if 'avvalla' in request.GET:
@@ -97,9 +142,9 @@ class AssenzaAdmin(admin.ModelAdmin):
                 from .services import avvalla_assenza_da_amministrazione
                 res = avvalla_assenza_da_amministrazione(assenza_id)
                 if res.get('ok'):
-                    self.message_user(request, f"✅ Assenza ID {assenza_id} avvallata con successo! ({res.get('num_sostituzioni', 0)} sostituzioni avviate)")
+                    self.message_user(request, f"✅ Assenza ID {assenza_id} validata con successo! ({res.get('num_sostituzioni', 0)} turni da coprire)")
                 else:
-                    self.message_user(request, f"Errore nell'avvallo dell'assenza: {res.get('error')}", level=messages.ERROR)
+                    self.message_user(request, f"Errore nella validazione dell'assenza: {res.get('error')}", level=messages.ERROR)
             except Exception as e:
                 self.message_user(request, f"Errore: {e}", level=messages.ERROR)
             from django.http import HttpResponseRedirect
@@ -107,35 +152,35 @@ class AssenzaAdmin(admin.ModelAdmin):
             return HttpResponseRedirect(reverse('admin:core_assenza_changelist'))
         return super().changelist_view(request, extra_context=extra_context)
 
-    @admin.action(description='✅ Avvalla assenze selezionate e avvia procedura sostituzione')
+    @admin.action(description='✅ Valida assenze selezionate e prepara sostituzioni')
     def avvalla_assenze_action(self, request, queryset):
         from .services import avvalla_assenza_da_amministrazione
         totale = 0
         totale_sost = 0
         for assenza in queryset:
-            if assenza.stato_approvazione != 'APPROVATA':
-                res = avvalla_assenza_da_amministrazione(assenza.pk)
-                if res.get('ok'):
-                    totale += 1
-                    totale_sost += res.get('num_sostituzioni', 0)
-        self.message_user(request, f"✅ {totale} assenze avvallate dall'Amministrazione ({totale_sost} richieste di sostituzione create).", messages.SUCCESS)
+            res = avvalla_assenza_da_amministrazione(assenza.pk)
+            if res.get('ok'):
+                totale += 1
+                totale_sost += res.get('num_sostituzioni', 0)
+        self.message_user(request, f"✅ {totale} assenze validate dall'Amministrazione ({totale_sost} richieste di sostituzione pronte).", messages.SUCCESS)
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if obj.stato_approvazione == 'APPROVATA':
+        if obj.stato_approvazione in ('APPROVATA_AMMINISTRAZIONE', 'APPROVATA') or obj.is_processed:
             from .services import avvia_sostituzione_per_assenza
             totale_create = avvia_sostituzione_per_assenza(obj)
             if totale_create > 0:
-                self.message_user(request, f"⚡ Assenza avvallata: create {totale_create} richieste di sostituzione per i turni scoperti.")
+                self.message_user(request, f"⚡ Assenza validata: create {totale_create} richieste di sostituzione per i turni scoperti.")
 
-    @admin.action(description='🔄 Gestisci sostituti per il periodo (tutti i turni)')
+    @admin.action(description='🔄 Crea/Aggiorna richieste sostituzione per i turni del periodo')
     def gestisci_sostituti_periodo(self, request, queryset):
-        from .services import avvia_sostituzione_per_assenza
+        from .services import avvalla_assenza_da_amministrazione
         totale = 0
         for assenza in queryset:
-            if assenza.stato_approvazione == 'APPROVATA':
-                totale += avvia_sostituzione_per_assenza(assenza)
-        self.message_user(request, f"✅ Procedura sostituzione gestita: create {totale} richieste per le assenze avvallate.", messages.SUCCESS)
+            res = avvalla_assenza_da_amministrazione(assenza.pk)
+            if res.get('ok'):
+                totale += res.get('num_sostituzioni', 0)
+        self.message_user(request, f"✅ Procedura sostituzione aggiornata: {totale} richieste di sostituzione create.", messages.SUCCESS)
 
 
 # -- Branding Configuration --
@@ -144,7 +189,7 @@ admin.site.site_title = "Kandor Portal"
 admin.site.index_title = "Benvenuto in Kandor"
 
 @admin.register(Dipendente)
-class DipendenteAdmin(admin.ModelAdmin):
+class DipendenteAdmin(KandorBaseAdmin):
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
     list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
@@ -303,7 +348,7 @@ class StraordinarioInline(admin.StackedInline):
     extra = 0
 
 @admin.register(ProgrammazioneRicorrente)
-class ProgrammazioneRicorrenteAdmin(admin.ModelAdmin):
+class ProgrammazioneRicorrenteAdmin(KandorBaseAdmin):
     list_display = (
         'cliente', 'tipo_ripetizione', 'get_giorno_display',
         'ora_inizio', 'durata', 'ora_fine',
@@ -346,14 +391,14 @@ class ProgrammazioneRicorrenteAdmin(admin.ModelAdmin):
     get_giorno_display.short_description = 'Giorno'
 
 @admin.register(RichiestaStraordinaria)
-class RichiestaStraordinariaAdmin(admin.ModelAdmin):
+class RichiestaStraordinariaAdmin(KandorBaseAdmin):
     list_display = ('cliente', 'data_inizio', 'data_fine', 'ora_inizio', 'ora_fine', 'completata')
     list_filter = ('completata', 'data_inizio')
     search_fields = ('cliente__ragione_sociale', 'descrizione')
     autocomplete_fields = ('cliente',)
 
 @admin.register(Cliente)
-class ClienteAdmin(admin.ModelAdmin):
+class ClienteAdmin(KandorBaseAdmin):
     list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto')
     search_fields = ('ragione_sociale', 'partita_iva')
     inlines = [ProgrammazioneInline, StraordinarioInline]
@@ -394,13 +439,13 @@ class ClienteAdmin(admin.ModelAdmin):
     duplica_per_nuova_sede.short_description = "📋 Duplica per nuova sede"
 
 @admin.register(Mezzo)
-class MezzoAdmin(admin.ModelAdmin):
+class MezzoAdmin(KandorBaseAdmin):
     list_display = ('targa', 'modello', 'stato', 'km_attuali', 'scadenza_polizza', 'scadenza_bollo')
     list_filter = ('stato',)
     search_fields = ('targa', 'modello')  # Necessario per autocomplete_fields
 
 @admin.register(Squadra)
-class SquadraAdmin(admin.ModelAdmin):
+class SquadraAdmin(KandorBaseAdmin):
     list_display = ('nome_con_componenti', 'caposquadra', 'get_responsabile_area')
     filter_horizontal = ('componenti',)
     search_fields = ('nome',)
@@ -447,7 +492,7 @@ class SquadraAdmin(admin.ModelAdmin):
             f'</div>'
             f'</span>'
         )
-        return format_html(html)
+        return mark_safe(html)
     nome_con_componenti.short_description = 'Nome'
     nome_con_componenti.allow_tags = True
 
@@ -502,7 +547,7 @@ class AssegnazioneInline(admin.TabularInline):
     autocomplete_fields = ('cliente',)
 
 @admin.register(Turno)
-class TurnoAdmin(admin.ModelAdmin):
+class TurnoAdmin(KandorBaseAdmin):
     list_display = ('data', 'squadra', 'mezzo')
     list_filter = ('data', 'squadra')
     search_fields = ('data', 'squadra__nome')  # Richiesto da autocomplete_fields
@@ -511,12 +556,12 @@ class TurnoAdmin(admin.ModelAdmin):
 admin.site.register(Qualifica)
 
 @admin.register(AssegnazioneTurno)
-class AssegnazioneTurnoAdmin(admin.ModelAdmin):
+class AssegnazioneTurnoAdmin(KandorBaseAdmin):
     search_fields = ('cliente__ragione_sociale', 'turno__squadra__nome')
     autocomplete_fields = ('cliente', 'turno')
 
 @admin.register(TimeTracking)
-class TimeTrackingAdmin(admin.ModelAdmin):
+class TimeTrackingAdmin(KandorBaseAdmin):
     list_display = ('dipendente', 'get_cliente', 'get_data', 'ore_dichiarate', 'source', 'is_validated')
     list_filter = ('is_validated', 'source', 'assegnazione__turno__data')
     search_fields = ('dipendente__cognome', 'dipendente__nome', 'assegnazione__cliente__ragione_sociale')
@@ -542,7 +587,7 @@ class TimeTrackingAdmin(admin.ModelAdmin):
 
 from .models import MessaggioProgrammato
 @admin.register(MessaggioProgrammato)
-class MessaggioProgrammatoAdmin(admin.ModelAdmin):
+class MessaggioProgrammatoAdmin(KandorBaseAdmin):
     list_display = ('titolo', 'data_programmata', 'invia_a_tutti', 'inviato')
     list_filter = ('inviato', 'data_programmata')
     search_fields = ('titolo', 'testo')
@@ -551,20 +596,20 @@ class MessaggioProgrammatoAdmin(admin.ModelAdmin):
 
 
 @admin.register(ResponsabileArea)
-class ResponsabileAreaAdmin(admin.ModelAdmin):
+class ResponsabileAreaAdmin(KandorBaseAdmin):
     list_display = ('dipendente', 'nome_area')
     search_fields = ('dipendente__cognome', 'dipendente__nome', 'nome_area')
     filter_horizontal = ('squadre',)
 
 
 @admin.register(RichiestaSostituzione)
-class RichiestaSostituzioneAdmin(admin.ModelAdmin):
+class RichiestaSostituzioneAdmin(KandorBaseAdmin):
     list_display = ('creata_il', 'get_data_turno', 'get_cliente', 'dipendente_assente', 'motivo_assenza', 'sostituto', 'stato', 'distanza_km', 'azione_seleziona_sostituti')
     list_filter = ('stato', 'motivo_assenza')
     search_fields = ('dipendente_assente__cognome', 'sostituto__cognome', 'assegnazione_originale__cliente__ragione_sociale')
     readonly_fields = ('creata_il', 'approvata_ra_il', 'inviata_sostituto_il', 'risposta_sostituto_il', 'sostituti_candidati', 'sostituto_corrente_idx')
     date_hierarchy = 'creata_il'
-    actions = ['approva_selezionate']
+    actions = ['approva_selezionate', 'conferma_ufficio_selezionate']
 
     def get_data_turno(self, obj):
         return obj.assegnazione_originale.turno.data
@@ -577,13 +622,25 @@ class RichiestaSostituzioneAdmin(admin.ModelAdmin):
 
     def azione_seleziona_sostituti(self, obj):
         count = len(obj.sostituti_candidati or [])
-        lbl = f"👥 Seleziona Sostituti ({count})" if count > 0 else "👥 Seleziona Sostituti"
-        btn_color = "#059669" if obj.stato in ['APERTA', 'APPROVATA_RA'] else "#475569"
+        if obj.stato in ('ACCETTATA', 'COMPLETATA') and obj.sostituto:
+            return format_html(
+                '<span style="color:#16A34A; font-weight:bold;">✅ {}</span> &nbsp;'
+                '<button type="button" class="button" style="background:#475569; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">🔄 Cambia Sostituto</button>',
+                f"{obj.sostituto.cognome} {obj.sostituto.nome}", obj.id
+            )
+        elif obj.stato == 'INVIATA' and obj.sostituto:
+            return format_html(
+                '<button type="button" class="button" style="background:#2563EB; color:#fff; border:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer; margin-right:4px;" onclick="confermaSostitutoUfficioDiretto({}, {}, \'{}\')">🏢 Conferma Ufficio ({})</button>'
+                '<button type="button" class="button" style="background:#059669; color:#fff; border:none; padding:5px 10px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">👥 Altri Candidati</button>',
+                obj.id, obj.sostituto.id, f"{obj.sostituto.cognome} {obj.sostituto.nome}".replace("'", "\\'"), obj.sostituto.cognome, obj.id
+            )
+        lbl = f"👥 Scegli Sostituto ({count})" if count > 0 else "👥 Scegli / Conferma Sostituto"
+        btn_color = "#059669" if obj.stato in ['APERTA', 'APPROVATA_RA', 'NESSUN_DISPONIBILE', 'RIFIUTATA'] else "#475569"
         return format_html(
             '<button type="button" class="button" style="background:{}; color:#fff; border:none; padding:5px 12px; border-radius:4px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">{}</button>',
             btn_color, obj.id, lbl
         )
-    azione_seleziona_sostituti.short_description = 'Selezione Sostituti'
+    azione_seleziona_sostituti.short_description = 'Gestione Sostituto'
 
     def approva_selezionate(self, request, queryset):
         from .services import approva_e_invia_sostituto
@@ -595,6 +652,25 @@ class RichiestaSostituzioneAdmin(admin.ModelAdmin):
             richiesta.save()
             approva_e_invia_sostituto(richiesta.pk)
             count += 1
-        self.message_user(request, f"{count} richieste approvate e inviate.", messages.SUCCESS)
-    approva_selezionate.short_description = "✅ Approva e invia ai sostituti"
+        self.message_user(request, f"{count} richieste approvate e inviate via Telegram.", messages.SUCCESS)
+    approva_selezionate.short_description = "🚀 Approva e invia notifica Telegram ai sostituti"
+
+    def conferma_ufficio_selezionate(self, request, queryset):
+        from .services import assegna_sostituto_da_ufficio
+        count = 0
+        errori = 0
+        for richiesta in queryset:
+            if richiesta.sostituto_id:
+                res = assegna_sostituto_da_ufficio(richiesta.pk, sostituto_id=richiesta.sostituto_id)
+                if res.get('ok'):
+                    count += 1
+                else:
+                    errori += 1
+            else:
+                errori += 1
+        if count > 0:
+            self.message_user(request, f"✅ {count} sostituzioni confermate direttamente dall'ufficio.", messages.SUCCESS)
+        if errori > 0:
+            self.message_user(request, f"⚠️ {errori} richieste non avevano ancora un sostituto selezionato (usa il pulsante '👥 Scegli / Conferma Sostituto').", messages.WARNING)
+    conferma_ufficio_selezionate.short_description = "🏢 Conferma dall'Ufficio il sostituto indicato"
 

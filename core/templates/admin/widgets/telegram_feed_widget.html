@@ -185,21 +185,45 @@
         <!-- Assenze -->
         <div class="tg-card">
             <div class="tg-card-header" style="border-bottom-color: #F59E0B;">
-                <h3 style="color: #B45309;">🏖 Assenze</h3>
+                <h3 style="color: #B45309;">🏖 Assenze & Sostituzioni</h3>
                 <button class="toggle-managed-btn" onclick="toggleManaged('absences-list', this)">Mostra gestiti</button>
             </div>
             <ul id="absences-list" class="tg-list" data-hide-managed="true">
                 {% for item in latest_absences %}
-                <li class="telegram-item {% if item.is_processed %}completed-task hidden-managed{% endif %}">
+                <li class="telegram-item {% if item.is_processed and item.tot_richieste_sost > 0 and item.coperte_sost == item.tot_richieste_sost %}completed-task hidden-managed{% endif %}">
                     <input type="checkbox" style="margin-top:3px; accent-color: var(--primary-color);"
+                        title="Valida assenza e avvia sostituzione"
                         onclick="toggleStatus('assenza', {{ item.id }}, this)" {{ item.is_processed|yesno:"checked," }}>
                     <div class="telegram-item-content">
-                        <div class="telegram-item-title">{{ item.dipendente }}</div>
+                        <div class="telegram-item-title" style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <span>{{ item.dipendente }}</span>
+                            {% if item.is_avvallata %}
+                                <span style="font-size:10px; background:#DCFCE7; color:#166534; padding:2px 6px; border-radius:4px; font-weight:700;">✅ Validata</span>
+                            {% else %}
+                                <span style="font-size:10px; background:#FEF3C7; color:#92400E; padding:2px 6px; border-radius:4px; font-weight:700;">⏳ Da Validare</span>
+                            {% endif %}
+                        </div>
                         <div class="telegram-item-desc">
                             <span class="k-badge k-badge-warning" style="margin-bottom:4px; display:inline-block;">{{ item.get_tipo_display }}</span><br>
                             <span>Dal {{ item.data_inizio|date:"d/m/Y" }} al {{ item.data_fine|date:"d/m/Y" }}</span>
                         </div>
                         {% if item.note %}<span class="telegram-note">{{ item.note }}</span>{% endif %}
+                        <div style="margin-top:8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            {% if item.prima_richiesta_id %}
+                                {% if item.coperte_sost == item.tot_richieste_sost and item.tot_richieste_sost > 0 %}
+                                    <span style="font-size:11px; color:#16A34A; font-weight:700;">✅ Sostituito ({{ item.sostituto_corrente_nome|default:"OK" }})</span>
+                                    <button type="button" onclick="apriModalSelezionaSostituti({{ item.prima_richiesta_id }})" style="background:#475569; color:#fff; border:none; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">🔄 Cambia</button>
+                                {% elif item.in_attesa_tg_sost > 0 %}
+                                    <button type="button" onclick="apriModalSelezionaSostituti({{ item.prima_richiesta_id }})" style="background:#2563EB; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">🏢 Conferma Ufficio / Sostituti ({{ item.coperte_sost }}/{{ item.tot_richieste_sost }})</button>
+                                {% else %}
+                                    <button type="button" onclick="apriModalSelezionaSostituti({{ item.prima_richiesta_id }})" style="background:#059669; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">👥 Scegli Sostituto ({{ item.coperte_sost }}/{{ item.tot_richieste_sost }})</button>
+                                {% endif %}
+                            {% else %}
+                                <button type="button" onclick="validaAssenzaEApriSostituti({{ item.id }})" style="background:#16A34A; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">
+                                    {% if item.is_avvallata %}🔍 Cerca Sostituti{% else %}✅ Valida e Sostituisci{% endif %}
+                                </button>
+                            {% endif %}
+                        </div>
                     </div>
                 </li>
                 {% empty %}
@@ -274,21 +298,16 @@
     function toggleStatus(model, id, checkbox) {
         var li = checkbox.closest('li');
         var ul = li.closest('ul');
-        if (checkbox.checked) {
-            li.classList.add('completed-task');
-            if (ul.getAttribute('data-hide-managed') === 'true') {
-                setTimeout(function () { li.classList.add('hidden-managed'); }, 300);
-            }
-        } else {
-            li.classList.remove('completed-task');
-            li.classList.remove('hidden-managed');
-        }
         fetch('/telegram-toggle/' + model + '/' + id + '/', {
             method: 'POST',
             headers: { 'X-CSRFToken': '{{ csrf_token }}' }
         }).then(function (r) { return r.json(); }).then(function (d) {
             if (d.status === 'ok') {
                 checkbox.checked = d.new_state;
+                if (model === 'assenza' && d.new_state && d.prima_richiesta_id && typeof apriModalSelezionaSostituti === 'function') {
+                    apriModalSelezionaSostituti(d.prima_richiesta_id);
+                    return;
+                }
                 if (d.new_state) {
                     li.classList.add('completed-task');
                     if (ul.getAttribute('data-hide-managed') === 'true') {
