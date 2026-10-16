@@ -116,10 +116,14 @@ if use_postgres:
         db_name = os.environ.get('SUPABASE_DB_NAME', 'postgres')
         db_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
 
+    # Se l'host e' il pooler Supabase, usa la porta 6543 (Transaction Pooler) per evitare l'esaurimento dei max 15 client
+    if 'pooler.supabase.com' in db_host and db_port == '5432':
+        db_port = '6543'
+
     # Test preventivo di connessione socket TCP all'host del DB
     is_reachable = False
     try:
-        with socket.create_connection((db_host, int(db_port)), timeout=3):
+        with socket.create_connection((db_host, int(db_port)), timeout=5):
             is_reachable = True
     except Exception:
         pass
