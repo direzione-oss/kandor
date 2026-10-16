@@ -3312,6 +3312,41 @@ def debug_db_view(request):
         auth_user = authenticate(request, username='admin', password='Kandor2024!')
         info['test_auth'] = 'SUCCESS' if auth_user else 'FAILED'
 
+        # Test Widgets rendering
+        from core.templatetags.dashboard_extras import (
+            expiring_vehicles_widget, upcoming_birthdays_widget,
+            weekly_schedule_widget, telegram_feed_widget, expiring_contracts_widget
+        )
+        try:
+            expiring_vehicles_widget()
+            info['widget_expiring_vehicles'] = 'OK'
+        except Exception as e:
+            info['widget_expiring_vehicles_error'] = f"{e}\n{traceback.format_exc()}"
+
+        try:
+            upcoming_birthdays_widget()
+            info['widget_upcoming_birthdays'] = 'OK'
+        except Exception as e:
+            info['widget_upcoming_birthdays_error'] = f"{e}\n{traceback.format_exc()}"
+
+        try:
+            weekly_schedule_widget({'request': request})
+            info['widget_weekly_schedule'] = 'OK'
+        except Exception as e:
+            info['widget_weekly_schedule_error'] = f"{e}\n{traceback.format_exc()}"
+
+        try:
+            telegram_feed_widget()
+            info['widget_telegram_feed'] = 'OK'
+        except Exception as e:
+            info['widget_telegram_feed_error'] = f"{e}\n{traceback.format_exc()}"
+
+        try:
+            expiring_contracts_widget()
+            info['widget_expiring_contracts'] = 'OK'
+        except Exception as e:
+            info['widget_expiring_contracts_error'] = f"{e}\n{traceback.format_exc()}"
+
     except Exception as e:
         info['error'] = str(e)
         info['traceback'] = traceback.format_exc()
