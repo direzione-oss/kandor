@@ -112,6 +112,36 @@ def test_admin_debug_view(request):
                 res['status'] = "Step 11 OK - admin.site.index rendered completely"
             else:
                 res['status'] = f"Step 11 - response was non-template: {response.status_code}"
+        elif step == '12':
+            from django.template.loader import render_to_string
+            from core.templatetags.dashboard_extras import telegram_feed_widget
+            ctx = telegram_feed_widget()
+            html = render_to_string('admin/widgets/telegram_feed_widget.html', ctx)
+            res['status'] = f"Step 12 OK - telegram_feed_widget rendered ({len(html)} bytes)"
+        elif step == '13':
+            from django.template.loader import render_to_string
+            from core.templatetags.dashboard_extras import expiring_vehicles_widget
+            ctx = expiring_vehicles_widget()
+            html = render_to_string('admin/widgets/expiring_vehicles_widget.html', ctx)
+            res['status'] = f"Step 13 OK - expiring_vehicles_widget rendered ({len(html)} bytes)"
+        elif step == '14':
+            from django.template.loader import render_to_string
+            from core.templatetags.dashboard_extras import upcoming_birthdays_widget
+            ctx = upcoming_birthdays_widget()
+            html = render_to_string('admin/widgets/upcoming_birthdays_widget.html', ctx)
+            res['status'] = f"Step 14 OK - upcoming_birthdays_widget rendered ({len(html)} bytes)"
+        elif step == '15':
+            from django.template.loader import render_to_string
+            from core.templatetags.dashboard_extras import expiring_contracts_widget
+            ctx = expiring_contracts_widget()
+            html = render_to_string('admin/widgets/expiring_contracts_widget.html', ctx)
+            res['status'] = f"Step 15 OK - expiring_contracts_widget rendered ({len(html)} bytes)"
+        elif step == '16':
+            from django.template.loader import render_to_string
+            from core.templatetags.dashboard_extras import weekly_schedule_widget
+            ctx = weekly_schedule_widget({'request': request})
+            html = render_to_string('admin/widgets/weekly_schedule_widget.html', ctx)
+            res['status'] = f"Step 16 OK - weekly_schedule_widget rendered ({len(html)} bytes)"
         else:
             res['status'] = "Unknown step"
     except Exception as e:
