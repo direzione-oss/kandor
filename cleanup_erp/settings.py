@@ -93,7 +93,6 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 #   (default)    →  Supabase PostgreSQL (produzione)
 # =====================================================
 import urllib.parse
-import socket
 
 db_url = os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
 supabase_pw = os.environ.get('SUPABASE_DB_PASSWORD')
@@ -116,40 +115,24 @@ if use_postgres:
         db_name = os.environ.get('SUPABASE_DB_NAME', 'postgres')
         db_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
 
-    # Se l'host e' il pooler Supabase, usa la porta 6543 (Transaction Pooler) per evitare l'esaurimento dei max 15 client
-    if 'pooler.supabase.com' in db_host and db_port == '5432':
-        db_port = '6543'
-
-    # Test preventivo di connessione socket TCP all'host del DB
-    is_reachable = False
-    try:
-        with socket.create_connection((db_host, int(db_port)), timeout=5):
-            is_reachable = True
-    except Exception:
-        pass
-
-    if is_reachable:
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.postgresql',
-                'NAME': db_name,
-                'USER': db_user,
-                'PASSWORD': db_password,
-                'HOST': db_host,
-                'PORT': db_port,
-                'OPTIONS': {
-                    'sslmode': 'prefer',
-                    'connect_timeout': 5,
-                },
-                'CONN_MAX_AGE': 0,
-                'DISABLE_SERVER_SIDE_CURSORS': True,
-            }
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': db_name,
+            'USER': db_user,
+            'PASSWORD': db_password,
+            'HOST': db_host,
+            'PORT': db_port,
+            'OPTIONS': {
+                'sslmode': 'prefer',
+                'connect_timeout': 10,
+            },
+            'CONN_MAX_AGE': 0,
+            'DISABLE_SERVER_SIDE_CURSORS': True,
         }
-    else:
-        use_postgres = False
-
-if not use_postgres:
-    # Default robust SQLite configuration for Render and local development
+    }
+else:
+    # Default robust SQLite configuration for local development
     sqlite_path = Path('/tmp/db_local.sqlite3') if (os.environ.get('RENDER') or os.name != 'nt') else BASE_DIR / 'db_local.sqlite3'
     DATABASES = {
         'default': {
