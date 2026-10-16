@@ -246,10 +246,13 @@ def weekly_schedule_widget(context):
 
     assenze_by_dip_date = defaultdict(list)
     for ass in assenze_qs:
-        curr_d = ass.data_inizio
-        while curr_d <= ass.data_fine:
-            if dates[0] <= curr_d <= dates[-1]:
-                assenze_by_dip_date[(ass.dipendente_id, curr_d)].append(ass)
+        if not ass.data_inizio or not ass.data_fine:
+            continue
+        start_d = max(ass.data_inizio, dates[0])
+        end_d = min(ass.data_fine, dates[-1])
+        curr_d = start_d
+        while curr_d <= end_d:
+            assenze_by_dip_date[(ass.dipendente_id, curr_d)].append(ass)
             curr_d += timedelta(days=1)
 
     sostituzioni_qs = RichiestaSostituzione.objects.filter(
