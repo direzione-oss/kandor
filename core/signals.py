@@ -65,7 +65,9 @@ def _genera_turni_singola_programmazione(prog, days=365):
         match = False
         weekday = current_date.weekday()
         
-        if prog.tipo_ripetizione == 'SETTIMANALE' and prog.giorno_settimana == weekday:
+        if prog.tipo_ripetizione == 'GIORNALIERO':
+            match = True
+        elif prog.tipo_ripetizione == 'SETTIMANALE' and prog.giorno_settimana == weekday:
             match = True
         elif prog.tipo_ripetizione == 'MENSILE' and prog.giorno_mese == current_date.day:
             match = True

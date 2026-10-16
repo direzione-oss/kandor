@@ -13,7 +13,7 @@ from .views import (
     get_sostituti_richiesta_api, invia_notifiche_sostituti_api,
     titolari_dashboard_view, titolari_riepilogo_view,
     settimana_pdf_view,
-    dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup,
+    dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup, dev_tools_publish_code,
     installa_locale_view, installa_locale_download, debug_db_view
 )
 from django.views.generic import RedirectView
@@ -80,6 +80,7 @@ urlpatterns = [
     path('dev-tools/push/', dev_tools_push, name='dev_tools_push'),
     path('dev-tools/push-status/<str:job_id>/', dev_tools_push_status, name='dev_tools_push_status'),
     path('dev-tools/backup/', dev_tools_backup, name='dev_tools_backup'),
+    path('dev-tools/publish-code/', dev_tools_publish_code, name='dev_tools_publish_code'),
 
     # Installa Locale (accessibile da Render per scaricare i file)
     path('installa-locale/', installa_locale_view, name='installa_locale'),

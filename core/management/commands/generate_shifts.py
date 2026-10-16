@@ -27,10 +27,11 @@ class Command(BaseCommand):
             day_of_month = current_date.day
             
             # Troviamo le programmazioni che matchano oggi
+            match_giornalieri = programmazioni.filter(tipo_ripetizione='GIORNALIERO')
             match_settimanali = programmazioni.filter(tipo_ripetizione='SETTIMANALE', giorno_settimana=weekday)
             match_mensili = programmazioni.filter(tipo_ripetizione='MENSILE', giorno_mese=day_of_month)
             
-            matches = list(match_settimanali) + list(match_mensili)
+            matches = list(match_giornalieri) + list(match_settimanali) + list(match_mensili)
             
             for prog in matches:
                 # 1. Trova la Squadra
@@ -43,11 +44,13 @@ class Command(BaseCommand):
                     continue
 
                 # 2. Crea o Recupera il Turno
-                turno, created = Turno.objects.get_or_create(
-                    data=current_date,
-                    squadra=squadra,
-                    defaults={'mezzo': None} # Mezzo opzionale
-                )
+                turno = Turno.objects.filter(data=current_date, squadra=squadra).first()
+                if not turno:
+                    turno = Turno.objects.create(
+                        data=current_date,
+                        squadra=squadra,
+                        mezzo=None
+                    )
                 
                 # 3. Crea l'Assegnazione se non esiste già
                 exists = AssegnazioneTurno.objects.filter(

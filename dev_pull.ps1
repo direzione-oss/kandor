@@ -31,6 +31,7 @@ if (Test-Path ".env") {
 
 # Assicurati di usare Supabase per il dump
 Remove-Item Env:LOCAL_DEV -ErrorAction SilentlyContinue
+$env:USE_POSTGRES = "1"
 
 # --- 2. Export da Supabase ---
 Write-Host ""
@@ -63,9 +64,12 @@ Write-Host ("OK: Dump completato -> " + $dumpFile + " (" + $sizeKB + " KB)") -Fo
 Write-Host ""
 Write-Host "Passaggio a modalita locale (SQLite)..." -ForegroundColor Yellow
 $env:LOCAL_DEV = "1"
+$env:USE_POSTGRES = "0"
 
 if (Test-Path "db_local.sqlite3") {
-    Remove-Item "db_local.sqlite3"
+    Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*manage.py*" -or $_.CommandLine -like "*runserver*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    Remove-Item "db_local.sqlite3" -Force -ErrorAction SilentlyContinue
     Write-Host "DB locale precedente eliminato" -ForegroundColor Gray
 }
 
@@ -90,6 +94,7 @@ Write-Host "OK: Schema creato" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "Caricamento dati in SQLite..." -ForegroundColor Yellow
+$env:SKIP_GEOCODING = "1"
 python manage.py loaddata $dumpFile
 
 if ($LASTEXITCODE -ne 0) {

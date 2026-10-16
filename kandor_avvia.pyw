@@ -103,29 +103,27 @@ try:
     log("=== Kandor avvio ===")
     log(f"Cartella progetto: {BASE}")
 
-    # Migrazioni (esegui solo se il DB non esiste per avvio fulmineo)
-    db_file = BASE / 'db_local.sqlite3'
-    if not db_file.exists():
-        log("Inizializzazione DB locale...")
-        result = run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
-        if result.returncode != 0:
-            log(f"Migrate fallito: {result.stderr[:500]}")
-            run_hidden([sys.executable, 'manage.py', 'migrate', 'core', '0040'])
-            run_hidden([sys.executable, 'manage.py', 'migrate', 'core', '0041', '--fake'])
-            run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
-        log("Migrazioni OK")
-    else:
-        log("DB locale trovato: avvio rapido (migrazioni saltate)")
+    # Sincronizzazione schema DB locale
+    log("Sincronizzazione schema DB locale...")
+    run_hidden([sys.executable, 'manage.py', 'migrate', '--no-input'])
+    log("DB locale pronto.")
 
-    # Avvio server
+    # Se il server è già attivo e risponde, apri direttamente il browser senza avviare duplicati
+    if wait_for_server(timeout=1):
+        log("Server già attivo sulla porta 8000 — apertura browser")
+        webbrowser.open('http://127.0.0.1:8000/admin/')
+        sys.exit(0)
+
+    # Avvio server (output su file di log invece di PIPE per evitare deadlock dopo 4KB di richieste)
     log("Avvio server Django...")
+    log_file = open(LOG, 'a', encoding='utf-8', errors='replace')
     server = subprocess.Popen(
         [sys.executable, 'manage.py', 'runserver', '127.0.0.1:8000', '--noreload'],
         cwd=str(BASE),
         env=os.environ.copy(),
         creationflags=HIDE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=log_file,
+        stderr=log_file,
     )
 
     log("Attesa server (max 25s)...")
@@ -133,20 +131,16 @@ try:
 
     if ok:
         log("Server pronto — apertura browser")
-        webbrowser.open('http://127.0.0.1:8000/dev-tools/')
+        webbrowser.open('http://127.0.0.1:8000/admin/')
     else:
-        # Leggi l'errore dal server
         try:
             server.terminate()
-            out, err = server.communicate(timeout=3)
-            err_msg = (err or b'').decode('utf-8', errors='replace')[:800]
         except Exception:
-            err_msg = "Server non risponde."
-        log(f"ERRORE server: {err_msg}")
+            pass
+        log("ERRORE server: Server non risponde entro il timeout.")
         show_error(
-            f"Il server Kandor non è partito entro 20 secondi.\n\n"
-            f"Errore:\n{err_msg}\n\n"
-            f"Controlla il file kandor_avvia.log nella cartella del progetto."
+            "Il server Kandor non è partito entro 25 secondi.\n\n"
+            "Controlla il file kandor_avvia.log nella cartella del progetto."
         )
         sys.exit(1)
 

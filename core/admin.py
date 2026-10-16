@@ -338,7 +338,9 @@ class ProgrammazioneRicorrenteAdmin(admin.ModelAdmin):
     )
 
     def get_giorno_display(self, obj):
-        if obj.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
+        if obj.tipo_ripetizione == 'GIORNALIERO':
+            return 'Ogni Giorno'
+        elif obj.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
             return obj.get_giorno_settimana_display() or '-'
         return f"Giorno {obj.giorno_mese}" if obj.giorno_mese else '-'
     get_giorno_display.short_description = 'Giorno'

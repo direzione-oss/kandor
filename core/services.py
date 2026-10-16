@@ -29,6 +29,7 @@ def genera_turni_automatici(days=365):
         weekday = current_date.weekday()
         day_of_month = current_date.day
         
+        match_giornalieri = programmazioni.filter(tipo_ripetizione='GIORNALIERO')
         match_settimanali = programmazioni.filter(tipo_ripetizione='SETTIMANALE', giorno_settimana=weekday)
         match_mensili = programmazioni.filter(tipo_ripetizione='MENSILE', giorno_mese=day_of_month)
         
@@ -44,7 +45,7 @@ def genera_turni_automatici(days=365):
                 if delta_days >= 0 and settimane_passate % 2 == 0:
                     match_bisettimanali.append(prog)
         
-        matches = list(match_settimanali) + list(match_mensili) + match_bisettimanali
+        matches = list(match_giornalieri) + list(match_settimanali) + list(match_mensili) + match_bisettimanali
         
         for prog in matches:
             # Controllo periodo contrattuale
@@ -56,11 +57,13 @@ def genera_turni_automatici(days=365):
             squadra = prog.squadra_abituale
             
             # Crea/Recupera Turno
-            turno, created = Turno.objects.get_or_create(
-                data=current_date,
-                squadra=squadra,
-                defaults={'mezzo': prog.mezzo_abituale}
-            )
+            turno = Turno.objects.filter(data=current_date, squadra=squadra).first()
+            if not turno:
+                turno = Turno.objects.create(
+                    data=current_date,
+                    squadra=squadra,
+                    mezzo=prog.mezzo_abituale
+                )
             
             # Evita duplicati
             exists = AssegnazioneTurno.objects.filter(

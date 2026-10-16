@@ -443,8 +443,10 @@ def add_turno_ajax(request):
                 )
                 if tipo_ripetizione == 'MENSILE':
                     kwargs['giorno_mese'] = giorno_mese
-                else:
+                elif tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
                     kwargs['giorno_settimana'] = giorno_settimana
+                elif tipo_ripetizione == 'GIORNALIERO':
+                    pass
                 prog_feriale = ProgrammazioneRicorrente(**kwargs)
                 prog_feriale.save()
                 _genera_turni_singola_programmazione(prog_feriale)
@@ -3263,6 +3265,72 @@ def dev_tools_backup(request):
             yield 'ERR: Backup fallito.\n'
 
     return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
+
+
+@staff_member_required
+@_only_local
+def dev_tools_publish_code(request):
+    """Pubblica le modifiche del programma (codice e migrazioni) su GitHub/Render."""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    try:
+        body = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        body = {}
+    commit_msg = (body.get('message') or '').strip() or 'Aggiornamento programma Kandor da Dev Tools'
+
+    def generate():
+        env_git = os.environ.copy()
+        env_git['PYTHONUTF8'] = '1'
+
+        yield 'INFO: 1/3 Scansione file modificati (git add)...\n'
+        exit_code = 0
+        for line in _stream_proc(['git', 'add', '.'], env_git):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+        if exit_code != 0:
+            yield 'ERR: Errore durante git add.\n'
+            return
+
+        # Verifica se ci sono modifiche da committare
+        status_proc = subprocess.run(
+            ['git', 'status', '--porcelain'],
+            cwd=str(_BASE),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        if status_proc.stdout.strip():
+            yield f'INFO: 2/3 Salvataggio versione ("{commit_msg}")...\n'
+            for line in _stream_proc(['git', 'commit', '-m', commit_msg], env_git):
+                if line.startswith('__EXIT__'):
+                    exit_code = int(line.split('__EXIT__')[1].strip())
+                else:
+                    yield line
+            if exit_code != 0:
+                yield 'ERR: Errore durante git commit.\n'
+                return
+        else:
+            yield 'INFO: 2/3 Nessuna nuova modifica locale da salvare, verifico invio a Render...\n'
+
+        yield 'INFO: 3/3 Invio modifiche a GitHub / Render (git push origin main)...\n'
+        for line in _stream_proc(['git', 'push', 'origin', 'main'], env_git):
+            if line.startswith('__EXIT__'):
+                exit_code = int(line.split('__EXIT__')[1].strip())
+            else:
+                yield line
+
+        if exit_code == 0:
+            yield 'OK: Modifiche pubblicate con successo! Render aggiornerà il sito online in circa 1-2 minuti (senza toccare i dati operativi).\n'
+        else:
+            yield 'ERR: Invio su GitHub fallito. Verifica la connessione internet.\n'
+
+    return StreamingHttpResponse(generate(), content_type='text/plain; charset=utf-8')
+
 
 
 def debug_db_view(request):

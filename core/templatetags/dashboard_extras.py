@@ -529,7 +529,7 @@ def expiring_contracts_widget():
             'prog': prog,
             'cliente': prog.cliente.ragione_sociale,
             'tipo': prog.get_tipo_ripetizione_display(),
-            'giorno': prog.get_giorno_settimana_display() if prog.giorno_settimana is not None else f"Giorno {prog.giorno_mese}",
+            'giorno': 'Ogni giorno' if prog.tipo_ripetizione == 'GIORNALIERO' else (prog.get_giorno_settimana_display() if prog.giorno_settimana is not None else f"Giorno {prog.giorno_mese}"),
             'data_fine': prog.data_fine_contratto,
             'days_left': days_left,
             'is_expired': days_left < 0,

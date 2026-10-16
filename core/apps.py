@@ -25,9 +25,5 @@ class CoreConfig(AppConfig):
                 if not User.objects.filter(username='admin').exists():
                     User.objects.create_superuser('admin', 'admin@kandor.it', 'Kandor2024!')
                     print("   ✅ Superuser 'admin' creato con successo in ready()!")
-                else:
-                    u = User.objects.get(username='admin')
-                    u.set_password('Kandor2024!')
-                    u.save()
             except Exception as e:
                 print(f"⚠️ Avviso durante verifica tabelle in ready(): {e}")

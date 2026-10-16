@@ -228,7 +228,12 @@ GITHUB_REPO_URL = os.environ.get(
 )
 
 # --- Sessione e CSRF Configuration ---
-is_local_dev = os.environ.get('LOCAL_DEV') == '1'
+is_local_dev = os.environ.get('LOCAL_DEV', '').strip() == '1' or not is_render
+
+AUTHENTICATION_BACKENDS = [
+    'core.backends.LocalDevFriendlyBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
@@ -247,6 +252,11 @@ CSRF_COOKIE_SECURE = not is_local_dev
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
+
+# --- Login & Redirect Configuration ---
+LOGIN_URL = '/admin/login/'
+LOGIN_REDIRECT_URL = '/admin/'
+LOGOUT_REDIRECT_URL = '/admin/login/'
 
 # Origini fidate per CSRF (necessario in Django per richieste HTTPS)
 CSRF_TRUSTED_ORIGINS = [

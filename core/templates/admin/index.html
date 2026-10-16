@@ -235,6 +235,11 @@
             <p>Pannello di controllo operativo per turni, personale, contratti e notifiche</p>
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
+            {% if '127.0.0.1' in request.get_host or 'localhost' in request.get_host %}
+            <a href="{% url 'dev_tools' %}" style="background: #16a34a; color: #ffffff !important; padding: 7px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(22,163,74,0.35);">
+                🚀 Dev Tools &amp; Pubblica Online
+            </a>
+            {% endif %}
             <span class="k-badge k-badge-success" style="padding: 6px 14px; font-size: 0.8rem;">● Sistema Attivo</span>
         </div>
     </div>

@@ -159,6 +159,24 @@
     <a href="/admin/" class="btn btn-gray">← Torna all'applicazione</a>
   </div>
 
+  <!-- PUBBLICA MODIFICHE PROGRAMMA ONLINE (RENDER / GITHUB) -->
+  <div class="card" style="border-color: #16a34a;">
+    <div class="card-title">🚀 Pubblica Modifiche Programma Online (Render)</div>
+    <div class="card-desc">
+      Invia online <strong>solo le nuove funzioni del programma e le migrazioni</strong> (GitHub &rarr; Render)
+      senza sovrascrivere i dati operativi su Supabase. Il sito online si aggiorna in ~1-2 minuti.
+    </div>
+    <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+      <input type="text" id="publish-msg" placeholder="Nota modifica (es. Programmazione giornaliera)"
+        style="flex: 1; min-width: 220px; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #f1f5f9; font-size: 0.85rem;">
+      <button class="btn btn-green" onclick="startPublishCode(this)">
+        <span class="spinner" id="publish-spinner"></span>
+        🚀 Pubblica Online
+      </button>
+    </div>
+    <div class="log-box" id="publish-log"></div>
+  </div>
+
   <!-- PULL -->
   <div class="card">
     <div class="card-title">⬇ Scarica DB da Supabase</div>
@@ -221,7 +239,7 @@ function appendLog(boxId, msg, cls='') {
   box.scrollTop = box.scrollHeight;
 }
 
-async function callApi(endpoint, logBoxId, spinnerIds, onDone) {
+async function callApi(endpoint, logBoxId, spinnerIds, onDone, bodyObj=null) {
   spinnerIds.forEach(id => document.getElementById(id)?.classList.add('visible'));
   const box = document.getElementById(logBoxId);
   box.innerHTML = '';
@@ -230,7 +248,8 @@ async function callApi(endpoint, logBoxId, spinnerIds, onDone) {
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' }
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+      body: bodyObj ? JSON.stringify(bodyObj) : null
     });
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
@@ -253,6 +272,12 @@ async function callApi(endpoint, logBoxId, spinnerIds, onDone) {
   } finally {
     spinnerIds.forEach(id => document.getElementById(id)?.classList.remove('visible'));
   }
+}
+
+function startPublishCode(btn) {
+  btn.disabled = true;
+  const msg = document.getElementById('publish-msg')?.value || '';
+  callApi('/dev-tools/publish-code/', 'publish-log', ['publish-spinner'], () => { btn.disabled = false; }, { message: msg });
 }
 
 function startPull(btn) {

@@ -137,6 +137,7 @@ class Cliente(models.Model):
 
 class ProgrammazioneRicorrente(models.Model):
     TIPO_RIPETIZIONE = [
+        ('GIORNALIERO', 'Giornaliero (ogni giorno)'),
         ('SETTIMANALE', 'Settimanale'),
         ('BISETTIMANALE', 'Ogni 2 Settimane'),
         ('MENSILE', 'Mensile'),
@@ -242,7 +243,9 @@ class ProgrammazioneRicorrente(models.Model):
 
     def __str__(self):
         tipo = self.get_tipo_ripetizione_display()
-        if self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
+        if self.tipo_ripetizione == 'GIORNALIERO':
+             giorno = "ogni giorno"
+        elif self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
              giorno = self.get_giorno_settimana_display()
         else:
              giorno = f"Giorno {self.giorno_mese}"
