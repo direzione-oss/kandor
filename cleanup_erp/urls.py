@@ -89,6 +89,15 @@ def test_admin_debug_view(request):
             request.user = admin_user
             res['admin_index_status'] = admin.site.index(request).status_code
             res['status'] = "Step 9 OK - admin.site.index rendered"
+        elif step == '10':
+            from django.contrib.auth import authenticate, login
+            u = authenticate(request, username='admin', password='Kandor2024!')
+            res['auth_user'] = str(u)
+            if u:
+                login(request, u)
+                res['status'] = "Step 10 OK - Login successful and session created"
+            else:
+                res['status'] = "Step 10 Failed - Invalid credentials"
         else:
             res['status'] = "Unknown step"
     except Exception as e:
