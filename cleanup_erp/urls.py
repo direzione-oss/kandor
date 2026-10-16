@@ -98,6 +98,20 @@ def test_admin_debug_view(request):
                 res['status'] = "Step 10 OK - Login successful and session created"
             else:
                 res['status'] = "Step 10 Failed - Invalid credentials"
+        elif step == '11':
+            from django.contrib import admin
+            from django.contrib.auth import get_user_model
+            from django.template.response import TemplateResponse
+            User = get_user_model()
+            admin_user = User.objects.filter(username='admin').first()
+            request.user = admin_user
+            response = admin.site.index(request)
+            if isinstance(response, TemplateResponse):
+                response.render()
+                res['content_len'] = len(response.content)
+                res['status'] = "Step 11 OK - admin.site.index rendered completely"
+            else:
+                res['status'] = f"Step 11 - response was non-template: {response.status_code}"
         else:
             res['status'] = "Unknown step"
     except Exception as e:
