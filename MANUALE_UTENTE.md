@@ -138,9 +138,10 @@ Il modulo Dipendenti censisce tutti i lavoratori aziendali, raccogliendo le info
 3. **Contatti e Telegram**:
    - Inserisci il **Telefono** e l'**Email** del lavoratore.
    - **Telegram Chat ID**: Inserisci l'identificativo univoco dell'account Telegram del dipendente per abilitare l'invio e la ricezione di messaggi dal Bot aziendale.
-4. **Competenze e Sostituzioni**:
+4. **Competenze, Sostituzioni e Sorveglianza Sanitaria**:
    - Seleziona le **Qualifiche Possedute** nella lista a scelta multipla (es. Pulizie Industriali, Uso Monospazzola, Trattamento Cotto).
    - Se il lavoratore è disponibile a coprire i turni dei colleghi assenti, spunta la casella **"Disponibile come Sostituto"**.
+   - **Prossima scadenza visita medica**: Inserisci la data della prossima visita medica periodica obbligatoria. Il sistema attiverà automaticamente un alert nella Dashboard principale **20 giorni prima** della scadenza (ed evidenzierà in rosso le visite eventualmente scadute).
 5. **Stato Operativo**:
    - Imposta lo stato su **Attivo** per i lavoratori in servizio regolare. Gli altri stati (In Malattia, In Ferie, In Permesso, Legge 104, Licenziato/Inattivo) vengono aggiornati automaticamente dal sistema o dall'amministrazione.
 6. Clicca **"Salva"** in basso a destra.
@@ -551,11 +552,13 @@ Il pannello informativo destro della Dashboard include widget ad aggiornamento a
 
 1. 🚗 **Scadenze Veicoli**:
    - Visualizza i veicoli con assicurazione o bollo in scadenza nei successivi 45 giorni (colore arancione) o già scaduti (colore rosso).
-2. 🎂 **Compleanni in Arrivo**:
+2. 🩺 **Scadenze Visite Mediche**:
+   - Segnala automaticamente i dipendenti attivi con **Prossima scadenza visita medica** entro i successivi **20 giorni** (in arancione) o già scaduta (in rosso), con collegamento diretto alla scheda del lavoratore.
+3. 🎂 **Compleanni in Arrivo**:
    - Mostra i compleanni dei dipendenti e dei referenti clienti nei successivi 20 giorni.
-3. 📅 **Pianificazione Settimanale**:
+4. 📅 **Pianificazione Settimanale**:
    - Calendario sintetico dei turni con stato delle ore e navigazione rapida.
-4. 📱 **Feed Telegram**:
+5. 📱 **Feed Telegram**:
    - Flusso in tempo reale degli ultimi messaggi, timbrature e segnalazioni ricevute dagli operatori.
 
 ---
