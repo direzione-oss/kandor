@@ -352,12 +352,15 @@
     <!-- Widget Telegram Feed -->
     {% telegram_feed_widget %}
 
-    <!-- RIGA SUPERIORE: Scadenze & Compleanni (Affiancati) -->
+    <!-- RIGA SUPERIORE: Scadenze Mezzi, Visite Mediche & Compleanni (Affiancati) -->
     <div style="display: flex; gap: 24px; margin-bottom: 28px; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 400px;">
+        <div style="flex: 1; min-width: 320px;">
             {% expiring_vehicles_widget %}
         </div>
-        <div style="flex: 1; min-width: 400px;">
+        <div style="flex: 1; min-width: 320px;">
+            {% expiring_medical_visits_widget %}
+        </div>
+        <div style="flex: 1; min-width: 320px;">
             {% upcoming_birthdays_widget %}
         </div>
     </div>

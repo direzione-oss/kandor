@@ -55,7 +55,7 @@ class Dipendente(models.Model):
         verbose_name="Ore Settimanali (Part-Time)",
         help_text="Compilare solo se il contratto è Part-Time"
     )
-    data_ultima_visita_medica = models.DateField(null=True, blank=True, verbose_name="Data Ultima Visita Medica")
+    data_ultima_visita_medica = models.DateField(null=True, blank=True, verbose_name="Prossima scadenza visita medica")
     
     # Relazioni
     qualifiche = models.ManyToManyField(Qualifica, related_name='dipendenti', blank=True, verbose_name="Qualifiche Possedute")

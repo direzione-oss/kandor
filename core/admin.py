@@ -190,7 +190,7 @@ admin.site.index_title = "Benvenuto in Kandor"
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
     list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)

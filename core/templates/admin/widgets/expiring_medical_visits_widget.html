@@ -1,0 +1,58 @@
+{% if medical_visits %}
+<div class="k-card" style="margin-bottom: 24px; border-top: 3px solid var(--warning);">
+    <div style="background: #0F172A; color: white; padding: 12px 18px; font-size: 0.9rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;"
+        onclick="toggleWidget('medical-visits-content', this)">
+        <span>🩺 Scadenze Visite Mediche (Prossimi 20 gg)</span>
+        <span id="med-toggle-icon" style="font-size: 0.8rem;">{% if has_urgent %}▼{% else %}▶{% endif %}</span>
+    </div>
+    <div id="medical-visits-content" style="padding: 0; {% if not has_urgent %}display: none;{% endif %}">
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
+            <thead>
+                <tr>
+                    <th style="padding: 10px 14px; text-align: left;">Dipendente</th>
+                    <th style="padding: 10px 14px; text-align: left;">Prossima Scadenza</th>
+                    <th style="padding: 10px 14px; text-align: right;">Scheda</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in medical_visits %}
+                <tr style="{% if item.is_expired %}background: #FEF2F2;{% endif %}">
+                    <td style="padding: 10px 14px; font-weight: 700;">
+                        {{ item.obj.cognome }} {{ item.obj.nome }}
+                    </td>
+                    <td style="padding: 10px 14px;">
+                        {% if item.is_expired %}
+                        <span class="k-badge k-badge-danger" style="background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA;">
+                            {{ item.date|date:"d/m/Y" }} ({{ item.status }})
+                        </span>
+                        {% else %}
+                        <span class="k-badge" style="background: var(--warning-bg); color: #B45309; border: 1px solid #FDE68A;">
+                            {{ item.date|date:"d/m/Y" }} ({{ item.status }})
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 10px 14px; text-align: right; width: 40px;">
+                        <a href="/admin/core/dipendente/{{ item.obj.id }}/change/" style="font-size: 1.1rem; text-decoration: none;" title="Apri scheda dipendente">👤</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+    if (typeof toggleWidget === 'undefined') {
+        function toggleWidget(id, header) {
+            var content = document.getElementById(id);
+            var icon = header.querySelector('span:last-child');
+            if (content.style.display === "none") {
+                content.style.display = "block";
+                if (icon) icon.innerText = "▼";
+            } else {
+                content.style.display = "none";
+                if (icon) icon.innerText = "▶";
+            }
+        }
+    }
+</script>
+{% endif %}

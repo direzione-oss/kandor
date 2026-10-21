@@ -87,6 +87,40 @@ def expiring_vehicles_widget():
     )
     return {'vehicles': processed_vehicles, 'has_urgent_7days': has_urgent_7days}
 
+@register.inclusion_tag('admin/widgets/expiring_medical_visits_widget.html')
+def expiring_medical_visits_widget():
+    from core.models import Dipendente
+    today = timezone.now().date()
+    threshold = today + timedelta(days=20)
+
+    dipendenti = Dipendente.objects.exclude(stato='INATTIVO').filter(
+        data_ultima_visita_medica__isnull=False,
+        data_ultima_visita_medica__lte=threshold
+    ).order_by('data_ultima_visita_medica', 'cognome', 'nome')
+
+    medical_visits = []
+    for dip in dipendenti:
+        scadenza = dip.data_ultima_visita_medica
+        if scadenza < today:
+            status = 'SCADUTA'
+            is_expired = True
+        else:
+            days = (scadenza - today).days
+            status = 'Scade OGGI' if days == 0 else f'Scade tra {days} gg'
+            is_expired = False
+
+        medical_visits.append({
+            'obj': dip,
+            'date': scadenza,
+            'status': status,
+            'is_expired': is_expired,
+        })
+
+    return {
+        'medical_visits': medical_visits,
+        'has_urgent': bool(medical_visits),
+    }
+
 @register.inclusion_tag('admin/widgets/upcoming_birthdays_widget.html')
 def upcoming_birthdays_widget():
     from core.models import Dipendente, Cliente

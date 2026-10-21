@@ -1385,6 +1385,12 @@ def titolari_dashboard_view(request):
         alerts.append({'msg': f'🚨 {open_fallite.count()} sostituzione/i fallite oggi — nessun sostituto disponibile!', 'critico': True})
     if n_sotto_soglia > 0:
         alerts.append({'msg': f'💰 {n_sotto_soglia} contratto/i sotto la soglia di {soglia_default}€/ora', 'critico': False})
+    visite_in_scadenza = Dipendente.objects.exclude(stato='INATTIVO').filter(
+        data_ultima_visita_medica__isnull=False,
+        data_ultima_visita_medica__lte=oggi + timedelta(days=20)
+    ).count()
+    if visite_in_scadenza > 0:
+        alerts.append({'msg': f'🩺 {visite_in_scadenza} visita/e medica/he in scadenza (o scadute) entro 20 giorni', 'critico': False})
     
     return render(request, 'core/titolari_dashboard.html', {
         'oggi': oggi, 'lun': lun, 'ven': ven,
