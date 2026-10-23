@@ -384,16 +384,16 @@ class CorsoDipendenteInline(admin.TabularInline):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
-    search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
+    search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
     list_filter = ('stato', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
-    actions = ['send_telegram_message_action']
+    actions = ['send_telegram_message_action', 'rigenera_pin_action']
     readonly_fields = ('anteprima_foto_telegram',)
     fieldsets = (
-        ('Dati Anagrafici', {
-            'fields': (('nome', 'cognome', 'anteprima_foto_telegram'), 'codice_fiscale', 'data_nascita', 'indirizzo_residenza', 'email', 'telefono')
+        ('Dati Anagrafici & Accesso App', {
+            'fields': (('nome', 'cognome', 'anteprima_foto_telegram'), ('codice_fiscale', 'pin_accesso'), 'data_nascita', 'indirizzo_residenza', 'email', 'telefono')
         }),
         ('Stato', {
             'fields': ('stato',)
@@ -410,11 +410,39 @@ class DipendenteAdmin(KandorBaseAdmin):
         ('Qualifiche & Squadra', {
             'fields': ('qualifiche', 'is_sostituto')
         }),
-        ('Integrazione Telegram', {
+        ('Integrazione Telegram & Foto', {
             'fields': ('telegram_chat_id', 'riceve_notifiche_messaggi', 'foto_profilo_url', 'foto', 'foto_url'),
             'classes': ('collapse',)
         }),
     )
+
+    @admin.display(description='🔑 PIN & App', ordering='pin_accesso')
+    def pin_accesso_badge(self, obj):
+        if not obj.pin_accesso or len(obj.pin_accesso.strip()) != 4:
+            import random
+            obj.pin_accesso = f"{random.randint(1000, 9999)}"
+            Dipendente.objects.filter(pk=obj.pk).update(pin_accesso=obj.pin_accesso)
+        return format_html(
+            '<div style="display:inline-flex; align-items:center; gap:5px;">'
+            '<span style="font-family:monospace; background:#FFF7ED; color:#C2410C; border:1px solid #FDBA74; padding:2px 7px; border-radius:6px; font-weight:800; font-size:12px; letter-spacing:1px;" title="Codice Fiscale: {} — PIN Web App: {}">{}</span>'
+            '<a href="/app/?preview_dip_id={}" target="_blank" style="background:#0F172A; color:#FFF; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none;" title="Apri anteprima Web App di {}">📲 App</a>'
+            '</div>',
+            obj.codice_fiscale,
+            obj.pin_accesso,
+            obj.pin_accesso,
+            obj.pk,
+            obj.cognome,
+        )
+
+    @admin.action(description='🔑 Rigenera PIN 4 cifre (Web App Dipendenti)')
+    def rigenera_pin_action(self, request, queryset):
+        import random
+        count = 0
+        for dip in queryset:
+            dip.pin_accesso = f"{random.randint(1000, 9999)}"
+            dip.save(update_fields=['pin_accesso'])
+            count += 1
+        self.message_user(request, f"🔑 PIN Web App rigenerato per {count} dipendenti.", messages.SUCCESS)
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         if object_id and request.method == 'GET':
@@ -719,53 +747,10 @@ class ClienteAdmin(KandorBaseAdmin):
 class MezzoAdmin(KandorBaseAdmin):
     list_display = (
         'targa', 'modello', 'stato', 'km_attuali',
-        'scadenza_polizza_badge', 'scadenza_revisione_badge',
-        'permesso_citta_alta_badge'
+        'scadenza_polizza', 'scadenza_revisione', 'scadenza_permesso_citta_alta'
     )
     list_filter = ('stato',)
-    search_fields = ('targa', 'modello', 'numero_permesso_citta_alta')
-
-    @admin.display(description="Scadenza Polizza", ordering="scadenza_polizza")
-    def scadenza_polizza_badge(self, obj):
-        return self._render_scadenza_badge(obj.scadenza_polizza)
-
-    @admin.display(description="Scadenza Revisione", ordering="scadenza_revisione")
-    def scadenza_revisione_badge(self, obj):
-        return self._render_scadenza_badge(obj.scadenza_revisione)
-
-    @admin.display(description="Permesso Città Alta (BG)", ordering="scadenza_permesso_citta_alta")
-    def permesso_citta_alta_badge(self, obj):
-        suffix = f" (n. {obj.numero_permesso_citta_alta})" if obj.numero_permesso_citta_alta else ""
-        return self._render_scadenza_badge(obj.scadenza_permesso_citta_alta, suffix=suffix)
-
-    def _render_scadenza_badge(self, date_val, suffix=""):
-        if not date_val:
-            return mark_safe('<span style="color:#94A3B8;">—</span>')
-        from django.utils import timezone
-        from datetime import timedelta
-        today = timezone.now().date()
-        threshold = today + timedelta(days=30)
-        formatted_date = date_val.strftime('%d/%m/%Y')
-        if date_val < today:
-            return format_html(
-                '<span style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
-                '🔴 SCADUTO ({}{})</span>',
-                formatted_date, suffix
-            )
-        elif date_val <= threshold:
-            days = (date_val - today).days
-            lbl = "Scade OGGI" if days == 0 else f"Scade tra {days} gg"
-            return format_html(
-                '<span style="background:#FEF3C7;color:#B45309;border:1px solid #FDE68A;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
-                '🟠 {} ({}{})</span>',
-                lbl, formatted_date, suffix
-            )
-        else:
-            return format_html(
-                '<span style="background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
-                '🟢 {} ({})</span>',
-                formatted_date, suffix.strip(" ()") if suffix else "Regolare"
-            )
+    search_fields = ('targa', 'modello')  # Necessario per autocomplete_fields
 
 @admin.register(Squadra)
 class SquadraAdmin(KandorBaseAdmin):

@@ -289,18 +289,32 @@
             </div>
         </div>
 
-        <!-- Telegram -->
+        <!-- Telegram & Chat -->
         <div class="quick-card" style="position: relative;">
             <div>
                 <div class="quick-card-header">
                     <div class="quick-icon" style="background: #F5F3FF; color: #7C3AED;">💬</div>
-                    <h3>Telegram</h3>
+                    <h3>Chat & Telegram</h3>
                 </div>
-                <p>Invia comunicazioni e gestisci la chat integrata</p>
+                <p>Invia comunicazioni e gestisci la chat con Telegram e App</p>
             </div>
             <div class="quick-card-actions">
                 <a href="{% url 'chat_simulator' %}" class="quick-btn">Apri Chat &rarr;</a>
                 {% unread_chat_badge %}
+            </div>
+        </div>
+
+        <!-- App Mobile Dipendenti (PWA) -->
+        <div class="quick-card">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #FFF7ED; color: #EA580C;">📲</div>
+                    <h3>App Dipendenti</h3>
+                </div>
+                <p>Web App per cellulare (accesso con Codice Fiscale + PIN 4 cifre)</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'dipendente_app' %}" target="_blank" class="quick-btn" style="background:#EA580C;">Apri Web App &rarr;</a>
             </div>
         </div>
 

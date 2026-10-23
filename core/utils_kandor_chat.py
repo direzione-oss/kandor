@@ -1121,8 +1121,9 @@ def send_and_record_telegram_to_employee(dipendente, text='', attachments=None, 
     if not att_list:
         if save_chat and dipendente and dipendente.pk:
             MessaggioChat.objects.create(dipendente=dipendente, testo=msg, direzione='OUT')
+            any_sent = True
         if chat_id:
-            any_sent = send_telegram_message(chat_id, msg)
+            any_sent = send_telegram_message(chat_id, msg) or any_sent
         return any_sent
 
     # Ci sono allegati: il primo allegato porta il testo come caption (o testo separato se lungo)
@@ -1140,6 +1141,7 @@ def send_and_record_telegram_to_employee(dipendente, text='', attachments=None, 
                 allegato_nome=att['name'],
                 direzione='OUT',
             )
+            any_sent = True
         if chat_id:
             ok = send_telegram_file(
                 chat_id,

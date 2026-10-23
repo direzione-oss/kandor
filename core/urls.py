@@ -17,6 +17,15 @@ from .views import (
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup, dev_tools_publish_code,
     installa_locale_view, installa_locale_download, debug_db_view
 )
+from .views_webapp import (
+    dipendente_app_view,
+    dipendente_app_login_view,
+    dipendente_app_logout_view,
+    dipendente_app_action_view,
+    dipendente_app_manifest_view,
+    dipendente_app_sw_view,
+    dipendente_app_icon_view,
+)
 from django.views.generic import RedirectView
 
 urlpatterns = [
@@ -91,4 +100,13 @@ urlpatterns = [
     # Installa Locale (accessibile da Render per scaricare i file)
     path('installa-locale/', installa_locale_view, name='installa_locale'),
     path('installa-locale/download/<str:file_type>/', installa_locale_download, name='installa_locale_download'),
+
+    # Web App Mobile Dipendenti (PWA)
+    path('app/', dipendente_app_view, name='dipendente_app'),
+    path('app/login/', dipendente_app_login_view, name='dipendente_app_login'),
+    path('app/logout/', dipendente_app_logout_view, name='dipendente_app_logout'),
+    path('app/action/', dipendente_app_action_view, name='dipendente_app_action'),
+    path('app/manifest.json', dipendente_app_manifest_view, name='dipendente_app_manifest'),
+    path('app/sw.js', dipendente_app_sw_view, name='dipendente_app_sw'),
+    path('app/icon.svg', dipendente_app_icon_view, name='dipendente_app_icon'),
 ]

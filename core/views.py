@@ -287,8 +287,8 @@ def chat_simulator_view(request):
             attachments = prepare_uploaded_attachments(uploaded_files)
             
             if broadcast_target == 'all':
-                # Invio a TUTTI i dipendenti attivi
-                dipendenti = Dipendente.objects.filter(stato='ATTIVO', telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
+                # Invio a TUTTI i dipendenti attivi (sia Telegram che Web App)
+                dipendenti = Dipendente.objects.filter(stato='ATTIVO')
                 sent = 0
                 for dip in dipendenti:
                     try:
@@ -304,7 +304,7 @@ def chat_simulator_view(request):
                 sq_id = broadcast_target.replace('squadra_', '')
                 try:
                     sq = Squadra.objects.get(pk=sq_id)
-                    dipendenti = sq.componenti.filter(stato='ATTIVO', telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
+                    dipendenti = sq.componenti.filter(stato='ATTIVO')
                     sent = 0
                     prefix = f"[{sq.nome}] "
                     sq_text = (prefix + msg) if msg else f"[{sq.nome}]"
@@ -363,7 +363,7 @@ def chat_simulator_view(request):
             broadcast_mode = ''
 
     from django.db.models import Count, Q
-    employees = Dipendente.objects.filter(stato='ATTIVO', telegram_chat_id__isnull=False).exclude(telegram_chat_id='').annotate(
+    employees = Dipendente.objects.filter(stato='ATTIVO').annotate(
         unread_count=Count('messaggi_chat', filter=Q(messaggi_chat__direzione='IN', messaggi_chat__letto=False))
     ).order_by('-unread_count', 'nome', 'cognome')
     squadre = Squadra.objects.all()
@@ -1437,18 +1437,6 @@ def titolari_dashboard_view(request):
         ).count()
         if corsi_in_scadenza > 0:
             alerts.append({'msg': f'🎓 {corsi_in_scadenza} corso/i di formazione in scadenza (o scaduti) entro 20 giorni', 'critico': False})
-    except Exception:
-        pass
-    try:
-        from .models import Mezzo
-        threshold_mezzi = oggi + timedelta(days=30)
-        mezzi_in_scadenza = Mezzo.objects.filter(
-            Q(scadenza_polizza__isnull=False, scadenza_polizza__lte=threshold_mezzi) |
-            Q(scadenza_revisione__isnull=False, scadenza_revisione__lte=threshold_mezzi) |
-            Q(scadenza_permesso_citta_alta__isnull=False, scadenza_permesso_citta_alta__lte=threshold_mezzi)
-        ).distinct().count()
-        if mezzi_in_scadenza > 0:
-            alerts.append({'msg': f'🚗 {mezzi_in_scadenza} mezzo/i aziendale/i con scadenze (polizza, revisione o permessi) entro 30 giorni', 'critico': False})
     except Exception:
         pass
     

@@ -78,8 +78,15 @@ class Dipendente(models.Model):
     # Relazioni
     qualifiche = models.ManyToManyField(Qualifica, related_name='dipendenti', blank=True, verbose_name="Qualifiche Possedute")
     
-    # Integrazione Chat
+    # Integrazione Chat & App Mobile
     telegram_chat_id = models.CharField(max_length=64, blank=True, null=True, help_text="ID Chat Telegram per invio ore", verbose_name="Telegram Chat ID")
+    pin_accesso = models.CharField(
+        max_length=4,
+        blank=True,
+        default='',
+        verbose_name="PIN Accesso App (4 cifre)",
+        help_text="PIN numerico di 4 cifre per l'accesso alla Web App Dipendenti (generato in automatico se lasciato vuoto)"
+    )
     foto_profilo_url = models.URLField(blank=True, null=True, verbose_name="Foto Profilo", help_text="URL foto profilo (inviata via bot Telegram)")
     
     # Stato
@@ -111,12 +118,21 @@ class Dipendente(models.Model):
                 raise ValidationError({'data_licenziamento': "La data di licenziamento non può essere precedente alla data di assunzione."})
         if self.is_part_time and not self.tipo_part_time:
             raise ValidationError({'tipo_part_time': "Per i contratti Part-Time è necessario selezionare la tipologia: M (Misto), V (Verticale) o O (Orizzontale)."})
+        if self.pin_accesso:
+            self.pin_accesso = self.pin_accesso.strip()
+            if not (len(self.pin_accesso) == 4 and self.pin_accesso.isdigit()):
+                raise ValidationError({'pin_accesso': "Il PIN di accesso deve essere composto da esattamente 4 cifre numeriche (es. 1234)."})
 
     def save(self, *args, **kwargs):
         from django.utils import timezone
+        import random
         today = timezone.now().date()
         if self.codice_fiscale:
             self.codice_fiscale = self.codice_fiscale.strip().upper()
+        if not self.pin_accesso or len(self.pin_accesso.strip()) != 4:
+            self.pin_accesso = f"{random.randint(1000, 9999)}"
+        else:
+            self.pin_accesso = self.pin_accesso.strip()
         # Auto-calculate data_nascita from CF if missing
         if not self.data_nascita and self.codice_fiscale:
             from .utils_cf import extract_data_nascita
@@ -358,12 +374,6 @@ class Mezzo(models.Model):
     km_attuali = models.IntegerField(default=0, verbose_name="Km Percorsi")
     scadenza_polizza = models.DateField(null=True, blank=True, verbose_name="Scadenza Polizza")
     scadenza_revisione = models.DateField(null=True, blank=True, verbose_name="Scadenza Revisione")
-    numero_permesso_citta_alta = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True,
-        verbose_name="Numero Permesso Città Alta (Bergamo)",
-    )
     scadenza_permesso_citta_alta = models.DateField(
         null=True,
         blank=True,
@@ -507,6 +517,7 @@ class TimeTracking(models.Model):
         ('MANUAL', 'Manuale'),
         ('TELEGRAM', 'Telegram'),
         ('WHATSAPP', 'WhatsApp'),
+        ('WEBAPP', 'Web App'),
     ]
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='MANUAL')
     is_validated = models.BooleanField(default=False, verbose_name="Validato")

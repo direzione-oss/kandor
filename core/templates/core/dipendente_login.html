@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0F172A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kandor">
+    <link rel="manifest" href="/app/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/app/icon.svg">
+    <link rel="apple-touch-icon" href="/app/icon.svg">
+    <title>Kandor - Accesso App Dipendenti</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(160deg, #0F172A 0%, #1E293B 100%);
+            color: #F8FAFC;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            background: #FFFFFF;
+            color: #0F172A;
+            border-radius: 22px;
+            padding: 28px 24px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+        }
+        .brand-header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .brand-logo {
+            width: 68px;
+            height: 68px;
+            border-radius: 18px;
+            background: #0F172A;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 12px;
+            box-shadow: 0 8px 20px rgba(255, 111, 0, 0.25);
+            border: 2px solid #FF6F00;
+        }
+        .brand-logo span {
+            font-size: 36px;
+            font-weight: 900;
+            color: #FF6F00;
+            letter-spacing: -1px;
+        }
+        .brand-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #0F172A;
+            margin: 0;
+        }
+        .brand-sub {
+            font-size: 13px;
+            color: #64748B;
+            margin: 4px 0 0 0;
+        }
+        .error-box {
+            background: #FEE2E2;
+            border: 1.5px solid #FCA5A5;
+            color: #991B1B;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            font-weight: 600;
+            margin-bottom: 18px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-label {
+            display: block;
+            font-size: 12.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            font-weight: 700;
+            border: 2px solid #CBD5E1;
+            border-radius: 12px;
+            background: #F8FAFC;
+            color: #0F172A;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .form-input:focus {
+            border-color: #FF6F00;
+            background: #FFFFFF;
+        }
+        .cf-input {
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: monospace;
+        }
+        .pin-input {
+            text-align: center;
+            letter-spacing: 10px;
+            font-size: 24px;
+            font-family: monospace;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #FF8F00 0%, #FF6F00 100%);
+            color: #FFFFFF;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 8px 20px rgba(255, 111, 0, 0.35);
+            margin-top: 4px;
+        }
+        .btn-login:active {
+            transform: scale(0.98);
+        }
+        .install-banner {
+            margin-top: 18px;
+            padding: 12px 14px;
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 12px;
+            font-size: 12.5px;
+            color: #1E3A8A;
+            text-align: center;
+        }
+        .btn-install {
+            margin-top: 8px;
+            background: #1D4ED8;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: none;
+        }
+        .help-footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 12px;
+            color: #94A3B8;
+        }
+        .help-footer a {
+            color: #FFB74D;
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="brand-header">
+            <div class="brand-logo"><span>K</span></div>
+            <h1 class="brand-title">Kandor Dipendenti</h1>
+            <p class="brand-sub">Inserisci Codice Fiscale e PIN per entrare</p>
+        </div>
+
+        {% if error %}
+        <div class="error-box">⚠️ {{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/app/login/" autocomplete="on">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label" for="id_cf">Codice Fiscale (16 caratteri)</label>
+                <input
+                    type="text"
+                    id="id_cf"
+                    name="codice_fiscale"
+                    class="form-input cf-input"
+                    maxlength="16"
+                    placeholder="RSSMRA80A01H501U"
+                    value="{{ cf_val }}"
+                    autocapitalize="characters"
+                    autocomplete="username"
+                    required
+                >
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="id_pin">PIN di Accesso (4 cifre)</label>
+                <input
+                    type="password"
+                    id="id_pin"
+                    name="pin_accesso"
+                    class="form-input pin-input"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    maxlength="4"
+                    placeholder="••••"
+                    autocomplete="current-password"
+                    required
+                >
+            </div>
+            <button type="submit" class="btn-login">🔓 Accedi all'App</button>
+        </form>
+
+        <div class="install-banner" id="installBox">
+            📲 <strong>Installa l'App sul cellulare:</strong><br>
+            <span id="installHintText">Su iPhone premi <strong>Condividi ⬆️</strong> e poi <strong>"Aggiungi alla schermata Home"</strong>. Su Android usa il menu <strong>⋮ → Installa app</strong>.</span>
+            <br>
+            <button type="button" id="btnInstallPwa" class="btn-install">📲 Installa App Ora</button>
+        </div>
+    </div>
+
+    <div class="help-footer">
+        Non ricordi il tuo PIN di 4 cifre? Richiedilo in Amministrazione.<br>
+        <a href="/manuale-dipendente/" target="_blank">📖 Consulta la Guida Rapida Dipendenti</a>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/app/sw.js', { scope: '/app/' }).catch(function(){});
+        }
+        let deferredPrompt = null;
+        const btnInstall = document.getElementById('btnInstallPwa');
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            btnInstall.style.display = 'inline-block';
+        });
+        btnInstall.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            await deferredPrompt.userChoice;
+            deferredPrompt = null;
+            btnInstall.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
