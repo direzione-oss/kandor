@@ -885,13 +885,14 @@ class CorsiFormazioneTestCase(TestCase):
             modello="Fiat Ducato",
             targa="BG123CA",
             stato="DISPONIBILE",
+            numero_permesso_citta_alta="PERM-98765",
             scadenza_permesso_citta_alta=self.today + timedelta(days=10),
         )
         ctx = expiring_vehicles_widget()
         self.assertEqual(len(ctx['vehicles']), 1)
         alerts = ctx['vehicles'][0]['alerts']
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0]['type'], 'Permesso Città Alta (BG)')
+        self.assertEqual(alerts[0]['type'], 'Permesso Città Alta (BG n. PERM-98765)')
         self.assertEqual(alerts[0]['date'], mezzo.scadenza_permesso_citta_alta)
 
     def test_5_telegram_allegati_cedolini_e_foto(self):

@@ -358,6 +358,12 @@ class Mezzo(models.Model):
     km_attuali = models.IntegerField(default=0, verbose_name="Km Percorsi")
     scadenza_polizza = models.DateField(null=True, blank=True, verbose_name="Scadenza Polizza")
     scadenza_revisione = models.DateField(null=True, blank=True, verbose_name="Scadenza Revisione")
+    numero_permesso_citta_alta = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name="Numero Permesso Città Alta (Bergamo)",
+    )
     scadenza_permesso_citta_alta = models.DateField(
         null=True,
         blank=True,

@@ -719,10 +719,11 @@ class ClienteAdmin(KandorBaseAdmin):
 class MezzoAdmin(KandorBaseAdmin):
     list_display = (
         'targa', 'modello', 'stato', 'km_attuali',
-        'scadenza_polizza', 'scadenza_revisione', 'scadenza_permesso_citta_alta'
+        'scadenza_polizza', 'scadenza_revisione',
+        'numero_permesso_citta_alta', 'scadenza_permesso_citta_alta'
     )
     list_filter = ('stato',)
-    search_fields = ('targa', 'modello')  # Necessario per autocomplete_fields
+    search_fields = ('targa', 'modello', 'numero_permesso_citta_alta')
 
 @admin.register(Squadra)
 class SquadraAdmin(KandorBaseAdmin):
