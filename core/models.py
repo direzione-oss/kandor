@@ -605,7 +605,13 @@ class Segnalazione(models.Model):
 
 class MessaggioProgrammato(models.Model):
     titolo = models.CharField(max_length=200, verbose_name="Titolo/Descrizione")
-    testo = models.TextField(verbose_name="Testo del Messaggio")
+    testo = models.TextField(blank=True, default='', verbose_name="Testo del Messaggio")
+    allegato = models.FileField(
+        upload_to='messaggi_programmati/',
+        null=True,
+        blank=True,
+        verbose_name="File Allegato (Foto, Cedolino PDF, ecc.)",
+    )
     data_programmata = models.DateTimeField(verbose_name="Data e Ora di Invio")
     destinatari = models.ManyToManyField(Dipendente, blank=True, verbose_name="Destinatari Specifici")
     invia_a_tutti = models.BooleanField(default=False, verbose_name="Invia a TUTTI i dipendenti attivi")
@@ -647,6 +653,8 @@ class MessaggioChat(models.Model):
     dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE, related_name='messaggi_chat')
     testo = models.TextField(blank=True, default='')
     foto_url = models.URLField(blank=True, default='', verbose_name="URL Foto")
+    allegato_url = models.CharField(max_length=500, blank=True, default='', verbose_name="URL Allegato")
+    allegato_nome = models.CharField(max_length=255, blank=True, default='', verbose_name="Nome File Allegato")
     direzione = models.CharField(max_length=3, choices=DIREZIONE_CHOICES)
     timestamp = models.DateTimeField(auto_now_add=True)
     letto = models.BooleanField(default=False)

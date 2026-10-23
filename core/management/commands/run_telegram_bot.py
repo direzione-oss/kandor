@@ -1,3 +1,4 @@
+import os
 import time
 import requests
 from django.core.management.base import BaseCommand
@@ -27,7 +28,12 @@ class Command(BaseCommand):
 
         from django.utils import timezone
         from core.models import MessaggioProgrammato, Dipendente
-        from core.utils_kandor_chat import send_telegram_message
+        from core.utils_kandor_chat import (
+            send_telegram_message,
+            send_and_record_telegram_to_employee,
+            _save_uploaded_attachment_storage,
+            _is_image_file,
+        )
 
         last_check = time.time()
 
@@ -47,10 +53,29 @@ class Command(BaseCommand):
                         else:
                             recipients = msg.destinatari.all()
                         
+                        attachments = []
+                        if msg.allegato:
+                            try:
+                                msg.allegato.open('rb')
+                                file_bytes = msg.allegato.read()
+                                msg.allegato.close()
+                                filename = os.path.basename(msg.allegato.name)
+                                storage_url = _save_uploaded_attachment_storage(file_bytes, filename)
+                                is_image = _is_image_file(filename)
+                                attachments.append({
+                                    'bytes': file_bytes,
+                                    'name': filename,
+                                    'content_type': None,
+                                    'url': storage_url,
+                                    'is_image': is_image,
+                                })
+                            except Exception as e:
+                                self.stdout.write(self.style.WARNING(f"Error reading attachment for scheduled msg {msg.pk}: {e}"))
+
                         count = 0
                         for emp in recipients:
                             if emp.telegram_chat_id:
-                                if send_telegram_message(emp.telegram_chat_id, msg.testo):
+                                if send_and_record_telegram_to_employee(emp, text=msg.testo or '', attachments=attachments):
                                     count += 1
                         
                         msg.inviato = True

@@ -951,7 +951,7 @@ def send_telegram_message(chat_id, text, reply_markup=None, parse_mode='Markdown
     """Invia un messaggio proattivo a una specifica chat_id."""
     from django.conf import settings
     token = settings.TELEGRAM_BOT_TOKEN
-    if not token:
+    if not token or not chat_id or not text:
         return False
     
     import requests
@@ -963,10 +963,194 @@ def send_telegram_message(chat_id, text, reply_markup=None, parse_mode='Markdown
         payload['parse_mode'] = parse_mode
     try:
         r = requests.post(url, json=payload, timeout=10)
+        if r.status_code != 200 and parse_mode:
+            payload.pop('parse_mode', None)
+            r = requests.post(url, json=payload, timeout=10)
         return r.status_code == 200
     except Exception as e:
         print(f"[Telegram Error] Send message failed: {e}")
         return False
+
+
+def _is_image_file(filename, content_type=None):
+    import os
+    ext = os.path.splitext(filename or '')[1].lower()
+    if ext in ('.jpg', '.jpeg', '.png', '.webp', '.gif'):
+        return True
+    if content_type and str(content_type).lower().startswith('image/'):
+        return True
+    return False
+
+
+def send_telegram_file(chat_id, file_bytes, filename, caption='', content_type=None):
+    """Invia un file (foto, PDF cedolino, documento, ecc.) via Telegram a chat_id."""
+    from django.conf import settings
+    import requests
+    token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
+    if not token or not chat_id or not file_bytes:
+        return False
+
+    safe_name = filename or 'allegato'
+    mime = content_type or 'application/octet-stream'
+    cap = (caption or '').strip()
+
+    # Se il testo supera il limite caption di Telegram (1024 caratteri), invia prima il testo
+    if len(cap) > 1024:
+        send_telegram_message(chat_id, cap, parse_mode=None)
+        cap = ''
+
+    data = {'chat_id': str(chat_id)}
+    if cap:
+        data['caption'] = cap
+
+    is_img = _is_image_file(safe_name, mime)
+    try:
+        if is_img:
+            url_photo = f"https://api.telegram.org/bot{token}/sendPhoto"
+            r = requests.post(
+                url_photo,
+                data=data,
+                files={'photo': (safe_name, file_bytes, mime)},
+                timeout=30,
+            )
+            if r.status_code == 200:
+                return True
+        # Invio come documento (per PDF cedolini, Word, Excel, o fallback immagini grandi)
+        url_doc = f"https://api.telegram.org/bot{token}/sendDocument"
+        r = requests.post(
+            url_doc,
+            data=data,
+            files={'document': (safe_name, file_bytes, mime)},
+            timeout=30,
+        )
+        return r.status_code == 200
+    except Exception as e:
+        print(f"[Telegram Error] Send file failed ({safe_name}): {e}")
+        return False
+
+
+def _save_uploaded_attachment_storage(file_bytes, filename, content_type=None):
+    """Salva l'allegato caricato dall'ufficio su Supabase Storage o su storage locale e restituisce l'URL."""
+    import os
+    import uuid
+    import re
+    from django.conf import settings
+
+    ext = os.path.splitext(filename or '')[1].lower() or '.bin'
+    base = re.sub(r'[^a-zA-Z0-9_\-]', '_', os.path.splitext(filename or 'file')[0])[:40]
+    stored_name = f"chat_office_{base}_{uuid.uuid4().hex[:8]}{ext}"
+    mime = content_type or 'application/octet-stream'
+
+    try:
+        import requests as req
+        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
+        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
+        bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'kandor-media')
+
+        if supabase_url and supabase_key:
+            upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{stored_name}"
+            upload_resp = req.post(
+                upload_url,
+                data=file_bytes,
+                headers={
+                    "Authorization": f"Bearer {supabase_key}",
+                    "Content-Type": mime,
+                    "x-upsert": "true",
+                },
+                timeout=25,
+            )
+            if upload_resp.status_code in (200, 201):
+                return f"{supabase_url}/storage/v1/object/public/{bucket}/{stored_name}"
+    except Exception as e:
+        print(f"[AttachmentUpload] Supabase fallback: {e}")
+
+    try:
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        saved_path = default_storage.save(f"chat_files/{stored_name}", ContentFile(file_bytes))
+        return default_storage.url(saved_path)
+    except Exception as e:
+        print(f"[AttachmentUpload] Local storage error: {e}")
+        return ''
+
+
+def prepare_uploaded_attachments(uploaded_files):
+    """Legge i file caricati da un form Django in memoria e li prepara per l'invio multiplo e lo storico chat."""
+    import os
+    import mimetypes
+    prepared = []
+    for f in (uploaded_files or []):
+        if not f:
+            continue
+        try:
+            f.seek(0)
+        except Exception:
+            pass
+        file_bytes = f.read()
+        if not file_bytes:
+            continue
+        raw_name = os.path.basename(getattr(f, 'name', 'allegato') or 'allegato')
+        ctype = getattr(f, 'content_type', None) or mimetypes.guess_type(raw_name)[0] or 'application/octet-stream'
+        is_img = _is_image_file(raw_name, ctype)
+        url = _save_uploaded_attachment_storage(file_bytes, raw_name, ctype)
+        prepared.append({
+            'bytes': file_bytes,
+            'name': raw_name,
+            'content_type': ctype,
+            'is_image': is_img,
+            'url': url,
+        })
+    return prepared
+
+
+def send_and_record_telegram_to_employee(dipendente, text='', attachments=None, save_chat=True):
+    """
+    Invia un messaggio di testo e/o uno o più file allegati a un Dipendente via Telegram
+    e registra l'invio nello storico MessaggioChat.
+    Restituisce True se almeno un invio via Telegram è andato a buon fine.
+    """
+    from .models import MessaggioChat
+    msg = (text or '').strip()
+    att_list = list(attachments or [])
+    chat_id = getattr(dipendente, 'telegram_chat_id', '') if dipendente else ''
+
+    if not msg and not att_list:
+        return False
+
+    any_sent = False
+    if not att_list:
+        if save_chat and dipendente and dipendente.pk:
+            MessaggioChat.objects.create(dipendente=dipendente, testo=msg, direzione='OUT')
+        if chat_id:
+            any_sent = send_telegram_message(chat_id, msg)
+        return any_sent
+
+    # Ci sono allegati: il primo allegato porta il testo come caption (o testo separato se lungo)
+    for idx, att in enumerate(att_list):
+        cap = msg if idx == 0 else ''
+        label_testo = cap if cap else f"📎 Allegato: {att['name']}"
+        if cap and f"📎 {att['name']}" not in cap:
+            label_testo = f"{cap}\n📎 {att['name']}"
+        if save_chat and dipendente and dipendente.pk:
+            MessaggioChat.objects.create(
+                dipendente=dipendente,
+                testo=label_testo,
+                foto_url=att['url'] if att.get('is_image') else '',
+                allegato_url=att['url'] if not att.get('is_image') else '',
+                allegato_nome=att['name'],
+                direzione='OUT',
+            )
+        if chat_id:
+            ok = send_telegram_file(
+                chat_id,
+                att['bytes'],
+                att['name'],
+                caption=cap,
+                content_type=att.get('content_type'),
+            )
+            if ok:
+                any_sent = True
+    return any_sent
 
 
 def calculate_distance(lat1, lon1, lat2, lon2):

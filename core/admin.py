@@ -512,14 +512,16 @@ class DipendenteAdmin(KandorBaseAdmin):
     def send_telegram_message_action(self, request, queryset):
         # Check if confirmed
         if 'apply' in request.POST:
-            from core.utils_kandor_chat import send_telegram_message
-            message = request.POST.get('message_text')
+            from core.utils_kandor_chat import prepare_uploaded_attachments, send_and_record_telegram_to_employee
+            message = (request.POST.get('message_text') or '').strip()
+            uploaded_files = request.FILES.getlist('attachments')
+            attachments = prepare_uploaded_attachments(uploaded_files)
             count_success = 0
             count_fail = 0
             
             for emp in queryset:
                 if emp.telegram_chat_id:
-                    if send_telegram_message(emp.telegram_chat_id, message):
+                    if send_and_record_telegram_to_employee(emp, text=message, attachments=attachments):
                         count_success += 1
                     else:
                         count_fail += 1
@@ -783,8 +785,10 @@ class SquadraAdmin(KandorBaseAdmin):
     @admin.action(description='💬 Invia Messaggio alla Squadra')
     def send_team_message_action(self, request, queryset):
         if 'apply' in request.POST:
-            from core.utils_kandor_chat import send_telegram_message
-            message = request.POST.get('message_text')
+            from core.utils_kandor_chat import prepare_uploaded_attachments, send_and_record_telegram_to_employee
+            message = (request.POST.get('message_text') or '').strip()
+            uploaded_files = request.FILES.getlist('attachments')
+            attachments = prepare_uploaded_attachments(uploaded_files)
             
             # Collect unique recipients
             recipients = set()
@@ -795,7 +799,7 @@ class SquadraAdmin(KandorBaseAdmin):
             
             count_success = 0
             for emp in recipients:
-                if send_telegram_message(emp.telegram_chat_id, message):
+                if send_and_record_telegram_to_employee(emp, text=message, attachments=attachments):
                     count_success += 1
             
             self.message_user(request, f"Messaggio inviato a {count_success} membri unici delle squadre selezionate.")
@@ -892,7 +896,7 @@ class TimeTrackingAdmin(KandorBaseAdmin):
 from .models import MessaggioProgrammato
 @admin.register(MessaggioProgrammato)
 class MessaggioProgrammatoAdmin(KandorBaseAdmin):
-    list_display = ('titolo', 'data_programmata', 'invia_a_tutti', 'inviato')
+    list_display = ('titolo', 'data_programmata', 'allegato', 'invia_a_tutti', 'inviato')
     list_filter = ('inviato', 'data_programmata')
     search_fields = ('titolo', 'testo')
     filter_horizontal = ('destinatari',)

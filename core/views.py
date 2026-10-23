@@ -280,9 +280,11 @@ def chat_simulator_view(request):
         msg = request.POST.get('message', '').strip()
         broadcast_target = request.POST.get('broadcast_target', '')
         emp_id = request.POST.get('employee_id', '')
+        uploaded_files = request.FILES.getlist('attachments')
         
-        if msg:
-            from .utils_kandor_chat import send_telegram_message
+        if msg or uploaded_files:
+            from .utils_kandor_chat import prepare_uploaded_attachments, send_and_record_telegram_to_employee
+            attachments = prepare_uploaded_attachments(uploaded_files)
             
             if broadcast_target == 'all':
                 # Invio a TUTTI i dipendenti attivi
@@ -290,9 +292,8 @@ def chat_simulator_view(request):
                 sent = 0
                 for dip in dipendenti:
                     try:
-                        MessaggioChat.objects.create(dipendente=dip, testo=msg, direzione='OUT')
-                        send_telegram_message(dip.telegram_chat_id, msg)
-                        sent += 1
+                        if send_and_record_telegram_to_employee(dip, text=msg, attachments=attachments):
+                            sent += 1
                     except Exception:
                         pass
                 broadcast_result = f"Inviato a {sent} dipendenti"
@@ -306,11 +307,11 @@ def chat_simulator_view(request):
                     dipendenti = sq.componenti.filter(stato='ATTIVO', telegram_chat_id__isnull=False).exclude(telegram_chat_id='')
                     sent = 0
                     prefix = f"[{sq.nome}] "
+                    sq_text = (prefix + msg) if msg else f"[{sq.nome}]"
                     for dip in dipendenti:
                         try:
-                            MessaggioChat.objects.create(dipendente=dip, testo=prefix + msg, direzione='OUT')
-                            send_telegram_message(dip.telegram_chat_id, prefix + msg)
-                            sent += 1
+                            if send_and_record_telegram_to_employee(dip, text=sq_text, attachments=attachments):
+                                sent += 1
                         except Exception:
                             pass
                     return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}&sq={sq.nome}')
@@ -320,9 +321,7 @@ def chat_simulator_view(request):
             elif emp_id:
                 # Invio a SINGOLO dipendente
                 emp = get_object_or_404(Dipendente, pk=emp_id)
-                MessaggioChat.objects.create(dipendente=emp, testo=msg, direzione='OUT')
-                if emp.telegram_chat_id:
-                    send_telegram_message(emp.telegram_chat_id, msg)
+                send_and_record_telegram_to_employee(emp, text=msg, attachments=attachments)
                 return HttpResponseRedirect(f'/chat-simulator/?employee_id={emp_id}')
     
     # GET params
@@ -1037,7 +1036,7 @@ def telegram_webhook_view(request):
                 
                 return HttpResponse("OK")
             
-            # Gestione messaggi (testo e foto)
+            # Gestione messaggi (testo, foto e documenti)
             message = data.get('message', {})
             chat = message.get('chat', {})
             text = message.get('text', '')
@@ -1045,6 +1044,7 @@ def telegram_webhook_view(request):
             chat_id = str(chat.get('id', ''))
             first_name = chat.get('first_name', 'Utente')
             photo = message.get('photo')
+            document = message.get('document')
             
             # Se c'è una foto, scarica l'URL
             foto_url = ''
@@ -1059,8 +1059,24 @@ def telegram_webhook_view(request):
                         foto_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
                 except Exception:
                     pass
+
+            # Se c'è un documento (PDF, Word, ecc.), scarica l'URL
+            allegato_url = ''
+            allegato_nome = ''
+            if document and chat_id and token:
+                try:
+                    import requests as req
+                    file_id = document.get('file_id')
+                    allegato_nome = document.get('file_name') or 'documento'
+                    if file_id:
+                        file_info = req.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}").json()
+                        if file_info.get('ok'):
+                            file_path = file_info['result']['file_path']
+                            allegato_url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+                except Exception:
+                    pass
             
-            if chat_id and (text or foto_url):
+            if chat_id and (text or foto_url or allegato_url):
                 # ---- Gestione Foto Profilo ----
                 if foto_url and not text and not caption:
                     try:
@@ -1099,12 +1115,14 @@ def telegram_webhook_view(request):
                             dipendente=dip,
                             testo=text or caption,
                             foto_url=perm_foto_url,
+                            allegato_url=allegato_url,
+                            allegato_nome=allegato_nome,
                             direzione='IN'
                         )
                         # Notifica nuovi messaggi SOLO a Responsabili Area, Titolari e Admin (non a tutti i dipendenti)
                         try:
                             from .services import notifica_nuovo_messaggio
-                            notifica_nuovo_messaggio(dip, testo=text or caption, foto_url=perm_foto_url)
+                            notifica_nuovo_messaggio(dip, testo=text or caption or allegato_nome, foto_url=perm_foto_url)
                         except Exception as e:
                             print(f"[Notifica Errore]: {e}")
                 except Exception:

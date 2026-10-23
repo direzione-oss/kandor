@@ -22,7 +22,7 @@
         </ul>
     </div>
 
-    <form action="" method="post">
+    <form action="" method="post" enctype="multipart/form-data" onsubmit="return validateSendForm(this);">
         {% csrf_token %}
 
         <!-- Include the selected IDs to persist the selection -->
@@ -32,20 +32,43 @@
         <input type="hidden" name="action" value="send_telegram_message_action">
         <input type="hidden" name="apply" value="1">
 
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 16px;">
             <label for="message_text" style="display: block; font-weight: bold; margin-bottom: 5px;">Testo del
-                Messaggio:</label>
+                Messaggio (opzionale se alleghi un file):</label>
             <textarea name="message_text" id="message_text" rows="5"
                 style="width: 100%; border: 1px solid #ccc; padding: 10px; border-radius: 4px; font-family: sans-serif;"
-                placeholder="Scrivi qui il messaggio..." required></textarea>
+                placeholder="Scrivi qui il messaggio o una nota di accompagnamento..."></textarea>
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 12px; background: #f8fafc; border: 1px dashed #94a3b8; border-radius: 6px;">
+            <label for="attachments" style="display: block; font-weight: bold; margin-bottom: 6px; color: #1e293b;">
+                📎 Allega File (Foto, Cedolini Paghe PDF, Documenti):
+            </label>
+            <input type="file" name="attachments" id="attachments" multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+                style="font-size: 13px; width: 100%;">
+            <small style="display: block; margin-top: 4px; color: #64748b;">
+                Puoi selezionare uno o più file contemporaneamente (es. foto, PDF cedolino, ecc.).
+            </small>
         </div>
 
         <div style="display: flex; gap: 10px;">
-            <input type="submit" value="Invia Messaggio"
+            <input type="submit" value="Invia Messaggio / Allegati"
                 style="background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">
             <a href="#" onclick="window.history.back(); return false;"
                 style="padding: 10px 20px; color: #666; text-decoration: none;">Annulla</a>
         </div>
     </form>
 </div>
+<script>
+    function validateSendForm(form) {
+        var txt = form.querySelector('#message_text').value.trim();
+        var files = form.querySelector('#attachments').files;
+        if (!txt && (!files || files.length === 0)) {
+            alert('Inserisci un messaggio di testo oppure allega almeno un file.');
+            return false;
+        }
+        return true;
+    }
+</script>
 {% endblock %}

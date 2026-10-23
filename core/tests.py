@@ -894,6 +894,49 @@ class CorsiFormazioneTestCase(TestCase):
         self.assertEqual(alerts[0]['type'], 'Permesso Città Alta (BG)')
         self.assertEqual(alerts[0]['date'], mezzo.scadenza_permesso_citta_alta)
 
+    def test_5_telegram_allegati_cedolini_e_foto(self):
+        from unittest.mock import patch
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from core.models import MessaggioChat
+        from core.utils_kandor_chat import prepare_uploaded_attachments, send_and_record_telegram_to_employee
+
+        self.dip.telegram_chat_id = "123456789"
+        self.dip.save()
+
+        pdf_file = SimpleUploadedFile(
+            "cedolino_ottobre_2026.pdf",
+            b"%PDF-1.4 fake pdf content",
+            content_type="application/pdf",
+        )
+        img_file = SimpleUploadedFile(
+            "foto_cantiere.jpg",
+            b"\xff\xd8\xff\xe0fake jpg content",
+            content_type="image/jpeg",
+        )
+
+        with patch("core.utils_kandor_chat.send_telegram_file", return_value=True) as mock_send_file, \
+             patch("core.utils_kandor_chat._save_uploaded_attachment_storage", side_effect=[
+                 "/media/chat_allegati/cedolino_ottobre_2026.pdf",
+                 "/media/chat_allegati/foto_cantiere.jpg",
+             ]):
+            attachments = prepare_uploaded_attachments([pdf_file, img_file])
+            ok = send_and_record_telegram_to_employee(
+                self.dip,
+                text="Ecco il cedolino paga e la foto",
+                attachments=attachments,
+            )
+            self.assertTrue(ok)
+            self.assertEqual(mock_send_file.call_count, 2)
+
+        msgs = list(MessaggioChat.objects.filter(dipendente=self.dip, direzione='OUT').order_by('id'))
+        self.assertEqual(len(msgs), 2)
+        self.assertEqual(msgs[0].allegato_nome, "cedolino_ottobre_2026.pdf")
+        self.assertEqual(msgs[0].allegato_url, "/media/chat_allegati/cedolino_ottobre_2026.pdf")
+        self.assertIn("Ecco il cedolino paga e la foto", msgs[0].testo)
+        self.assertEqual(msgs[1].allegato_nome, "foto_cantiere.jpg")
+        self.assertEqual(msgs[1].foto_url, "/media/chat_allegati/foto_cantiere.jpg")
+
+
 
 
 
