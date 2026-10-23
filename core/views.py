@@ -4640,29 +4640,39 @@ def ia_hub_view(request):
     # 1. Audit Ore & Paghe
     audit_ore = analizza_anomalie_ore(data_inizio, data_fine)
 
-    # 2. Segnalazioni recenti con Triage IA
-    segnalazioni_qs = Segnalazione.objects.select_related('dipendente').order_by('-data_inserimento')[:25]
+    # 2. Segnalazioni recenti con Triage IA (pre-caricando i mezzi in 1 sola query)
+    from .models import Mezzo
+    mezzi_list = list(Mezzo.objects.all())
+    segnalazioni_qs = list(Segnalazione.objects.select_related('dipendente').order_by('-data_inserimento')[:25])
     segnalazioni_ia = []
     for seg in segnalazioni_qs:
-        triage = classifica_segnalazione(seg.testo)
+        triage = classifica_segnalazione(seg.testo, mezzi_list=mezzi_list)
         segnalazioni_ia.append({
             'obj': seg,
             'triage': triage,
         })
 
     # 3. Richieste Sostituzione recenti con Smart Score
-    sostituzioni_recenti = (
+    sostituzioni_recenti = list(
         RichiestaSostituzione.objects
         .select_related('assegnazione_originale__cliente', 'assegnazione_originale__turno', 'dipendente_assente', 'sostituto')
         .order_by('-creata_il')[:10]
     )
 
-    # 4. Compliance Guardian (prossimi 7 giorni) & Briefing Mattutino
+    # 4. Compliance Guardian (prossimi 7 giorni)
     compliance = verifica_conformita_turni(data_inizio=today, giorni=7)
-    briefing = genera_briefing_mattutino(data_riferimento=today)
 
     # 5. Marginalità, Burn-Rate & Lavori Extra
     marginalita = analizza_marginalita_e_budget_clienti(anno=anno, mese=mese)
+
+    # Briefing Mattutino IA (riusa compliance e marginalita già calcolati senza query duplicate)
+    budget_oggi = marginalita if (anno == today.year and mese == today.month) else None
+    briefing = genera_briefing_mattutino(
+        data_riferimento=today,
+        conformita=compliance,
+        budget=budget_oggi,
+        mezzi_list=mezzi_list,
+    )
 
     MESI_IT = [
         (1, 'Gennaio'), (2, 'Febbraio'), (3, 'Marzo'), (4, 'Aprile'),

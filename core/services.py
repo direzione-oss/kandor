@@ -247,15 +247,19 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
         for row in qs_ore:
             ore_sett_map[row['dipendente_id']] = float(row['tot'] or 0.0)
 
-    # Tasso di accettazione sostituzioni storiche
+    # Tasso di accettazione sostituzioni storiche e corsi dipendenti in bulk
     accettate_map = {}
     inviate_map = {}
+    corsi_dip_map = {}
     if candidati_ids:
+        from .models import CorsoDipendente
         for rs in RichiestaSostituzione.objects.filter(sostituto_id__in=candidati_ids).values('sostituto_id', 'stato'):
             sid = rs['sostituto_id']
             inviate_map[sid] = inviate_map.get(sid, 0) + 1
             if rs['stato'] in ('ACCETTATA', 'COMPLETATA'):
                 accettate_map[sid] = accettate_map.get(sid, 0) + 1
+        for cd in CorsoDipendente.objects.filter(dipendente_id__in=candidati_ids).select_related('corso'):
+            corsi_dip_map.setdefault(cd.dipendente_id, {})[cd.corso.nome] = cd
 
     for dip in candidati_list:
         distanza = float('inf')
@@ -275,7 +279,9 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
         tot_inv = inviate_map.get(dip.id, 0)
         tasso_acc = (accettate_map.get(dip.id, 0) / tot_inv) if tot_inv > 0 else None
 
-        idoneita_ok, idoneita_avvisi = verifica_idoneita_dipendente_per_cliente(dip, cliente, data_riferimento=data_check)
+        idoneita_ok, idoneita_avvisi = verifica_idoneita_dipendente_per_cliente(
+            dip, cliente, data_riferimento=data_check, corsi_dip_map=corsi_dip_map
+        )
         ai_score, ai_motivi = calcola_smart_score_sostituto(
             dipendente=dip,
             cliente=cliente,

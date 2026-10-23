@@ -464,17 +464,21 @@ class AssegnazioneTurno(models.Model):
     def dipendenti_presenti(self):
         """Restituisce i dipendenti della squadra effettivamente presenti (squadra - esclusi), inclusi eventuali componenti storici."""
         squadra = self.turno.squadra if self.turno else None
-        esclusi = set(self.dipendenti_esclusi.values_list('pk', flat=True))
+        esclusi = {d.pk for d in self.dipendenti_esclusi.all()}
         presenti = []
+        presenti_pks = set()
         if squadra:
-            if squadra.caposquadra and squadra.caposquadra.pk not in esclusi:
+            if squadra.caposquadra_id and squadra.caposquadra_id not in esclusi and squadra.caposquadra:
                 presenti.append(squadra.caposquadra)
-            for c in squadra.componenti.exclude(pk__in=esclusi):
-                if c not in presenti:
+                presenti_pks.add(squadra.caposquadra_id)
+            for c in squadra.componenti.all():
+                if c.pk not in esclusi and c.pk not in presenti_pks:
                     presenti.append(c)
-        for tt in self.timetracks.select_related('dipendente').all():
-            if tt.dipendente and tt.dipendente.pk not in esclusi and tt.dipendente not in presenti:
+                    presenti_pks.add(c.pk)
+        for tt in self.timetracks.all():
+            if tt.dipendente_id and tt.dipendente_id not in esclusi and tt.dipendente_id not in presenti_pks and tt.dipendente:
                 presenti.append(tt.dipendente)
+                presenti_pks.add(tt.dipendente_id)
         return presenti
 
     @property

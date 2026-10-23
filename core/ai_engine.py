@@ -106,34 +106,45 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
     if not data_inizio:
         data_inizio = data_fine - timedelta(days=30)
 
-    assegnazioni = (
+    assegnazioni = list(
         AssegnazioneTurno.objects.filter(
             turno__data__gte=data_inizio,
             turno__data__lte=data_fine,
         )
-        .select_related('cliente', 'turno', 'turno__squadra', 'programmazione_feriale')
+        .select_related('cliente', 'turno', 'turno__squadra', 'turno__squadra__caposquadra', 'programmazione_feriale')
         .prefetch_related('timetracks__dipendente', 'dipendenti_esclusi', 'turno__squadra__componenti')
         .order_by('-turno__data', 'orario_inizio_previsto')
     )
 
-    # Pre-carica log GPS per controllo incrociato
+    # Pre-carica log GPS nel periodo per controllo incrociato (1 query)
     prox_map = {}
-    for pl in ProximityLog.objects.all():
-        prox_map[(pl.dipendente_id, pl.cliente_id)] = pl
+    for pl in ProximityLog.objects.filter(entered_at__date__gte=data_inizio, entered_at__date__lte=data_fine):
+        prox_map[(pl.dipendente_id, pl.cliente_id, pl.entered_at.date())] = pl
 
-    # Calcolo ore settimanali per dipendenti part-time (chiave: (dip_id, anno_iso, settimana_iso))
+    # Pre-carica assenze approvate sull'intera giornata nel periodo (1 query invece di N query nel loop)
+    assenze_approvate_periodo = list(
+        Assenza.objects.filter(
+            data_inizio__lte=data_fine,
+            data_fine__gte=data_inizio,
+            stato_approvazione='APPROVATA',
+            ora_inizio__isnull=True,
+        )
+    )
+    assenze_per_dip = {}
+    for ass in assenze_approvate_periodo:
+        assenze_per_dip.setdefault(ass.dipendente_id, []).append(ass)
+
+    # Calcolo ore settimanali per dipendenti part-time direttamente in memoria dai timetracks pre-caricati
     ore_settimanali_dip = {}
-    timetracks_periodo = TimeTracking.objects.filter(
-        assegnazione__turno__data__gte=data_inizio,
-        assegnazione__turno__data__lte=data_fine,
-    ).select_related('dipendente', 'assegnazione__turno')
-
-    for tt in timetracks_periodo:
-        if not tt.dipendente or not tt.assegnazione or not tt.assegnazione.turno:
+    for assign in assegnazioni:
+        if not assign.turno:
             continue
-        iso_y, iso_w, _ = tt.assegnazione.turno.data.isocalendar()
-        key = (tt.dipendente_id, iso_y, iso_w)
-        ore_settimanali_dip[key] = ore_settimanali_dip.get(key, 0.0) + float(tt.durata_ore or 0)
+        iso_y, iso_w, _ = assign.turno.data.isocalendar()
+        for tt in assign.timetracks.all():
+            if not tt.dipendente_id:
+                continue
+            key = (tt.dipendente_id, iso_y, iso_w)
+            ore_settimanali_dip[key] = ore_settimanali_dip.get(key, 0.0) + float(tt.durata_ore or 0)
 
     anomalie = []
     turni_regolari_ids = []
@@ -153,9 +164,12 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
         tts = list(assign.timetracks.all())
         if not tts:
             if data_turno < today:
+                ora_ini_s = assign.orario_inizio_previsto.strftime('%H:%M') if assign.orario_inizio_previsto else 'N/D'
+                ora_fin_s = assign.orario_fine_previsto.strftime('%H:%M') if assign.orario_fine_previsto else 'N/D'
+                nome_sq = assign.turno.squadra.nome if (assign.turno and assign.turno.squadra) else 'Squadra Storica'
                 mot_manc = (
-                    f"Turno del {data_turno.strftime('%d/%m/%Y')} ({assign.orario_inizio_previsto.strftime('%H:%M')}-"
-                    f"{assign.orario_fine_previsto.strftime('%H:%M')}) non ancora compilato da nessun componente."
+                    f"Turno del {data_turno.strftime('%d/%m/%Y')} ({ora_ini_s}-"
+                    f"{ora_fin_s}) non ancora compilato da nessun componente."
                 )
                 sug_manc = "Sollecita il caposquadra o valida d'ufficio da Verifica Ore."
                 anomalie.append({
@@ -166,8 +180,8 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
                     'data': data_turno,
                     'cliente': assign.cliente.ragione_sociale if assign.cliente else 'N/D',
                     'cliente_nome': assign.cliente.ragione_sociale if assign.cliente else 'N/D',
-                    'dipendente': f"Squadra {assign.turno.nome_squadra}",
-                    'dipendente_nome': f"Squadra {assign.turno.nome_squadra}",
+                    'dipendente': f"Squadra {nome_sq}",
+                    'dipendente_nome': f"Squadra {nome_sq}",
                     'assegnazione_id': assign.id,
                     'ore_previste': ore_prev_unitarie,
                     'ore_dichiarate': 0.0,
@@ -210,9 +224,9 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
                     if severita_tt != 'CRITICA':
                         severita_tt = 'ATTENZIONE'
 
-            # 3. Controllo GPS ProximityLog (se presente log per quel dipendente/cliente)
-            pl = prox_map.get((dip.id if dip else None, assign.cliente_id))
-            if pl and pl.entered_at and pl.exited_at and pl.entered_at.date() == data_turno:
+            # 3. Controllo GPS ProximityLog (se presente log per quel dipendente/cliente/data)
+            pl = prox_map.get((dip.id if dip else None, assign.cliente_id, data_turno))
+            if pl and pl.entered_at and pl.exited_at:
                 perm_ore = round((pl.exited_at - pl.entered_at).total_seconds() / 3600.0, 2)
                 if ore_dich - perm_ore >= 1.0:
                     motivi_tt.append(
@@ -221,15 +235,14 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
                     )
                     severita_tt = 'CRITICA'
 
-            # 4. Verifica sovrapposizione con Assenza approvata nello stesso giorno
+            # 4. Verifica sovrapposizione con Assenza approvata nello stesso giorno (in memoria)
             if dip:
-                ass_conflitto = Assenza.objects.filter(
-                    dipendente=dip,
-                    data_inizio__lte=data_turno,
-                    data_fine__gte=data_turno,
-                    stato_approvazione='APPROVATA',
-                ).first()
-                if ass_conflitto and not ass_conflitto.ora_inizio:
+                ass_conflitto = None
+                for ass_item in assenze_per_dip.get(dip.id, ()):
+                    if ass_item.data_inizio <= data_turno <= ass_item.data_fine:
+                        ass_conflitto = ass_item
+                        break
+                if ass_conflitto:
                     motivi_tt.append(
                         f"Conflitto: il dipendente risulta in {ass_conflitto.tipo} approvata sull'intera giornata "
                         f"ma ha {ore_dich}h lavorate registrate."
@@ -352,7 +365,7 @@ CATEGORIE_SEGNALAZIONE = [
 ]
 
 
-def classifica_segnalazione(testo, dipendente=None):
+def classifica_segnalazione(testo, dipendente=None, mezzi_list=None):
     """
     Analizza il testo di una Segnalazione inviata da un dipendente (via Telegram o Web App),
     determina Categoria, Urgenza (CRITICA, ALTA, NORMALE), eventuale Mezzo coinvolto
@@ -377,7 +390,8 @@ def classifica_segnalazione(testo, dipendente=None):
     # Verifica se nel testo è citata la targa o il modello di un mezzo aziendale
     mezzo_rilevato = None
     try:
-        for m in Mezzo.objects.all():
+        elenco_mezzi = mezzi_list if mezzi_list is not None else list(Mezzo.objects.all())
+        for m in elenco_mezzi:
             targa_low = (m.targa or '').lower().strip()
             mod_low = (m.modello or '').lower().strip()
             if (targa_low and targa_low in clean) or (mod_low and len(mod_low) > 3 and mod_low in clean):
@@ -850,7 +864,7 @@ REGOLE_CORSI_MANSIONE = [
 ]
 
 
-def verifica_idoneita_dipendente_per_cliente(dipendente, cliente, data_riferimento=None, mansione_extra=''):
+def verifica_idoneita_dipendente_per_cliente(dipendente, cliente, data_riferimento=None, mansione_extra='', corsi_dip_map=None):
     """
     Verifica se un singolo dipendente ha visita medica e corsi obbligatori validi alla data_riferimento
     per lavorare presso lo specifico cliente.
@@ -869,13 +883,22 @@ def verifica_idoneita_dipendente_per_cliente(dipendente, cliente, data_riferimen
 
     # 2. Controllo corsi specifici richiesti dalle note del cliente o dalla mansione del turno
     testo_cantiere = f"{getattr(cliente, 'note_mansioni', '') or ''} {mansione_extra or ''}".lower()
-    corsi_dip = {
-        cd.corso.nome: cd
-        for cd in CorsoDipendente.objects.filter(dipendente=dipendente).select_related('corso')
-    }
+    mappa_corsi_richiesti = [
+        (keywords, nome_corso, label_breve)
+        for keywords, nome_corso, label_breve in REGOLE_CORSI_MANSIONE
+        if any(kw in testo_cantiere for kw in keywords)
+    ]
 
-    for keywords, nome_corso, label_breve in REGOLE_CORSI_MANSIONE:
-        if any(kw in testo_cantiere for kw in keywords):
+    if mappa_corsi_richiesti:
+        if corsi_dip_map is not None:
+            corsi_dip = corsi_dip_map.get(dipendente.id, {})
+        else:
+            corsi_dip = {
+                cd.corso.nome: cd
+                for cd in CorsoDipendente.objects.filter(dipendente=dipendente).select_related('corso')
+            }
+
+        for _, nome_corso, label_breve in mappa_corsi_richiesti:
             cd = corsi_dip.get(nome_corso)
             if not cd or cd.stato != 'FATTO':
                 problemi.append(f"Manca {label_breve} richiesto dal cantiere")
@@ -893,7 +916,7 @@ def verifica_conformita_turni(data_inizio=None, data_fine=None, giorni=None):
     - Mezzo in Manutenzione/Riparazione o con Revisione/Polizza scaduta alla data del turno
     - Componenti della squadra con Visita Medica scaduta o Corsi specifici mancanti/scaduti
     """
-    from .models import AssegnazioneTurno
+    from .models import AssegnazioneTurno, CorsoDipendente
 
     today = timezone.now().date()
     if not data_inizio:
@@ -902,15 +925,20 @@ def verifica_conformita_turni(data_inizio=None, data_fine=None, giorni=None):
         days_span = int(giorni) if giorni is not None else 14
         data_fine = data_inizio + timedelta(days=days_span)
 
-    assegnazioni = (
+    assegnazioni = list(
         AssegnazioneTurno.objects.filter(
             turno__data__gte=data_inizio,
             turno__data__lte=data_fine,
         )
-        .select_related('cliente', 'turno', 'turno__squadra', 'turno__mezzo')
-        .prefetch_related('dipendenti_esclusi', 'turno__squadra__componenti', 'turno__squadra__caposquadra')
+        .select_related('cliente', 'turno', 'turno__squadra', 'turno__squadra__caposquadra', 'turno__mezzo')
+        .prefetch_related('dipendenti_esclusi', 'turno__squadra__componenti', 'timetracks__dipendente')
         .order_by('turno__data', 'orario_inizio_previsto')
     )
+
+    # Pre-carica tutti i corsi dei dipendenti in 1 sola query invece di N query nel loop
+    corsi_dip_map = {}
+    for cd in CorsoDipendente.objects.select_related('corso').all():
+        corsi_dip_map.setdefault(cd.dipendente_id, {})[cd.corso.nome] = cd
 
     alert_conformita = []
 
@@ -1011,7 +1039,7 @@ def verifica_conformita_turni(data_inizio=None, data_fine=None, giorni=None):
         # B. CONTROLLI SUI COMPONENTI DELLA SQUADRA
         for dip in a.dipendenti_presenti:
             ok, probs = verifica_idoneita_dipendente_per_cliente(
-                dip, cliente, data_riferimento=d_turno, mansione_extra=a.mansione_svolta
+                dip, cliente, data_riferimento=d_turno, mansione_extra=a.mansione_svolta, corsi_dip_map=corsi_dip_map
             )
             if not ok:
                 desc_dip = f"Turno del {d_turno.strftime('%d/%m/%Y')}: {', '.join(probs)}."
@@ -1083,23 +1111,28 @@ def analizza_marginalita_e_budget_clienti(mese=None, anno=None):
     else:
         giorni_trascorsi = 1
 
-    clienti = Cliente.objects.all().order_by('ragione_sociale')
+    clienti = list(Cliente.objects.all().order_by('ragione_sociale'))
     report_clienti = []
     lavori_extra_rilevati = []
+
+    # Carica tutte le assegnazioni del mese per tutti i clienti in 1 sola query invece di N query nel loop
+    tutte_assegnazioni_mese = list(
+        AssegnazioneTurno.objects.filter(
+            turno__data__gte=inizio_mese,
+            turno__data__lte=fine_mese,
+        )
+        .select_related('turno', 'turno__squadra', 'turno__squadra__caposquadra', 'richiesta_straordinaria')
+        .prefetch_related('timetracks__dipendente', 'dipendenti_esclusi', 'turno__squadra__componenti')
+    )
+    assegnazioni_per_cliente = {}
+    for a_item in tutte_assegnazioni_mese:
+        assegnazioni_per_cliente.setdefault(a_item.cliente_id, []).append(a_item)
 
     for cliente in clienti:
         ore_contratto = float(cliente.ore_mensili_contratto or 0)
         importo_contratto = float(cliente.importo_mensile_contratto or 0)
 
-        assegnazioni_mese = (
-            AssegnazioneTurno.objects.filter(
-                cliente=cliente,
-                turno__data__gte=inizio_mese,
-                turno__data__lte=fine_mese,
-            )
-            .select_related('turno', 'richiesta_straordinaria')
-            .prefetch_related('timetracks__dipendente', 'dipendenti_esclusi', 'turno__squadra__componenti')
-        )
+        assegnazioni_mese = assegnazioni_per_cliente.get(cliente.id, ())
 
         ore_pianificate_ordinarie = 0.0
         ore_lavorate_ordinarie = 0.0
@@ -1234,7 +1267,7 @@ def analizza_marginalita_e_budget_clienti(mese=None, anno=None):
 # BRIEFING GIORNALIERO / SETTIMANALE IA PER TITOLARE E AMMINISTRAZIONE
 # ==============================================================================
 
-def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None):
+def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None, conformita=None, budget=None, mezzi_list=None):
     """
     Compone il Briefing Direzionale IA giornaliero/settimanale per Titolari e Responsabili Area:
     - Turni di oggi e richieste di sostituzione aperte/in attesa
@@ -1245,25 +1278,33 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None):
     Se invia_telegram=True, invia il riepilogo su Telegram ai Titolari attivi.
     """
     from .models import (
-        AssegnazioneTurno, RichiestaSostituzione, Assenza, Segnalazione
+        AssegnazioneTurno, RichiestaSostituzione, Assenza, Segnalazione, Mezzo
     )
     from .services import notifica_titolari
 
     today = data_riferimento or timezone.now().date()
     turni_oggi_count = AssegnazioneTurno.objects.filter(turno__data=today).count()
-    sost_in_stallo = RichiestaSostituzione.objects.filter(
-        stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA'],
-        assegnazione_originale__turno__data__gte=today,
-    ).select_related('dipendente_assente', 'assegnazione_originale__cliente', 'assegnazione_originale__turno')
+    sost_in_stallo = list(
+        RichiestaSostituzione.objects.filter(
+            stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA'],
+            assegnazione_originale__turno__data__gte=today,
+        ).select_related('dipendente_assente', 'assegnazione_originale__cliente', 'assegnazione_originale__turno')
+    )
 
-    assenze_da_avvallare = Assenza.objects.filter(
-        stato_approvazione='IN_ATTESA'
-    ).select_related('dipendente')
+    assenze_da_avvallare = list(
+        Assenza.objects.filter(
+            stato_approvazione='IN_ATTESA'
+        ).select_related('dipendente')
+    )
 
-    segnalazioni_aperte = Segnalazione.objects.filter(risolto=False).select_related('dipendente').order_by('-data_inserimento')[:10]
+    segnalazioni_aperte = list(
+        Segnalazione.objects.filter(risolto=False).select_related('dipendente').order_by('-data_inserimento')[:10]
+    )
 
-    conformita = verifica_conformita_turni(data_inizio=today, data_fine=today + timedelta(days=7))
-    budget = analizza_marginalita_e_budget_clienti(mese=today.month, anno=today.year)
+    if conformita is None:
+        conformita = verifica_conformita_turni(data_inizio=today, data_fine=today + timedelta(days=7))
+    if budget is None:
+        budget = analizza_marginalita_e_budget_clienti(mese=today.month, anno=today.year)
 
     lines = [
         f"🤖 <b>BRIEFING DIREZIONALE IA — {today.strftime('%d/%m/%Y')}</b>",
@@ -1271,16 +1312,16 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None):
         f"📅 <b>Operatività Oggi:</b> {turni_oggi_count} turni in programma",
     ]
 
-    if sost_in_stallo.exists():
-        lines.append(f"🚨 <b>Sostituzioni da coprire ({sost_in_stallo.count()}):</b>")
+    if sost_in_stallo:
+        lines.append(f"🚨 <b>Sostituzioni da coprire ({len(sost_in_stallo)}):</b>")
         for s in sost_in_stallo[:5]:
             d_str = s.assegnazione_originale.turno.data.strftime('%d/%m')
             lines.append(f"  • {d_str} — {s.assegnazione_originale.cliente.ragione_sociale} (Assente: {s.dipendente_assente})")
     else:
         lines.append("✅ <b>Sostituzioni:</b> Nessun turno scoperto")
 
-    if assenze_da_avvallare.exists():
-        lines.append(f"\n⏳ <b>Assenze in attesa di avvallo ({assenze_da_avvallare.count()}):</b>")
+    if assenze_da_avvallare:
+        lines.append(f"\n⏳ <b>Assenze in attesa di avvallo ({len(assenze_da_avvallare)}):</b>")
         for ass in assenze_da_avvallare[:5]:
             lines.append(f"  • {ass.dipendente} ({ass.tipo}: {ass.data_inizio.strftime('%d/%m')})")
 
@@ -1295,10 +1336,11 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None):
             if c['stato_budget'] in ('SFORAMENTO', 'RISCHIO_SFORAMENTO'):
                 lines.append(f"  • {c['cliente'].ragione_sociale}: {c['ore_lavorate']}h lav. / {c['ore_contratto']}h contr. (Proiez: {c['proiezione_fine_mese']}h)")
 
-    if segnalazioni_aperte.exists():
-        lines.append(f"\n🔧 <b>Segnalazioni aperte ({segnalazioni_aperte.count()}):</b>")
+    if segnalazioni_aperte:
+        elenco_mezzi = mezzi_list if mezzi_list is not None else list(Mezzo.objects.all())
+        lines.append(f"\n🔧 <b>Segnalazioni aperte ({len(segnalazioni_aperte)}):</b>")
         for seg in segnalazioni_aperte[:4]:
-            tr = classifica_segnalazione(seg.testo, seg.dipendente)
+            tr = classifica_segnalazione(seg.testo, seg.dipendente, mezzi_list=elenco_mezzi)
             lines.append(f"  • [{tr['urgenza']}] {seg.dipendente}: {seg.testo[:60]}")
 
     testo_html = "\n".join(lines)
@@ -1312,8 +1354,8 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None):
         'testo_telegram_html': testo_html,
         'testo_telegram': testo_plain,
         'turni_oggi_count': turni_oggi_count,
-        'sostituzioni_stallo_count': sost_in_stallo.count(),
-        'assenze_da_avvallare_count': assenze_da_avvallare.count(),
+        'sostituzioni_stallo_count': len(sost_in_stallo),
+        'assenze_da_avvallare_count': len(assenze_da_avvallare),
         'alert_conformita_count': conformita['num_alert'],
         'cantieri_sforamento_count': budget['num_sforamento'],
         'lavori_extra_count': len(budget['lavori_extra_rilevati']),
