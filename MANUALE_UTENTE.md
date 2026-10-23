@@ -1,8 +1,9 @@
 # 📘 KANDOR — Manuale d'Uso Completo e Guida Operativa
 
-> **Versione**: 2.8  
-> **Ultimo aggiornamento**: Ottobre 2026 (Web App Mobile Dipendenti con PIN 4 cifre, Conferma Squadra, Corsi Sicurezza & Scadenze ZTL)  
+> **Versione**: 3.0  
+> **Ultimo aggiornamento**: Ottobre 2026 (Centro IA & Automazioni Smart a Costo Zero `/ia-hub/`, Assistente Vocale/Testuale NLP, Smart Sostituzioni 0–100, Gestione Salto Turno "Non Sostituito", Web App Mobile Dipendenti con PIN 4 cifre, Corsi Sicurezza & Scadenze ZTL Città Alta)  
 > **Applicazione Web Gestionale**: [kandor.onrender.com](https://kandor.onrender.com)  
+> **Centro IA & Automazioni Smart**: [kandor.onrender.com/ia-hub/](https://kandor.onrender.com/ia-hub/)  
 > **Web App Mobile Dipendenti**: [kandor.onrender.com/app/](https://kandor.onrender.com/app/)  
 > **Sistema ERP per Imprese di Pulizie e Facility Management**
 
@@ -22,41 +23,47 @@
 10. [Pianificazione Turni, Calendario e Composizione Retroattiva](#10-pianificazione-turni-calendario-e-composizione-retroattiva)
 11. [Programmazione Ricorrente Contratti](#11-programmazione-ricorrente-contratti)
 12. [Richieste e Interventi Straordinari](#12-richieste-e-interventi-straordinari)
-13. [Gestione Sostituti e Ricerca "Trova Jolly"](#13-gestione-sostituti-e-ricerca-trova-jolly)
+13. [Gestione Sostituti, Smart Score IA (0–100) e "Non Sostituito (Salto Turno)"](#13-gestione-sostituti-smart-score-ia-0100-e-non-sostituito-salto-turno)
 14. [Registrazione Ore (Time Tracking), Conferma Squadra e Validazione 1-Click](#14-registrazione-ore-time-tracking-conferma-squadra-e-validazione-1-click)
 15. [Verifica Ore Mensili e Riconciliazione Storica](#15-verifica-ore-mensili-e-riconciliazione-storica)
-16. [Report Paghe, Buste Paga e Rettifiche Amministrative](#16-report-paghe-buste-paga-e-rettifiche-amministrative)
+16. [Report Paghe, AI Revisore Ore, Buste Paga e Rettifiche Amministrative](#16-report-paghe-ai-revisore-ore-buste-paga-e-rettifiche-amministrative)
 17. [Gestione Assenze, Avvallo e Sostituzioni Automatiche](#17-gestione-assenze-avvallo-e-sostituzioni-automatiche)
-18. [Segnalazioni dagli Operatori](#18-segnalazioni-dagli-operatori)
+18. [Segnalazioni dagli Operatori e Triage Automatico IA](#18-segnalazioni-dagli-operatori-e-triage-automatico-ia)
 19. [Riconciliazione Ore e Monitoraggio Cantieri](#19-riconciliazione-ore-e-monitoraggio-cantieri)
 20. [Analisi Economica Contratti e Marginalità](#20-analisi-economica-contratti-e-marginalita)
-21. [Web App Mobile per Dipendenti (`/app/`) e Accesso con PIN 4 Cifre](#21-web-app-mobile-per-dipendenti-app-e-accesso-con-pin-4-cifre)
-22. [Integrazione Bot Telegram per Lavoratori](#22-integrazione-bot-telegram-per-lavoratori)
-23. [Messaggi Programmati e Comunicazioni di Massa](#23-messaggi-programmati-e-comunicazioni-di-massa)
-24. [Centro Messaggi Unificato (Web App + Telegram) e Invio Allegati](#24-centro-messaggi-unificato-web-app--telegram-e-invio-allegati)
-25. [Gestione Dati, Import/Export Excel e Backup](#25-gestione-dati-importexport-excel-e-backup)
-26. [Widget Dashboard e Monitoraggio Scadenze](#26-widget-dashboard-e-monitoraggio-scadenze)
-27. [FAQ, Risoluzione Problemi e Domande Frequenti](#27-faq-risoluzione-problemi-e-domande-frequenti)
+21. [Centro IA & Automazioni Smart (`/ia-hub/`) — I 5 Moduli a Costo Zero](#21-centro-ia--automazioni-smart-ia-hub--i-5-moduli-a-costo-zero)
+22. [Web App Mobile per Dipendenti (`/app/`), PIN 4 Cifre e Assistente Vocale IA](#22-web-app-mobile-per-dipendenti-app-pin-4-cifre-e-assistente-vocale-ia)
+23. [Integrazione Bot Telegram e Linguaggio Naturale IA per Lavoratori](#23-integrazione-bot-telegram-e-linguaggio-naturale-ia-per-lavoratori)
+24. [Messaggi Programmati e Comunicazioni di Massa](#24-messaggi-programmati-e-comunicazioni-di-massa)
+25. [Centro Messaggi Unificato (Web App + Telegram) e Invio Allegati](#25-centro-messaggi-unificato-web-app--telegram-e-invio-allegati)
+26. [Gestione Dati, Import/Export Excel e Backup](#26-gestione-dati-importexport-excel-e-backup)
+27. [Widget Dashboard e Monitoraggio Scadenze](#27-widget-dashboard-e-monitoraggio-scadenze)
+28. [FAQ, Risoluzione Problemi e Domande Frequenti](#28-faq-risoluzione-problemi-e-domande-frequenti)
 
 ---
 
 ## 1. Introduzione e Architettura di Sistema
 
 ### Scopo del Sistema
-**KANDOR** è una piattaforma ERP (Enterprise Resource Planning) verticale appositamente progettata per coprire l'intero ciclo operativo di un'impresa di pulizie e servizi integrati (facility management). Il software unisce in un unico ambiente le esigenze contabili dell'amministrazione e le necessità quotidiane dei responsabili di cantiere e dei lavoratori sul campo.
+**KANDOR** è una piattaforma ERP (Enterprise Resource Planning) verticale appositamente progettata per coprire l'intero ciclo operativo di un'impresa di pulizie e servizi integrati (facility management). Il software unisce in un unico ambiente le esigenze contabili dell'amministrazione, l'automazione intelligente tramite Intelligenza Artificiale a costo zero e le necessità quotidiane dei responsabili di cantiere e dei lavoratori sul campo.
 
 Con Kandor l'azienda ottiene:
 - **Pianificazione automatizzata dei turni**: Trasformazione dei contratti cliente in calendarizzazioni settimanali o mensili senza inserimenti manuali ripetitivi.
 - **Supporto ai contratti storici e in essere**: Generazione retroattiva dei turni passati con marcatura automatica delle ore in attesa di conferma.
-- **Tracciamento presenze in tempo reale via Telegram**: Gli operatori registrano le ore o segnalano assenze tramite bot con bottoni interattivi direttamente dallo smartphone.
-- **Ricerca Intelligente del Sostituto (Algoritmo "Jolly")**: Calcolo istantaneo delle distanze chilometriche GPS casa-cantiere per individuare i lavoratori idonei e disponibili in caso di emergenza.
-- **Gestione Avvallo Assenze**: Workflow autorizzativo da parte dell'amministrazione con generazione automatica delle richieste di copertura verso i Responsabili Area.
-- **Elaborazione Prospetto Paghe e Rettifiche Admin**: Report per lo studio di consulenza del lavoro con possibilità per l'amministrazione di rettificare giorni, ore e assenze prima della stampa o dell'esportazione.
+- **Doppio Canale Mobile per i Dipendenti (Web App `/app/` + Bot Telegram)**: Gli operatori registrano le ore (anche con dettatura vocale IA), confermano i compagni di squadra o segnalano assenze sia tramite la Web App Mobile con PIN di 4 cifre sia tramite Bot Telegram.
+- **Centro IA & Automazioni Smart a Costo Zero (`/ia-hub/`)**: Cinque motori algoritmici ed euristici integrati direttamente nel codice Python/Django (senza alcun abbonamento esterno né costi a consumo) per:
+  1. **AI Revisore Ore & Auto-Validazione 1-Click** delle timbrature regolari;
+  2. **Assistente Conversazionale NLP (Testo/Voce), Lettura Certificati/Documenti e Triage Segnalazioni**;
+  3. **Smart Sostituzioni Predittive (Ranking 0–100)** basate su storico presenze sul cantiere, distanza km, monte ore settimanale, tasso di risposta e idoneità corsi/visita medica;
+  4. **Compliance Guardian & Briefing Mattutino** (controllo preventivo permessi ZTL Bergamo Città Alta, mezzi, visite mediche e corsi speciali richiesti dal cantiere);
+  5. **Controllo Marginalità, Burn-Rate e Lavori Extra Fatturabili** estratti automaticamente dalle note di fine turno.
+- **Gestione Avvallo Assenze e Sostituzioni Complete (incluso "Non Sostituito / Salto Turno")**: Workflow autorizzativo da parte dell'amministrazione con ricerca ordinata dei sostituti oppure chiusura per salto turno concordato con evidenziazione rossa a calendario.
+- **Elaborazione Prospetto Paghe e Rettifiche Admin**: Report per lo studio di consulenza del lavoro con audit IA pre-busta paga e possibilità per l'amministrazione di rettificare giorni, ore e assenze prima della stampa o dell'esportazione.
 
 ### Requisiti Tecnici
 - **Browser consigliati**: Google Chrome, Mozilla Firefox, Microsoft Edge o Apple Safari (versione aggiornata).
 - **Connessione**: Connessione Internet attiva per l'utilizzo Cloud su Render, oppure rete locale in caso di installazione desktop locale.
-- **Dispositivi Mobili**: L'app Telegram (gratuita per Android e iOS) installata sugli smartphone dei lavoratori per la messaggistica bidirezionale.
+- **Dispositivi Mobili**: Qualsiasi smartphone Android o iOS tramite browser (`https://kandor.onrender.com/app/`) e/o l'app gratuita Telegram (`@kandor_gestionale_bot`).
 
 ---
 
@@ -105,19 +112,23 @@ La Dashboard di Kandor costituisce il centro di controllo di tutte le attività 
 ![Schermata Dashboard Principale Kandor ERP](screenshots/01_dashboard.png)
 
 ### Layout della Schermata
-- **Barra Superiore di Navigazione**: Mostra il logo Kandor, il nome dell'utente connesso, il link rapido al sito e il pulsante per il Logout.
+- **Barra Superiore di Navigazione e Azioni Rapide**: Mostra il logo Kandor, il nome dell'utente connesso e i pulsanti diretti ai moduli strategici:
+  - 🤖 **Centro IA & Automazioni (`/ia-hub/`)**: Accesso diretto alla console dei 5 moduli di Intelligenza Artificiale e Smart Automation.
+  - 📲 **App Dipendenti (`/app/`)**: Accesso rapido alla Web App Mobile per i lavoratori.
+  - 📊 **Supervisione Titolari (`/titolari/`)**: Cruscotto direzionale sintetico per i titolari.
+  - 💰 **Cedolini Paghe (`/report-paghe/`)**: Elaborazione mensile buste paga e AI Revisore Ore.
 - **Barra Laterale Sinistra (Operazioni Frequenti)**: Contiene i link rapidi alle funzionalità usate più spesso:
-  - 🔄 **Trova Jolly**: Ricerca rapida sostituti per cantiere
+  - 🔄 **Trova Jolly**: Ricerca rapida sostituti per cantiere con **Smart Score IA (0–100)**
   - 📊 **Riconciliazione**: Confronto ore contrattuali vs consuntivate
   - 📈 **Analisi Contratti**: Verifica redditività e contratti sotto soglia
   - 📥 **Gestione Dati**: Importazione ed esportazione file Excel/CSV
-  - 📖 **Guide e Manuali**: Accesso alla documentazione completa
-  - 💬 **Centro Messaggi**: Chat diretta bidirezionale via Telegram
+  - 📖 **Guide e Manuali**: Accesso alla documentazione completa (Admin + Dipendenti)
+  - 💬 **Centro Messaggi**: Chat diretta bidirezionale unificata (Web App + Telegram)
   - ⚡ **Genera Turni**: Generazione automatica dei turni ordinari
   - 📄 **Vedi Report / Verifica Ore**: Report mensile ore e assenze con PDF
   - 💼 **Report Paghe**: Elaborazione prospetto paghe per il consulente del lavoro
-- **Corpo Centrale**: Presenta la suddivisione modulare per **Risorse Anagrafiche** (Dipendenti, Clienti, Qualifiche, Mezzi, Squadre, Responsabili Area) e **Sezione Operativa** (Turni, Assenze, Time Tracking, Richieste Sostituzione).
-- **Pannello Destro (Widget Dinamici)**: Contiene i box informativi ad aggiornamento automatico (Scadenze Veicoli, Compleanni in arrivo, Feed Telegram e Scadenze Contratti).
+- **Corpo Centrale**: Presenta il **Calendario Interattivo della Pianificazione Settimanale** e la suddivisione modulare per **Risorse Anagrafiche** (Dipendenti, Clienti, Qualifiche, Mezzi, Squadre, Responsabili Area, Corsi Formazione) e **Sezione Operativa** (Turni, Assenze, Time Tracking, Richieste Sostituzione, Segnalazioni).
+- **Pannello Destro (Widget Dinamici)**: Contiene i box informativi ad aggiornamento automatico (Scadenze Veicoli e ZTL, Scadenze Visite Mediche, Scadenze Corsi di Formazione, Compleanni in arrivo, Feed Operativo e Scadenze Contratti).
 
 ---
 
@@ -149,11 +160,10 @@ Il modulo Dipendenti censisce tutti i lavoratori aziendali, raccogliendo le info
 4. **Competenze, Sostituzioni e Sorveglianza Sanitaria**:
    - Seleziona le **Qualifiche Possedute** nella lista a scelta multipla (es. Pulizie Industriali, Uso Monospazzola, Trattamento Cotto).
    - Se il lavoratore è disponibile a coprire i turni dei colleghi assenti, spunta la casella **"Disponibile come Sostituto"**.
-   - **Prossima scadenza visita medica**: Inserisci la data della prossima visita medica periodica obbligatoria. Il sistema attiverà automaticamente un alert nella Dashboard principale **20 giorni prima** della scadenza (ed evidenzierà in rosso le visite eventualmente scadute).
+   - **Prossima scadenza visita medica**: Inserisci la data della prossima visita medica periodica obbligatoria. Il sistema attiverà automaticamente un alert nella Dashboard principale **20 giorni prima** della scadenza (ed evidenzierà in rosso le visite eventualmente scadute, bloccando o segnalando eventuali anomalie anche nel modulo *Compliance Guardian IA*).
 5. **Corsi di Formazione e Sicurezza (D.Lgs. 81/08)**:
-   - In fondo alla scheda del dipendente (oppure dalla voce dedicata **Corsi Dipendenti** in Dashboard) è possibile registrare tutti i corsi obbligatori sostenuti dal lavoratore (*Formazione Generale e Specifica*, *Primo Soccorso*, *Antincendio*, *Preposto*, *HACCP*, *Lavori in Quota*, ecc.).
-   - **Calcolo Automatico della Scadenza**: Inserendo la **Data di Conseguimento** e gli **Anni di Validità** (es. 5 anni, 3 anni), Kandor calcola e compila **automaticamente la Data di Scadenza** dell'attestato, attivando il monitoraggio nel widget Scadenze della Dashboard e mostrando il corso anche nel profilo della Web App del dipendente.
-   - È possibile allegare la scansione PDF o l'immagine dell'**Attestato** conseguito.
+   - In fondo alla scheda del dipendente (oppure dalla voce dedicata **Corsi Dipendenti** in Dashboard) sono presenti i 10 corsi di formazione standard del settore (*Corso sicurezza generale*, *Corso Specifico Basso Rischio*, *Movimentazione manuale carichi*, *DPI 3 lavori in quota*, *RLS*, *Preposto*, *Primo soccorso*, *Piattaforme mobili (PLE)*, *HACCP*, *Antincendio livello 2*).
+   - **Calcolo Automatico della Scadenza**: Impostando lo stato su **`✅ Fatto`** e inserendo la **Data di Esecuzione**, Kandor calcola e compila **automaticamente la Data di Scadenza** dell'attestato sommando gli anni di validità previsti dal catalogo, attivando il monitoraggio nel widget Scadenze della Dashboard, nel modulo *Compliance Guardian IA* e nel profilo della Web App del dipendente.
 6. **Stato Operativo**:
    - Imposta lo stato su **Attivo** per i lavoratori in servizio regolare. Gli altri stati (In Malattia, In Ferie, In Permesso, Legge 104, Licenziato/Inattivo) vengono aggiornati automaticamente dal sistema o dall'amministrazione.
 7. Clicca **"Salva"** in basso a destra.
@@ -171,12 +181,12 @@ Anagrafica di tutti i clienti o cantieri aziendali presso i quali si svolgono i 
 ### Descrizione dei Campi
 - **Ragione Sociale**: Denominazione ufficiale dell'azienda cliente o del condominio/ente.
 - **Partita IVA / Codice Fiscale**: Dati fiscali del cliente.
-- **Indirizzo Sede / Cantiere**: Ubicazione esatta del cantiere. Come per i dipendenti, l'indirizzo viene geocodificato in coordinate GPS per calcolare le distanze dai lavoratori.
+- **Indirizzo Sede / Cantiere**: Ubicazione esatta del cantiere. Come per i dipendenti, l'indirizzo viene geocodificato in coordinate GPS per calcolare le distanze dai lavoratori e viene analizzato dal *Compliance Guardian IA* per rilevare automaticamente i cantieri situati in **Bergamo Città Alta / ZTL**.
 - **Nome Referente / Ruolo / Telefono**: Dati della persona di contatto in loco (es. Direttore di Cantiere, Amministratore di Condominio).
 - **Data Nascita Referente**: Utilizzata dal widget della dashboard per segnalare i compleanni imminenti a scopo relazionale.
-- **Ore Mensili Contratto**: Monte ore mensile pattuito nel contratto commerciale (utilizzato nel modulo di Riconciliazione Ore).
-- **Importo Mensile Contratto (€)**: Corrispettivo economico mensile fatturato al cliente (utilizzato nel modulo di Analisi Economica Contratti).
-- **Note / Istruzioni Cantiere**: Indicazioni operative specifiche (es. "Codice allarme 4321", "Chiavi presso la portineria").
+- **Ore Mensili Contratto**: Monte ore mensile pattuito nel contratto commerciale (utilizzato nel modulo di Riconciliazione Ore e nel calcolo del *Burn-Rate IA*).
+- **Importo Mensile Contratto (€)**: Corrispettivo economico mensile fatturato al cliente (utilizzato nel modulo di Analisi Economica Contratti e nel controllo *Marginalità IA*).
+- **Note / Mansioni Cantiere (`note_mansioni`)**: Indicazioni operative specifiche (es. *"Codice allarme 4321"*, *"Pulizia vetri con lavori in quota o piattaforma PLE"*). Il motore IA legge automaticamente queste note per verificare che gli operatori assegnati possiedano i corsi speciali richiesti.
 
 ### Sezioni Inline all'interno della Scheda Cliente
 All'interno della scheda del cliente è possibile gestire direttamente:
@@ -196,7 +206,7 @@ Le qualifiche rappresentano i requisiti tecnici e le idoneità professionali nec
 ### Utilizzo nel Sistema
 - **Assegnazione al Dipendente**: Ogni lavoratore può possedere una o più qualifiche.
 - **Requisito nella Programmazione**: Quando si definisce un lavoro per un cliente, è possibile specificare la qualifica obbligatoria.
-- **Filtro nel "Trova Jolly"**: Quando si cerca un sostituto per un cantiere con qualifica speciale (es. "Lavori in Quota"), l'algoritmo esclude automaticamente i dipendenti che non possiedono quella specifica qualifica.
+- **Filtro nel "Trova Jolly"**: Quando si cerca un sostituto per un cantiere con qualifica speciale, l'algoritmo esclude automaticamente i dipendenti che non possiedono quella specifica qualifica.
 
 ---
 
@@ -211,21 +221,21 @@ Monitoraggio e assegnazione dei veicoli commerciali e delle autovetture aziendal
 ### Descrizione dei Campi
 - **Modello Mezzo**: Descrizione del veicolo (es. *Fiat Doblo 1.3 Multijet*).
 - **Targa**: Targa del veicolo (univoca nel sistema).
-- **Stato Attuale**: Selezionabile tra *Disponibile*, *In Manutenzione*, *In Riparazione*, *Dismesso*.
+- **Stato Attuale**: Selezionabile tra *Disponibile*, *In Manutenzione*, *Guasto / Fuori Uso*.
 - **Km Percorsi**: Chilometraggio aggiornato del veicolo.
 - **Scadenze & Permessi**:
   - **Scadenza Polizza Assicurativa**: Data di scadenza dell'assicurazione RCA.
   - **Scadenza Bollo**: Data di scadenza della tassa di circolazione.
   - **Scadenza Revisione**: Data di scadenza della revisione ministeriale periodica.
-  - **Scadenza Permesso Città Alta (ZTL)**: Data di scadenza del permesso di transito/sosta in Zona a Traffico Limitato.
+  - **Scadenza Permesso Città Alta (ZTL)**: Data di scadenza del permesso di transito/sosta in Zona a Traffico Limitato (Bergamo Città Alta).
   - **Numero Permesso Città Alta**: Codice identificativo / numero di contrassegno o pratica associato al permesso ZTL.
 
-### Badge Semaforici nella Lista Mezzi e Alert in Dashboard
+### Badge Semaforici nella Lista Mezzi, Alert Dashboard e Controllo IA ZTL
 - Nella tabella **Mezzi Aziendali**, ogni scadenza (*Assicurazione*, *Bollo*, *Revisione*, *Permesso Città Alta*) viene mostrata con un **badge colorato semaforico**:
   - 🟢 **Verde**: Scadenza regolare (oltre 30 giorni).
   - 🟠 **Arancione (`⚠️ Xgg`)**: Scadenza imminente entro i prossimi 30 giorni, con indicazione dei giorni residui.
   - 🔴 **Rosso (`SCADUTA`)**: Scadenza superata da rinnovare con urgenza.
-- Il widget **Scadenze Veicoli** nella Dashboard principale riepiloga automaticamente tutti i mezzi con polizza, bollo, revisione o permesso ZTL in scadenza (entro 45 giorni) o scaduti, mostrando anche il numero del permesso Città Alta.
+- Inoltre, il modulo **Compliance Guardian IA (`/ia-hub/`)** incrocia automaticamente i turni dei prossimi 7 giorni: se una squadra diretta in un cantiere di **Città Alta** ha assegnato un mezzo con permesso ZTL scaduto o mancante (o con revisione/polizza scaduta), segnala immediatamente il rischio di multa/blocco operativo.
 
 ---
 
@@ -244,7 +254,7 @@ Raggruppamento organizzativo dei dipendenti che lavorano abitualmente insieme ne
 4. **Responsabile Area Collegato**: Il sistema associa automaticamente la squadra al Responsabile Area che la supervisiona.
 
 ### Funzionalità Speciale: Messaggio di Gruppo alla Squadra
-Dalla lista delle squadre, selezionando una squadra e scegliendo dal menu in basso **"💬 Invia Messaggio alla Squadra"**, l'amministrazione può inviare istantaneamente una comunicazione Telegram a tutti i componenti della squadra contemporaneamente.
+Dalla lista delle squadre, selezionando una squadra e scegliendo dal menu in basso **"💬 Invia Messaggio alla Squadra"**, l'amministrazione può inviare istantaneamente una comunicazione (Telegram + Web App) a tutti i componenti della squadra contemporaneamente.
 
 ---
 
@@ -260,8 +270,7 @@ I Responsabili Area costituiscono il livello intermedio di coordinamento tra l'a
 Quando un dipendente risulta assente e si avvia la ricerca di un sostituto:
 1. Il sistema individua qual è la squadra interessata dal turno scoperto.
 2. Identifica il **Responsabile Area** associato a quella squadra.
-3. Invia una notifica Telegram al Responsabile Area richiedendo la sua **autorizzazione/approvazione**.
-4. Soltanto dopo che il RA ha confermato la richiesta, il bot invia la proposta di lavoro ai dipendenti sostituti.
+3. Invia una notifica al Responsabile Area richiedendo la sua **autorizzazione/approvazione** o permettendo all'ufficio di gestire direttamente l'invio ordinato ai sostituti.
 
 ---
 
@@ -275,21 +284,21 @@ Pianificazione delle attività lavorative quotidiane con visualizzazione a calen
 
 ### Caratteristiche del Calendario Interattivo
 - **Vista Oraria Settimanale**: Mostra tutti i turni disposti nei vari giorni della settimana con l'indicazione del cliente, della squadra e degli orari previsti.
-- **Filtri e Navigazione**: Pulsanti ← / → per spostarsi tra le settimane dell'anno e menu a tendina per filtrare per specifica squadra.
-- **Badge di Stato delle Ore**:
+- **Filtri e Navigazione**: Pulsanti ← / → per spostarsi tra le settimane dell'anno, menu a tendina per filtrare per specifica squadra e pulsante **🖨️ Stampa Settimana PDF**.
+- **Badge di Stato delle Ore e delle Sostituzioni**:
   - 🟢 **Verde (`✅ Validate: Xh`)**: Le ore lavorate sono state verificate e approvate dall'amministrazione.
-  - 🟡 **Giallo / Ambra (`⏳ Provvisorie: Xh`)**: Ore comunicate dal lavoratore via Telegram ma non ancora convalidate.
+  - 🟡 **Giallo / Ambra (`⏳ Provvisorie: Xh`)**: Ore comunicate dal lavoratore via Web App o Telegram ma non ancora convalidate.
   - 🔴 **Rosso con punto esclamativo (`! In attesa di conferma`)**: Turno passato i cui consuntivi non sono ancora stati confermati.
+  - 🔴 **Bordo/Badge Rosso `⏭️ Non Sostituito (Salto Turno)`**: Indica che un dipendente assente in quel turno non è stato sostituito per decisione dell'ufficio (mostrando il nome dell'assente e la motivazione registrata).
 
 ### Generazione Automatica dei Turni
 Dalla barra laterale, cliccando su **"⚡ Genera Turni"**, il sistema prende tutte le *Programmazioni Ricorrenti* attive dei clienti e genera automaticamente le assegnazioni per i **prossimi 7 giorni**, evitando la creazione di duplicati.
 
 ### Composizione Retroattiva per Contratti Storici e in Essere
-Quando viene inserito un nuovo contratto o una nuova programmazione ricorrente che ha una **Data Inizio Contratto nel passato** (es. un contratto partito 2 mesi fa):
+Quando viene inserito un nuovo contratto o una nuova programmazione ricorrente che ha una **Data Inizio Contratto nel passato**:
 1. Al momento del salvataggio, Kandor calcola e compone in automatico tutti i turni giorno per giorno a partire dalla data d'inizio storica fino ad oggi.
 2. I turni passati nascono nello stato **"In attesa di conferma delle ore lavorate"** (evidenziati con l'icona rossa **`!`** sul calendario).
-3. Questo permette all'amministrazione di censire in qualsiasi momento i contratti già avviati nel passato e procedere alla verifica delle ore storiche.
-4. **Protezione dello Storico**: Se successivamente si modifica la programmazione di un contratto, il sistema rigenera soltanto i turni da oggi in poi, lasciando intatti e protetti i turni passati già convalidati.
+3. **Protezione dello Storico**: Se successivamente si modifica la programmazione di un contratto, il sistema rigenera soltanto i turni da oggi in poi, lasciando intatti e protetti i turni passati già convalidati.
 
 ---
 
@@ -303,7 +312,7 @@ Definizione delle regole di ripetizione periodica delle pulizie e dei servizi pe
 
 ### Parametri della Programmazione
 - **Tipo Ripetizione**:
-  - **Settimanale**: Ripetizione in specifici giorni della settimana (es. tutti i Lunedì, Mercoledì e Venerdì).
+  - **Giornaliero / Settimanale**: Ripetizione in specifici giorni della settimana (es. tutti i Lunedì, Mercoledì e Venerdì).
   - **Bisettimanale**: Ripetizione a settimane alternate (calcolata a partire dalla Data Inizio Contratto).
   - **Mensile**: Ripetizione in un giorno fisso del mese (es. il giorno 1 o 15 di ogni mese).
 - **Ora Inizio** e **Durata (ore)**:
@@ -331,38 +340,37 @@ Gestione dei lavori extra-contrattuali o una tantum richiesti dai clienti (es. l
 
 ---
 
-## 13. Gestione Sostituti e Ricerca "Trova Jolly"
+## 13. Gestione Sostituti, Smart Score IA (0–100) e "Non Sostituito (Salto Turno)"
 
 ### Scopo Operativo
-Procedura d'emergenza guidata per coprire rapidamente i turni rimasti scoperti a causa dell'assenza improvvisa di un operatore.
+Procedura d'emergenza guidata e potenziata dall'Intelligenza Artificiale per coprire rapidamente i turni rimasti scoperti a causa dell'assenza di un operatore, oppure per registrare formalmente il "Salto Turno / Non Sostituito".
 
 ### Percorso di Navigazione
 👉 **Calendario Turni** → Clicca sul turno scoperto → **"🔄 Trova Sostituto"**  
-oppure dalla barra laterale **"Trova Jolly"** (`/admin/jolly-finder/`)
+oppure dalla barra laterale **"Trova Jolly"** (`/find-jolly/`) o da **Richieste Sostituzione** (`/admin/core/richiestasostituzione/`)
 
-### Come Funziona l'Algoritmo "Jolly Finder" e la Selezione Ordinata
-1. **Selezione del Turno Scoperto**: L'amministratore seleziona il turno o la richiesta di sostituzione generata dall'assenza.
-2. **Filtro Automatico di Idoneità**: Kandor analizza l'intero organico aziendale ed esclude automaticamente:
-   - I dipendenti non attivi o non abilitati come sostituti.
-   - I lavoratori che risultano già in ferie, malattia o permesso in quella data.
-   - I lavoratori che hanno già un altro turno di lavoro sovrapposto negli stessi orari.
-   - I lavoratori privi della qualifica tecnica eventualmente richiesta dal cantiere.
-3. **Calcolo Geometrico della Distanza GPS**: L'algoritmo calcola la distanza stradale esatta (in km) tra l'indirizzo di residenza di ciascun lavoratore disponibile e l'indirizzo del cantiere da coprire.
-4. **Finestra di Selezione Ordinata dei Sostituti**: Prima di inviare le notifiche Telegram o gli avvisi, il sistema apre una finestra interattiva pop-up con l'elenco dei sostituti idonei ordinati per distanza e qualifiche.
-5. **Ordinamento di Preferenza**: L'amministrazione può spuntare i candidati desiderati definendo **l'ordine esatto di selezione/invio** (es. 1° scelta, 2° scelta, 3° scelta).
-6. **Inoltro Notifiche Sequenziale**: Confermata la selezione, il sistema invia la notifica prioritariamente ai candidati scelti nell'ordine stabilito.
+### Come Funziona il Ranking Predittivo "Smart Sostituzioni IA (0–100)"
+Quando cerchi un sostituto o apri il modale di sostituzione dopo l'avvallo di un'assenza:
+1. **Filtro Automatico di Idoneità**: Kandor esclude automaticamente i dipendenti non attivi, non abilitati come sostituti, in assenza/malattia/ferie o già impegnati in un altro turno sovrapposto negli stessi orari.
+2. **Calcolo dello Smart Score IA (da 0 a 100 punti)**: Invece di basarsi solo sulla distanza in linea d'aria, il motore IA (`calcola_smart_score_sostituto`) assegna a ciascun candidato un punteggio da **0 a 100** combinando 5 fattori reali:
+   - ⭐ **Conoscenza del Cantiere (fino a +30 pt)**: Quante volte il lavoratore ha già lavorato in passato presso quello specifico cliente (`TimeTracking` storici). Chi conosce già accessi, chiavi e mansioni viene premiato in cima alla classifica!
+   - 📍 **Vicinanza Geografica GPS (fino a +25 pt)**: Distanza chilometrica tra la residenza del candidato e il cantiere.
+   - ⚖️ **Equilibrio Monte Ore Settimanale (fino a +15 pt)**: Premia chi ha ancora margine orario nella settimana corrente, evitando di sovraccaricare di straordinari chi ha già superato le 36–40 ore.
+   - ⚡ **Affidabilità e Tasso di Risposta (fino a +15 pt)**: Percentuale storica di sostituzioni accettate rispetto a quelle rifiutate/scadute.
+   - 🛡️ **Idoneità Sicurezza e Corsi**: Verifica se il candidato ha la visita medica valida e i corsi speciali richiesti dal cantiere, mostrando eventuali avvisi preventivi.
+3. **Ordinamento e Invio Notifiche Sequenziale o Assegnazione Diretta d'Ufficio**:
+   - L'amministrazione vede i candidati già ordinati dal punteggio **Smart Score IA più alto** al più basso, completi di badge esplicativi.
+   - Può **Confermare Direttamente d'Ufficio (`⚡ Conferma Diretta`)** un sostituto (es. dopo averlo sentito telefonicamente) oppure selezionare l'ordine di preferenza (1°, 2°, 3° scelta) e cliccare su **"📤 Invia Notifiche"** per contattarli via Telegram e Web App.
 
 ![Schermata Gestione Richieste Sostituzione](screenshots/02_gestione_sostituzioni.png)
 
-### Risposta del Sostituto via Telegram
-Dopo l'invio della notifica, il sostituto riceve sul suo telefono un messaggio Telegram completo di:
-- Nome e indirizzo esatto del cantiere.
-- Data e orari del turno.
-- Distanza da casa sua in km.
-- Nomi e numeri di telefono dei compagni di squadra presenti.
-- Bottoni interattivi **"✅ Accetto"** e **"❌ Rifiuto"**.
-
-Il sostituto ha tempo per accettare. Qualora rifiuti o non risponda, il sistema notifica l'amministrazione e procede automaticamente con la notifica al successivo sostituto selezionato in ordine di priorità.
+### Gestione "⏭️ Non Sostituito (Salto Turno)"
+Può capitare che, a fronte dell'assenza di un operatore, l'ufficio decida di **non inviare alcun sostituto** (ad esempio perché il resto della squadra riesce a coprire il servizio, oppure perché si è concordato con il cliente di saltare o posticipare il passaggio):
+1. All'interno della finestra modale **Seleziona Sostituti** (oppure dalla lista **Richieste Sostituzione** in Admin), clicca sul pulsante rosso/ambra **"⏭️ Non Sostituito (Salto Turno)"**.
+2. Inserisci la **Motivazione obbligatoria** nel campo dedicato (es. *"Servizio coperto dagli altri 2 componenti della squadra"* oppure *"Concordato salto turno con l'amministratore"*).
+3. Confermando l'operazione:
+   - La richiesta passa nello stato definitivo **`NON_SOSTITUITO` (`Non Sostituito / Salto Turno`)** e non invia ulteriori solleciti ai Jolly.
+   - Sul **Calendario della Pianificazione Settimanale**, il blocco del turno viene evidenziato in **rosso** con il dettaglio del dipendente non sostituito e la motivazione registrata dall'ufficio.
 
 ---
 
@@ -373,8 +381,8 @@ Consuntivazione delle ore di lavoro effettivamente svolte dagli operatori sul ca
 
 ### Modalità di Registrazione delle Ore
 Le ore possono entrare nel sistema attraverso **tre canali sincronizzati**:
-1. **Via Web App Mobile (`/app/` — Fonte `WEBAPP`)**: L'operatore accede con Codice Fiscale + PIN di 4 cifre e salva le ore del turno direttamente dallo smartphone.
-2. **Via Bot Telegram (`@kandor_gestionale_bot` — Fonte `TELEGRAM`)**: A fine giornata l'operatore seleziona il turno dal bot Telegram e digita le ore svolte (es. `8` o `7.5`).
+1. **Via Web App Mobile (`/app/` — Fonte `WEBAPP`)**: L'operatore accede con Codice Fiscale + PIN di 4 cifre e salva le ore del turno direttamente dallo smartphone (tramite il modulo standard oppure dettando a voce con l'**Assistente Rapido IA**).
+2. **Via Bot Telegram (`@kandor_gestionale_bot` — Fonte `TELEGRAM`)**: A fine giornata l'operatore seleziona il turno dal bot Telegram (oppure scrive una frase libera all'IA, es. *"Oggi 4 ore al Condominio Rossi"*) e conferma le ore svolte.
 3. **Inserimento Manuale Admin (Fonte `ADMIN`)**: Dall'interfaccia di gestione `Time Tracking` o direttamente dal Calendario dei turni.
 
 ### Conferma Automatica Presenza Compagni di Squadra
@@ -384,12 +392,9 @@ Quando un turno è assegnato ad una **Squadra Operativa**:
   - Per tutti i colleghi confermati **presenti**, Kandor **registra automaticamente le stesse ore provvisorie**, evitando doppi inserimenti.
   - Se un collega previsto viene deselezionato come **assente**, il sistema invia automaticamente una segnalazione all'amministrazione per verificare l'assenza non comunicata.
 
-### Procedura di Validazione Rapida 1-Click dal Calendario
-Per velocizzare il lavoro quotidiano dell'amministrazione:
-1. Apri la vista **Pianificazione Settimanale** nella Dashboard.
-2. I turni per i quali il lavoratore ha inserito le ore via Web App Mobile o via Telegram presentano il badge ambra **`⏳ Provvisorie: Xh`** e il pulsante con l'icona della spunta `✓` evidenziato in colore arancione.
-3. Cliccando direttamente sull'icona `✓`, le ore vengono **convalidate al volo** con un solo click e il badge diventa verde **`✅ Validate: Xh`**.
-4. In alternativa, cliccando sul turno si apre la scheda di dettaglio da cui è possibile rettificare le ore e cliccare su **"✔ Salva e valida"**.
+### Procedura di Validazione Rapida 1-Click (Singola o Massiva tramite IA)
+- **Validazione Singola dal Calendario**: Nella vista **Pianificazione Settimanale**, cliccando sull'icona `✓` accanto al badge ambra **`⏳ Provvisorie: Xh`**, le ore del turno vengono convalidate al volo e diventano verdi **`✅ Validate: Xh`**.
+- **Auto-Validazione Massiva 1-Click con AI Revisore Ore**: Dal **Centro IA (`/ia-hub/`)** o dalla pagina **Report Paghe (`/report-paghe/`)**, cliccando su **"⚡ Auto-Valida Ore Regolari (1-Click)"**, il motore IA approva istantaneamente tutte le timbrature del mese che risultano prive di anomalie e perfettamente coerenti con gli orari previsti e con la squadra.
 
 ---
 
@@ -402,7 +407,7 @@ Pannello di controllo per la verifica globale delle ore lavorate, contrattuali e
 👉 **Operazioni Frequenti** → **Vedi Report** (oppure `/verifica-ore/`)
 
 ### Utilizzo del Report per la Verifica dei Mesi Precedenti
-1. Dai menu a tendina in alto, seleziona il **Mese** e l'**Anno** da analizzare (es. *Maggio 2026*).
+1. Dai menu a tendina in alto, seleziona il **Mese** e l'**Anno** da analizzare (es. *Ottobre 2026*).
 2. Clicca sul pulsante **"Aggiorna"**.
 3. Il sistema rielabora istantaneamente tutti i dati del mese selezionato presentando tre tabelle riassuntive:
    - **Tabella 1: Riepilogo per Cliente**: Confronto tra ore di contratto previste, ore effettivamente lavorate e validate, differenza in ore e valore economico.
@@ -412,28 +417,32 @@ Pannello di controllo per la verifica globale delle ore lavorate, contrattuali e
 
 ---
 
-## 16. Report Paghe, Buste Paga e Rettifiche Amministrative
+## 16. Report Paghe, AI Revisore Ore, Buste Paga e Rettifiche Amministrative
 
 ### Scopo Operativo
-Modulo dedicato all'elaborazione del prospetto retributivo mensile da trasmettere allo Studio del Consulente del Lavoro per la stampa delle buste paga, integrato con la possibilità di effettuare rettifiche amministrative.
+Modulo dedicato all'elaborazione del prospetto retributivo mensile da trasmettere allo Studio del Consulente del Lavoro per la stampa delle buste paga, potenziato con il banner **AI Revisore Ore** e la possibilità di effettuare rettifiche amministrative.
 
 ### Percorso di Navigazione
-👉 **Operazioni Frequenti** → **Report Paghe** (oppure `/admin/report-paghe/`)
+👉 **Operazioni Frequenti** → **Report Paghe** (oppure `/report-paghe/`)
+
+### Banner "🕵️‍♂️ AI Revisore Ore & Auto-Validazione 1-Click"
+In cima alla pagina **Elaborazione Cedolini Paghe** è integrato il pannello intelligente **AI Revisore Ore**, che analizza tutte le timbrature del periodo selezionato e mostra:
+- Il numero di **Timbrature Regolari Auto-Validabili** (coerenti con orario previsto, squadra e assenze) con il pulsante verde **"⚡ Auto-Valida X Ore Regolari (1-Click)"** per approvarle tutte istantaneamente.
+- Il numero di **Anomalie Rilevate dall'IA** (es. scostamenti >25% o >1h, disallineamenti tra colleghi della stessa squadra, conflitti tra ore dichiarate e giornata di assenza, sforamenti monte ore settimanale part-time), con link diretto al dettaglio nel Centro IA (`/ia-hub/`).
 
 ### Funzionalità di Rettifica Amministrativa ("✏️ Rettifica")
-Qualora vi siano stati errori nella timbratura delle ore via Telegram, omissioni o accordi correttivi dell'ultimo minuto:
-1. Nella tabella del Report Paghe, individua la riga del dipendente interessato (es. *AVOGADRO CLARA*).
+Qualora vi siano stati errori nella timbratura delle ore, omissioni o accordi correttivi dell'ultimo minuto:
+1. Nella tabella del Report Paghe, individua la riga del dipendente interessato.
 2. Nella colonna **Azione Admin** sulla destra, clicca sul pulsante **`✏️ Rettifica`**.
 3. Si aprirà un modale interattivo denominato **"Rettifica Cedolino Paghe - [Nome Dipendente]"**.
 4. **Campi di Override Modificabili**:
    - **Giorni Lavorati Override**: Inserisci il numero corretto di giornate lavorate nel mese.
    - **Ore Totali Override**: Inserisci le ore complessive rettificate.
    - **Ore Validate Override**: Correggi il totale delle ore validate.
-   - **Giorni Ferie / Permessi / Malattia Override**: Rettifica i giorni di assenza del mese.
-   - **Note Rettifica (Obbligatorio)**: Inserisci la motivazione amministrativa della modifica (es. *"Corrette ore per mancata timbratura cantiere c/o Hotel Roma approvata dal responsabile"*).
+   - **Giorni Ferie / Permessi / Malattia / 104 Override**: Rettifica i giorni di assenza del mese.
+   - **Note Rettifica (Obbligatorio)**: Inserisci la motivazione amministrativa della modifica.
 5. Clicca su **"💾 Salva Rettifica"**.
 6. **Effetto Immediato**: La riga del dipendente mostrerà il badge **`✏️ Rettificato`**, la tabella aggiornerà istantaneamente i totali generali ed i KPI del mese e l'annotazione comparirà sia nel **PDF stampabile per il Consulente** sia nell'**Esportazione Excel/CSV**.
-7. Per annullare una rettifica e ripristinare i valori originali calcolati dal sistema, basta riaprire il modale e cliccare sul pulsante rosso **"🗑️ Elimina Rettifica"**.
 
 ![Schermata Report Paghe e Modale Rettifica Cedolino](screenshots/04_report_paghe.png)
 
@@ -448,26 +457,30 @@ Censimento delle assenze dei lavoratori con workflow autorizzativo dell'amminist
 👉 **Dashboard** → **Assenze** (oppure `/admin/core/assenza/`)
 
 ### Workflow con Avvallo Amministrativo e Avvio Automatico Sostituzioni
-1. **Segnalazione Assenza**: L'assenza per malattia, ferie o permesso viene inviata dall'operatore via Telegram o registrata dall'amministrazione. Inizialmente nasce nello stato **"In Attesa Avvallo Amministrazione"**.
-2. **Valutazione e Avvallo dell'Amministrazione**: L'amministratore apre la scheda dell'assenza, verifica i certificati/motivazioni e clicca su **"Approvata (Avvallata)"** o **"Approva e Avvia Sostituzione"**.
-3. **Avvio Automatico Procedura di Sostituzione**: Subito dopo l'avvallo dell'amministrazione, Kandor esamina tutti i turni in cui era programmato l'assente e attiva in automatico la procedura di sostituzione.
-4. **Apertura Finestra Selezione Sostituti**: Prima di inviare le notifiche, il sistema visualizza la finestra pop-up con i candidati disponibili. L'amministrazione seleziona i sostituti desiderati e imposta l'ordine di priorità (1°, 2°, 3° scelta) prima dell'invio automatico delle notifiche via Telegram.
+1. **Segnalazione Assenza**: L'assenza per malattia, ferie, permesso o Legge 104 viene inviata dall'operatore via Web App Mobile (`/app/`), via Bot Telegram o registrata dall'amministrazione (anche tramite l'*Analizzatore Documenti IA*). Inizialmente nasce nello stato **"In Attesa Avvallo Amministrazione"**.
+2. **Valutazione e Avvallo dell'Amministrazione**: L'amministratore verifica la richiesta e clicca su **"Approvata (Avvallata)"**.
+3. **Avvio Automatico Procedura di Sostituzione**: Subito dopo l'avvallo dell'amministrazione, Kandor esamina tutti i turni in cui era programmato l'assente e apre la finestra pop-up con i candidati ordinati per **Smart Score IA (0–100)** (oppure permette di impostare il turno come **⏭️ Non Sostituito / Salto Turno**).
 
 ![Schermata Gestione Assenze e Avvallo Amministrazione](screenshots/05_gestione_assenze.png)
 
 ---
 
-## 18. Segnalazioni dagli Operatori
+## 18. Segnalazioni dagli Operatori e Triage Automatico IA
 
 ### Scopo Operativo
-Gestione delle comunicazioni di servizio, anomalie o guasti inviati dai lavoratori dai cantieri.
+Gestione delle comunicazioni di servizio, anomalie, carenza materiali o guasti inviati dai lavoratori dai cantieri, con classificazione automatica di priorità e categoria tramite Intelligenza Artificiale.
 
 ### Percorso di Navigazione
-👉 **Dashboard** → **Segnalazioni** (oppure `/admin/core/segnalazione/`)
+👉 **Dashboard** → **Segnalazioni** (`/admin/core/segnalazione/`) oppure **Centro IA** (`/ia-hub/` → scheda *2. Assistente NLP, Triage & Documenti*)
 
-### Gestione delle Segnalazioni
-- Quando un lavoratore scrive al bot Telegram una segnalazione (o invia una fotografia di un danno o di una macchina guasta), la segnalazione compare in tempo reale nel pannello Admin.
-- L'amministratore può prendere in carico la segnalazione, inserire le **Note Amministrazione** e spuntare la casella **"Risolto"** una volta completata l'assistenza.
+### Come Funziona il Triage Automatico IA delle Segnalazioni
+Ogni volta che un lavoratore invia una segnalazione (dalla Web App Mobile `/app/` o dal Bot Telegram):
+1. Il motore IA (`classifica_segnalazione`) analizza istantaneamente il testo e assegna:
+   - **Livello di Urgenza**: `🚨 CRITICA`, `⚠️ ALTA`, `🟡 MEDIA` oppure `🟢 BASSA`.
+   - **Categoria Operativa**: `SICUREZZA` (infortuni, rischi elettrici/chimici, allagamenti), `GUASTO_MACCHINARIO` (monospazzola, lavasciuga, aspirapolvere rotti), `MATERIALI_SCORTE` (prodotti, detergenti, sacchi o carta terminati), `ACCESSO_CHIAVI` (allarme, cancelli o chiavi bloccate), `QUALITA_CLIENTE` (lamentele o contestazioni).
+   - **Azione Consigliata**: Suggerimento operativo immediato per l'ufficio.
+2. Il tag di triage (es. `[IA Triage: CRITICA | SICUREZZA]`) viene salvato automaticamente nelle **Note Amministrazione** della segnalazione.
+3. **Notifica Prioritaria Immediata**: Se la segnalazione è classificata con urgenza **CRITICA** o **ALTA**, Kandor invia subito un avviso prioritario su Telegram ai **Titolari** e ai **Responsabili Area**.
 
 ---
 
@@ -495,85 +508,133 @@ Modulo di analisi finanziaria per identificare i contratti clienti che risultano
 ### Percorso di Navigazione
 👉 **Operazioni Frequenti** → **Analisi Contratti** (oppure `/analisi-contratti/`)
 
-### Report di Reditività
-Il sistema confronta l'importo mensile fatturato al cliente con la somma del costo orario dei lavoratori impiegati sul cantiere:
-- Calcola il **Costo Orario Effettivo per Cantiere**.
-- Segnala con alert visivi i contratti che generano una perdita o un margine inferiore alla soglia minima impostata.
+### Report di Redditività
+Il sistema confronta l'importo mensile fatturato al cliente con il monte ore lavorato sul cantiere:
+- Calcola la **Resa Oraria Effettiva (€/ora)** per ciascun cantiere.
+- Segnala con alert visivi i contratti che generano un margine inferiore alla soglia minima impostata.
 - Permette di esportare il **Report Economico in PDF** per le riunioni di direzione.
 
 ---
 
-## 21. Web App Mobile per Dipendenti (`/app/`) e Accesso con PIN 4 Cifre
+## 21. Centro IA & Automazioni Smart (`/ia-hub/`) — I 5 Moduli a Costo Zero
 
-### Scopo Operativo
-Fornire a tutti i dipendenti un'applicazione mobile completa (Progressive Web App — PWA), installabile sulla schermata Home dello smartphone (Android e iPhone) **senza bisogno di avere Telegram**, con il 100% delle funzionalità operative sincronizzate in tempo reale col gestionale.
+### Scopo Operativo e Architettura "100% Zero-Cost"
+Il **Centro IA & Automazioni Smart** raccoglie in un'unica console direzionale tutti i **5 moduli di Intelligenza Artificiale ed Euristica Avanzata** progettati specificamente per Kandor.
 
-### Indirizzo Ufficiale e Accesso Rapido
-- **URL per i Dipendenti**: 👉 **[https://kandor.onrender.com/app/](https://kandor.onrender.com/app/)**
-- **Accesso dall'Admin**: Riquadro **"📲 App Dipendenti"** nella Dashboard principale oppure pulsante **`📲 App`** nella colonna **`🔑 PIN & App`** della lista Dipendenti.
+> 💡 **Perché funziona a Costo Zero (0 €/mese)?**  
+> Tutti i calcoli predittivi, le regole di audit, il parser del linguaggio naturale italiano e l'incrocio dei dati girano **localmente nel motore Python di Kandor (`core/ai_engine.py`)** interrogando direttamente il database aziendale, senza dipendere da abbonamenti a pagamento.  
+> In più, il sistema è già predisposto in **modalità ibrida opzionale**: se in futuro viene inserita una chiave gratuita `GEMINI_API_KEY` di Google AI Studio, Kandor attiva automaticamente anche il supporto generativo *Gemini Flash* mantenendo sempre il motore locale come garanzia di funzionamento al 100%.
 
-### Credenziali di Accesso del Lavoratore
-Per accedere alla Web App Mobile, il dipendente inserisce:
-1. **Codice Fiscale** (16 caratteri alfanumerici).
-2. **PIN personale di 4 cifre** (`pin_accesso`), generato automaticamente da Kandor al momento della creazione del dipendente e sempre visibile/modificabile dall'amministrazione nella lista Dipendenti.
+### Percorso di Navigazione
+👉 **Dashboard Principale** → Pulsante in alto **`🤖 Centro IA & Automazioni`** (oppure direttamente all'indirizzo **`https://kandor.onrender.com/ia-hub/`**)
 
-### Le 5 Schede Operative della Web App Mobile
-1. **⏱ Oggi & Ore**:
-   - Riepilogo mensile in tempo reale (*Ore Validate ✅*, *In Attesa ⏳*, *Totale Mese*).
-   - Elenco dei turni della giornata con orari, squadra, mezzo, istruzioni di cantiere e pulsante **📍 Apri Mappa (Google Maps)**.
-   - Registrazione delle ore svolte con **conferma presenza dei compagni di squadra** (registrazione automatica per i colleghi presenti e segnalazione assenza per gli assenti).
-   - Sezione **📋 Turni da Compilare (Ultimi 7 Giorni)** per recuperare in autonomia i turni passati dimenticati.
-2. **📅 Calendario**:
-   - Navigatore giornaliero (`◀ Prec.` / `Oggi` / `Succ. ▶`) e panoramica completa dei turni programmati nei **prossimi 7 giorni**.
-3. **🏥 Assenze**:
-   - Invio immediato di comunicazioni per **Malattia**, **Ferie**, **Permesso Orario** (con selettore ora inizio/fine) e **Legge 104** (giornaliera o ad ore), più storico delle richieste con stato di avvallo in tempo reale (*In attesa di avvallo*, *Approvata*, *Rifiutata*).
-4. **💬 Ufficio (Chat Diretta & Segnalazioni)**:
-   - **Chat Bidirezionale**: Messaggistica istantanea con l'amministrazione con possibilità di inviare **foto dalla fotocamera o allegati PDF** e scaricare documenti/cedolini inviati dall'ufficio.
-   - **🚨 Segnalazioni Cantiere**: Modulo dedicato per segnalare guasti o anomalie (anche con foto allegata) e consultare lo stato di risoluzione e la risposta dell'amministrazione.
-5. **👤 Profilo & 🔄 Sostituzioni**:
-   - Caricamento/aggiornamento della **Foto Profilo** direttamente dallo smartphone.
-   - Visualizzazione scadenze della **Visita Medica** e dei **Corsi di Formazione**.
-   - **Banner Sostituzioni Urgenti**: Quando il lavoratore (Jolly) o il Responsabile Area riceve una proposta di sostituzione, compare in cima all'app un avviso interattivo con i pulsanti **`✅ Accetta Sostituzione`** e **`❌ Rifiuta`**.
+### Guida Dettagliata alle 5 Schede del Centro IA
+
+#### Modulo 1 — 🕵️‍♂️ Revisore Ore, Paghe & Auto-Validazione 1-Click
+Scansiona tutte le assegnazioni e le timbrature (`TimeTracking`) del periodo selezionato effettuando 5 controlli incrociati:
+1. **Scostamento Orario Significativo**: Segnala se un dipendente dichiara più del ±25% (o oltre ±1 ora) rispetto alla durata prevista del turno senza note giustificative.
+2. **Disallineamento tra Compagni di Squadra**: Intercetta i casi in cui due membri della stessa squadra sullo stesso cantiere dichiarano durate diverse tra loro.
+3. **Conflitto Ore Lavorate / Assenza**: Segnala con gravità **CRITICA** se un lavoratore ha ore registrate in un giorno in cui risulta in Malattia, Ferie o Permesso giornaliero.
+4. **Sforamento Monte Ore Settimanale Part-Time**: Avvisa quando il cumulo settimanale di un operatore supera il tetto previsto dal suo contratto.
+5. **Turni Passati Non Compilati**: Elenca i turni già svolti in cui nessun componente della squadra ha ancora inserito le ore.
+- **Pulsante `⚡ Auto-Valida Tutte le Ore Regolari (1-Click)`**: Convalida in blocco tutte le timbrature che hanno superato i 5 controlli senza anomalie, risparmiando ore di spunta manuale a fine mese.
+
+#### Modulo 2 — 💬 Assistente NLP, Triage Segnalazioni & Analizzatore Documenti
+Include tre strumenti intelligenti:
+1. **Assistente Conversazionale NLP (Telegram + Web App `/app/`)**: Permette agli operatori di scrivere o dettare a voce frasi naturali (es. *"Oggi 4 ore al Condominio Rossi"*, *"Domani sono in malattia"*) preparando l'operazione pronta da confermare.
+2. **📄 Analizzatore Intelligente Documenti, Certificati Medici & Attestati**:
+   - Incollando il testo (o l'esito OCR) di un certificato medico INPS, di un verbale di idoneità sanitaria o di un attestato di formazione e selezionando il dipendente:
+   - L'IA riconosce il **Tipo di Documento**, estrae le **Date di Inizio/Fine** o la **Data di Scadenza** e il **Numero di Protocollo PUC**.
+   - Spuntando **"Applica subito in automatico"**, Kandor **crea direttamente l'assenza per Malattia** (o **aggiorna la data di scadenza della Visita Medica** nella scheda del dipendente) con un solo click!
+3. **🚨 Tabella Triage Automatico Segnalazioni Cantiere**: Mostra le ultime segnalazioni inviate dai lavoratori classificate per **Urgenza IA** (`CRITICA`, `ALTA`, `MEDIA`, `BASSA`), **Categoria IA** e **Azione Consigliata**.
+
+#### Modulo 3 — 🎯 Smart Sostituzioni Predittive (Smart Score 0–100)
+Riepiloga le richieste di sostituzione recenti e collega direttamente al motore **Trova Sostituto (`/find-jolly/`)** dove ogni candidato Jolly viene classificato con un punteggio predittivo da **0 a 100** basato su storico presenze nel cantiere, distanza km, carico orario settimanale, affidabilità storica e idoneità corsi/visita medica.
+
+#### Modulo 4 — 🛡️ Compliance Guardian (ZTL Città Alta, Mezzi, Corsi) & Briefing Mattutino
+Analizza preventivamente tutti i turni programmati nei **prossimi 7 giorni** per azzerare il rischio di multe o sanzioni ispettive:
+- **Controllo ZTL Bergamo Città Alta**: Verifica se un turno presso un cliente situato in *Città Alta / ZTL* ha un mezzo assegnato con **Permesso Città Alta scaduto o mancante**.
+- **Controllo Scadenze Mezzi in Turno**: Segnala se il furgone assegnato a una squadra ha l'**Assicurazione** o la **Revisione scaduta**, offrendo il pulsante rapido **`🔧 Metti Mezzo in Manutenzione`** per bloccarlo in 1 click.
+- **Controllo Visita Medica e Corsi Speciali Cantiere**: Verifica se gli operatori in turno hanno la visita medica scaduta o se mancano dei corsi specifici richiesti dalle note mansioni del cantiere (es. *DPI 3 Lavori in Quota*, *Piattaforme Mobili PLE*, *HACCP*, *Antincendio*).
+- **☀️ Briefing Operativo Mattutino (`📲 Invia Briefing su Telegram`)**: Genera il bollettino direzionale della giornata e permette di inviarlo con un click su Telegram ai Titolari.
+
+#### Modulo 5 — 📈 Controllo Marginalità, Burn-Rate e Lavori Extra Fatturabili
+Offre il controllo economico in tempo reale su tutti i cantieri attivi nel mese:
+- **💰 Lavori Extra Fatturabili Rilevati dalle Note**: L'IA legge tutte le note inserite dai dipendenti a fine turno (`TimeTracking.note`) e intercetta parole chiave di lavori straordinari o fuori capitolato (*"extra"*, *"allagamento"*, *"emergenza"*, *"sgombero"*, *"vetri extra"*, *"richiesto dal cliente"*), elencandole pronte per essere fatturate a parte dall'amministrazione.
+- **📊 Tabella Burn-Rate & Proiezione Sforamento Mensile**: Per ogni cliente confronta le **Ore Contratto Mensili**, le **Ore Già Lavorate**, la **Proiezione Matematica a Fine Mese** (in base ai giorni trascorsi), lo **Scostamento Stimato** e la **Resa Oraria Effettiva (€/h)**, segnalando con semaforo 🔴 **SFORAMENTO CRITICO** o 🟠 **ATTENZIONE** i cantieri che stanno consumando il budget troppo velocemente.
 
 ---
 
-## 22. Integrazione Bot Telegram per Lavoratori
+## 22. Web App Mobile per Dipendenti (`/app/`), PIN 4 Cifre e Assistente Vocale IA
 
 ### Scopo Operativo
-Fornire ai lavoratori che utilizzano Telegram uno strumento immediato a bottoni sul proprio smartphone, completamente sincronizzato con la Web App Mobile e con il gestionale.
+Fornire a tutti i dipendenti un'applicazione mobile completa (Progressive Web App — PWA), installabile sulla schermata Home dello smartphone (Android e iPhone) **senza bisogno di avere Telegram**, dotata anche di **Assistente Rapido IA con dettatura vocale**.
+
+### Indirizzo Ufficiale e Credenziali di Accesso
+- **URL per i Dipendenti**: 👉 **[https://kandor.onrender.com/app/](https://kandor.onrender.com/app/)**
+- **Credenziali del Lavoratore**:
+  1. **Codice Fiscale** (16 caratteri alfanumerici).
+  2. **PIN personale di 4 cifre** (`pin_accesso`), visibile e gestibile dall'amministrazione nella colonna **`🔑 PIN & App`** della lista Dipendenti.
+
+### 🤖 Assistente Rapido IA (Testo o Voce) nella Web App
+In cima alla scheda principale **⏱ Oggi & Ore**, il dipendente trova il box **"🤖 Assistente Rapido IA (Testo o Voce)"**:
+- Toccando il pulsante del **microfono `🎙️`** (Dettatura Vocale nativa dello smartphone) oppure scrivendo nella casella, il lavoratore può dire o digitare una frase naturale come:
+  - *"Oggi 4 ore da Condominio Rossi"* → L'IA compila e registra direttamente le ore sul turno corrispondente!
+  - *"Domani sono in malattia"* → L'IA prepara la richiesta di assenza.
+  - *"È finita la candeggina in cantiere"* → L'IA crea la segnalazione con Triage automatico per l'ufficio.
+
+### Le 5 Schede Operative della Web App Mobile
+1. **⏱ Oggi & Ore**:
+   - Box **🤖 Assistente Rapido IA (Testo o Voce)**.
+   - Riepilogo mensile in tempo reale (*Ore Validate ✅*, *In Attesa ⏳*, *Totale Mese*).
+   - Elenco dei turni della giornata con pulsante **`⏱ Inserisci Ore`** (che apre e scorre automaticamente al modulo di inserimento ore del turno), indirizzo con **📍 Apri Mappa (Google Maps)** e **conferma presenza dei compagni di squadra**.
+   - Sezione **📋 Turni da Compilare (Ultimi 7 Giorni)** per recuperare i turni passati dimenticati.
+2. **📅 Calendario**:
+   - Navigatore giornaliero (`◀ Prec.` / `Oggi` / `Succ. ▶`) e panoramica completa dei turni programmati nei **prossimi 7 giorni**.
+3. **🏥 Assenze**:
+   - Invio immediato di comunicazioni per **Malattia**, **Ferie**, **Permesso Orario** e **Legge 104**, più storico delle richieste con stato di avvallo in tempo reale (*In attesa di avvallo*, *Approvata*, *Rifiutata*).
+4. **💬 Ufficio (Chat Diretta & Segnalazioni con Triage IA)**:
+   - **Chat Bidirezionale**: Messaggistica istantanea con l'amministrazione con invio di **foto o allegati PDF** e download di documenti/cedolini inviati dall'ufficio.
+   - **🚨 Segnalazioni Cantiere**: Modulo per segnalare guasti o anomalie (classificate automaticamente dal Triage IA) e consultare lo stato di risoluzione.
+5. **👤 Profilo & 🔄 Sostituzioni**:
+   - Caricamento/aggiornamento della **Foto Profilo** (con avatar automatico su iniziali in caso di assenza foto).
+   - Visualizzazione scadenze della **Visita Medica** e dei **Corsi di Formazione**.
+   - **Banner Sostituzioni Urgenti**: Avviso interattivo in cima all'app con i pulsanti **`✅ Accetta Sostituzione`** e **`❌ Rifiuta`**.
+
+---
+
+## 23. Integrazione Bot Telegram e Linguaggio Naturale IA per Lavoratori
+
+### Scopo Operativo
+Fornire ai lavoratori che utilizzano Telegram uno strumento immediato sul proprio smartphone, utilizzabile sia tramite **menu a bottoni** sia scrivendo **frasi libere in linguaggio naturale** grazie al motore IA integrato.
 
 ### Nome e Contatto del Bot
 - Nome Bot: **Kandor Assistente** (`@kandor_gestionale_bot`)
 - Link di avvio: **[https://t.me/kandor_gestionale_bot](https://t.me/kandor_gestionale_bot)**
 
-### Bottoni del Menu Principale Telegram
-All'invio di qualsiasi testo, il bot risponde mostrando i bottoni guida:
-- ⏱ **Registra Ore**: Mostra i turni della giornata, permette di confermare i compagni di squadra presenti e di digitare le ore svolte.
-- 📋 **Turni Non Compilati**: Elenca i turni degli ultimi 7 giorni ancora privi di consuntivo.
-- 📅 **I Miei Turni**: Mostra il calendario dei turni di oggi e della settimana.
-- 🤒 **Malattia** / 🏖️ **Ferie** / 📝 **Permesso**: Registrazione guidata dello stato di assenza (anche con fascia oraria o Legge 104).
-- ⚠️ **Segnalazione**: Invio di note o fotografie direttamente all'ufficio.
-- 📖 **Guida**: Apertura del manuale istruzioni completo per il lavoratore (`/manuale-dipendente/`).
+### Bottoni del Menu Principale e Assistente IA su Telegram
+- **Menu a Bottoni**: `⏱ Registra Ore`, `📋 Turni Non Compilati`, `📅 I Miei Turni`, `🤒 Malattia / Ferie / Permesso`, `⚠️ Segnalazione`, `📖 Guida`.
+- **Comprensione Frasi Libere con Conferma in 1 Click**: Se il lavoratore scrive direttamente in chat una frase come *"Oggi ho fatto 4 ore"* oppure *"Domani sono in malattia"*, l'IA di Kandor comprende l'intenzione e risponde mostrando un **bottone di conferma rapida in 1 click** (es. **`✅ Conferma 4.0h su Condominio Rossi`** oppure **`✅ Conferma MALATTIA (24/10 - 24/10)`**), registrando l'operazione istantaneamente appena il dipendente tocca il bottone!
 
 ---
 
-## 23. Messaggi Programmati e Comunicazioni di Massa
+## 24. Messaggi Programmati e Comunicazioni di Massa
 
 ### Scopo Operativo
-Pianificazione dell'invio differito di comunicazioni o circolari aziendali ai lavoratori.
+Pianificazione dell'invio differito di comunicazioni, circolari o allegati PDF (es. cedolini, avvisi) ai lavoratori.
 
 ### Percorso di Navigazione
 👉 **Dashboard** → **Messaggi Programmabili** (oppure `/admin/core/messaggioprogrammato/`)
 
 ### Configurazione Invio
-1. Inserisci il **Titolo** ed il **Testo del Messaggio**.
+1. Inserisci il **Titolo**, il **Testo del Messaggio** ed eventualmente carica un **File Allegato**.
 2. Imposta la **Data e Ora di Invio** programmata.
 3. Seleziona i **Destinatari Specifici** oppure spunta la casella **"Invia a TUTTI"** per raggiungere l'intero organico attivo.
 4. Il sistema eseguirà l'invio automatico all'orario stabilito.
 
 ---
 
-## 24. Centro Messaggi Unificato (Web App + Telegram) e Invio Allegati
+## 25. Centro Messaggi Unificato (Web App + Telegram) e Invio Allegati
 
 ### Scopo Operativo
 Console di messaggistica bidirezionale in tempo reale per conversare direttamente con tutti i dipendenti attivi (sia quelli che usano la **Web App Mobile `/app/`**, sia quelli collegati a **Telegram**) senza uscire dall'interfaccia di Kandor.
@@ -589,7 +650,7 @@ Console di messaggistica bidirezionale in tempo reale per conversare direttament
 
 ---
 
-## 25. Gestione Dati, Import/Export Excel e Backup
+## 26. Gestione Dati, Import/Export Excel e Backup
 
 ### Scopo Operativo
 Strumenti di caricamento massivo dati da fogli di calcolo e salvataggio di sicurezza dell'intero database aziendale.
@@ -610,54 +671,46 @@ Strumenti di caricamento massivo dati da fogli di calcolo e salvataggio di sicur
 
 ---
 
-## 26. Widget Dashboard e Monitoraggio Scadenze
+## 27. Widget Dashboard e Monitoraggio Scadenze
 
 Il pannello informativo destro della Dashboard include widget ad aggiornamento automatico:
 
-1. 🚗 **Scadenze Veicoli**:
+1. 🚗 **Scadenze Veicoli & Permessi ZTL Città Alta**:
    - Visualizza i veicoli con **Assicurazione**, **Bollo**, **Revisione** o **Permesso ZTL Città Alta** (con relativo numero permesso) in scadenza nei successivi 45 giorni (colore arancione) o già scaduti (colore rosso).
 2. 🩺 **Scadenze Visite Mediche**:
    - Segnala automaticamente i dipendenti attivi con **Prossima scadenza visita medica** entro i successivi **20 giorni** (in arancione) o già scaduta (in rosso), con collegamento diretto alla scheda del lavoratore.
 3. 🎓 **Scadenze Corsi di Formazione**:
-   - Monitora gli attestati di sicurezza dei lavoratori (*Primo Soccorso*, *Antincendio*, *Formazione Specifica*, ecc.) evidenziando quelli in scadenza entro **30 giorni** o scaduti.
+   - Monitora gli attestati di sicurezza dei lavoratori (*Primo Soccorso*, *Antincendio*, *Formazione Specifica*, *Lavori in Quota*, *PLE*, *HACCP*, ecc.) evidenziando quelli in scadenza entro **30 giorni** o scaduti.
 4. 🎂 **Compleanni in Arrivo**:
    - Mostra i compleanni dei dipendenti e dei referenti clienti nei successivi 20 giorni.
 5. 📅 **Pianificazione Settimanale**:
-   - Calendario sintetico dei turni con stato delle ore e navigazione rapida.
+   - Calendario interattivo dei turni con stato delle ore, sostituzioni, salti turno in rosso e navigazione rapida.
 6. 📱 **Feed Operativo (Web App & Telegram)**:
    - Flusso in tempo reale degli ultimi messaggi, timbrature e segnalazioni ricevute dagli operatori.
 
 ---
 
-## 27. FAQ, Risoluzione Problemi e Domande Frequenti
+## 28. FAQ, Risoluzione Problemi e Domande Frequenti
 
-### ❓ Il primo caricamento del sito Cloud è lento. È un malfunzionamento?
-**Risposta**: No. Su Render (piano gratuito) il server va in standby dopo 15 minuti di inattività per risparmiare risorse. Il riavvio richiede circa 45-60 secondi, trascorsi i quali la navigazione torna ad essere velocissima.
+### ❓ I 5 moduli di Intelligenza Artificiale (`/ia-hub/`) hanno un costo mensile o a consumo?
+**Risposta**: **No, sono 100% gratuiti e senza alcun costo ricorrente.** L'intero motore IA (`core/ai_engine.py`) è stato sviluppato con algoritmi matematici, regole euristiche e parser NLP in lingua italiana che girano direttamente dentro il server di Kandor. Anche la dettatura vocale nella Web App utilizza le API native gratuite dello smartphone.
 
-### ❓ Un dipendente non ha Telegram o non riesce ad usarlo. Come può registrare le ore e comunicare con l'ufficio?
-**Risposta**: Può utilizzare la **Web App Mobile Dipendenti** collegandosi dal browser del suo cellulare all'indirizzo **`https://kandor.onrender.com/app/`**. Accede inserendo il suo **Codice Fiscale** e il **PIN di 4 cifre** visibile nella colonna **`🔑 PIN & App`** della lista Dipendenti in Admin, ed ha a disposizione tutte le funzioni (registrazione ore, calendario, assenze, chat con allegati, segnalazioni e sostituzioni).
+### ❓ Come funziona l'Auto-Validazione 1-Click delle ore con l'IA?
+**Risposta**: Dal **Centro IA (`/ia-hub/`)** o dalla pagina **Report Paghe (`/report-paghe/`)**, l'**AI Revisore Ore** controlla tutte le timbrature del periodo. Quelle che coincidono con l'orario previsto (entro le soglie di tolleranza), che sono allineate con i compagni di squadra e prive di conflitti con assenze vengono marcate come **Regolari Auto-Validabili**: basta cliccare su **"⚡ Auto-Valida Ore Regolari (1-Click)"** per convalidarle tutte insieme, concentrandosi solo sulle eventuali anomalie segnalate.
+
+### ❓ Cosa devo fare se un dipendente è assente ma decidiamo di NON mandare un sostituto (Salto Turno)?
+**Risposta**: Quando si apre il modale di sostituzione (o dalla sezione *Richieste Sostituzione*), clicca sul pulsante **"⏭️ Non Sostituito (Salto Turno)"** e inserisci la motivazione. La richiesta verrà chiusa come `NON_SOSTITUITO` e sul calendario il turno apparirà evidenziato in **rosso** con il nome dell'assente non sostituito e la nota inserita.
+
+### ❓ Un dipendente non ha Telegram. Come può registrare le ore e comunicare con l'ufficio?
+**Risposta**: Può utilizzare la **Web App Mobile Dipendenti** all'indirizzo **`https://kandor.onrender.com/app/`** entrando con il suo **Codice Fiscale** e il **PIN di 4 cifre** visibile nella colonna **`🔑 PIN & App`** della lista Dipendenti. Dall'app può anche usare il microfono dell'**Assistente Rapido IA** per dettare a voce le ore lavorate!
 
 ### ❓ Dove trovo o come cambio il PIN di 4 cifre di un dipendente?
-**Risposta**: Vai in **Dashboard → Dipendenti**: nella tabella vedrai la colonna **`🔑 PIN & App`** con il codice di 4 cifre di ciascun lavoratore. Puoi cambiarlo aprendo la scheda del dipendente (sezione *Contatti, App Mobile & Telegram*) oppure rigenerarlo in automatico selezionando il dipendente e usando l'azione **"🔑 Rigenera PIN 4 cifre (App Mobile)"**.
-
-### ❓ Un dipendente dice di non ricevere i messaggi dal Bot Telegram. Cosa verificare?
-**Risposta**:
-1. Verifica che nella scheda del dipendente sia stato inserito il **Telegram Chat ID** corretto.
-2. Assicurati che il dipendente abbia cliccato su **"AVVIA"** / **"/start"** all'interno del Bot `@kandor_gestionale_bot` (oppure fagli usare direttamente la Web App Mobile `/app/`).
-
-### ❓ Come si recupera il Telegram Chat ID di un dipendente?
-**Risposta**: Fai scrivere un messaggio qualsiasi al lavoratore verso il bot `@kandor_gestionale_bot`. Se il suo ID non è ancora registrato, il bot gli risponderà comunicandogli il suo numero univoco (es. `123456789`). L'amministratore dovrà semplicemente copiare quel numero nella scheda del dipendente.
+**Risposta**: Vai in **Dashboard → Dipendenti**: nella tabella vedrai la colonna **`🔑 PIN & App`** con il codice di 4 cifre di ciascun lavoratore. Puoi cambiarlo aprendo la scheda del dipendente oppure rigenerarlo in automatico selezionando il dipendente e usando l'azione **"🔑 Rigenera PIN 4 cifre (App Mobile)"**.
 
 ### ❓ Perché nel report delle buste paga le ore non corrispondono con quelle che dichiara il dipendente?
-**Risposta**: Il report contabile contabilizza soltanto le **ore convalidate** (badge verde). Se il dipendente ha inserito le ore ma l'amministrazione non le ha ancora convalidate (badge ambra ⏳), le ore rimarranno in stato provvisorio. Inoltre, l'amministrazione può intervenire in qualsiasi momento tramite il pulsante **`✏️ Rettifica`** per impostare gli override correttivi.
-
-### ❓ Cosa succede se inserisco un dato errato o incompleto in un form? Il sistema mi disconnette?
-**Risposta**: No. In caso di inserimento di dati errati o non validi (es. Codice Fiscale di lunghezza errata, targa duplicata o date incongruenti), il sistema evidenzia l'errore in un banner rosso e segnala il campo specifico. L'utente rimane all'interno della pagina con le informazioni già compilate conservate, senza venire disconnesso o reindirizzato a schermate di errore generico (500).
-
-### ❓ Come funziona la selezione ordinata dei sostituti all'approvazione dell'assenza?
-**Risposta**: All'approvazione dell'assenza (malattia, ferie, permesso) parte in automatico la procedura di sostituzione. Prima dell'invio dei messaggi, si apre la finestra pop-up con l'elenco dei sostituti idonei trovati dal sistema. L'amministrazione può selezionare le persone desiderate e definirne l'ordine numerico di invio dell'avviso (1°, 2°, 3° scelta), così che le notifiche vengano inoltrate secondo le preferenze stabilite.
+**Risposta**: Il report contabile contabilizza soltanto le **ore convalidate** (badge verde). Se il dipendente ha inserito le ore ma l'amministrazione non le ha ancora convalidate (badge ambra ⏳), puoi approvarle in blocco con il bottone **⚡ Auto-Valida Ore Regolari (1-Click)** oppure intervenire tramite il pulsante **`✏️ Rettifica`** per impostare gli override correttivi.
 
 ---
 
-> **KANDOR ERP** — Gestionale Operativo per Imprese di Servizi  
-> *Sviluppato da Studio Serra — © 2026*
+> **KANDOR ERP** — Gestionale Operativo con Intelligenza Artificiale Integrata per Imprese di Servizi  
+> *Sviluppato da Studio Serra — Versione 3.0 — © 2026*

@@ -1224,7 +1224,7 @@ def toggle_telegram_status(request, model_name, item_id):
         return HttpResponse(f'Error: {str(e)}', status=500)
 
 def manuale_pdf_view(request):
-    """Restituisce il file PDF completo di 33 pagine con screenshot del Manuale Utente Kandor."""
+    """Restituisce il file PDF completo di 41 pagine con screenshot del Manuale Utente Kandor (v3.0)."""
     import os
     from django.http import FileResponse, Http404
     pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE_KANDOR.pdf')

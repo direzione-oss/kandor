@@ -45,10 +45,11 @@ class ManualePDF(FPDF):
         # Info
         self.set_font('Helvetica', '', 11)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 7, 'Versione 2.8 - Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 7, 'Sistema ERP per Imprese di Pulizie e Facility Management', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Versione 3.0 - Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Sistema ERP con Centro IA & Automazioni Smart a Costo Zero', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(8)
         self.cell(0, 7, 'URL Gestionale: https://kandor.onrender.com', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Centro IA & Automazioni: https://kandor.onrender.com/ia-hub/', align='C', new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 7, 'Web App Dipendenti: https://kandor.onrender.com/app/', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(30)
         self.set_font('Helvetica', 'I', 10)
