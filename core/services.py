@@ -17,10 +17,18 @@ def genera_turni_automatici(days=365):
     count = 0
     programmazioni = ProgrammazioneRicorrente.objects.filter(squadra_abituale__isnull=False)
 
-    # Trova la data piu' remota tra i contratti attivi e oggi
+    # Programmazioni che hanno già uno storico nel passato non devono rigenerare nuovi turni nel passato
+    progs_with_past = set(
+        AssegnazioneTurno.objects.filter(
+            programmazione_feriale__in=programmazioni,
+            turno__data__lt=today
+        ).values_list('programmazione_feriale_id', flat=True).distinct()
+    )
+
+    # Trova la data piu' remota tra i contratti attivi (senza storico già consolidato) e oggi
     min_start = today
     for prog in programmazioni:
-        if prog.data_inizio_contratto and prog.data_inizio_contratto < min_start:
+        if prog.pk not in progs_with_past and prog.data_inizio_contratto and prog.data_inizio_contratto < min_start:
             min_start = prog.data_inizio_contratto
 
     start_date = min_start
@@ -54,24 +62,27 @@ def genera_turni_automatici(days=365):
             if prog.data_fine_contratto and current_date > prog.data_fine_contratto:
                 continue  # Contratto scaduto
             
+            if current_date < today and prog.pk in progs_with_past:
+                continue
+
             squadra = prog.squadra_abituale
-            
-            # Crea/Recupera Turno
-            turno = Turno.objects.filter(data=current_date, squadra=squadra).first()
-            if not turno:
-                turno = Turno.objects.create(
-                    data=current_date,
-                    squadra=squadra,
-                    mezzo=prog.mezzo_abituale
-                )
-            
-            # Evita duplicati
+
+            # Evita duplicati (controlla sulla data per non duplicare se la squadra è cambiata)
             exists = AssegnazioneTurno.objects.filter(
-                turno=turno,
+                turno__data=current_date,
                 programmazione_feriale=prog
             ).exists()
             
             if not exists:
+                # Crea/Recupera Turno
+                turno = Turno.objects.filter(data=current_date, squadra=squadra).first()
+                if not turno:
+                    turno = Turno.objects.create(
+                        data=current_date,
+                        squadra=squadra,
+                        mezzo=prog.mezzo_abituale
+                    )
+
                 orario_inizio = prog.ora_inizio
                 
                 if prog.durata:
@@ -84,7 +95,7 @@ def genera_turni_automatici(days=365):
                 else:
                         orario_fine = orario_inizio # Should not happen ideally
                 
-                AssegnazioneTurno.objects.create(
+                assign = AssegnazioneTurno.objects.create(
                     turno=turno,
                     cliente=prog.cliente,
                     programmazione_feriale=prog,

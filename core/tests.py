@@ -578,3 +578,43 @@ class ModificaCedolinoTestCase(TestCase):
 
 
 
+
+
+from django.core.exceptions import ValidationError
+
+class DipendentePartTimeTestCase(TestCase):
+    def test_part_time_validation_requires_tipo_part_time(self):
+        dip = Dipendente(
+            nome='PartTime', cognome='Test', codice_fiscale='PRTTST80A01H501Z',
+            is_part_time=True, tipo_part_time=None
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            dip.clean()
+        self.assertIn('tipo_part_time', ctx.exception.message_dict)
+
+    def test_part_time_valid_choices(self):
+        for idx, choice in enumerate(['M', 'V', 'O']):
+            dip = Dipendente(
+                nome='PartTime', cognome=f'Test{idx}', codice_fiscale=f'PRTTST80A01H50{idx}Z',
+                is_part_time=True, tipo_part_time=choice
+            )
+            dip.clean()  # Should not raise
+            dip.save()
+            self.assertEqual(dip.tipo_part_time, choice)
+
+    def test_admin_part_time_display(self):
+        from core.admin import DipendenteAdmin
+        from django.contrib.admin.sites import AdminSite
+        admin_obj = DipendenteAdmin(Dipendente, AdminSite())
+
+        dip_full = Dipendente.objects.create(
+            nome='Full', cognome='Time', codice_fiscale='FLLTIM80A01H501Z',
+            is_part_time=False
+        )
+        self.assertEqual(admin_obj.part_time_display(dip_full), "Full-Time")
+
+        dip_part = Dipendente.objects.create(
+            nome='Part', cognome='Time', codice_fiscale='PRTTIM80A01H501Z',
+            is_part_time=True, tipo_part_time='M'
+        )
+        self.assertEqual(admin_obj.part_time_display(dip_part), "Part-Time (M - Misto)")

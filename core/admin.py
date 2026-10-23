@@ -36,6 +36,7 @@ class ModificaCedolinoAdmin(KandorBaseAdmin):
     list_display = (
         'dipendente', 'data_inizio', 'data_fine',
         'giorni_lavorati_override', 'ore_lavorate_override', 'ore_validate_override',
+        'giorni_ferie_override', 'giorni_permesso_override', 'giorni_malattia_override', 'giorni_104_override',
         'modificato_da', 'updated_at'
     )
     list_filter = ('data_inizio', 'data_fine', 'modificato_da')
@@ -190,9 +191,9 @@ admin.site.index_title = "Benvenuto in Kandor"
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
-    list_filter = ('stato', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
+    list_filter = ('stato', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
     actions = ['send_telegram_message_action']
     readonly_fields = ('anteprima_foto_telegram',)
@@ -205,12 +206,12 @@ class DipendenteAdmin(KandorBaseAdmin):
         }),
         ('Dati Contrattuali', {
             'fields': (
-                'categoria_protetta', 'file_contratto',
+                'categoria_protetta', 'usufruisce_104', 'file_contratto',
                 'data_assunzione', 'data_licenziamento',
-                'is_part_time', 'ore_settimanali_part_time',
+                'is_part_time', 'tipo_part_time', 'ore_settimanali_part_time',
                 'data_ultima_visita_medica',
             ),
-            'description': 'Inserire la data di assunzione e, se applicabile, la data di fine rapporto.',
+            'description': 'Inserire la data di assunzione e, se il contratto è Part-Time, selezionare la sigla: M (Misto), V (Verticale) o O (Orizzontale).',
         }),
         ('Qualifiche & Squadra', {
             'fields': ('qualifiche', 'is_sostituto')
@@ -220,6 +221,17 @@ class DipendenteAdmin(KandorBaseAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    @admin.display(description='Legge 104', boolean=True)
+    def usufruisce_104_display(self, obj):
+        return obj.usufruisce_104
+
+    @admin.display(description='Contratto')
+    def part_time_display(self, obj):
+        if not obj.is_part_time:
+            return "Full-Time"
+        tipo = obj.get_tipo_part_time_display() or obj.tipo_part_time
+        return f"Part-Time ({tipo})" if tipo else "Part-Time"
 
     def _get_photo_url(self, obj):
         if not obj:
@@ -317,6 +329,63 @@ class DipendenteAdmin(KandorBaseAdmin):
             'employees': queryset,
             'selected_ids': request.POST.getlist(admin.helpers.ACTION_CHECKBOX_NAME)
         })
+
+    def _safe_delete_or_terminate_dipendente(self, obj, today):
+        """
+        Se il dipendente ha storico passato (ore lavorate, assenze o cedolini),
+        evita la cancellazione fisica (che farebbe perdere i cedolini passati)
+        e lo imposta come INATTIVO (licenziato) cancellando solo i turni da oggi in poi.
+        """
+        from .models import TimeTracking, Assenza, ModificaCedolino
+        from .signals import gestisci_licenziamento_dipendente
+
+        cutoff = obj.data_licenziamento or today
+        gestisci_licenziamento_dipendente(obj, cutoff_date=cutoff)
+
+        has_past_history = (
+            TimeTracking.objects.filter(dipendente=obj, assegnazione__turno__data__lt=cutoff).exists()
+            or Assenza.objects.filter(dipendente=obj, data_inizio__lt=cutoff).exists()
+            or ModificaCedolino.objects.filter(dipendente=obj).exists()
+        )
+        if has_past_history:
+            obj.stato = 'INATTIVO'
+            if not obj.data_licenziamento:
+                obj.data_licenziamento = today
+            obj.save()
+            return False  # Convertito in licenziamento/inattivazione per preservare lo storico
+        else:
+            obj.delete()
+            return True
+
+    def delete_model(self, request, obj):
+        from django.utils import timezone
+        today = timezone.now().date()
+        deleted = self._safe_delete_or_terminate_dipendente(obj, today)
+        if not deleted:
+            self.message_user(
+                request,
+                f"ℹ️ Il dipendente {obj} possiede ore/cedolini storici: è stato impostato come INATTIVO (licenziato in data {obj.data_licenziamento.strftime('%d/%m/%Y')}), "
+                f"rimuovendo tutti i turni futuri ma preservando lo storico passato per i cedolini.",
+                messages.WARNING,
+            )
+
+    def delete_queryset(self, request, queryset):
+        from django.utils import timezone
+        today = timezone.now().date()
+        preserved = 0
+        deleted = 0
+        for obj in queryset:
+            if self._safe_delete_or_terminate_dipendente(obj, today):
+                deleted += 1
+            else:
+                preserved += 1
+        if preserved:
+            self.message_user(
+                request,
+                f"ℹ️ {preserved} dipendente/i con storico ore/cedolini impostato/i come INATTIVO (turni futuri rimossi, storico passato preservato).",
+                messages.WARNING,
+            )
+
 
 class ProgrammazioneInline(admin.StackedInline):
     model = ProgrammazioneRicorrente
@@ -440,7 +509,7 @@ class ClienteAdmin(KandorBaseAdmin):
 
 @admin.register(Mezzo)
 class MezzoAdmin(KandorBaseAdmin):
-    list_display = ('targa', 'modello', 'stato', 'km_attuali', 'scadenza_polizza', 'scadenza_bollo')
+    list_display = ('targa', 'modello', 'stato', 'km_attuali', 'scadenza_polizza', 'scadenza_revisione')
     list_filter = ('stato',)
     search_fields = ('targa', 'modello')  # Necessario per autocomplete_fields
 
@@ -536,6 +605,32 @@ class SquadraAdmin(KandorBaseAdmin):
             'total_recipients': total_recipients,
             'selected_ids': request.POST.getlist(admin.helpers.ACTION_CHECKBOX_NAME)
         })
+
+    def delete_model(self, request, obj):
+        from django.utils import timezone
+        from .signals import gestisci_eliminazione_squadra
+        today = timezone.now().date()
+        gestisci_eliminazione_squadra(obj, cutoff_date=today)
+        super().delete_model(request, obj)
+        self.message_user(
+            request,
+            f"✅ Squadra '{obj.nome}' eliminata: rimossi solo i turni dal {today.strftime('%d/%m/%Y')} in poi. Tutti i turni e le ore del passato sono stati mantenuti.",
+            messages.SUCCESS,
+        )
+
+    def delete_queryset(self, request, queryset):
+        from django.utils import timezone
+        from .signals import gestisci_eliminazione_squadra
+        today = timezone.now().date()
+        for obj in list(queryset):
+            gestisci_eliminazione_squadra(obj, cutoff_date=today)
+            obj.delete()
+        self.message_user(
+            request,
+            f"✅ Squadre eliminate: rimossi solo i turni dal {today.strftime('%d/%m/%Y')} in poi. Tutti i turni e le ore del passato sono stati mantenuti.",
+            messages.SUCCESS,
+        )
+
 
 class AssegnazioneInline(admin.TabularInline):
     model = AssegnazioneTurno

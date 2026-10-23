@@ -45,10 +45,10 @@ def expiring_vehicles_widget():
     
     # Polizza
     expiring_polizza = Q(scadenza_polizza__isnull=False) & Q(scadenza_polizza__lte=threshold)
-    # Bollo
-    expiring_bollo = Q(scadenza_bollo__isnull=False) & Q(scadenza_bollo__lte=threshold)
+    # Revisione
+    expiring_revisione = Q(scadenza_revisione__isnull=False) & Q(scadenza_revisione__lte=threshold)
     
-    veicoli = Mezzo.objects.filter(expiring_polizza | expiring_bollo).distinct()
+    veicoli = Mezzo.objects.filter(expiring_polizza | expiring_revisione).distinct()
     
     processed_vehicles = []
     for mezzo in veicoli:
@@ -61,13 +61,13 @@ def expiring_vehicles_widget():
                 days = (mezzo.scadenza_polizza - today).days
                 alerts.append({'type': 'Polizza', 'date': mezzo.scadenza_polizza, 'status': f'Scade tra {days} gg', 'color': 'orange'})
                 
-        # Check Bollo
-        if mezzo.scadenza_bollo:
-            if mezzo.scadenza_bollo < today:
-                alerts.append({'type': 'Bollo', 'date': mezzo.scadenza_bollo, 'status': 'SCADUTO', 'color': 'red'})
-            elif mezzo.scadenza_bollo <= threshold:
-                days = (mezzo.scadenza_bollo - today).days
-                alerts.append({'type': 'Bollo', 'date': mezzo.scadenza_bollo, 'status': f'Scade tra {days} gg', 'color': 'orange'})
+        # Check Revisione
+        if mezzo.scadenza_revisione:
+            if mezzo.scadenza_revisione < today:
+                alerts.append({'type': 'Revisione', 'date': mezzo.scadenza_revisione, 'status': 'SCADUTO', 'color': 'red'})
+            elif mezzo.scadenza_revisione <= threshold:
+                days = (mezzo.scadenza_revisione - today).days
+                alerts.append({'type': 'Revisione', 'date': mezzo.scadenza_revisione, 'status': f'Scade tra {days} gg', 'color': 'orange'})
         
         # Filtra solo quelli rilevanti (potrebbe averne una ok e una scaduta, mostriamo solo alerts)
         relevant_alerts = [a for a in alerts if a['date'] <= threshold]
@@ -250,7 +250,7 @@ def weekly_schedule_widget(context):
     squadra_members_cache = {}
     for shift in shifts_qs_all:
         sq_id = shift.squadra_id
-        if sq_id not in squadra_members_cache:
+        if sq_id and sq_id not in squadra_members_cache and shift.squadra:
             members = []
             if shift.squadra.caposquadra:
                 members.append(shift.squadra.caposquadra)
@@ -332,7 +332,8 @@ def weekly_schedule_widget(context):
         }
 
         for shift in turni_per_data.get(d, []):
-            sq_id = shift.squadra.id
+            sq_id = shift.squadra.id if shift.squadra else f"hist_{shift.nome_squadra}"
+            sq_nome = shift.squadra.nome if shift.squadra else shift.nome_squadra
             if sq_id not in squadra_colors:
                 squadra_colors[sq_id] = COLORS[color_idx % len(COLORS)]
                 color_idx += 1
@@ -347,7 +348,7 @@ def weekly_schedule_widget(context):
             grid_start_min = 4 * 60
 
             # Componenti squadra (da cache in memoria)
-            squadra_members = squadra_members_cache.get(sq_id, [])
+            squadra_members = list(squadra_members_cache.get(shift.squadra_id, [])) if shift.squadra_id else []
 
             # Filtra solo assegnazioni con orari previsti non nulli
             valid_assigns = [
@@ -363,6 +364,11 @@ def weekly_schedule_widget(context):
 
                 esclusi_pks = {m.pk for m in assign.dipendenti_esclusi.all()}
                 active_squadra = [m for m in squadra_members if m.pk not in esclusi_pks]
+                active_pks = {m.pk for m in active_squadra}
+                for tt_item in tt_list:
+                    if tt_item.dipendente and tt_item.dipendente.pk not in esclusi_pks and tt_item.dipendente.pk not in active_pks:
+                        active_squadra.append(tt_item.dipendente)
+                        active_pks.add(tt_item.dipendente.pk)
 
                 # Rileva assenze per i componenti di questo turno in data d
                 comp_assenti = []
@@ -450,8 +456,8 @@ def weekly_schedule_widget(context):
                     'turno_id':     shift.id,
                     'cliente_nome': assign.cliente.ragione_sociale[:25],
                     'cliente_id':   assign.cliente.id,
-                    'squadra_nome': shift.squadra.nome,
-                    'squadra_id':   sq_id,
+                    'squadra_nome': sq_nome,
+                    'squadra_id':   shift.squadra_id or '',
                     'start_hour':   sh,
                     'height':       height,
                     'top_abs':      top_abs,
@@ -471,10 +477,10 @@ def weekly_schedule_widget(context):
                     'assenti_names': ", ".join([a['nome'] for a in comp_assenti]),
                 })
 
-            capo = shift.squadra.caposquadra
+            capo = shift.squadra.caposquadra if shift.squadra else None
             day_data['shifts'].append({
-                'squadra':     shift.squadra.nome,
-                'squadra_id':  sq_id,
+                'squadra':     sq_nome,
+                'squadra_id':  shift.squadra_id or '',
                 'mezzo':       shift.mezzo.targa if shift.mezzo else 'N/D',
                 'caposquadra': capo.cognome if capo else '?',
                 'assignments': assignments_data,

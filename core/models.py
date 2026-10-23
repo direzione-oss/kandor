@@ -43,17 +43,35 @@ class Dipendente(models.Model):
     latitudine = models.FloatField(null=True, blank=True)
     longitudine = models.FloatField(null=True, blank=True)
 
+    TIPO_PART_TIME_CHOICES = [
+        ('M', 'M - Misto'),
+        ('V', 'V - Verticale'),
+        ('O', 'O - Orizzontale'),
+    ]
+
     # Dati Contrattuali
     categoria_protetta = models.BooleanField(default=False)
+    usufruisce_104 = models.BooleanField(
+        default=False,
+        verbose_name="Usufruisce della Legge 104",
+        help_text="Se attivo, abilita la richiesta e il calcolo dei permessi Legge 104 per questo dipendente"
+    )
     file_contratto = models.FileField(upload_to='contratti/', null=True, blank=True)
     data_assunzione = models.DateField(null=True, blank=True, verbose_name="Data di Assunzione")
     data_licenziamento = models.DateField(null=True, blank=True, verbose_name="Data di Licenziamento")
     is_part_time = models.BooleanField(default=False, verbose_name="Contratto Part-Time")
+    tipo_part_time = models.CharField(
+        max_length=1,
+        choices=TIPO_PART_TIME_CHOICES,
+        null=True, blank=True,
+        verbose_name="Tipo Part-Time",
+        help_text="Selezionare M (Misto), V (Verticale) o O (Orizzontale)"
+    )
     ore_settimanali_part_time = models.DecimalField(
         max_digits=4, decimal_places=1,
         null=True, blank=True,
         verbose_name="Ore Settimanali (Part-Time)",
-        help_text="Compilare solo se il contratto è Part-Time"
+        help_text="Facoltativo"
     )
     data_ultima_visita_medica = models.DateField(null=True, blank=True, verbose_name="Prossima scadenza visita medica")
     
@@ -91,10 +109,12 @@ class Dipendente(models.Model):
         if self.data_assunzione and self.data_licenziamento:
             if self.data_licenziamento < self.data_assunzione:
                 raise ValidationError({'data_licenziamento': "La data di licenziamento non può essere precedente alla data di assunzione."})
-        if self.is_part_time and (self.ore_settimanali_part_time is None or self.ore_settimanali_part_time <= 0):
-            raise ValidationError({'ore_settimanali_part_time': "Per i contratti Part-Time è necessario inserire le ore settimanali previste (maggiori di 0)."})
+        if self.is_part_time and not self.tipo_part_time:
+            raise ValidationError({'tipo_part_time': "Per i contratti Part-Time è necessario selezionare la tipologia: M (Misto), V (Verticale) o O (Orizzontale)."})
 
     def save(self, *args, **kwargs):
+        from django.utils import timezone
+        today = timezone.now().date()
         if self.codice_fiscale:
             self.codice_fiscale = self.codice_fiscale.strip().upper()
         # Auto-calculate data_nascita from CF if missing
@@ -103,6 +123,12 @@ class Dipendente(models.Model):
             extracted_date = extract_data_nascita(self.codice_fiscale)
             if extracted_date:
                 self.data_nascita = extracted_date
+
+        # Sincronizza stato INATTIVO e data_licenziamento
+        if self.data_licenziamento and self.data_licenziamento <= today:
+            self.stato = 'INATTIVO'
+        elif self.stato == 'INATTIVO' and not self.data_licenziamento:
+            self.data_licenziamento = today
                 
         super().save(*args, **kwargs)
 
@@ -331,7 +357,7 @@ class Mezzo(models.Model):
     stato = models.CharField(max_length=20, choices=STATO_MEZZO, default='DISPONIBILE', verbose_name="Stato Attuale")
     km_attuali = models.IntegerField(default=0, verbose_name="Km Percorsi")
     scadenza_polizza = models.DateField(null=True, blank=True, verbose_name="Scadenza Polizza")
-    scadenza_bollo = models.DateField(null=True, blank=True, verbose_name="Scadenza Bollo")
+    scadenza_revisione = models.DateField(null=True, blank=True, verbose_name="Scadenza Revisione")
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -361,11 +387,23 @@ class Squadra(models.Model):
 
 class Turno(models.Model):
     data = models.DateField(verbose_name="Data Turno")
-    squadra = models.ForeignKey(Squadra, on_delete=models.CASCADE, verbose_name="Squadra Assegnata")
+    squadra = models.ForeignKey(Squadra, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Squadra Assegnata")
     mezzo = models.ForeignKey(Mezzo, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Mezzo Utilizzato")
+
+    @property
+    def nome_squadra(self):
+        if self.squadra_id and self.squadra:
+            return self.squadra.nome
+        for a in self.assegnazioni.all():
+            if a.mansione_svolta and '[Squadra:' in a.mansione_svolta:
+                try:
+                    return a.mansione_svolta.split('[Squadra:')[1].split(']')[0].strip()
+                except Exception:
+                    pass
+        return "Squadra Storica"
     
     def __str__(self):
-        return f"Turno {self.data} - {self.squadra}"
+        return f"Turno {self.data} - {self.nome_squadra}"
 
     class Meta:
         verbose_name_plural = "Turni"
@@ -397,16 +435,19 @@ class AssegnazioneTurno(models.Model):
 
     @property
     def dipendenti_presenti(self):
-        """Restituisce i dipendenti della squadra effettivamente presenti (squadra - esclusi)."""
-        squadra = self.turno.squadra
-        esclusi = self.dipendenti_esclusi.values_list('pk', flat=True)
-        from django.db.models import Q
+        """Restituisce i dipendenti della squadra effettivamente presenti (squadra - esclusi), inclusi eventuali componenti storici."""
+        squadra = self.turno.squadra if self.turno else None
+        esclusi = set(self.dipendenti_esclusi.values_list('pk', flat=True))
         presenti = []
-        if squadra.caposquadra and squadra.caposquadra.pk not in esclusi:
-            presenti.append(squadra.caposquadra)
-        for c in squadra.componenti.exclude(pk__in=esclusi):
-            if c not in presenti:
-                presenti.append(c)
+        if squadra:
+            if squadra.caposquadra and squadra.caposquadra.pk not in esclusi:
+                presenti.append(squadra.caposquadra)
+            for c in squadra.componenti.exclude(pk__in=esclusi):
+                if c not in presenti:
+                    presenti.append(c)
+        for tt in self.timetracks.select_related('dipendente').all():
+            if tt.dipendente and tt.dipendente.pk not in esclusi and tt.dipendente not in presenti:
+                presenti.append(tt.dipendente)
         return presenti
 
     @property
@@ -530,6 +571,9 @@ class Assenza(models.Model):
         if self.ora_inizio and self.ora_fine:
             if self.ora_fine <= self.ora_inizio:
                 raise ValidationError({'ora_fine': "L'ora di fine deve essere successiva all'ora di inizio."})
+        if self.tipo == '104':
+            if self.dipendente_id and hasattr(self.dipendente, 'usufruisce_104') and not self.dipendente.usufruisce_104:
+                raise ValidationError({'tipo': "Il dipendente selezionato non è abilitato alla fruizione dei permessi Legge 104."})
 
     def __str__(self):
         orario = f" {self.get_orario_display()}" if self.ora_inizio else ""
@@ -729,6 +773,7 @@ class ModificaCedolino(models.Model):
     giorni_ferie_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Ferie Rettificati")
     giorni_permesso_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Permesso Rettificati")
     giorni_malattia_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Malattia Rettificati")
+    giorni_104_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni 104 Rettificati")
     note = models.TextField(blank=True, verbose_name="Motivazione / Note Rettifica")
     modificato_da = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, verbose_name="Modificato da")
     created_at = models.DateTimeField(auto_now_add=True)

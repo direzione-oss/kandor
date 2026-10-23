@@ -662,6 +662,7 @@ def validate_ore_ajax(request, assign_id):
 
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
+        sq_nome = assign.turno.nome_squadra
         data_turno = assign.turno.data
         esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
@@ -673,11 +674,22 @@ def validate_ore_ajax(request, assign_id):
 
         # Raccogli componenti attivi (non esclusi dal turno E NON IN ASSENZA)
         active_dips = []
-        if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids and squadra.caposquadra.pk not in assenti_ids:
-            active_dips.append(squadra.caposquadra)
-        for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-            if c.pk not in esclusi_ids and c.pk not in assenti_ids and c not in active_dips:
-                active_dips.append(c)
+        active_pks = set()
+        if squadra:
+            if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids and squadra.caposquadra.pk not in assenti_ids:
+                active_dips.append(squadra.caposquadra)
+                active_pks.add(squadra.caposquadra.pk)
+            for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+                if c.pk not in esclusi_ids and c.pk not in assenti_ids and c.pk not in active_pks:
+                    active_dips.append(c)
+                    active_pks.add(c.pk)
+
+        # Includi eventuali componenti storici (con TimeTracking già associato al turno)
+        for tt_existing in TimeTracking.objects.filter(assegnazione=assign).select_related('dipendente'):
+            dip_ex = tt_existing.dipendente
+            if dip_ex and dip_ex.pk not in esclusi_ids and dip_ex.pk not in assenti_ids and dip_ex.pk not in active_pks:
+                active_dips.append(dip_ex)
+                active_pks.add(dip_ex.pk)
 
         # Includi eventuali SOSTITUTI confermati (COMPLETATA / ACCETTATA) per questa assegnazione
         sost_confermate = RichiestaSostituzione.objects.filter(
@@ -686,8 +698,9 @@ def validate_ore_ajax(request, assign_id):
             sostituto__isnull=False
         ).select_related('sostituto')
         for sc in sost_confermate:
-            if sc.sostituto and sc.sostituto not in active_dips and sc.sostituto.pk not in assenti_ids:
+            if sc.sostituto and sc.sostituto.pk not in active_pks and sc.sostituto.pk not in assenti_ids:
                 active_dips.append(sc.sostituto)
+                active_pks.add(sc.sostituto.pk)
 
         # Rimuovi eventuali TimeTracking registrati per i dipendenti in ASSENZA per questo turno
         if assenti_ids:
@@ -697,7 +710,7 @@ def validate_ore_ajax(request, assign_id):
             # Se tutti sono in assenza o esclusi e non c'è sostituto
             return JsonResponse({
                 'status': 'ok',
-                'message': f"Tutti i componenti della squadra {squadra.nome} sono in assenza o esclusi per la data {data_turno.strftime('%d/%m')}.",
+                'message': f"Tutti i componenti della squadra {sq_nome} sono in assenza o esclusi per la data {data_turno.strftime('%d/%m')}.",
                 'validated': False,
                 'count': 0,
             })
@@ -736,7 +749,7 @@ def validate_ore_ajax(request, assign_id):
                     'ore_dichiarate': ore_val,
                     'is_validated': validate_flag if action != 'unvalidate' else False,
                     'source': 'ADMIN',
-                    'note': f"Ore valide per la squadra ({squadra.nome})",
+                    'note': f"Ore valide per la squadra ({sq_nome})",
                 }
             )
             if not created:
@@ -756,7 +769,7 @@ def validate_ore_ajax(request, assign_id):
         status_msg = "Ore validate" if validate_flag else ("Validazione rimossa" if action == 'unvalidate' else "Ore salvate")
         return JsonResponse({
             'status': 'ok',
-            'message': f"{status_msg} per {updated_count} dipendenti della squadra {squadra.nome}",
+            'message': f"{status_msg} per {updated_count} dipendenti della squadra {sq_nome}",
             'validated': validate_flag and action != 'unvalidate',
             'count': updated_count,
         })
@@ -831,12 +844,13 @@ def get_assegnazione_componenti_json(request, assign_id):
 
         componenti = []
         presenti_ids = set()
-        if squadra.caposquadra:
-            componenti.append(_build_comp_dict(squadra.caposquadra, 'Caposquadra'))
-            presenti_ids.add(squadra.caposquadra.pk)
-        for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-            componenti.append(_build_comp_dict(c, 'Componente'))
-            presenti_ids.add(c.pk)
+        if squadra:
+            if squadra.caposquadra:
+                componenti.append(_build_comp_dict(squadra.caposquadra, 'Caposquadra'))
+                presenti_ids.add(squadra.caposquadra.pk)
+            for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+                componenti.append(_build_comp_dict(c, 'Componente'))
+                presenti_ids.add(c.pk)
 
         # Aggiungi i sostituti confermati alla lista componenti del turno
         for r in richieste_sost_qs:
@@ -847,6 +861,12 @@ def get_assegnazione_componenti_json(request, assign_id):
                     sostituto_di=f"{r.dipendente_assente.cognome} {r.dipendente_assente.nome}"
                 ))
                 presenti_ids.add(r.sostituto.pk)
+
+        # Aggiungi eventuali componenti storici (presenti in TimeTracking ma rimossi dalla squadra o di squadra eliminata)
+        for tt_dip_id, tt_obj in tt_map.items():
+            if tt_dip_id not in presenti_ids and tt_obj.dipendente:
+                componenti.append(_build_comp_dict(tt_obj.dipendente, 'Componente (storico)'))
+                presenti_ids.add(tt_dip_id)
 
         return JsonResponse({
             'componenti': componenti,
@@ -2426,9 +2446,11 @@ def verifica_ore_view(request):
         squadra = tt.assegnazione.turno.squadra
         cliente = tt.assegnazione.cliente
         ore = float(tt.ore_dichiarate or 0)
+        if ore <= 0:
+            continue
         
-        sq_id = squadra.pk if squadra else 0
-        sq_nome = squadra.nome if squadra else 'Senza Squadra'
+        sq_nome = squadra.nome if squadra else tt.assegnazione.turno.nome_squadra
+        sq_id = squadra.pk if squadra else f"hist_{sq_nome}"
         
         if sq_id not in squadre_data:
             squadre_data[sq_id] = {
@@ -2474,8 +2496,7 @@ def verifica_ore_view(request):
     
     assenze_mese = Assenza.objects.filter(
         Q(data_inizio__lte=ultimo_giorno) & Q(data_fine__gte=primo_giorno),
-        dipendente__stato='ATTIVO'
-    ).select_related('dipendente')
+    ).exclude(stato_approvazione='RIFIUTATA').select_related('dipendente')
     
     # Calcola giorni di assenza per dipendente
     assenze_per_dip = {}
@@ -2636,8 +2657,10 @@ def pdf_verifica_ore(request):
         squadra = tt.assegnazione.turno.squadra
         cliente = tt.assegnazione.cliente
         ore = float(tt.ore_dichiarate or 0)
-        sq_id = squadra.pk if squadra else 0
-        sq_nome = squadra.nome if squadra else 'Senza Squadra'
+        if ore <= 0:
+            continue
+        sq_nome = squadra.nome if squadra else tt.assegnazione.turno.nome_squadra
+        sq_id = squadra.pk if squadra else f"hist_{sq_nome}"
         if sq_id not in squadre_data:
             squadre_data[sq_id] = {'nome': sq_nome, 'dipendenti': {}, 'ore_totali': 0}
         dip_id = dip.pk
@@ -2770,8 +2793,7 @@ def pdf_verifica_ore(request):
     
     assenze_mese = Assenza.objects.filter(
         Q(data_inizio__lte=ultimo_giorno) & Q(data_fine__gte=primo_giorno),
-        dipendente__stato='ATTIVO'
-    ).select_related('dipendente')
+    ).exclude(stato_approvazione='RIFIUTATA').select_related('dipendente')
     
     assenze_per_dip = {}
     for assenza in assenze_mese:
@@ -2900,8 +2922,9 @@ def settimana_pdf_view(request):
     color_idx = 0
     for d in dates:
         for t in turni_per_data[d]:
-            if t.squadra.id not in squad_color_map:
-                squad_color_map[t.squadra.id] = SQUAD_COLORS[color_idx % len(SQUAD_COLORS)]
+            sq_key = t.squadra.id if t.squadra else f"hist_{t.nome_squadra}"
+            if sq_key not in squad_color_map:
+                squad_color_map[sq_key] = SQUAD_COLORS[color_idx % len(SQUAD_COLORS)]
                 color_idx += 1
 
     # ── Layout ──────────────────────────────────────────────────────
@@ -3014,7 +3037,8 @@ def settimana_pdf_view(request):
             c.rect(col_x, grid_bot, day_col_w, grid_h, fill=1, stroke=0)
 
         for sq_idx, t in enumerate(turni_oggi):
-            sq_color_hex = squad_color_map.get(t.squadra.id, '#1565c0')
+            sq_key = t.squadra.id if t.squadra else f"hist_{t.nome_squadra}"
+            sq_color_hex = squad_color_map.get(sq_key, '#1565c0')
             sq_color = colors.HexColor(sq_color_hex)
             sx = col_x + sq_idx * sub_w   # x inizio sub-colonna
             pad = 1.5                       # padding px
@@ -3886,6 +3910,7 @@ def report_paghe_view(request):
         item['ferie_orig'] = item['assenze_dict']['FERIE']
         item['permessi_orig'] = item['assenze_dict']['PERMESSO']
         item['malattia_orig'] = item['assenze_dict']['MALATTIA']
+        item['l104_orig'] = item['assenze_dict']['104']
 
         modifica = modifiche_map.get(dip_id)
         if modifica:
@@ -3898,6 +3923,7 @@ def report_paghe_view(request):
             item['giorni_ferie_override'] = modifica.giorni_ferie_override
             item['giorni_permesso_override'] = modifica.giorni_permesso_override
             item['giorni_malattia_override'] = modifica.giorni_malattia_override
+            item['giorni_104_override'] = modifica.giorni_104_override
 
             item['giorni_lavorati'] = modifica.giorni_lavorati_override if modifica.giorni_lavorati_override is not None else giorni_orig
             item['ore_lavorate'] = round(modifica.ore_lavorate_override, 2) if modifica.ore_lavorate_override is not None else ore_lav_orig
@@ -3909,6 +3935,8 @@ def report_paghe_view(request):
                 item['assenze_dict']['PERMESSO'] = modifica.giorni_permesso_override
             if modifica.giorni_malattia_override is not None:
                 item['assenze_dict']['MALATTIA'] = modifica.giorni_malattia_override
+            if modifica.giorni_104_override is not None:
+                item['assenze_dict']['104'] = modifica.giorni_104_override
         else:
             item['is_rettificato'] = False
             item['modifica_note'] = ''
@@ -3919,6 +3947,7 @@ def report_paghe_view(request):
             item['giorni_ferie_override'] = None
             item['giorni_permesso_override'] = None
             item['giorni_malattia_override'] = None
+            item['giorni_104_override'] = None
             item['giorni_lavorati'] = giorni_orig
             item['ore_lavorate'] = ore_lav_orig
             item['ore_validate'] = ore_val_orig
@@ -4053,6 +4082,8 @@ def pdf_report_paghe(request):
             report_data[dip_id]['permessi'] += giorni
         elif ass.tipo == 'MALATTIA':
             report_data[dip_id]['malattia'] += giorni
+        elif ass.tipo == '104':
+            report_data[dip_id]['l104'] = report_data[dip_id].get('l104', 0) + giorni
         else:
             report_data[dip_id]['altri'] += giorni
 
@@ -4133,6 +4164,7 @@ def pdf_report_paghe(request):
             ferie = modifica.giorni_ferie_override if modifica.giorni_ferie_override is not None else item['ferie']
             permessi = modifica.giorni_permesso_override if modifica.giorni_permesso_override is not None else item['permessi']
             malattia = modifica.giorni_malattia_override if modifica.giorni_malattia_override is not None else item['malattia']
+            l104 = modifica.giorni_104_override if modifica.giorni_104_override is not None else item.get('l104', 0)
             nome_disp = f"{item['cognome_nome']} *"
         else:
             gl = len(item['giorni_set'])
@@ -4141,6 +4173,7 @@ def pdf_report_paghe(request):
             ferie = item['ferie']
             permessi = item['permessi']
             malattia = item['malattia']
+            l104 = item.get('l104', 0)
             nome_disp = item['cognome_nome']
 
         tot_gl += gl
@@ -4322,6 +4355,7 @@ def export_paghe_csv(request):
             ferie = modifica.giorni_ferie_override if modifica.giorni_ferie_override is not None else item['ferie']
             permessi = modifica.giorni_permesso_override if modifica.giorni_permesso_override is not None else item['permessi']
             malattia = modifica.giorni_malattia_override if modifica.giorni_malattia_override is not None else item['malattia']
+            l104 = modifica.giorni_104_override if modifica.giorni_104_override is not None else item['l104']
             is_rett_str = "SÌ"
             note_str = modifica.note or ''
         else:
@@ -4331,6 +4365,7 @@ def export_paghe_csv(request):
             ferie = item['ferie']
             permessi = item['permessi']
             malattia = item['malattia']
+            l104 = item['l104']
             is_rett_str = "NO"
             note_str = ''
 
@@ -4342,7 +4377,7 @@ def export_paghe_csv(request):
             str(round(ore_lav, 2)).replace('.', ','),
             str(round(ore_val, 2)).replace('.', ','),
             str(round(ore_lav - ore_val, 2)).replace('.', ','),
-            ferie, permessi, malattia, item['infortunio'], item['l104'], item['altri'],
+            ferie, permessi, malattia, item['infortunio'], l104, item['altri'],
             is_rett_str, note_str,
             cantieri_str
         ])
@@ -4415,6 +4450,7 @@ def salva_modifica_cedolino_ajax(request):
         giorni_ferie = parse_optional_int(data.get('giorni_ferie_override'))
         giorni_permesso = parse_optional_int(data.get('giorni_permesso_override'))
         giorni_malattia = parse_optional_int(data.get('giorni_malattia_override'))
+        giorni_104 = parse_optional_int(data.get('giorni_104_override'))
         note = data.get('note', '').strip()
 
         modifica, created = ModificaCedolino.objects.update_or_create(
@@ -4428,6 +4464,7 @@ def salva_modifica_cedolino_ajax(request):
                 'giorni_ferie_override': giorni_ferie,
                 'giorni_permesso_override': giorni_permesso,
                 'giorni_malattia_override': giorni_malattia,
+                'giorni_104_override': giorni_104,
                 'note': note,
                 'modificato_da': request.user if request.user.is_authenticated else None,
             }

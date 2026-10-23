@@ -17,7 +17,7 @@ COLUMNS_MAP = {
         'ore_mensili_contratto', 'importo_mensile_contratto', 'note_mansioni'
     ],
     'mezzo': [
-        'targa', 'modello', 'scadenza_assicurazione', 'scadenza_bollo'
+        'targa', 'modello', 'scadenza_assicurazione', 'scadenza_revisione'
     ]
 }
 
@@ -206,9 +206,9 @@ def import_from_excel(model_name, file_obj, mode='UPDATE'):
                 if not pd.isna(scad_ass):
                     try: defaults['scadenza_polizza'] = pd.to_datetime(scad_ass).date()
                     except: pass
-                scad_bollo = row.get('scadenza_bollo')
-                if not pd.isna(scad_bollo):
-                     try: defaults['scadenza_bollo'] = pd.to_datetime(scad_bollo).date()
+                scad_revisione = row.get('scadenza_revisione')
+                if not pd.isna(scad_revisione):
+                     try: defaults['scadenza_revisione'] = pd.to_datetime(scad_revisione).date()
                      except: pass
                 
                 obj, created = Mezzo.objects.update_or_create(
@@ -285,7 +285,7 @@ def export_data_excel(model_name):
             worksheet.write(row_num, 0, mezzo.targa or '')
             worksheet.write(row_num, 1, mezzo.modello or '')
             worksheet.write(row_num, 2, mezzo.scadenza_polizza.strftime('%d/%m/%Y') if mezzo.scadenza_polizza else '')
-            worksheet.write(row_num, 3, mezzo.scadenza_bollo.strftime('%d/%m/%Y') if mezzo.scadenza_bollo else '')
+            worksheet.write(row_num, 3, mezzo.scadenza_revisione.strftime('%d/%m/%Y') if mezzo.scadenza_revisione else '')
             row_num += 1
     
     workbook.close()

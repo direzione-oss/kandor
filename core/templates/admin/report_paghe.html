@@ -514,6 +514,9 @@
                             {% if item.assenze_dict.104 > 0 or item.assenze_dict.INFORTUNIO > 0 or item.assenze_dict.ALTRO > 0 %}
                             <b>{% if item.assenze_dict.104 > 0 %}104: {{ item.assenze_dict.104 }}gg {% endif %}{% if item.assenze_dict.INFORTUNIO > 0 %}Inf: {{ item.assenze_dict.INFORTUNIO }}gg {% endif %}</b>
                             {% else %}-{% endif %}
+                            {% if item.is_rettificato and item.giorni_104_override != None %}
+                            <br><span style="font-size: 0.7rem; color: #64748B;">(calc 104: {{ item.l104_orig }}gg)</span>
+                            {% endif %}
                         </td>
                         <td style="font-size: 0.82rem; color: var(--text-main);">{{ item.clienti_str }}</td>
                         <td style="text-align: center;">
@@ -526,12 +529,14 @@
                                 '{{ item.ferie_orig }}',
                                 '{{ item.permessi_orig }}',
                                 '{{ item.malattia_orig }}',
+                                '{{ item.l104_orig }}',
                                 '{{ item.giorni_lavorati_override|default_if_none:"" }}',
                                 '{{ item.ore_lavorate_override|default_if_none:"" }}',
                                 '{{ item.ore_validate_override|default_if_none:"" }}',
                                 '{{ item.giorni_ferie_override|default_if_none:"" }}',
                                 '{{ item.giorni_permesso_override|default_if_none:"" }}',
                                 '{{ item.giorni_malattia_override|default_if_none:"" }}',
+                                '{{ item.giorni_104_override|default_if_none:"" }}',
                                 '{{ item.modifica_note|escapejs }}',
                                 '{{ item.is_rettificato|yesno:"1,0" }}'
                             )">
@@ -612,6 +617,10 @@
                 <label for="modal_giorni_malattia">Giorni Malattia Rettificati</label>
                 <input type="number" id="modal_giorni_malattia" placeholder="Lascia vuoto per calcolo auto">
             </div>
+            <div class="modal-form-group">
+                <label for="modal_giorni_104">Giorni 104 Rettificati</label>
+                <input type="number" id="modal_giorni_104" placeholder="Lascia vuoto per calcolo auto">
+            </div>
         </div>
 
         <div class="modal-form-group" style="margin-bottom: 16px;">
@@ -634,12 +643,12 @@
 </div>
 
 <script>
-    function apriModalModifica(dipId, dipNome, glOrig, oreLavOrig, oreValOrig, ferieOrig, permOrig, malOrig, glOv, oreLavOv, oreValOv, ferieOv, permOv, malOv, note, isRett) {
+    function apriModalModifica(dipId, dipNome, glOrig, oreLavOrig, oreValOrig, ferieOrig, permOrig, malOrig, l104Orig, glOv, oreLavOv, oreValOv, ferieOv, permOv, malOv, l104Ov, note, isRett) {
         document.getElementById('modal_dipendente_id').value = dipId;
         document.getElementById('modal_dipendente_nome').innerText = dipNome;
 
         document.getElementById('modal_calc_str').innerText = 
-            glOrig + ' gg lavorati | ' + oreLavOrig + 'h totali | ' + oreValOrig + 'h validate | Ferie: ' + ferieOrig + 'gg | Permessi: ' + permOrig + 'gg | Malattia: ' + malOrig + 'gg';
+            glOrig + ' gg lavorati | ' + oreLavOrig + 'h totali | ' + oreValOrig + 'h validate | Ferie: ' + ferieOrig + 'gg | Permessi: ' + permOrig + 'gg | Malattia: ' + malOrig + 'gg | L.104: ' + l104Orig + 'gg';
 
         document.getElementById('modal_giorni_lavorati').value = glOv;
         document.getElementById('modal_ore_lavorate').value = oreLavOv;
@@ -647,6 +656,7 @@
         document.getElementById('modal_giorni_ferie').value = ferieOv;
         document.getElementById('modal_giorni_permesso').value = permOv;
         document.getElementById('modal_giorni_malattia').value = malOv;
+        document.getElementById('modal_giorni_104').value = l104Ov;
         document.getElementById('modal_note').value = note;
 
         const btnReset = document.getElementById('btn_reset_rettifica');
@@ -688,6 +698,7 @@
             giorni_ferie_override: document.getElementById('modal_giorni_ferie').value,
             giorni_permesso_override: document.getElementById('modal_giorni_permesso').value,
             giorni_malattia_override: document.getElementById('modal_giorni_malattia').value,
+            giorni_104_override: document.getElementById('modal_giorni_104').value,
             note: document.getElementById('modal_note').value,
         };
 
