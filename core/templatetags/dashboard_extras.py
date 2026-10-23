@@ -73,12 +73,11 @@ def expiring_vehicles_widget():
 
         # Check Permesso Città Alta (Bergamo)
         if mezzo.scadenza_permesso_citta_alta:
-            lbl_type = f"Permesso Città Alta (BG n. {mezzo.numero_permesso_citta_alta})" if mezzo.numero_permesso_citta_alta else "Permesso Città Alta (BG)"
             if mezzo.scadenza_permesso_citta_alta < today:
-                alerts.append({'type': lbl_type, 'date': mezzo.scadenza_permesso_citta_alta, 'status': 'SCADUTO', 'color': 'red'})
+                alerts.append({'type': 'Permesso Città Alta (BG)', 'date': mezzo.scadenza_permesso_citta_alta, 'status': 'SCADUTO', 'color': 'red'})
             elif mezzo.scadenza_permesso_citta_alta <= threshold:
                 days = (mezzo.scadenza_permesso_citta_alta - today).days
-                alerts.append({'type': lbl_type, 'date': mezzo.scadenza_permesso_citta_alta, 'status': f'Scade tra {days} gg', 'color': 'orange'})
+                alerts.append({'type': 'Permesso Città Alta (BG)', 'date': mezzo.scadenza_permesso_citta_alta, 'status': f'Scade tra {days} gg', 'color': 'orange'})
         
         # Filtra solo quelli rilevanti (potrebbe averne una ok e una scaduta, mostriamo solo alerts)
         relevant_alerts = [a for a in alerts if a['date'] <= threshold]

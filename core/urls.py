@@ -15,7 +15,8 @@ from .views import (
     titolari_dashboard_view, titolari_riepilogo_view,
     settimana_pdf_view,
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup, dev_tools_publish_code,
-    installa_locale_view, installa_locale_download, debug_db_view
+    installa_locale_view, installa_locale_download, debug_db_view,
+    ia_hub_view, ia_auto_valida_ore_api, ia_invia_briefing_api, ia_mezzo_manutenzione_api, ia_analizza_documento_api,
 )
 from .views_webapp import (
     dipendente_app_view,
@@ -109,4 +110,11 @@ urlpatterns = [
     path('app/manifest.json', dipendente_app_manifest_view, name='dipendente_app_manifest'),
     path('app/sw.js', dipendente_app_sw_view, name='dipendente_app_sw'),
     path('app/icon.svg', dipendente_app_icon_view, name='dipendente_app_icon'),
+
+    # Centro IA & Automazioni Zero-Cost
+    path('ia-hub/', ia_hub_view, name='ia_hub'),
+    path('api/ia/auto-valida-ore/', ia_auto_valida_ore_api, name='ia_auto_valida_ore_api'),
+    path('api/ia/invia-briefing/', ia_invia_briefing_api, name='ia_invia_briefing_api'),
+    path('api/ia/mezzo-manutenzione/', ia_mezzo_manutenzione_api, name='ia_mezzo_manutenzione_api'),
+    path('api/ia/analizza-documento/', ia_analizza_documento_api, name='ia_analizza_documento_api'),
 ]

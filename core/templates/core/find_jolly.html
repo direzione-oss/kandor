@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
-{% block title %}Trova Jolly | Kandor{% endblock %}
+{% block title %}Trova Jolly (Smart Sostituzioni IA) | Kandor{% endblock %}
 
 {% block content %}
 <style>
@@ -36,19 +36,20 @@
     }
 
     .btn-submit {
-        background-color: #417690;
+        background-color: #4F46E5;
         color: white;
         padding: 10px 15px;
         border: none;
-        border-radius: 4px;
+        border-radius: 6px;
         cursor: pointer;
         font-size: 14px;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
 
     .btn-submit:hover {
-        background-color: #205067;
+        background-color: #3730A3;
     }
 
     table {
@@ -91,6 +92,26 @@
         color: #0d47a1;
     }
 
+    .badge-ai-motivo {
+        background: #EEF2FF;
+        color: #3730A3;
+        border: 1px solid #C7D2FE;
+        font-weight: 600;
+    }
+
+    .score-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 5px 11px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 13px;
+    }
+    .score-high { background: #D1FAE5; color: #065F46; }
+    .score-mid  { background: #FEF3C7; color: #92400E; }
+    .score-low  { background: #FFE4E6; color: #9F1239; }
+
     .error {
         color: #ba2121;
         background: #fff5f5;
@@ -102,7 +123,12 @@
 </style>
 
 <div id="content-main">
-    <h1>Trova Sostituto (Jolly)</h1>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:12px;">
+        <h1 style="margin:0;">🎯 Trova Sostituto (Smart Ranking IA 0–100)</h1>
+        <a href="{% url 'ia_hub' %}" class="button" style="background:#4F46E5; color:#fff; padding:8px 14px; border-radius:6px; text-decoration:none; font-weight:700;">
+            🤖 Vai al Centro IA & Automazioni
+        </a>
+    </div>
 
     {% if error_message %}
     <div class="error">{{ error_message }}</div>
@@ -152,23 +178,24 @@
                 </div>
             </div>
 
-            <button type="submit" class="btn-submit">🔍 Cerca Dipendenti Disponibili</button>
+            <button type="submit" class="btn-submit">🔍 Calcola Ranking Predittivo Sostituti</button>
         </form>
     </div>
 
     {% if results is not None %}
     <div class="card">
-        <h2 style="margin-top: 0; font-size: 18px; color: #417690;">Risultati Candidati</h2>
+        <h2 style="margin-top: 0; font-size: 18px; color: #312E81;">🤖 Risultati Candidati Ordinati per Smart Score IA</h2>
 
         {% if results %}
-        <p>Trovati <strong>{{ results|length }}</strong> dipendenti compatibili (Attivi, No Ferie, No Sovrapposizioni).
-        </p>
+        <p>Trovati <strong>{{ results|length }}</strong> dipendenti liberi e compatibili, ordinati per affinità col cantiere, distanza, monte ore settimanale e conformità corsi/visita medica.</p>
         <table>
             <thead>
                 <tr>
-                    <th style="width: 50px;">#</th>
+                    <th style="width: 45px;">#</th>
+                    <th>Smart Score IA</th>
                     <th>Dipendente</th>
                     <th>Distanza GPS</th>
+                    <th>Analisi Predittiva IA & Storico</th>
                     <th>Qualifiche</th>
                     <th style="width: 100px;">Azione</th>
                 </tr>
@@ -176,7 +203,16 @@
             <tbody>
                 {% for item in results %}
                 <tr>
-                    <td>{{ forloop.counter }}</td>
+                    <td><strong>{{ forloop.counter }}</strong></td>
+                    <td>
+                        {% if item.ai_score >= 75 %}
+                        <span class="score-pill score-high">🌟 {{ item.ai_score }}/100</span>
+                        {% elif item.ai_score >= 50 %}
+                        <span class="score-pill score-mid">👍 {{ item.ai_score }}/100</span>
+                        {% else %}
+                        <span class="score-pill score-low">⚠️ {{ item.ai_score }}/100</span>
+                        {% endif %}
+                    </td>
                     <td>
                         <div style="font-weight: bold; font-size: 1.1em;">{{ item.dipendente }}</div>
                         {% if item.dipendente.categoria_protetta %}
@@ -184,12 +220,17 @@
                         {% endif %}
                     </td>
                     <td>
-                        {% if item.distanza_km != float_inf %}
+                        {% if item.distanza_km < 999999 %}
                         <strong>{{ item.distanza_km|floatformat:1 }} km</strong> <br>
                         <span style="font-size: 0.8em; color: #666;">dalla sede cliente</span>
                         {% else %}
                         <span style="color: #999;">N/A (No GPS)</span>
                         {% endif %}
+                    </td>
+                    <td>
+                        {% for m in item.ai_motivi %}
+                        <span class="badge badge-ai-motivo">{{ m }}</span>
+                        {% endfor %}
                     </td>
                     <td>
                         {% for skill in item.skills %}
@@ -199,9 +240,8 @@
                         {% endfor %}
                     </td>
                     <td>
-                        <!-- Link all'admin per creare il turno precompilato (Futuro) -->
                         <a href="/admin/core/turno/add/" class="button"
-                            style="padding: 5px 10px; font-size: 12px; text-decoration: none; color: white; background: #447e9b; border-radius: 3px;">Assegna</a>
+                            style="padding: 6px 12px; font-size: 12px; text-decoration: none; color: white; background: #4F46E5; border-radius: 6px; font-weight:700;">Assegna</a>
                     </td>
                 </tr>
                 {% endfor %}

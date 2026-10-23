@@ -17,8 +17,7 @@ COLUMNS_MAP = {
         'ore_mensili_contratto', 'importo_mensile_contratto', 'note_mansioni'
     ],
     'mezzo': [
-        'targa', 'modello', 'scadenza_assicurazione', 'scadenza_revisione',
-        'numero_permesso_citta_alta', 'scadenza_permesso_citta_alta'
+        'targa', 'modello', 'scadenza_assicurazione', 'scadenza_revisione', 'scadenza_permesso_citta_alta'
     ]
 }
 
@@ -211,9 +210,6 @@ def import_from_excel(model_name, file_obj, mode='UPDATE'):
                 if not pd.isna(scad_revisione):
                      try: defaults['scadenza_revisione'] = pd.to_datetime(scad_revisione).date()
                      except: pass
-                num_permesso_ca = row.get('numero_permesso_citta_alta')
-                if not pd.isna(num_permesso_ca):
-                     defaults['numero_permesso_citta_alta'] = str(num_permesso_ca).strip()
                 scad_permesso_ca = row.get('scadenza_permesso_citta_alta')
                 if not pd.isna(scad_permesso_ca):
                      try: defaults['scadenza_permesso_citta_alta'] = pd.to_datetime(scad_permesso_ca).date()
@@ -294,8 +290,7 @@ def export_data_excel(model_name):
             worksheet.write(row_num, 1, mezzo.modello or '')
             worksheet.write(row_num, 2, mezzo.scadenza_polizza.strftime('%d/%m/%Y') if mezzo.scadenza_polizza else '')
             worksheet.write(row_num, 3, mezzo.scadenza_revisione.strftime('%d/%m/%Y') if mezzo.scadenza_revisione else '')
-            worksheet.write(row_num, 4, mezzo.numero_permesso_citta_alta or '')
-            worksheet.write(row_num, 5, mezzo.scadenza_permesso_citta_alta.strftime('%d/%m/%Y') if mezzo.scadenza_permesso_citta_alta else '')
+            worksheet.write(row_num, 4, mezzo.scadenza_permesso_citta_alta.strftime('%d/%m/%Y') if mezzo.scadenza_permesso_citta_alta else '')
             row_num += 1
     
     workbook.close()

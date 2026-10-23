@@ -885,14 +885,13 @@ class CorsiFormazioneTestCase(TestCase):
             modello="Fiat Ducato",
             targa="BG123CA",
             stato="DISPONIBILE",
-            numero_permesso_citta_alta="PERM-98765",
             scadenza_permesso_citta_alta=self.today + timedelta(days=10),
         )
         ctx = expiring_vehicles_widget()
         self.assertEqual(len(ctx['vehicles']), 1)
         alerts = ctx['vehicles'][0]['alerts']
         self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0]['type'], 'Permesso Città Alta (BG n. PERM-98765)')
+        self.assertEqual(alerts[0]['type'], 'Permesso Città Alta (BG)')
         self.assertEqual(alerts[0]['date'], mezzo.scadenza_permesso_citta_alta)
 
     def test_5_telegram_allegati_cedolini_e_foto(self):
@@ -938,80 +937,162 @@ class CorsiFormazioneTestCase(TestCase):
         self.assertEqual(msgs[1].foto_url, "/media/chat_allegati/foto_cantiere.jpg")
 
 
-class GestioneNonSostituitoTestCase(TestCase):
+class AIEngineAndHubTestCase(TestCase):
     def setUp(self):
-        import datetime
-        from decimal import Decimal
-        from core.models import Cliente, Turno, AssegnazioneTurno, Dipendente, RichiestaSostituzione, TimeTracking
-        from django.utils import timezone
+        from django.contrib.auth.models import User
+        from core.models import Mezzo
         self.today = timezone.now().date()
+        self.admin_user = User.objects.create_superuser('admin_ia', 'ia@kandor.it', 'pass1234')
+        self.client.force_login(self.admin_user)
 
+        self.dip_capo = Dipendente.objects.create(
+            nome='Marco', cognome='Bianchi', codice_fiscale='BNCMRC80A01H501A',
+            stato='ATTIVO', is_sostituto=False
+        )
+        self.jolly_esperto = Dipendente.objects.create(
+            nome='Luigi', cognome='Esperto', codice_fiscale='SPRLGU80A01H501B',
+            stato='ATTIVO', is_sostituto=True,
+            data_ultima_visita_medica=self.today + timedelta(days=180),
+        )
+        self.jolly_nuovo = Dipendente.objects.create(
+            nome='Andrea', cognome='Nuovo', codice_fiscale='NVONDR80A01H501C',
+            stato='ATTIVO', is_sostituto=True,
+            data_ultima_visita_medica=self.today + timedelta(days=180),
+        )
+
+        self.squadra = Squadra.objects.create(nome='Squadra Bergamo', caposquadra=self.dip_capo)
+        self.mezzo = Mezzo.objects.create(
+            modello='Furgone ZTL', targa='BG999CA', stato='DISPONIBILE',
+            scadenza_permesso_citta_alta=self.today - timedelta(days=5),  # Scaduto!
+        )
         self.cliente = Cliente.objects.create(
-            ragione_sociale="Cliente Test Salto Turno",
-            partita_iva="01234567890",
-            indirizzo_sede="Via Test 1"
+            ragione_sociale='Condominio Città Alta',
+            indirizzo_sede='Via Gombito 1, Città Alta Bergamo',
+            ore_mensili_contratto=20,
+            importo_mensile_contratto=Decimal('500.00'),
+            note_mansioni='Pulizia vetri con lavori in quota',
         )
-        self.dip_assente = Dipendente.objects.create(
-            nome="Mario",
-            cognome="Assente",
-            codice_fiscale="MROASS80A01H501A",
-            stato="ATTIVO"
-        )
-        self.turno = Turno.objects.create(data=self.today)
-        self.assign = AssegnazioneTurno.objects.create(
+        self.turno = Turno.objects.create(data=self.today, squadra=self.squadra, mezzo=self.mezzo)
+        self.assegnazione = AssegnazioneTurno.objects.create(
             turno=self.turno,
             cliente=self.cliente,
             orario_inizio_previsto=datetime.time(8, 0),
-            orario_fine_previsto=datetime.time(12, 0)
-        )
-        self.req = RichiestaSostituzione.objects.create(
-            assegnazione_originale=self.assign,
-            dipendente_assente=self.dip_assente,
-            motivo_assenza="MALATTIA",
-            stato="APERTA"
-        )
-        self.tt = TimeTracking.objects.create(
-            dipendente=self.dip_assente,
-            assegnazione=self.assign,
-            ore_dichiarate=Decimal('4.0')
+            orario_fine_previsto=datetime.time(12, 0),
         )
 
-    def test_segna_non_sostituito_da_ufficio(self):
-        from core.services import segna_non_sostituito_da_ufficio
-        from core.models import TimeTracking
-
-        res = segna_non_sostituito_da_ufficio(self.req.id)
-        self.assertTrue(res.get('ok'))
-
-        self.req.refresh_from_db()
-        self.assertEqual(self.req.stato, 'NON_SOSTITUITO')
-        self.assertIsNone(self.req.sostituto)
-
-        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assign, dipendente=self.dip_assente).exists())
-        self.assertIn(self.dip_assente, self.assign.dipendenti_esclusi.all())
-
-    def test_conferma_sostituto_ufficio_api_non_sostituire(self):
-        import json
-        from django.test import Client
-        from core.models import TimeTracking
-
-        client = Client()
-        response = client.post(
-            '/api/conferma-sostituto-ufficio/',
-            data=json.dumps({
-                'richiesta_id': self.req.id,
-                'azione': 'non_sostituire'
-            }),
-            content_type='application/json'
+    def test_1_audit_ore_e_auto_validazione_1_click(self):
+        from core.ai_engine import analizza_anomalie_ore
+        # 1 registrazione regolare (4h su 4h previste) e 1 anomala (9h su 4h previste)
+        tt_ok = TimeTracking.objects.create(
+            dipendente=self.dip_capo,
+            assegnazione=self.assegnazione,
+            ore_dichiarate=Decimal('4.00'),
+            is_validated=False,
         )
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data.get('ok'))
-        self.assertEqual(data.get('stato'), 'NON_SOSTITUITO')
+        tt_anom = TimeTracking.objects.create(
+            dipendente=self.jolly_nuovo,
+            assegnazione=self.assegnazione,
+            ore_dichiarate=Decimal('9.50'),
+            is_validated=False,
+        )
+        audit = analizza_anomalie_ore(self.today, self.today)
+        self.assertIn(tt_ok.id, audit['auto_validabili_ids'])
+        self.assertNotIn(tt_anom.id, audit['auto_validabili_ids'])
+        self.assertEqual(audit['riepilogo']['anomalie_count'], 1)
 
-        self.req.refresh_from_db()
-        self.assertEqual(self.req.stato, 'NON_SOSTITUITO')
-        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assign, dipendente=self.dip_assente).exists())
+        # Chiama l'endpoint 1-click auto-validazione
+        res = self.client.post(
+            '/api/ia/auto-valida-ore/',
+            data=json.dumps({'data_inizio': self.today.isoformat(), 'data_fine': self.today.isoformat()}),
+            content_type='application/json',
+        )
+        self.assertEqual(res.status_code, 200)
+        tt_ok.refresh_from_db()
+        tt_anom.refresh_from_db()
+        self.assertTrue(tt_ok.is_validated)
+        self.assertFalse(tt_anom.is_validated)
+
+    def test_2_nlp_assistente_triage_e_documenti(self):
+        from core.ai_engine import classifica_segnalazione, interpreta_messaggio_libero, analizza_documento_o_certificato
+        # Triage segnalazione critica
+        triage = classifica_segnalazione("Scintille elettriche e fumo dalla lavasciuga")
+        self.assertEqual(triage['urgenza'], 'CRITICA')
+        self.assertEqual(triage['categoria'], 'SICUREZZA')
+
+        # NLP messaggio libero ore
+        parsed_ore = interpreta_messaggio_libero(self.dip_capo, "Oggi ho fatto 4 ore da Condominio Città Alta")
+        self.assertEqual(parsed_ore['intent'], 'REGISTRA_ORE')
+        self.assertEqual(parsed_ore['ore'], 4.0)
+        self.assertEqual(parsed_ore['assegnazione_id'], self.assegnazione.id)
+
+        # NLP messaggio libero assenza
+        parsed_ass = interpreta_messaggio_libero(self.dip_capo, "Domani sono in malattia con febbre")
+        self.assertEqual(parsed_ass['intent'], 'ASSENZA')
+        self.assertEqual(parsed_ass['tipo_assenza'], 'MALATTIA')
+
+        # Parser documento/attestato corso
+        doc_res = analizza_documento_o_certificato("Attestato Corso DPI 3 lavori in quota eseguito il 10/10/2026")
+        self.assertEqual(doc_res['tipo_documento'], 'ATTESTATO_CORSO')
+        self.assertEqual(doc_res['corso_nome'], 'Corso DPI 3 lavori in quota')
+
+    def test_3_smart_sostituzioni_ranking_predittivo(self):
+        from core.services import trova_sostituti
+        from core.models import ensure_corsi_per_dipendente, CorsoDipendente
+        # Diamo a jolly_esperto il corso richiesto + 3 presenze storiche sul cliente
+        ensure_corsi_per_dipendente(self.jolly_esperto)
+        ensure_corsi_per_dipendente(self.jolly_nuovo)
+        cd = CorsoDipendente.objects.get(dipendente=self.jolly_esperto, corso__nome="Corso DPI 3 lavori in quota")
+        cd.data_esecuzione = self.today - timedelta(days=60)
+        cd.save()
+
+        for i in range(1, 4):
+            t_old = Turno.objects.create(data=self.today - timedelta(days=i), squadra=self.squadra)
+            a_old = AssegnazioneTurno.objects.create(
+                turno=t_old, cliente=self.cliente,
+                orario_inizio_previsto=datetime.time(8, 0),
+                orario_fine_previsto=datetime.time(12, 0),
+            )
+            TimeTracking.objects.create(
+                dipendente=self.jolly_esperto,
+                assegnazione=a_old,
+                ore_dichiarate=Decimal('4.00'),
+                is_validated=True,
+            )
+
+        risultati = trova_sostituti(
+            cliente=self.cliente,
+            data=self.today + timedelta(days=1),
+            ora_inizio=datetime.time(8, 0),
+            ora_fine=datetime.time(12, 0),
+        )
+        self.assertTrue(len(risultati) >= 2)
+        # jolly_esperto deve essere classificato prima di jolly_nuovo grazie allo Smart Score IA superiore
+        self.assertEqual(risultati[0]['dipendente'].id, self.jolly_esperto.id)
+        self.assertGreater(risultati[0]['ai_score'], risultati[1]['ai_score'])
+
+    def test_4_compliance_guardian_ztl_citta_alta_e_corsi(self):
+        from core.ai_engine import verifica_conformita_turni
+        comp = verifica_conformita_turni(data_inizio=self.today, giorni=3)
+        self.assertGreaterEqual(comp['totale_alert'], 1)
+        categorie = [a['categoria'] for a in comp['alerts']]
+        self.assertIn('ZTL_CITTA_ALTA', categorie)
+
+    def test_5_marginalita_burn_rate_e_lavori_extra_e_hub_view(self):
+        from core.ai_engine import analizza_marginalita_e_budget_clienti
+        TimeTracking.objects.create(
+            dipendente=self.dip_capo,
+            assegnazione=self.assegnazione,
+            ore_dichiarate=Decimal('6.00'),
+            note='Effettuato intervento extra per allagamento cantina richiesto dal cliente',
+            is_validated=True,
+        )
+        marg = analizza_marginalita_e_budget_clienti(anno=self.today.year, mese=self.today.month)
+        self.assertEqual(len(marg['lavori_extra']), 1)
+        self.assertEqual(marg['lavori_extra'][0]['cliente_nome'], 'Condominio Città Alta')
+
+        # Verifica che la dashboard /ia-hub/ risponda 200 OK
+        resp = self.client.get('/ia-hub/')
+        self.assertEqual(resp.status_code, 200)
 
 
 

@@ -205,12 +205,59 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
     if escludi_set:
         candidati = candidati.exclude(id__in=escludi_set)
 
-    # 5. Calcolo Distanza, Compatibilità Qualifica e Ranking
+    # 5. Calcolo Distanza, Compatibilità Qualifica, Smart Score IA e Ranking Predittivo
+    from django.db.models import Count, Sum
+    from .models import TimeTracking
+    from .ai_engine import calcola_smart_score_sostituto, verifica_idoneita_dipendente_per_cliente
+
     risultati = []
     coord_cliente = (cliente.latitudine, cliente.longitudine) if cliente else (None, None)
     has_client_coords = coord_cliente[0] is not None and coord_cliente[1] is not None
 
-    for dip in candidati:
+    candidati_list = list(candidati)
+    candidati_ids = [d.id for d in candidati_list]
+
+    # Statistiche storiche in bulk (presenze da questo cliente + ore settimana corrente)
+    presenze_map = {}
+    if cliente and candidati_ids:
+        qs_pres = (
+            TimeTracking.objects.filter(
+                dipendente_id__in=candidati_ids,
+                assegnazione__cliente=cliente,
+            )
+            .values('dipendente_id')
+            .annotate(cnt=Count('id'))
+        )
+        for row in qs_pres:
+            presenze_map[row['dipendente_id']] = row['cnt']
+
+    start_week = data_check - timedelta(days=data_check.weekday())
+    end_week = start_week + timedelta(days=6)
+    ore_sett_map = {}
+    if candidati_ids:
+        qs_ore = (
+            TimeTracking.objects.filter(
+                dipendente_id__in=candidati_ids,
+                assegnazione__turno__data__gte=start_week,
+                assegnazione__turno__data__lte=end_week,
+            )
+            .values('dipendente_id')
+            .annotate(tot=Sum('ore_dichiarate'))
+        )
+        for row in qs_ore:
+            ore_sett_map[row['dipendente_id']] = float(row['tot'] or 0.0)
+
+    # Tasso di accettazione sostituzioni storiche
+    accettate_map = {}
+    inviate_map = {}
+    if candidati_ids:
+        for rs in RichiestaSostituzione.objects.filter(sostituto_id__in=candidati_ids).values('sostituto_id', 'stato'):
+            sid = rs['sostituto_id']
+            inviate_map[sid] = inviate_map.get(sid, 0) + 1
+            if rs['stato'] in ('ACCETTATA', 'COMPLETATA'):
+                accettate_map[sid] = accettate_map.get(sid, 0) + 1
+
+    for dip in candidati_list:
         distanza = float('inf')
         coord_dip = (dip.latitudine, dip.longitudine)
 
@@ -223,16 +270,45 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
         skills = [q.nome for q in dip.qualifiche.all()]
         compatibile = _is_qualifica_compatibile(qualifica_richiesta, skills)
 
+        presenze_cli = presenze_map.get(dip.id, 0)
+        ore_sett = ore_sett_map.get(dip.id, 0.0)
+        tot_inv = inviate_map.get(dip.id, 0)
+        tasso_acc = (accettate_map.get(dip.id, 0) / tot_inv) if tot_inv > 0 else None
+
+        idoneita_ok, idoneita_avvisi = verifica_idoneita_dipendente_per_cliente(dip, cliente, data_riferimento=data_check)
+        ai_score, ai_motivi = calcola_smart_score_sostituto(
+            dipendente=dip,
+            cliente=cliente,
+            data_turno=data_check,
+            distanza_km=distanza,
+            qualifica_compatibile=compatibile,
+            presenze_cliente=presenze_cli,
+            ore_settimana=ore_sett,
+            tasso_accettazione=tasso_acc,
+            conformita_ok=idoneita_ok,
+            motivi_non_conformita=idoneita_avvisi,
+        )
+        motivi_completi = list(ai_motivi)
+        for avv in idoneita_avvisi:
+            if f"⚠️ {avv}" not in motivi_completi and avv not in motivi_completi:
+                motivi_completi.append(f"⚠️ {avv}")
+
         risultati.append({
             'dipendente': dip,
             'distanza_km': distanza,
             'skills': skills,
             'qualifica_compatibile': compatibile,
+            'ai_score': ai_score,
+            'ai_motivi': motivi_completi,
+            'presenze_cliente': presenze_cli,
+            'ore_settimana': round(ore_sett, 1),
+            'conformita_ok': idoneita_ok,
         })
 
-    # Ordina: prima chi ha qualifica compatibile, poi per distanza crescente, infine per cognome/nome
+    # Ordina: prima chi ha qualifica compatibile, poi per AI Smart Score decrescente, distanza crescente e cognome/nome
     risultati.sort(key=lambda x: (
         0 if x['qualifica_compatibile'] else 1,
+        -x['ai_score'],
         x['distanza_km'],
         (x['dipendente'].cognome or '').upper(),
         (x['dipendente'].nome or '').upper()
@@ -853,72 +929,6 @@ def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_peri
         'richiesta': richiesta,
         'sostituto_nome': f"{sostituto.cognome} {sostituto.nome}",
         'confermate_count': confermate_count,
-    }
-
-
-def segna_non_sostituito_da_ufficio(richiesta_id, applica_a_periodo=False):
-    """
-    Permette all'Amministrazione di segnare un turno scoperto come NON SOSTITUITO (Salto Turno).
-    Pulisce/elimina eventuali TimeTracking per il dipendente assente e l'eventuale sostituto
-    affinché non vengano contabilizzate ore né al cliente né al dipendente.
-    """
-    from .models import RichiestaSostituzione, TimeTracking, Assenza
-
-    try:
-        richiesta = RichiestaSostituzione.objects.select_related(
-            'assegnazione_originale__cliente',
-            'assegnazione_originale__turno__squadra',
-            'dipendente_assente',
-            'sostituto'
-        ).get(pk=richiesta_id)
-    except RichiestaSostituzione.DoesNotExist:
-        return {'ok': False, 'error': 'Richiesta di sostituzione non trovata'}
-
-    richieste_target = [richiesta]
-    if applica_a_periodo:
-        data_turno = richiesta.assegnazione_originale.turno.data
-        assenza_collegata = Assenza.objects.filter(
-            dipendente=richiesta.dipendente_assente,
-            data_inizio__lte=data_turno,
-            data_fine__gte=data_turno
-        ).exclude(stato_approvazione='RIFIUTATA').first()
-        if assenza_collegata:
-            altre = RichiestaSostituzione.objects.filter(
-                dipendente_assente=richiesta.dipendente_assente,
-                assegnazione_originale__turno__data__gte=assenza_collegata.data_inizio,
-                assegnazione_originale__turno__data__lte=assenza_collegata.data_fine,
-                stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'NON_SOSTITUITO', 'RIFIUTATA', 'SCADUTA']
-            ).exclude(pk=richiesta.pk).select_related(
-                'assegnazione_originale__cliente',
-                'assegnazione_originale__turno__squadra'
-            )
-            richieste_target.extend(list(altre))
-
-    processed_count = 0
-    for req in richieste_target:
-        prev_sostituto = req.sostituto
-        req.sostituto = None
-        req.stato = 'NON_SOSTITUITO'
-        nota_str = "Segnato dall'Ufficio come Non Sostituito (Salto Turno - 0 ore)"
-        if nota_str not in (req.note or ''):
-            req.note = f"{req.note}\n{nota_str}".strip()
-        req.save()
-
-        # Cancella TimeTracking per dipendente assente ed eventuale vecchio sostituto
-        assegn = req.assegnazione_originale
-        if req.dipendente_assente:
-            TimeTracking.objects.filter(assegnazione=assegn, dipendente=req.dipendente_assente).delete()
-            assegn.dipendenti_esclusi.add(req.dipendente_assente)
-        if prev_sostituto:
-            TimeTracking.objects.filter(assegnazione=assegn, dipendente=prev_sostituto).delete()
-
-        processed_count += 1
-
-    return {
-        'ok': True,
-        'richiesta': richiesta,
-        'processed_count': processed_count,
-        'message': f"Segnato come Non Sostituito (Salto Turno) per {processed_count} turno/i. Ore non contabilizzate."
     }
 
 

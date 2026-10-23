@@ -2063,6 +2063,11 @@ def trova_sostituti_api(request):
             'distanza_km': dist,
             'qualifiche': r['skills'],
             'telefono': dip.telefono or '',
+            'ai_score': r.get('ai_score', 50),
+            'ai_motivi': r.get('ai_motivi', []),
+            'presenze_cliente': r.get('presenze_cliente', 0),
+            'ore_settimana': r.get('ore_settimana', 0.0),
+            'conformita_ok': r.get('conformita_ok', True),
         })
     
     return JsonResponse({'ok': True, 'sostituti': sostituti_list})
@@ -2135,7 +2140,12 @@ def get_sostituti_richiesta_api(request, richiesta_id):
             'categoria_protetta': getattr(dip, 'categoria_protetta', False),
             'selezionato': selezionato,
             'ordine': ordine,
-            'is_sostituto_corrente': (richiesta.sostituto_id == dip.id)
+            'is_sostituto_corrente': (richiesta.sostituto_id == dip.id),
+            'ai_score': r.get('ai_score', 50),
+            'ai_motivi': r.get('ai_motivi', []),
+            'presenze_cliente': r.get('presenze_cliente', 0),
+            'ore_settimana': r.get('ore_settimana', 0.0),
+            'conformita_ok': r.get('conformita_ok', True),
         })
 
     trovati_ids = {item['id'] for item in list_data}
@@ -2352,21 +2362,6 @@ def conferma_sostituto_ufficio_api(request):
             'stato': richiesta.stato,
             'sostituto_corrente_id': richiesta.sostituto_id,
             'sostituto_corrente_nome': f"{richiesta.sostituto.cognome} {richiesta.sostituto.nome}" if richiesta.sostituto else None
-        })
-
-    if azione == 'non_sostituire':
-        from .services import segna_non_sostituito_da_ufficio
-        applica_a_periodo = bool(data.get('applica_a_periodo', False))
-        res = segna_non_sostituito_da_ufficio(
-            richiesta_id=richiesta_id,
-            applica_a_periodo=applica_a_periodo
-        )
-        if not res.get('ok'):
-            return JsonResponse({'ok': False, 'error': res.get('error', 'Errore durante l\'operazione')}, status=400)
-        return JsonResponse({
-            'ok': True,
-            'message': res.get('message', 'Turno segnato come Non Sostituito (0 ore contabilizzate).'),
-            'stato': 'NON_SOSTITUITO'
         })
 
     sostituto_id = data.get('sostituto_id')
@@ -4593,3 +4588,244 @@ def salva_modifica_cedolino_ajax(request):
         return JsonResponse({'success': False, 'error': 'Dipendente non trovato.'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+# ─────────────────────────────────────────────────────────────
+#  CENTRO IA & AUTOMAZIONI ZERO-COST (/ia-hub/)
+# ─────────────────────────────────────────────────────────────
+def ia_hub_view(request):
+    """
+    Dashboard unificata per i 5 moduli di Intelligenza Artificiale & Smart Automation:
+    1. Audit Ore, Paghe & Anomalie + Auto-Validazione 1-Click
+    2. Assistente NLP, Triage Segnalazioni & Lettura Documenti/Certificati
+    3. Ottimizzazione Turni & Smart Sostituzioni (Ranking 0-100)
+    4. Compliance Guardian (ZTL Bergamo Città Alta, Mezzi, Visite, Corsi) + Briefing Mattutino
+    5. Controllo Marginalità, Burn-Rate & Lavori Extra Fatturabili
+    """
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        return HttpResponseRedirect('/admin/login/?next=/ia-hub/')
+
+    import calendar
+    from datetime import date
+    from .models import Segnalazione, RichiestaSostituzione
+    from .ai_engine import (
+        analizza_anomalie_ore,
+        verifica_conformita_turni,
+        analizza_marginalita_e_budget_clienti,
+        genera_briefing_mattutino,
+        classifica_segnalazione,
+        is_gemini_configured,
+    )
+
+    today = timezone.now().date()
+    try:
+        mese = int(request.GET.get('mese', today.month))
+        anno = int(request.GET.get('anno', today.year))
+    except (ValueError, TypeError):
+        mese, anno = today.month, today.year
+
+    str_inizio = request.GET.get('data_inizio')
+    str_fine = request.GET.get('data_fine')
+    if str_inizio and str_fine:
+        try:
+            data_inizio = date.fromisoformat(str_inizio)
+            data_fine = date.fromisoformat(str_fine)
+        except ValueError:
+            data_inizio = date(anno, mese, 1)
+            data_fine = date(anno, mese, calendar.monthrange(anno, mese)[1])
+    else:
+        data_inizio = date(anno, mese, 1)
+        data_fine = date(anno, mese, calendar.monthrange(anno, mese)[1])
+
+    # 1. Audit Ore & Paghe
+    audit_ore = analizza_anomalie_ore(data_inizio, data_fine)
+
+    # 2. Segnalazioni recenti con Triage IA
+    segnalazioni_qs = Segnalazione.objects.select_related('dipendente').order_by('-data_inserimento')[:25]
+    segnalazioni_ia = []
+    for seg in segnalazioni_qs:
+        triage = classifica_segnalazione(seg.testo)
+        segnalazioni_ia.append({
+            'obj': seg,
+            'triage': triage,
+        })
+
+    # 3. Richieste Sostituzione recenti con Smart Score
+    sostituzioni_recenti = (
+        RichiestaSostituzione.objects
+        .select_related('assegnazione_originale__cliente', 'assegnazione_originale__turno', 'dipendente_assente', 'sostituto')
+        .order_by('-creata_il')[:10]
+    )
+
+    # 4. Compliance Guardian (prossimi 7 giorni) & Briefing Mattutino
+    compliance = verifica_conformita_turni(data_inizio=today, giorni=7)
+    briefing = genera_briefing_mattutino(data_riferimento=today)
+
+    # 5. Marginalità, Burn-Rate & Lavori Extra
+    marginalita = analizza_marginalita_e_budget_clienti(anno=anno, mese=mese)
+
+    MESI_IT = [
+        (1, 'Gennaio'), (2, 'Febbraio'), (3, 'Marzo'), (4, 'Aprile'),
+        (5, 'Maggio'), (6, 'Giugno'), (7, 'Luglio'), (8, 'Agosto'),
+        (9, 'Settembre'), (10, 'Ottobre'), (11, 'Novembre'), (12, 'Dicembre'),
+    ]
+
+    context = {
+        'today': today,
+        'mese': mese,
+        'anno': anno,
+        'mesi_list': MESI_IT,
+        'anni_list': [today.year - 1, today.year, today.year + 1],
+        'data_inizio': data_inizio.isoformat(),
+        'data_fine': data_fine.isoformat(),
+        'audit_ore': audit_ore,
+        'segnalazioni_ia': segnalazioni_ia,
+        'sostituzioni_recenti': sostituzioni_recenti,
+        'compliance': compliance,
+        'briefing': briefing,
+        'marginalita': marginalita,
+        'gemini_attivo': is_gemini_configured(),
+        'dipendenti_attivi': Dipendente.objects.filter(stato='ATTIVO').order_by('cognome', 'nome'),
+    }
+    return render(request, 'core/ia_hub.html', context)
+
+
+@csrf_exempt
+def ia_auto_valida_ore_api(request):
+    """
+    Auto-valida con 1 click tutte le registrazioni TimeTracking prive di anomalie
+    nel periodo selezionato (Modulo 1 - AI Revisore Ore).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
+
+    from datetime import date
+    from .models import TimeTracking
+    from .ai_engine import analizza_anomalie_ore
+
+    try:
+        body = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        body = request.POST
+
+    try:
+        data_inizio = date.fromisoformat(body.get('data_inizio'))
+        data_fine = date.fromisoformat(body.get('data_fine'))
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'Date non valide'}, status=400)
+
+    audit = analizza_anomalie_ore(data_inizio, data_fine)
+    ids = audit.get('auto_validabili_ids', [])
+    if not ids:
+        return JsonResponse({
+            'ok': True,
+            'validate_count': 0,
+            'message': 'Nessuna nuova registrazione regolare da auto-validare nel periodo.',
+        })
+
+    updated = TimeTracking.objects.filter(id__in=ids, is_validated=False).update(is_validated=True)
+    return JsonResponse({
+        'ok': True,
+        'validate_count': updated,
+        'message': f'✅ Auto-validate con successo {updated} registrazioni ore regolari (100% conformi al contratto)!',
+    })
+
+
+@csrf_exempt
+def ia_invia_briefing_api(request):
+    """
+    Invia il Briefing Mattutino IA su Telegram a tutti i Titolari e Responsabili Area configurati.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
+
+    from .models import Titolare, ResponsabileArea
+    from .ai_engine import genera_briefing_mattutino
+    from .utils_kandor_chat import send_telegram_message
+
+    briefing = genera_briefing_mattutino()
+    testo_msg = briefing['testo_telegram']
+
+    destinatari = set()
+    for t in Titolare.objects.exclude(telegram_chat_id__isnull=True).exclude(telegram_chat_id=''):
+        destinatari.add(t.telegram_chat_id)
+    for ra in ResponsabileArea.objects.select_related('dipendente').all():
+        if ra.dipendente and ra.dipendente.telegram_chat_id:
+            destinatari.add(ra.dipendente.telegram_chat_id)
+
+    inviati = 0
+    for cid in destinatari:
+        if send_telegram_message(cid, testo_msg):
+            inviati += 1
+
+    return JsonResponse({
+        'ok': True,
+        'inviati': inviati,
+        'destinatari_totali': len(destinatari),
+        'message': f'📲 Briefing mattutino IA inviato su Telegram a {inviati} destinatari (Titolari / Resp. Area).',
+    })
+
+
+@csrf_exempt
+def ia_mezzo_manutenzione_api(request):
+    """
+    Imposta rapidamente un Mezzo in stato MANUTENZIONE direttamente da un alert del Compliance Guardian.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
+
+    from .models import Mezzo
+    try:
+        body = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        body = request.POST
+
+    mezzo_id = body.get('mezzo_id')
+    mezzo = Mezzo.objects.filter(pk=mezzo_id).first()
+    if not mezzo:
+        return JsonResponse({'ok': False, 'error': 'Mezzo non trovato'}, status=404)
+
+    mezzo.stato = 'MANUTENZIONE'
+    mezzo.save(update_fields=['stato'])
+    return JsonResponse({
+        'ok': True,
+        'message': f'🔧 Mezzo {mezzo.modello} ({mezzo.targa}) impostato in stato MANUTENZIONE.',
+    })
+
+
+@csrf_exempt
+def ia_analizza_documento_api(request):
+    """
+    Analizza un documento/certificato/attestato (testo o file caricato) tramite il parser IA
+    (e facoltativamente Gemini Vision Free Tier se configurato).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
+
+    from .ai_engine import analizza_documento_o_certificato
+
+    testo_libero = (request.POST.get('testo') or '').strip()
+    uploaded = request.FILES.get('file')
+    filename = uploaded.name if uploaded else ''
+    file_bytes = uploaded.read() if uploaded else None
+    mime_type = uploaded.content_type if uploaded else ''
+
+    risultato = analizza_documento_o_certificato(
+        testo_o_caption=testo_libero,
+        filename=filename,
+        file_bytes=file_bytes,
+        mime_type=mime_type,
+    )
+    return JsonResponse({
+        'ok': True,
+        'risultato': risultato,
+    })
+

@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Centro IA & Automazioni Smart — Kandor</title>
+    <style>
+        :root {
+            --bg: #F8FAFC;
+            --card: #FFFFFF;
+            --border: #E2E8F0;
+            --text: #0F172A;
+            --muted: #64748B;
+            --primary: #4F46E5;
+            --primary-dark: #3730A3;
+            --emerald: #059669;
+            --amber: #D97706;
+            --rose: #E11D48;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            padding-bottom: 60px;
+        }
+        .topbar {
+            background: linear-gradient(135deg, #1E1B4B 0%, #312E81 60%, #4338CA 100%);
+            color: #FFF;
+            padding: 20px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 14px;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.18);
+        }
+        .topbar-title h1 {
+            font-size: 22px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .topbar-title p {
+            font-size: 13px;
+            color: #C7D2FE;
+            margin-top: 3px;
+        }
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 15px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-white {
+            background: rgba(255,255,255,0.14);
+            color: #FFF;
+            border: 1px solid rgba(255,255,255,0.28);
+        }
+        .btn-white:hover { background: rgba(255,255,255,0.25); }
+        .btn-primary {
+            background: var(--primary);
+            color: #FFF;
+        }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-emerald {
+            background: var(--emerald);
+            color: #FFF;
+        }
+        .btn-emerald:hover { background: #047857; }
+        .btn-amber {
+            background: var(--amber);
+            color: #FFF;
+        }
+        .container {
+            max-width: 1360px;
+            margin: 22px auto;
+            padding: 0 20px;
+        }
+        .filter-bar {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+        .input-ctrl {
+            padding: 7px 11px;
+            border: 1px solid #CBD5E1;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 14px;
+            margin-bottom: 22px;
+        }
+        .kpi-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 18px;
+            box-shadow: 0 2px 6px rgba(15,23,42,0.04);
+            border-left: 5px solid var(--primary);
+        }
+        .kpi-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+        .kpi-value {
+            font-size: 26px;
+            font-weight: 800;
+            margin: 6px 0 4px 0;
+        }
+        .kpi-sub {
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .tabs-nav {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+        .tab-btn {
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #FFF;
+            color: var(--muted);
+            font-size: 13.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: #FFF;
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(79,70,229,0.25);
+        }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        .panel-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .panel-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--text);
+        }
+        .panel-subtitle {
+            font-size: 13px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            background: #F1F5F9;
+            color: #334155;
+            font-weight: 700;
+            font-size: 11.5px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 11px 12px;
+            border-bottom: 1px solid #F1F5F9;
+            vertical-align: middle;
+        }
+        tr:hover td { background: #F8FAFC; }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+        }
+        .badge-red { background: #FFE4E6; color: #BE123C; }
+        .badge-amber { background: #FEF3C7; color: #B45309; }
+        .badge-green { background: #D1FAE5; color: #047857; }
+        .badge-blue { background: #DBEAFE; color: #1D4ED8; }
+        .badge-indigo { background: #E0E7FF; color: #4338CA; }
+        .toast-msg {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0F172A;
+            color: #FFF;
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            font-weight: 700;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            display: none;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="topbar">
+        <div class="topbar-title">
+            <h1>
+                🤖 Centro IA & Automazioni Smart
+                <span class="badge" style="background:#34D399; color:#064E3B; font-size:11px;">100% Zero-Cost Attivo</span>
+                {% if gemini_attivo %}
+                <span class="badge" style="background:#A5B4FC; color:#1E1B4B; font-size:11px;">✨ Gemini Flash Hybrid</span>
+                {% endif %}
+            </h1>
+            <p>Motore algoritmico ed euristico integrato per revisione ore, sostituzioni predittive, sicurezza cantieri e marginalità</p>
+        </div>
+        <div class="topbar-actions">
+            <button type="button" class="btn btn-emerald" onclick="inviaBriefingTelegram()">
+                📲 Invia Briefing Mattutino su Telegram
+            </button>
+            <a href="/report-paghe/" class="btn btn-white">💰 Cedolini Paghe</a>
+            <a href="/admin/" class="btn btn-white">⬅ Torna alla Dashboard</a>
+        </div>
+    </header>
+
+    <div id="iaToast" class="toast-msg"></div>
+
+    <div class="container">
+
+        <!-- FILTRI PERIODO -->
+        <form method="get" class="filter-bar">
+            <div class="filter-group">
+                <label>Mese / Anno Budget:</label>
+                <select name="mese" class="input-ctrl">
+                    {% for m_num, m_nome in mesi_list %}
+                    <option value="{{ m_num }}" {% if m_num == mese %}selected{% endif %}>{{ m_nome }}</option>
+                    {% endfor %}
+                </select>
+                <select name="anno" class="input-ctrl">
+                    {% for a_val in anni_list %}
+                    <option value="{{ a_val }}" {% if a_val == anno %}selected{% endif %}>{{ a_val }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Periodo Audit Ore:</label>
+                <input type="date" name="data_inizio" value="{{ data_inizio }}" class="input-ctrl">
+                <span>→</span>
+                <input type="date" name="data_fine" value="{{ data_fine }}" class="input-ctrl">
+                <button type="submit" class="btn btn-primary">🔍 Aggiorna Analisi IA</button>
+            </div>
+        </form>
+
+        <!-- KPI RIEPILOGO -->
+        <div class="kpi-grid">
+            <div class="kpi-card" style="border-left-color:#10B981;">
+                <div class="kpi-label">1. Ore Auto-Validabili (1-Click)</div>
+                <div class="kpi-value" style="color:#059669;" id="kpiAutoValCount">{{ audit_ore.riepilogo.auto_validabili_count }}</div>
+                <div class="kpi-sub">Su {{ audit_ore.riepilogo.totale_analizzati }} timbrature ({{ audit_ore.riepilogo.anomalie_count }} anomalie rilevate)</div>
+            </div>
+            <div class="kpi-card" style="border-left-color:#F59E0B;">
+                <div class="kpi-label">2. Segnalazioni & Triage IA</div>
+                <div class="kpi-value" style="color:#D97706;">{{ segnalazioni_ia|length }}</div>
+                <div class="kpi-sub">Classificate per urgenza e categoria</div>
+            </div>
+            <div class="kpi-card" style="border-left-color:#4F46E5;">
+                <div class="kpi-label">3. Smart Sostituzioni (0-100)</div>
+                <div class="kpi-value" style="color:#4F46E5;">{{ sostituzioni_recenti|length }}</div>
+                <div class="kpi-sub">Ranking per storico cantiere, km e idoneità</div>
+            </div>
+            <div class="kpi-card" style="border-left-color:#E11D48;">
+                <div class="kpi-label">4. Alert Conformità & ZTL (7gg)</div>
+                <div class="kpi-value" style="color:#E11D48;">{{ compliance.totale_alert }}</div>
+                <div class="kpi-sub">{{ compliance.critici_count }} critici (Città Alta, Mezzi, Corsi)</div>
+            </div>
+            <div class="kpi-card" style="border-left-color:#0284C7;">
+                <div class="kpi-label">5. Lavori Extra & Sforamenti</div>
+                <div class="kpi-value" style="color:#0284C7;">{{ marginalita.lavori_extra|length }} extra</div>
+                <div class="kpi-sub">{{ marginalita.sforamenti_count }} cantieri in proiezione sforamento</div>
+            </div>
+        </div>
+
+        <!-- TABS DEI 5 MODULI IA -->
+        <div class="tabs-nav">
+            <button type="button" class="tab-btn active" onclick="openIaTab('tab-audit', this)">
+                🕵️‍♂️ 1. Revisore Ore & Auto-Validazione ({{ audit_ore.riepilogo.anomalie_count }})
+            </button>
+            <button type="button" class="tab-btn" onclick="openIaTab('tab-nlp', this)">
+                💬 2. Assistente NLP, Triage & Documenti
+            </button>
+            <button type="button" class="tab-btn" onclick="openIaTab('tab-sost', this)">
+                🎯 3. Smart Sostituzioni Predittive
+            </button>
+            <button type="button" class="tab-btn" onclick="openIaTab('tab-compliance', this)">
+                🛡️ 4. Compliance Guardian & Briefing ({{ compliance.totale_alert }})
+            </button>
+            <button type="button" class="tab-btn" onclick="openIaTab('tab-budget', this)">
+                📈 5. Burn-Rate & Lavori Extra ({{ marginalita.lavori_extra|length }})
+            </button>
+        </div>
+
+        <!-- =========================================================
+             MODULO 1: REVISORE ORE, PAGHE & AUTO-VALIDAZIONE
+             ========================================================= -->
+        <div id="tab-audit" class="tab-pane active">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">🕵️‍♂️ AI Revisore Ore & Pre-Cedolino ({{ data_inizio }} → {{ data_fine }})</div>
+                        <div class="panel-subtitle">
+                            Confronta automaticamente ore dichiarate vs contratto, timbrature GPS (ProximityLog), doppi inserimenti e tetti Part-Time.
+                        </div>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-emerald" onclick="eseguiAutoValidazioneOre()">
+                            ✅ Auto-Valida {{ audit_ore.riepilogo.auto_validabili_count }} Ore Regolari con 1 Click
+                        </button>
+                    </div>
+                </div>
+
+                {% if audit_ore.anomalie %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Gravità</th>
+                            <th>Data</th>
+                            <th>Dipendente</th>
+                            <th>Cliente / Cantiere</th>
+                            <th>Dichiarate vs Previste</th>
+                            <th>Anomalie Rilevate dall'IA</th>
+                            <th>Suggerimento Operativo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in audit_ore.anomalie %}
+                        <tr>
+                            <td>
+                                {% if item.gravita == 'ALTA' %}
+                                <span class="badge badge-red">🚨 ALTA</span>
+                                {% else %}
+                                <span class="badge badge-amber">⚠️ MEDIA</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ item.data|date:"d/m/Y" }}</strong></td>
+                            <td>{{ item.dipendente_nome }}</td>
+                            <td>{{ item.cliente_nome }}</td>
+                            <td>
+                                <strong>{{ item.ore_dichiarate }}h</strong> / {{ item.ore_previste }}h
+                                {% if item.is_validated %}
+                                <span class="badge badge-green">Validata</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for m in item.motivi %}
+                                <div style="margin-bottom:3px;">• {{ m }}</div>
+                                {% endfor %}
+                            </td>
+                            <td style="color:#4338CA; font-weight:600;">💡 {{ item.suggerimento }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding:24px; text-align:center; color:#059669; font-weight:700;">
+                    ✅ Nessuna anomalia rilevata nel periodo selezionato! Tutte le registrazioni sono coerenti con i turni previsti.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- =========================================================
+             MODULO 2: ASSISTENTE NLP, TRIAGE SEGNALAZIONI & PARSER DOCUMENTI
+             ========================================================= -->
+        <div id="tab-nlp" class="tab-pane">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">📄 Analizzatore Intelligente Certificati, Attestati Corsi & Note</div>
+                        <div class="panel-subtitle">
+                            Incolla il testo o carica un documento/certificato: l'IA estrae tipo documento, corso di formazione (tra i 10 corsi standard Kandor), date di validità o codice PUC INPS.
+                        </div>
+                    </div>
+                </div>
+                <form onsubmit="analizzaDocumentoIA(event)" style="display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:start;">
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <textarea id="docTestoInput" class="input-ctrl" rows="3" placeholder="Incolla qui il testo di un attestato, certificato medico o messaggio (es. 'Attestato Corso HACCP eseguito il 12/10/2026' oppure 'Certificato malattia PUC 123456789 dal 20/10/2026 al 24/10/2026')..."></textarea>
+                        <div>
+                            <label style="font-size:12px; font-weight:700; color:#475569;">Oppure allega immagine/PDF:</label>
+                            <input type="file" id="docFileInput" class="input-ctrl" style="margin-left:8px;">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="height:44px;">🔍 Analizza con IA</button>
+                </form>
+                <div id="docRisultatoBox" style="display:none; margin-top:14px; padding:14px; border-radius:10px; background:#EEF2FF; border:1px solid #C7D2FE; font-size:13.5px;"></div>
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">🚨 Triage Automatico Segnalazioni Cantiere</div>
+                        <div class="panel-subtitle">
+                            Classificazione automatica di urgenza (Critica, Alta, Media, Bassa) e categoria operativa (Sicurezza, Guasto Macchinario, Rifornimento Materiali, Accesso/Chiavi, Qualità).
+                        </div>
+                    </div>
+                </div>
+                {% if segnalazioni_ia %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data/Ora</th>
+                            <th>Dipendente</th>
+                            <th>Testo Segnalazione</th>
+                            <th>Urgenza IA</th>
+                            <th>Categoria IA</th>
+                            <th>Azione Consigliata dall'IA</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in segnalazioni_ia %}
+                        <tr>
+                            <td>{{ item.obj.data_inserimento|date:"d/m/Y H:i" }}</td>
+                            <td><strong>{{ item.obj.dipendente }}</strong></td>
+                            <td>{{ item.obj.testo }}</td>
+                            <td>
+                                {% if item.triage.urgenza == 'CRITICA' %}
+                                <span class="badge badge-red">🚨 CRITICA</span>
+                                {% elif item.triage.urgenza == 'ALTA' %}
+                                <span class="badge badge-amber">⚠️ ALTA</span>
+                                {% else %}
+                                <span class="badge badge-blue">{{ item.triage.urgenza }}</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge badge-indigo">{{ item.triage.categoria }}</span></td>
+                            <td>{{ item.triage.azione_consigliata }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding:20px; text-align:center; color:var(--muted);">Nessuna segnalazione presente.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- =========================================================
+             MODULO 3: SMART SOSTITUZIONI (RANKING PREDITTIVO 0-100)
+             ========================================================= -->
+        <div id="tab-sost" class="tab-pane">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">🎯 Motore Predittivo "Smart Sostituzioni" (Smart Score 0–100)</div>
+                        <div class="panel-subtitle">
+                            Ogni volta che cerchi un sostituto o avvalli un'assenza, l'IA ordina i candidati combinando: storico presenze sul cantiere, distanza km, monte ore settimanale, tasso di risposta e idoneità corsi/visita medica.
+                        </div>
+                    </div>
+                    <a href="/find-jolly/" class="btn btn-primary">🔍 Apri Ricerca Sostituto con Smart Score</a>
+                </div>
+
+                {% if sostituzioni_recenti %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data Turno</th>
+                            <th>Cliente</th>
+                            <th>Dipendente Assente</th>
+                            <th>Stato</th>
+                            <th>Sostituto Assegnato / Contattato</th>
+                            <th>Candidati Pronti</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in sostituzioni_recenti %}
+                        <tr>
+                            <td><strong>{{ r.assegnazione_originale.turno.data|date:"d/m/Y" }}</strong></td>
+                            <td>{{ r.assegnazione_originale.cliente.ragione_sociale }}</td>
+                            <td>{{ r.dipendente_assente }} ({{ r.motivo_assenza }})</td>
+                            <td><span class="badge badge-indigo">{{ r.stato }}</span></td>
+                            <td>{{ r.sostituto|default:"In selezione" }}</td>
+                            <td>{{ r.sostituti_candidati|length }} candidati</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding:20px; text-align:center; color:var(--muted);">Nessuna richiesta di sostituzione recente.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- =========================================================
+             MODULO 4: COMPLIANCE GUARDIAN & BRIEFING MATTUTINO
+             ========================================================= -->
+        <div id="tab-compliance" class="tab-pane">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">🛡️ Compliance Guardian — Prevenzione Blocchi Operativi (Prossimi 7 Giorni)</div>
+                        <div class="panel-subtitle">
+                            Controlla in anticipo permessi ZTL Bergamo Città Alta sui mezzi assegnati, revisioni/assicurazioni, visite mediche e corsi speciali richiesti dal cantiere.
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-emerald" onclick="inviaBriefingTelegram()">
+                        📲 Invia Briefing su Telegram
+                    </button>
+                </div>
+
+                {% if compliance.alerts %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Gravità</th>
+                            <th>Categoria</th>
+                            <th>Data Turno</th>
+                            <th>Squadra & Cliente</th>
+                            <th>Dettaglio Rischio Rilevato</th>
+                            <th>Azione Rapida</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for al in compliance.alerts %}
+                        <tr>
+                            <td>
+                                {% if al.gravita == 'CRITICA' %}
+                                <span class="badge badge-red">🚨 CRITICA</span>
+                                {% else %}
+                                <span class="badge badge-amber">⚠️ ALTA</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge badge-indigo">{{ al.categoria }}</span></td>
+                            <td><strong>{{ al.data|date:"d/m/Y" }}</strong></td>
+                            <td>{{ al.squadra }} → {{ al.cliente }}</td>
+                            <td>
+                                <strong>{{ al.titolo }}</strong>
+                                <div style="font-size:12px; color:#475569; margin-top:2px;">{{ al.dettaglio }}</div>
+                            </td>
+                            <td>
+                                {% if al.mezzo_id %}
+                                <button type="button" class="btn btn-amber" style="padding:6px 10px; font-size:12px;" onclick="impostaMezzoManutenzione({{ al.mezzo_id }})">
+                                    🔧 Metti Mezzo in Manutenzione
+                                </button>
+                                {% else %}
+                                <span style="font-size:12px; color:var(--muted);">{{ al.azione_rapida }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding:24px; text-align:center; color:#059669; font-weight:700;">
+                    ✅ Tutti i turni dei prossimi 7 giorni rispettano i criteri di conformità (Mezzi, ZTL Città Alta, Visite Mediche e Corsi)!
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">☀️ Anteprima Briefing Mattutino IA (Telegram / Web)</div>
+                </div>
+                <pre style="background:#0F172A; color:#F8FAFC; padding:16px; border-radius:12px; font-family:monospace; font-size:13px; white-space:pre-wrap; line-height:1.5;">{{ briefing.testo_telegram }}</pre>
+            </div>
+        </div>
+
+        <!-- =========================================================
+             MODULO 5: MARGINALITÀ, BURN-RATE & LAVORI EXTRA FATTURABILI
+             ========================================================= -->
+        <div id="tab-budget" class="tab-pane">
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">💰 Lavori Extra Fatturabili Rilevati dalle Note dei Dipendenti</div>
+                        <div class="panel-subtitle">
+                            L'IA scansiona le note di fine turno (TimeTracking) alla ricerca di interventi straordinari, emergenze, allagamenti o richieste extra fuori capitolato.
+                        </div>
+                    </div>
+                </div>
+                {% if marginalita.lavori_extra %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Cliente / Cantiere</th>
+                            <th>Dipendente</th>
+                            <th>Ore Dichiarate</th>
+                            <th>Parola Chiave IA</th>
+                            <th>Nota Registrata</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ex in marginalita.lavori_extra %}
+                        <tr>
+                            <td><strong>{{ ex.data|date:"d/m/Y" }}</strong></td>
+                            <td><strong>{{ ex.cliente_nome }}</strong></td>
+                            <td>{{ ex.dipendente_nome }}</td>
+                            <td>{{ ex.ore }}h</td>
+                            <td><span class="badge badge-amber">✨ {{ ex.keyword }}</span></td>
+                            <td>{{ ex.nota }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div style="padding:18px; text-align:center; color:var(--muted);">
+                    Nessun lavoro extra fuori capitolato rilevato nelle note del mese selezionato.
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">📈 Proiezione Fine Mese (Burn-Rate Ore & Marginalità Oraria)</div>
+                        <div class="panel-subtitle">
+                            Proiezione matematica delle ore consumate a fine mese rispetto al budget contrattuale e verifica della tariffa oraria effettiva (€/h).
+                        </div>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Stato IA</th>
+                            <th>Cliente / Cantiere</th>
+                            <th>Ore Contratto</th>
+                            <th>Ore Svolte Ad Oggi</th>
+                            <th>Proiezione Fine Mese</th>
+                            <th>Scostamento Stimato</th>
+                            <th>Resa Oraria (€/h)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in marginalita.clienti %}
+                        <tr>
+                            <td>
+                                {% if c.stato_budget == 'SFORAMENTO' %}
+                                <span class="badge badge-red">🔥 SFORAMENTO</span>
+                                {% elif c.stato_budget == 'SOTTO_SOGLIA_EURO' %}
+                                <span class="badge badge-amber">⚠️ SOTTO 15€/h</span>
+                                {% elif c.stato_budget == 'SOTTO_UTILIZZO' %}
+                                <span class="badge badge-blue">📉 SOTTO-UTILIZZO</span>
+                                {% else %}
+                                <span class="badge badge-green">✅ IN LINEA</span>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ c.cliente_nome }}</strong></td>
+                            <td>{{ c.ore_contratto }}h</td>
+                            <td>{{ c.ore_lavorate_ad_oggi }}h ({{ c.percentuale_attuale }}%)</td>
+                            <td><strong>{{ c.ore_proiettate_fine_mese }}h</strong> ({{ c.percentuale_proiettata }}%)</td>
+                            <td>
+                                {% if c.scostamento_proiettato > 0 %}+{% endif %}{{ c.scostamento_proiettato }}h
+                            </td>
+                            <td>
+                                {% if c.importo_contratto > 0 %}
+                                € {{ c.tariffa_effettiva_proiettata }}/h <span style="color:var(--muted); font-size:11.5px;">(target € {{ c.tariffa_contratto }}/h)</span>
+                                {% else %}
+                                <span style="color:var(--muted);">N/D</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function showIaToast(msg) {
+            const el = document.getElementById('iaToast');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 4500);
+        }
+
+        function openIaTab(tabId, btnEl) {
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            btnEl.classList.add('active');
+        }
+
+        async function eseguiAutoValidazioneOre() {
+            const res = await fetch('/api/ia/auto-valida-ore/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    data_inizio: '{{ data_inizio }}',
+                    data_fine: '{{ data_fine }}'
+                })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showIaToast(data.message);
+                document.getElementById('kpiAutoValCount').textContent = '0';
+            } else {
+                alert(data.error || 'Errore durante l\'auto-validazione.');
+            }
+        }
+
+        async function inviaBriefingTelegram() {
+            const res = await fetch('/api/ia/invia-briefing/', { method: 'POST' });
+            const data = await res.json();
+            if (data.ok) {
+                showIaToast(data.message);
+            } else {
+                alert(data.error || 'Errore invio briefing.');
+            }
+        }
+
+        async function impostaMezzoManutenzione(mezzoId) {
+            const res = await fetch('/api/ia/mezzo-manutenzione/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ mezzo_id: mezzoId })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showIaToast(data.message);
+                setTimeout(() => window.location.reload(), 1200);
+            } else {
+                alert(data.error || 'Errore aggiornamento mezzo.');
+            }
+        }
+
+        async function analizzaDocumentoIA(e) {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('testo', document.getElementById('docTestoInput').value);
+            const fileInp = document.getElementById('docFileInput');
+            if (fileInp.files && fileInp.files.length > 0) {
+                fd.append('file', fileInp.files[0]);
+            }
+            const res = await fetch('/api/ia/analizza-documento/', {
+                method: 'POST',
+                body: fd
+            });
+            const data = await res.json();
+            const box = document.getElementById('docRisultatoBox');
+            if (data.ok && data.risultato) {
+                const r = data.risultato;
+                box.style.display = 'block';
+                box.innerHTML = `
+                    <div style="font-weight:800; color:#312E81; margin-bottom:6px;">🤖 Risultato Estrazione IA:</div>
+                    <div>• <strong>Tipo Documento:</strong> ${r.tipo_documento}</div>
+                    <div>• <strong>Corso Riconosciuto:</strong> ${r.corso_nome || 'Nessuno specifico'}</div>
+                    <div>• <strong>Data Rilevata:</strong> ${r.data_rilevata || 'N/D'} ${r.data_fine_rilevata ? ' → ' + r.data_fine_rilevata : ''}</div>
+                    <div>• <strong>Protocollo PUC INPS:</strong> ${r.codice_puc || 'N/D'}</div>
+                    <div style="margin-top:6px; color:#1E40AF;">💡 <strong>Sintesi:</strong> ${r.sintesi}</div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

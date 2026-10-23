@@ -260,14 +260,17 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
 
     # SEGNALAZIONE
     if clean_text.startswith('/segnalazione') or clean_text.startswith('segnalazione'):
-        from .models import Segnalazione
         contenuto = text.lower().replace('/segnalazione', '').replace('segnalazione', '').strip()
         if not contenuto:
             _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
             return "Scrivi il testo della segnalazione:"
-        Segnalazione.objects.create(dipendente=dipendente, testo=contenuto)
+        seg, triage = _crea_segnalazione_con_triage_ia(dipendente, contenuto)
         return {
-            'text': f"Segnalazione registrata: '{contenuto}'",
+            'text': (
+                f"✅ Segnalazione registrata: '{contenuto}'\n"
+                f"🤖 Triage IA: [{triage['urgenza']}] {triage['categoria']}\n"
+                f"💡 {triage['azione_consigliata']}"
+            ),
             'reply_markup': get_main_menu(dipendente)
         }
     
@@ -397,19 +400,124 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
 
         if action == 'segnalazione':
             del _TELEGRAM_STATE[telegram_chat_id]
-            from .models import Segnalazione
-            Segnalazione.objects.create(dipendente=dipendente, testo=text.strip())
+            seg, triage = _crea_segnalazione_con_triage_ia(dipendente, text.strip())
             return {
-                'text': f"Segnalazione registrata: '{text.strip()}'",
+                'text': (
+                    f"✅ Segnalazione registrata: '{text.strip()}'\n"
+                    f"🤖 Triage IA: [{triage['urgenza']}] {triage['categoria']}\n"
+                    f"💡 {triage['azione_consigliata']}"
+                ),
                 'reply_markup': get_main_menu(dipendente)
             }
+
+    # --- ASSISTENTE CONVERSAZIONALE IA (linguaggio naturale gratuito) ---
+    try:
+        from .ai_engine import interpreta_messaggio_libero
+        parsed_ia = interpreta_messaggio_libero(dipendente, text)
+    except Exception:
+        parsed_ia = {'intent': 'SCONOSCIUTO'}
+
+    if parsed_ia.get('intent') == 'REGISTRA_ORE' and parsed_ia.get('ore') and parsed_ia.get('assegnazione_id'):
+        ass_id = parsed_ia['assegnazione_id']
+        ore_val = parsed_ia['ore']
+        cli_nome = parsed_ia.get('cliente_nome') or 'Cantiere'
+        data_lbl = parsed_ia.get('data').strftime('%d/%m/%Y') if parsed_ia.get('data') else 'Oggi'
+        return {
+            'text': (
+                f"🤖 *Assistente IA Kandor*\n"
+                f"Ho capito che vuoi registrare *{ore_val:g} ore*:\n"
+                f"📍 Cliente: *{cli_nome}*\n"
+                f"📅 Data: *{data_lbl}*\n\n"
+                f"Confermi la registrazione per la tua squadra?"
+            ),
+            'reply_markup': {
+                "inline_keyboard": [
+                    [
+                        {"text": f"✅ Conferma {ore_val:g}h", "callback_data": f"ia_conf_ore_{ass_id}_{ore_val}"},
+                        {"text": "❌ Annulla", "callback_data": "menu_principale"},
+                    ]
+                ]
+            }
+        }
+
+    if parsed_ia.get('intent') == 'ASSENZA' and parsed_ia.get('tipo_assenza'):
+        tipo_ass = parsed_ia['tipo_assenza']
+        d_ini = parsed_ia.get('data_inizio') or timezone.now().date()
+        d_fin = parsed_ia.get('data_fine') or d_ini
+        periodo_str = d_ini.strftime('%d/%m/%Y') if d_ini == d_fin else f"{d_ini.strftime('%d/%m/%Y')} - {d_fin.strftime('%d/%m/%Y')}"
+        return {
+            'text': (
+                f"🤖 *Assistente IA Kandor*\n"
+                f"Ho capito che vuoi comunicare un'assenza:\n"
+                f"🏷️ Tipo: *{tipo_ass}*\n"
+                f"📅 Periodo: *{periodo_str}*\n\n"
+                f"Vuoi inviare la richiesta all'Amministrazione?"
+            ),
+            'reply_markup': {
+                "inline_keyboard": [
+                    [
+                        {"text": f"✅ Invia {tipo_ass}", "callback_data": f"ia_conf_ass_{tipo_ass}_{d_ini.isoformat()}_{d_fin.isoformat()}"},
+                        {"text": "❌ Annulla", "callback_data": "menu_principale"},
+                    ]
+                ]
+            }
+        }
+
+    if parsed_ia.get('intent') == 'SEGNALAZIONE':
+        seg, triage = _crea_segnalazione_con_triage_ia(dipendente, text.strip())
+        return {
+            'text': (
+                f"🤖 *Assistente IA Kandor*\n"
+                f"Ho registrato automaticamente la tua segnalazione:\n"
+                f"📝 \"{text.strip()}\"\n"
+                f"🏷️ Triage: [{triage['urgenza']}] {triage['categoria']}\n"
+                f"💡 {triage['azione_consigliata']}"
+            ),
+            'reply_markup': get_main_menu(dipendente)
+        }
     
     # Nessun comando riconosciuto: mostra menu
     cmd_104 = ", /104" if getattr(dipendente, 'usufruisce_104', False) else ""
     return {
-        'text': f"Ciao {dipendente.nome}! Usa i bottoni per navigare il menu.\nPuoi anche scrivere:\n- /ore — registra ore\n- /malattia, /ferie, /permesso{cmd_104}\n- /segnalazione testo",
+        'text': f"Ciao {dipendente.nome}! Usa i bottoni per navigare il menu o scrivi liberamente (es. 'oggi 4 ore da Condominio Verdi' oppure 'domani malattia').\nComandi rapidi:\n- /ore — registra ore\n- /malattia, /ferie, /permesso{cmd_104}\n- /segnalazione testo",
         'reply_markup': get_main_menu(dipendente)
     }
+
+
+def _crea_segnalazione_con_triage_ia(dipendente, testo):
+    """
+    Crea una Segnalazione, esegue il Triage IA automatico (Categoria + Urgenza)
+    e, se CRITICA o ALTA, invia un alert immediato a Titolare e Responsabile Area.
+    """
+    from .models import Segnalazione, Titolare, ResponsabileArea
+    from .ai_engine import classifica_segnalazione
+    triage = classifica_segnalazione(testo)
+    nota_ia = f"[IA Triage: {triage['urgenza']} | {triage['categoria']}] {triage['azione_consigliata']}"
+    seg = Segnalazione.objects.create(
+        dipendente=dipendente,
+        testo=testo,
+        note_amministrazione=nota_ia,
+    )
+    if triage['urgenza'] in ('CRITICA', 'ALTA'):
+        emoji = "🚨" if triage['urgenza'] == 'CRITICA' else "⚠️"
+        alert_msg = (
+            f"{emoji} SEGNALAZIONE {triage['urgenza']} ({triage['categoria']})\n"
+            f"👤 Da: {dipendente.nome} {dipendente.cognome}\n"
+            f"📝 Testo: \"{testo}\"\n"
+            f"💡 Azione IA: {triage['azione_consigliata']}"
+        )
+        chat_ids = set()
+        for t in Titolare.objects.exclude(telegram_chat_id__isnull=True).exclude(telegram_chat_id=''):
+            chat_ids.add(t.telegram_chat_id)
+        for ra in ResponsabileArea.objects.select_related('dipendente').all():
+            if ra.dipendente and ra.dipendente.telegram_chat_id:
+                chat_ids.add(ra.dipendente.telegram_chat_id)
+        for cid in chat_ids:
+            try:
+                send_telegram_message(cid, alert_msg)
+            except Exception:
+                pass
+    return seg, triage
 
 
 def _gestisci_assenza_con_sostituzione(dipendente, tipo_assenza, msg_conferma, msg_aggiuntivo, data_inizio=None, data_fine=None, ora_inizio=None, ora_fine=None):
@@ -859,6 +967,38 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
                 return {'text': "Richiesta rifiutata. Nessun altro sostituto disponibile."}
         except Exception as e:
             return {'text': f"❌ Errore: {e}"}
+
+    # Conferma ore proposte dall'Assistente IA
+    if callback_data.startswith('ia_conf_ore_'):
+        try:
+            parts = callback_data.replace('ia_conf_ore_', '').split('_')
+            ass_id = int(parts[0])
+            ore_val = float(parts[1])
+            assegnazione = AssegnazioneTurno.objects.select_related('cliente', 'turno').filter(pk=ass_id).first()
+            if not assegnazione:
+                return {'text': "❌ Turno non trovato.", 'reply_markup': get_main_menu(dipendente)}
+            return _salva_ore_turno(dipendente, assegnazione, ore_val, f"{ore_val} (IA)")
+        except Exception as e:
+            return {'text': f"❌ Errore salvataggio ore: {e}", 'reply_markup': get_main_menu(dipendente)}
+
+    # Conferma assenza proposta dall'Assistente IA
+    if callback_data.startswith('ia_conf_ass_'):
+        try:
+            import datetime as dt_mod
+            parts = callback_data.replace('ia_conf_ass_', '').split('_')
+            tipo_ass = parts[0]
+            d_ini = dt_mod.date.fromisoformat(parts[1])
+            d_fin = dt_mod.date.fromisoformat(parts[2])
+            return _gestisci_assenza_con_sostituzione(
+                dipendente,
+                tipo_ass,
+                f"Registrata {tipo_ass} via Assistente IA",
+                "",
+                data_inizio=d_ini,
+                data_fine=d_fin,
+            )
+        except Exception as e:
+            return {'text': f"❌ Errore invio assenza: {e}", 'reply_markup': get_main_menu(dipendente)}
     
     return {'text': "Comando non riconosciuto.", 'reply_markup': get_main_menu(dipendente)}
 

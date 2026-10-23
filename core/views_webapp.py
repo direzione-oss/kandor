@@ -356,7 +356,10 @@ def dipendente_app_view(request):
         'scadenza_visita_medica': scadenza_visita_medica,
         'stato_visita_medica': stato_visita_medica,
     }
-    return render(request, 'core/dipendente_app.html', context)
+    response = render(request, 'core/dipendente_app.html', context)
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    return response
 
 
 def dipendente_app_action_view(request):
@@ -573,22 +576,24 @@ def dipendente_app_action_view(request):
                 return JsonResponse({'ok': True, 'message': '✅ Richiesta approvata e inviata al sostituto!'})
             return JsonResponse({'ok': False, 'error': 'Seleziona un sostituto disponibile.'})
 
-    # 5. INVIA SEGNALAZIONE (Guasti, Materiali, Problemi Cantiere)
+    # 5. INVIA SEGNALAZIONE (Guasti, Materiali, Problemi Cantiere) + TRIAGE IA
     elif action == 'invia_segnalazione':
         testo = (request.POST.get('messaggio') or '').strip()
         if not testo:
             return JsonResponse({'ok': False, 'error': 'Scrivi il testo della segnalazione prima di inviare.'})
 
-        Segnalazione.objects.create(
-            dipendente=dip,
-            testo=testo,
-        )
+        from .utils_kandor_chat import _crea_segnalazione_con_triage_ia
+        seg, triage = _crea_segnalazione_con_triage_ia(dip, testo)
         try:
             from .services import notifica_nuovo_messaggio
-            notifica_nuovo_messaggio(dip, f"🚨 SEGNALAZIONE APP: {testo}")
+            notifica_nuovo_messaggio(dip, f"🚨 SEGNALAZIONE APP [{triage['urgenza']} - {triage['categoria']}]: {testo}")
         except Exception:
             pass
-        return JsonResponse({'ok': True, 'message': '🚨 Segnalazione inviata con successo all\'Amministrazione!'})
+        return JsonResponse({
+            'ok': True,
+            'message': f"🚨 Segnalazione registrata! Triage IA: [{triage['urgenza']}] {triage['categoria']} — {triage['azione_consigliata']}",
+            'triage': triage,
+        })
 
     # 6. INVIA MESSAGGIO CHAT ALL'UFFICIO (testo + foto/allegato)
     elif action == 'invia_messaggio_chat':
@@ -684,6 +689,52 @@ def dipendente_app_action_view(request):
             'ok': True,
             'message': '📸 Foto profilo aggiornata con successo!',
             'foto_url': new_url or '',
+        })
+
+    # 9. ASSISTENTE IA IN LINGUAGGIO NATURALE / VOCALE (registra ore, assenze, segnalazioni)
+    elif action == 'assistente_ia':
+        testo = (request.POST.get('testo') or '').strip()
+        if not testo:
+            return JsonResponse({'ok': False, 'error': 'Scrivi o detta una richiesta (es. "Oggi 4 ore da Condominio Verdi" o "Domani malattia").'})
+
+        from .ai_engine import interpreta_messaggio_libero
+        from .utils_kandor_chat import _salva_ore_turno, _gestisci_assenza_con_sostituzione, _crea_segnalazione_con_triage_ia
+
+        parsed = interpreta_messaggio_libero(dip, testo)
+        intent = parsed.get('intent')
+
+        if intent == 'REGISTRA_ORE' and parsed.get('ore') and parsed.get('assegnazione_id'):
+            ass = AssegnazioneTurno.objects.select_related('cliente', 'turno').filter(pk=parsed['assegnazione_id']).first()
+            if ass:
+                _salva_ore_turno(dip, ass, parsed['ore'], testo)
+                return JsonResponse({
+                    'ok': True,
+                    'intent': 'REGISTRA_ORE',
+                    'message': f"🤖 Assistente IA: Registrate {parsed['ore']:g}h per {ass.cliente.ragione_sociale} ({ass.turno.data.strftime('%d/%m/%Y')})!",
+                })
+
+        if intent == 'ASSENZA' and parsed.get('tipo_assenza'):
+            tipo = parsed['tipo_assenza']
+            d_ini = parsed.get('data_inizio') or timezone.now().date()
+            d_fin = parsed.get('data_fine') or d_ini
+            _gestisci_assenza_con_sostituzione(dip, tipo, f"Richiesta {tipo} via Assistente IA WebApp", "", data_inizio=d_ini, data_fine=d_fin)
+            return JsonResponse({
+                'ok': True,
+                'intent': 'ASSENZA',
+                'message': f"🤖 Assistente IA: Inviata richiesta di {tipo} ({d_ini.strftime('%d/%m/%Y')} - {d_fin.strftime('%d/%m/%Y')}) in attesa di avvallo!",
+            })
+
+        if intent == 'SEGNALAZIONE':
+            seg, triage = _crea_segnalazione_con_triage_ia(dip, testo)
+            return JsonResponse({
+                'ok': True,
+                'intent': 'SEGNALAZIONE',
+                'message': f"🤖 Assistente IA: Segnalazione registrata [{triage['urgenza']} - {triage['categoria']}]. {triage['azione_consigliata']}",
+            })
+
+        return JsonResponse({
+            'ok': False,
+            'error': '🤖 Non sono riuscito ad associare automaticamente un turno o un\'assenza. Prova a specificare le ore e il cantiere (es. "Oggi 4 ore da Rossi") oppure "Domani malattia".',
         })
 
     return JsonResponse({'ok': False, 'error': f'Azione non riconosciuta: {action}'}, status=400)
