@@ -123,8 +123,11 @@ def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None):
         'is_sostituzione': assign.id in sost_assign_ids,
         'is_compilato': bool(tt and tt.ore_dichiarate is not None),
         'ore_dichiarate': float(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else None,
-        'note_dichiarate': tt.note if tt else '',
+        'ore_dichiarate_str': str(round(float(tt.ore_dichiarate), 1)) if (tt and tt.ore_dichiarate is not None) else str(ore_prev),
+        'ore_previste_str': str(ore_prev),
+        'note_dichiarate': (tt.note or '') if tt else '',
         'compagni': compagni,
+        'compagni_json': json.dumps(compagni),
     }
 
 

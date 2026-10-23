@@ -422,18 +422,20 @@
             background: rgba(15, 23, 42, 0.65);
             z-index: 100;
             display: none;
-            align-items: flex-end;
+            align-items: center;
             justify-content: center;
+            padding: 16px;
         }
         .modal-backdrop.open { display: flex; }
         .modal-sheet {
             background: #FFF;
             width: 100%;
-            max-width: 520px;
-            border-radius: 22px 22px 0 0;
-            padding: 20px 18px 28px 18px;
+            max-width: 480px;
+            border-radius: 20px;
+            padding: 20px 18px 24px 18px;
             max-height: 90vh;
             overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
         }
         .squadra-check-item {
             display: flex;
@@ -472,7 +474,8 @@
     <header class="app-header">
         <div class="user-info" onclick="switchTab('profilo')" style="cursor:pointer;">
             {% if foto_url %}
-                <img src="{{ foto_url }}" class="user-avatar" id="headerAvatarImg" alt="Foto">
+                <img src="{{ foto_url }}" class="user-avatar" id="headerAvatarImg" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="user-avatar" style="display:none;">{{ dipendente.nome|slice:":1" }}{{ dipendente.cognome|slice:":1" }}</div>
             {% else %}
                 <div class="user-avatar">{{ dipendente.nome|slice:":1" }}{{ dipendente.cognome|slice:":1" }}</div>
             {% endif %}
@@ -609,13 +612,25 @@
                                 {% endif %}
                             </div>
                             <button type="button" class="btn btn-outline"
-                                onclick='apriModalOre({{ t.id }}, "{{ t.cliente_nome|escapejs }}", "{{ t.data_str|escapejs }}", {{ t.ore_dichiarate|stringformat:"f" }}, "{{ t.note_dichiarate|escapejs }}", {{ t.compagni|safe }})'>
+                                data-assign-id="{{ t.id }}"
+                                data-cliente="{{ t.cliente_nome }}"
+                                data-datastr="{{ t.data_str }}"
+                                data-ore="{{ t.ore_dichiarate_str }}"
+                                data-note="{{ t.note_dichiarate }}"
+                                data-compagni="{{ t.compagni_json }}"
+                                onclick="apriModalOreFromBtn(this)">
                                 ✏️ Modifica
                             </button>
                         {% else %}
                             <span class="badge badge-amber">⏳ Da registrare</span>
                             <button type="button" class="btn btn-primary"
-                                onclick='apriModalOre({{ t.id }}, "{{ t.cliente_nome|escapejs }}", "{{ t.data_str|escapejs }}", {{ t.ore_previste|stringformat:"f" }}, "", {{ t.compagni|safe }})'>
+                                data-assign-id="{{ t.id }}"
+                                data-cliente="{{ t.cliente_nome }}"
+                                data-datastr="{{ t.data_str }}"
+                                data-ore="{{ t.ore_previste_str }}"
+                                data-note=""
+                                data-compagni="{{ t.compagni_json }}"
+                                onclick="apriModalOreFromBtn(this)">
                                 ⏱ Registra Ore ({{ t.ore_previste }}h)
                             </button>
                         {% endif %}
@@ -653,7 +668,13 @@
                     <div class="shift-actions" style="margin-top:8px; padding-top:8px;">
                         <span style="font-size:12.5px; color:#64748B;">Previste: <strong>{{ t.ore_previste }}h</strong></span>
                         <button type="button" class="btn btn-primary"
-                            onclick='apriModalOre({{ t.id }}, "{{ t.cliente_nome|escapejs }}", "{{ t.data_str|escapejs }}", {{ t.ore_previste|stringformat:"f" }}, "", {{ t.compagni|safe }})'>
+                            data-assign-id="{{ t.id }}"
+                            data-cliente="{{ t.cliente_nome }}"
+                            data-datastr="{{ t.data_str }}"
+                            data-ore="{{ t.ore_previste_str }}"
+                            data-note=""
+                            data-compagni="{{ t.compagni_json }}"
+                            onclick="apriModalOreFromBtn(this)">
                             ⏱ Inserisci Ore
                         </button>
                     </div>
@@ -722,13 +743,25 @@
                         {% if t.is_compilato %}
                             <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h registrate</span>
                             <button type="button" class="btn btn-outline"
-                                onclick='apriModalOre({{ t.id }}, "{{ t.cliente_nome|escapejs }}", "{{ t.data_str|escapejs }}", {{ t.ore_dichiarate|stringformat:"f" }}, "{{ t.note_dichiarate|escapejs }}", {{ t.compagni|safe }})'>
+                                data-assign-id="{{ t.id }}"
+                                data-cliente="{{ t.cliente_nome }}"
+                                data-datastr="{{ t.data_str }}"
+                                data-ore="{{ t.ore_dichiarate_str }}"
+                                data-note="{{ t.note_dichiarate }}"
+                                data-compagni="{{ t.compagni_json }}"
+                                onclick="apriModalOreFromBtn(this)">
                                 ✏️ Modifica Ore
                             </button>
                         {% else %}
                             <span class="badge badge-amber">⏳ Ore non inserite</span>
                             <button type="button" class="btn btn-primary"
-                                onclick='apriModalOre({{ t.id }}, "{{ t.cliente_nome|escapejs }}", "{{ t.data_str|escapejs }}", {{ t.ore_previste|stringformat:"f" }}, "", {{ t.compagni|safe }})'>
+                                data-assign-id="{{ t.id }}"
+                                data-cliente="{{ t.cliente_nome }}"
+                                data-datastr="{{ t.data_str }}"
+                                data-ore="{{ t.ore_previste_str }}"
+                                data-note=""
+                                data-compagni="{{ t.compagni_json }}"
+                                onclick="apriModalOreFromBtn(this)">
                                 ⏱ Registra Ore
                             </button>
                         {% endif %}
@@ -921,7 +954,10 @@
             <div class="card" style="text-align:center;">
                 <div style="margin-bottom:10px;">
                     {% if foto_url %}
-                        <img src="{{ foto_url }}" id="profiloBigImg" style="width:92px; height:92px; border-radius:50%; object-fit:cover; border:3px solid var(--orange);" alt="Foto">
+                        <img src="{{ foto_url }}" id="profiloBigImg" style="width:92px; height:92px; border-radius:50%; object-fit:cover; border:3px solid var(--orange);" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';">
+                        <div style="display:none; width:92px; height:92px; border-radius:50%; background:var(--navy); color:#FFF; align-items:center; justify-content:center; font-size:32px; font-weight:800; border:3px solid var(--orange);">
+                            {{ dipendente.nome|slice:":1" }}{{ dipendente.cognome|slice:":1" }}
+                        </div>
                     {% else %}
                         <div style="width:92px; height:92px; border-radius:50%; background:var(--navy); color:#FFF; display:inline-flex; align-items:center; justify-content:center; font-size:32px; font-weight:800; border:3px solid var(--orange);">
                             {{ dipendente.nome|slice:":1" }}{{ dipendente.cognome|slice:":1" }}
@@ -1102,11 +1138,26 @@
         }
 
         // Modal Ore
+        function apriModalOreFromBtn(btn) {
+            const assignId = btn.getAttribute('data-assign-id');
+            const clienteNome = btn.getAttribute('data-cliente') || '';
+            const dataStr = btn.getAttribute('data-datastr') || '';
+            const oreDefault = (btn.getAttribute('data-ore') || '4').replace(',', '.');
+            const noteDefault = btn.getAttribute('data-note') || '';
+            let compagni = [];
+            try {
+                compagni = JSON.parse(btn.getAttribute('data-compagni') || '[]');
+            } catch (err) {
+                compagni = [];
+            }
+            apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni);
+        }
+
         function apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni) {
             document.getElementById('modal_assign_id').value = assignId;
             document.getElementById('modalOreTitolo').textContent = '⏱ ' + clienteNome;
             document.getElementById('modalOreSub').textContent = '📅 Turno di ' + dataStr;
-            document.getElementById('modal_ore_val').value = oreDefault;
+            document.getElementById('modal_ore_val').value = String(oreDefault || 4).replace(',', '.');
             document.getElementById('modal_note_val').value = noteDefault || '';
 
             const sqBox = document.getElementById('modalSquadraBox');
