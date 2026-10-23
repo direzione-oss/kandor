@@ -1439,6 +1439,18 @@ def titolari_dashboard_view(request):
             alerts.append({'msg': f'🎓 {corsi_in_scadenza} corso/i di formazione in scadenza (o scaduti) entro 20 giorni', 'critico': False})
     except Exception:
         pass
+    try:
+        from .models import Mezzo
+        threshold_mezzi = oggi + timedelta(days=30)
+        mezzi_in_scadenza = Mezzo.objects.filter(
+            Q(scadenza_polizza__isnull=False, scadenza_polizza__lte=threshold_mezzi) |
+            Q(scadenza_revisione__isnull=False, scadenza_revisione__lte=threshold_mezzi) |
+            Q(scadenza_permesso_citta_alta__isnull=False, scadenza_permesso_citta_alta__lte=threshold_mezzi)
+        ).distinct().count()
+        if mezzi_in_scadenza > 0:
+            alerts.append({'msg': f'🚗 {mezzi_in_scadenza} mezzo/i aziendale/i con scadenze (polizza, revisione o permessi) entro 30 giorni', 'critico': False})
+    except Exception:
+        pass
     
     return render(request, 'core/titolari_dashboard.html', {
         'oggi': oggi, 'lun': lun, 'ven': ven,
