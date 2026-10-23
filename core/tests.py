@@ -747,3 +747,78 @@ class PreservazioneTurniPassatiTestCase(TestCase):
         self.assertEqual(comp1_row['ore_validate'], 4.0)
         self.assertEqual(comp1_row['giorni_lavorati'], 1)
 
+
+class CorsiFormazioneTestCase(TestCase):
+    def setUp(self):
+        from django.utils import timezone
+        self.today = timezone.now().date()
+        self.dip = Dipendente.objects.create(
+            nome="Mario",
+            cognome="Rossi",
+            codice_fiscale="RSSMRA80A01H501U",
+            indirizzo_residenza="Via Roma 1",
+            stato="ATTIVO",
+        )
+
+    def test_1_default_10_corsi_presenti_e_aggiunta_nuovo_corso(self):
+        from core.models import CorsoFormazione, CorsoDipendente, ensure_corsi_per_dipendente
+        ensure_corsi_per_dipendente(self.dip)
+
+        expected_names = [
+            "Corso sicurezza generale",
+            "Corso Specifico Basso Rischio",
+            "Corso Movimentazione manuale carichi",
+            "Corso DPI 3 lavori in quota",
+            "Corso RLS",
+            "Corso preposto",
+            "Corso primo soccorso",
+            "Corso piattaforme mobili con o senza stabilizzatori",
+            "Corso HACCP",
+            "Corso antincendio livello 2",
+        ]
+        corsi_dip = list(CorsoDipendente.objects.filter(dipendente=self.dip).select_related('corso'))
+        nomi_dip = [c.corso.nome for c in corsi_dip]
+        for expected in expected_names:
+            self.assertIn(expected, nomi_dip)
+
+        # Aggiunta di un nuovo corso in futuro
+        nuovo = CorsoFormazione.objects.create(nome="Corso Spazi Confinati", ordine=11, attivo=True)
+        ensure_corsi_per_dipendente(self.dip)
+        self.assertTrue(CorsoDipendente.objects.filter(dipendente=self.dip, corso=nuovo).exists())
+
+    def test_2_alert_dashboard_20_giorni_prima_scadenza(self):
+        from core.models import CorsoDipendente, ensure_corsi_per_dipendente
+        from core.templatetags.dashboard_extras import expiring_training_courses_widget
+
+        ensure_corsi_per_dipendente(self.dip)
+        c_haccp = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso HACCP")
+        c_rls = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso RLS")
+
+        # 1) Scadenza tra 25 giorni -> NON deve comparire nell'alert 20 gg
+        c_haccp.stato = 'FATTO'
+        c_haccp.data_scadenza = self.today + timedelta(days=25)
+        c_haccp.save()
+
+        ctx = expiring_training_courses_widget()
+        self.assertFalse(ctx['has_urgent'])
+        self.assertEqual(len(ctx['training_courses']), 0)
+
+        # 2) Scadenza tra 15 giorni (entro 20 gg) -> DEVE comparire nell'alert
+        c_haccp.data_scadenza = self.today + timedelta(days=15)
+        c_haccp.save()
+
+        # 3) Corso "Deve essere fatto" gia' scaduto ieri -> DEVE comparire come SCADUTO
+        c_rls.stato = 'DA_FARE'
+        c_rls.data_scadenza = self.today - timedelta(days=1)
+        c_rls.save()
+
+        ctx = expiring_training_courses_widget()
+        self.assertTrue(ctx['has_urgent'])
+        self.assertEqual(len(ctx['training_courses']), 2)
+        # Il primo ordinato per data_scadenza e' quello scaduto ieri
+        self.assertTrue(ctx['training_courses'][0]['is_expired'])
+        self.assertEqual(ctx['training_courses'][0]['corso'].nome, "Corso RLS")
+        self.assertFalse(ctx['training_courses'][1]['is_expired'])
+        self.assertEqual(ctx['training_courses'][1]['corso'].nome, "Corso HACCP")
+
+

@@ -27,3 +27,12 @@ class CoreConfig(AppConfig):
                     print("   ✅ Superuser 'admin' creato con successo in ready()!")
             except Exception as e:
                 print(f"⚠️ Avviso durante verifica tabelle in ready(): {e}")
+
+        # Avvia lo scheduler in background per il promemoria delle 17:00
+        import os
+        if os.environ.get('RUN_MAIN') == 'true' or not os.environ.get('SERVER_SOFTWARE'):
+            try:
+                from .scheduler import start_scheduler
+                start_scheduler()
+            except Exception as e:
+                print(f"⚠️ Avviso avvio scheduler: {e}")
