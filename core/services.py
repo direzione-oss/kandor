@@ -856,6 +856,72 @@ def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_peri
     }
 
 
+def segna_non_sostituito_da_ufficio(richiesta_id, applica_a_periodo=False):
+    """
+    Permette all'Amministrazione di segnare un turno scoperto come NON SOSTITUITO (Salto Turno).
+    Pulisce/elimina eventuali TimeTracking per il dipendente assente e l'eventuale sostituto
+    affinché non vengano contabilizzate ore né al cliente né al dipendente.
+    """
+    from .models import RichiestaSostituzione, TimeTracking, Assenza
+
+    try:
+        richiesta = RichiestaSostituzione.objects.select_related(
+            'assegnazione_originale__cliente',
+            'assegnazione_originale__turno__squadra',
+            'dipendente_assente',
+            'sostituto'
+        ).get(pk=richiesta_id)
+    except RichiestaSostituzione.DoesNotExist:
+        return {'ok': False, 'error': 'Richiesta di sostituzione non trovata'}
+
+    richieste_target = [richiesta]
+    if applica_a_periodo:
+        data_turno = richiesta.assegnazione_originale.turno.data
+        assenza_collegata = Assenza.objects.filter(
+            dipendente=richiesta.dipendente_assente,
+            data_inizio__lte=data_turno,
+            data_fine__gte=data_turno
+        ).exclude(stato_approvazione='RIFIUTATA').first()
+        if assenza_collegata:
+            altre = RichiestaSostituzione.objects.filter(
+                dipendente_assente=richiesta.dipendente_assente,
+                assegnazione_originale__turno__data__gte=assenza_collegata.data_inizio,
+                assegnazione_originale__turno__data__lte=assenza_collegata.data_fine,
+                stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'NON_SOSTITUITO', 'RIFIUTATA', 'SCADUTA']
+            ).exclude(pk=richiesta.pk).select_related(
+                'assegnazione_originale__cliente',
+                'assegnazione_originale__turno__squadra'
+            )
+            richieste_target.extend(list(altre))
+
+    processed_count = 0
+    for req in richieste_target:
+        prev_sostituto = req.sostituto
+        req.sostituto = None
+        req.stato = 'NON_SOSTITUITO'
+        nota_str = "Segnato dall'Ufficio come Non Sostituito (Salto Turno - 0 ore)"
+        if nota_str not in (req.note or ''):
+            req.note = f"{req.note}\n{nota_str}".strip()
+        req.save()
+
+        # Cancella TimeTracking per dipendente assente ed eventuale vecchio sostituto
+        assegn = req.assegnazione_originale
+        if req.dipendente_assente:
+            TimeTracking.objects.filter(assegnazione=assegn, dipendente=req.dipendente_assente).delete()
+            assegn.dipendenti_esclusi.add(req.dipendente_assente)
+        if prev_sostituto:
+            TimeTracking.objects.filter(assegnazione=assegn, dipendente=prev_sostituto).delete()
+
+        processed_count += 1
+
+    return {
+        'ok': True,
+        'richiesta': richiesta,
+        'processed_count': processed_count,
+        'message': f"Segnato come Non Sostituito (Salto Turno) per {processed_count} turno/i. Ore non contabilizzate."
+    }
+
+
 def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
     """
     Procedura di avvallo dell'amministrazione:

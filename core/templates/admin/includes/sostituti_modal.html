@@ -63,6 +63,9 @@
         In coda per Telegram: <span id="sost-selezionati-badge" style="background:#059669; color:#fff; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:700;">0</span>
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
+        <button type="button" onclick="segnaNonSostituitoModal()" style="padding:9px 16px; background:#DC2626; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;" title="Non inserire nessuno e non contabilizzare le ore al cliente né al dipendente">
+          <span>🚫</span> Non Sostituire (Salto Turno)
+        </button>
         <button type="button" onclick="chiudiModalSostituti()" style="padding:9px 16px; background:#E2E8F0; color:#334155; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px;">Chiudi</button>
         <button type="button" id="btn-invia-notifiche-sost" onclick="inviaNotificheSostitutiSelezionati()" style="padding:9px 20px; background:#059669; color:#fff; border:none; border-radius:6px; font-weight:700; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;">
           <span>🚀</span> Invia Notifiche Telegram ai Selezionati
@@ -230,6 +233,11 @@ function renderStatusBanner(data) {
     banner.innerHTML = '<div style="background:#ECFDF5; border:1.5px solid #10B981; border-radius:8px; padding:10px 16px; font-size:13px; color:#065F46; font-weight:600;">' +
       '✅ Turno attualmente coperto da: <strong>' + data.sostituto_corrente_nome + '</strong>. (Puoi comunque selezionare un altro sostituto qui sotto se necessario).' +
       '</div>';
+  } else if (data.stato === 'NON_SOSTITUITO') {
+    banner.style.display = 'block';
+    banner.innerHTML = '<div style="background:#FEF2F2; border:1.5px solid #EF4444; border-radius:8px; padding:10px 16px; font-size:13px; color:#991B1B; font-weight:600;">' +
+      '🚫 Turno segnato come <strong>Non Sostituito (Salto Turno)</strong>. Nessuna ora contabilizzata al cliente né al dipendente. (Puoi comunque selezionare un sostituto qui sotto se vuoi riassegnarlo).' +
+      '</div>';
   }
 }
 
@@ -248,12 +256,13 @@ function renderPeriodTabs(data) {
   collegate.forEach(function(rc) {
     var isCurrent = (rc.id === data.richiesta_id);
     var isCovered = (rc.stato === 'COMPLETATA' || rc.stato === 'ACCETTATA');
+    var isNotReplaced = (rc.stato === 'NON_SOSTITUITO');
     var isWaiting = (rc.stato === 'INVIATA');
-    var icon = isCovered ? '✅' : (isWaiting ? '⏳' : '🔴');
+    var icon = isCovered ? '✅' : (isNotReplaced ? '🚫' : (isWaiting ? '⏳' : '🔴'));
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.style.cssText = 'padding:5px 10px; border-radius:6px; font-size:11.5px; font-weight:' + (isCurrent ? '800' : '600') + '; cursor:pointer; border:' + (isCurrent ? '2px solid #0F172A' : '1px solid #CBD5E1') + '; background:' + (isCurrent ? '#0F172A' : (isCovered ? '#DCFCE7' : '#FFFFFF')) + '; color:' + (isCurrent ? '#FFFFFF' : '#1E293B') + ';';
-    btn.textContent = icon + ' ' + rc.data + ' (' + rc.orario + ')' + (rc.sostituto_nome ? ' → ' + rc.sostituto_nome : '');
+    btn.style.cssText = 'padding:5px 10px; border-radius:6px; font-size:11.5px; font-weight:' + (isCurrent ? '800' : '600') + '; cursor:pointer; border:' + (isCurrent ? '2px solid #0F172A' : '1px solid #CBD5E1') + '; background:' + (isCurrent ? '#0F172A' : (isCovered ? '#DCFCE7' : (isNotReplaced ? '#FEE2E2' : '#FFFFFF'))) + '; color:' + (isCurrent ? '#FFFFFF' : '#1E293B') + ';';
+    btn.textContent = icon + ' ' + rc.data + ' (' + rc.orario + ')' + (rc.sostituto_nome ? ' → ' + rc.sostituto_nome : (isNotReplaced ? ' (Salto Turno)' : ''));
     btn.onclick = function() {
       if (!isCurrent) apriModalSelezionaSostituti(rc.id);
     };
@@ -386,6 +395,42 @@ function passaAlSostitutoSuccessivo() {
       apriModalSelezionaSostituti(_currentRichiestaId);
     } else {
       alert('❌ Errore: ' + (data.error || 'Impossibile passare al successivo'));
+    }
+  })
+  .catch(function() {
+    alert('Errore di connessione.');
+  });
+}
+
+function segnaNonSostituitoModal() {
+  if (!_currentRichiestaId) return;
+  var applicaPeriodo = _isApplicaPeriodoChecked();
+  var msg = "Sei sicuro di NON voler inserire alcun sostituto per questo turno?\n\n- Nessun sostituto verrà assegnato.\n- Non verranno contabilizzate ore al cliente né al dipendente assente per questo turno.";
+  if (applicaPeriodo) {
+    msg += "\n\n(L'operazione verrà applicata a tutti i turni scoperti di questa assenza).";
+  }
+  if (!confirm(msg)) return;
+
+  fetch('/api/conferma-sostituto-ufficio/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCsrfToken()
+    },
+    body: JSON.stringify({
+      richiesta_id: _currentRichiestaId,
+      applica_a_periodo: applicaPeriodo,
+      azione: 'non_sostituire'
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.ok) {
+      alert('✅ ' + data.message);
+      chiudiModalSostituti();
+      location.reload();
+    } else {
+      alert('❌ Errore: ' + (data.error || 'Impossibile completare l\'operazione'));
     }
   })
   .catch(function() {

@@ -2354,6 +2354,21 @@ def conferma_sostituto_ufficio_api(request):
             'sostituto_corrente_nome': f"{richiesta.sostituto.cognome} {richiesta.sostituto.nome}" if richiesta.sostituto else None
         })
 
+    if azione == 'non_sostituire':
+        from .services import segna_non_sostituito_da_ufficio
+        applica_a_periodo = bool(data.get('applica_a_periodo', False))
+        res = segna_non_sostituito_da_ufficio(
+            richiesta_id=richiesta_id,
+            applica_a_periodo=applica_a_periodo
+        )
+        if not res.get('ok'):
+            return JsonResponse({'ok': False, 'error': res.get('error', 'Errore durante l\'operazione')}, status=400)
+        return JsonResponse({
+            'ok': True,
+            'message': res.get('message', 'Turno segnato come Non Sostituito (0 ore contabilizzate).'),
+            'stato': 'NON_SOSTITUITO'
+        })
+
     sostituto_id = data.get('sostituto_id')
     applica_a_periodo = bool(data.get('applica_a_periodo', False))
 

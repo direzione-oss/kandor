@@ -756,6 +756,7 @@ class RichiestaSostituzione(models.Model):
         ('SCADUTA', 'Scaduta (timeout 1h)'),
         ('COMPLETATA', 'Completata'),
         ('ANNULLATA', 'Annullata'),
+        ('NON_SOSTITUITO', 'Non Sostituito (Salto Turno)'),
     ]
 
     # Turno da coprire

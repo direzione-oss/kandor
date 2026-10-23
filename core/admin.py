@@ -988,7 +988,7 @@ class RichiestaSostituzioneAdmin(KandorBaseAdmin):
     search_fields = ('dipendente_assente__cognome', 'sostituto__cognome', 'assegnazione_originale__cliente__ragione_sociale')
     readonly_fields = ('creata_il', 'approvata_ra_il', 'inviata_sostituto_il', 'risposta_sostituto_il', 'sostituti_candidati', 'sostituto_corrente_idx')
     date_hierarchy = 'creata_il'
-    actions = ['approva_selezionate', 'conferma_ufficio_selezionate']
+    actions = ['approva_selezionate', 'conferma_ufficio_selezionate', 'segna_non_sostituite_selezionate']
 
     def get_data_turno(self, obj):
         return obj.assegnazione_originale.turno.data
@@ -1001,7 +1001,13 @@ class RichiestaSostituzioneAdmin(KandorBaseAdmin):
 
     def azione_seleziona_sostituti(self, obj):
         count = len(obj.sostituti_candidati or [])
-        if obj.stato in ('ACCETTATA', 'COMPLETATA') and obj.sostituto:
+        if obj.stato == 'NON_SOSTITUITO':
+            return format_html(
+                '<span style="color:#DC2626; font-weight:bold;">🚫 Non Sostituito (Salto Turno)</span> &nbsp;'
+                '<button type="button" class="button" style="background:#475569; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">🔄 Cambia</button>',
+                obj.id
+            )
+        elif obj.stato in ('ACCETTATA', 'COMPLETATA') and obj.sostituto:
             return format_html(
                 '<span style="color:#16A34A; font-weight:bold;">✅ {}</span> &nbsp;'
                 '<button type="button" class="button" style="background:#475569; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:bold; cursor:pointer;" onclick="apriModalSelezionaSostituti({})">🔄 Cambia Sostituto</button>',
@@ -1052,4 +1058,14 @@ class RichiestaSostituzioneAdmin(KandorBaseAdmin):
         if errori > 0:
             self.message_user(request, f"⚠️ {errori} richieste non avevano ancora un sostituto selezionato (usa il pulsante '👥 Scegli / Conferma Sostituto').", messages.WARNING)
     conferma_ufficio_selezionate.short_description = "🏢 Conferma dall'Ufficio il sostituto indicato"
+
+    def segna_non_sostituite_selezionate(self, request, queryset):
+        from .services import segna_non_sostituito_da_ufficio
+        count = 0
+        for richiesta in queryset:
+            res = segna_non_sostituito_da_ufficio(richiesta.pk, applica_a_periodo=False)
+            if res.get('ok'):
+                count += 1
+        self.message_user(request, f"🚫 {count} turni segnati come Non Sostituiti (Salto Turno - 0 ore contabilizzate).", messages.SUCCESS)
+    segna_non_sostituite_selezionate.short_description = "🚫 Segna come Non Sostituito (Salto Turno - 0 ore)"
 

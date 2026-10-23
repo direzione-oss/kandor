@@ -938,6 +938,83 @@ class CorsiFormazioneTestCase(TestCase):
         self.assertEqual(msgs[1].foto_url, "/media/chat_allegati/foto_cantiere.jpg")
 
 
+class GestioneNonSostituitoTestCase(TestCase):
+    def setUp(self):
+        import datetime
+        from decimal import Decimal
+        from core.models import Cliente, Turno, AssegnazioneTurno, Dipendente, RichiestaSostituzione, TimeTracking
+        from django.utils import timezone
+        self.today = timezone.now().date()
+
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Cliente Test Salto Turno",
+            partita_iva="01234567890",
+            indirizzo_sede="Via Test 1"
+        )
+        self.dip_assente = Dipendente.objects.create(
+            nome="Mario",
+            cognome="Assente",
+            codice_fiscale="MROASS80A01H501A",
+            stato="ATTIVO"
+        )
+        self.turno = Turno.objects.create(data=self.today)
+        self.assign = AssegnazioneTurno.objects.create(
+            turno=self.turno,
+            cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0)
+        )
+        self.req = RichiestaSostituzione.objects.create(
+            assegnazione_originale=self.assign,
+            dipendente_assente=self.dip_assente,
+            motivo_assenza="MALATTIA",
+            stato="APERTA"
+        )
+        self.tt = TimeTracking.objects.create(
+            dipendente=self.dip_assente,
+            assegnazione=self.assign,
+            ore_dichiarate=Decimal('4.0')
+        )
+
+    def test_segna_non_sostituito_da_ufficio(self):
+        from core.services import segna_non_sostituito_da_ufficio
+        from core.models import TimeTracking
+
+        res = segna_non_sostituito_da_ufficio(self.req.id)
+        self.assertTrue(res.get('ok'))
+
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.stato, 'NON_SOSTITUITO')
+        self.assertIsNone(self.req.sostituto)
+
+        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assign, dipendente=self.dip_assente).exists())
+        self.assertIn(self.dip_assente, self.assign.dipendenti_esclusi.all())
+
+    def test_conferma_sostituto_ufficio_api_non_sostituire(self):
+        import json
+        from django.test import Client
+        from core.models import TimeTracking
+
+        client = Client()
+        response = client.post(
+            '/api/conferma-sostituto-ufficio/',
+            data=json.dumps({
+                'richiesta_id': self.req.id,
+                'azione': 'non_sostituire'
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data.get('ok'))
+        self.assertEqual(data.get('stato'), 'NON_SOSTITUITO')
+
+        self.req.refresh_from_db()
+        self.assertEqual(self.req.stato, 'NON_SOSTITUITO')
+        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assign, dipendente=self.dip_assente).exists())
+
+
+
 
 
 
