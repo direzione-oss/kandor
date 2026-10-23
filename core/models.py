@@ -793,6 +793,115 @@ class ModificaCedolino(models.Model):
         return f"Rettifica Cedolino — {self.dipendente} ({self.data_inizio} - {self.data_fine})"
 
 
+DEFAULT_CORSI_FORMAZIONE = [
+    (1, "Corso sicurezza generale"),
+    (2, "Corso Specifico Basso Rischio"),
+    (3, "Corso Movimentazione manuale carichi"),
+    (4, "Corso DPI 3 lavori in quota"),
+    (5, "Corso RLS"),
+    (6, "Corso preposto"),
+    (7, "Corso primo soccorso"),
+    (8, "Corso piattaforme mobili con o senza stabilizzatori"),
+    (9, "Corso HACCP"),
+    (10, "Corso antincendio livello 2"),
+]
+
+
+class CorsoFormazione(models.Model):
+    nome = models.CharField(max_length=200, unique=True, verbose_name="Nome Corso")
+    descrizione = models.TextField(blank=True, verbose_name="Descrizione / Note")
+    ordine = models.PositiveIntegerField(default=100, verbose_name="Ordine")
+    attivo = models.BooleanField(default=True, verbose_name="Attivo")
+
+    def __str__(self):
+        return self.nome
+
+    class Meta:
+        verbose_name = "Corso di Formazione"
+        verbose_name_plural = "Corsi di Formazione"
+        ordering = ['ordine', 'nome']
+
+
+class CorsoDipendente(models.Model):
+    STATO_CHOICES = [
+        ('NON_PREVISTO', '— Seleziona (Fatto / Deve essere fatto) —'),
+        ('DA_FARE', '⏳ Deve essere fatto'),
+        ('FATTO', '✅ Fatto'),
+    ]
+
+    dipendente = models.ForeignKey(
+        Dipendente,
+        on_delete=models.CASCADE,
+        related_name='corsi_formazione',
+        verbose_name="Dipendente",
+    )
+    corso = models.ForeignKey(
+        CorsoFormazione,
+        on_delete=models.CASCADE,
+        related_name='dipendenti_iscritti',
+        verbose_name="Corso di Formazione",
+    )
+    stato = models.CharField(
+        max_length=20,
+        choices=STATO_CHOICES,
+        default='NON_PREVISTO',
+        verbose_name="Stato (Fatto / Deve essere fatto)",
+    )
+    data_scadenza = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Data di Scadenza",
+    )
+    note = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Note",
+    )
+
+    class Meta:
+        verbose_name = "Corso di Formazione"
+        verbose_name_plural = "🎓 Corsi di Formazione"
+        unique_together = ('dipendente', 'corso')
+        ordering = ['corso__ordine', 'corso__nome']
+
+    def __str__(self):
+        return f"{self.dipendente} - {self.corso} ({self.get_stato_display()})"
+
+
+def ensure_default_corsi_formazione():
+    """Assicura che i 10 corsi di formazione standard siano presenti nel catalogo."""
+    try:
+        for ordine, nome in DEFAULT_CORSI_FORMAZIONE:
+            CorsoFormazione.objects.get_or_create(
+                nome=nome,
+                defaults={'ordine': ordine, 'attivo': True}
+            )
+    except Exception:
+        pass
+
+
+def ensure_corsi_per_dipendente(dipendente):
+    """Assicura che il dipendente abbia una riga in tabella per ogni corso attivo nel catalogo."""
+    if not dipendente or not dipendente.pk:
+        return
+    try:
+        ensure_default_corsi_formazione()
+        corsi_attivi = list(CorsoFormazione.objects.filter(attivo=True).order_by('ordine', 'nome'))
+        esistenti_ids = set(
+            CorsoDipendente.objects.filter(dipendente=dipendente).values_list('corso_id', flat=True)
+        )
+        nuovi = [
+            CorsoDipendente(dipendente=dipendente, corso=corso, stato='NON_PREVISTO')
+            for corso in corsi_attivi
+            if corso.id not in esistenti_ids
+        ]
+        if nuovi:
+            CorsoDipendente.objects.bulk_create(nuovi, ignore_conflicts=True)
+    except Exception:
+        pass
+
+
+
 
 # --- Geocoding Signals ---
 @receiver(pre_save, sender=Dipendente)

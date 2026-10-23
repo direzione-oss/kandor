@@ -121,6 +121,50 @@ def expiring_medical_visits_widget():
         'has_urgent': bool(medical_visits),
     }
 
+@register.inclusion_tag('admin/widgets/expiring_training_courses_widget.html')
+def expiring_training_courses_widget():
+    from core.models import CorsoDipendente
+    today = timezone.now().date()
+    threshold = today + timedelta(days=20)
+
+    training_courses = []
+    try:
+        corsi_qs = CorsoDipendente.objects.exclude(
+            dipendente__stato='INATTIVO'
+        ).filter(
+            data_scadenza__isnull=False,
+            data_scadenza__lte=threshold
+        ).select_related('dipendente', 'corso').order_by(
+            'data_scadenza', 'dipendente__cognome', 'dipendente__nome', 'corso__ordine'
+        )
+
+        for item in corsi_qs:
+            scadenza = item.data_scadenza
+            if scadenza < today:
+                status = 'SCADUTO'
+                is_expired = True
+            else:
+                days = (scadenza - today).days
+                status = 'Scade OGGI' if days == 0 else f'Scade tra {days} gg'
+                is_expired = False
+
+            training_courses.append({
+                'obj': item,
+                'dipendente': item.dipendente,
+                'corso': item.corso,
+                'stato': item.stato,
+                'date': scadenza,
+                'status': status,
+                'is_expired': is_expired,
+            })
+    except Exception:
+        training_courses = []
+
+    return {
+        'training_courses': training_courses,
+        'has_urgent': bool(training_courses),
+    }
+
 @register.inclusion_tag('admin/widgets/upcoming_birthdays_widget.html')
 def upcoming_birthdays_widget():
     from core.models import Dipendente, Cliente
@@ -519,7 +563,7 @@ def is_operational_model(model_name):
 
 @register.filter
 def is_resource_model(model_name):
-    return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'Squadra', 'MessaggioProgrammato']
+    return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione', 'Squadra', 'MessaggioProgrammato']
 
 @register.inclusion_tag('admin/widgets/telegram_feed_widget.html')
 def telegram_feed_widget():

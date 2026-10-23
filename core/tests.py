@@ -618,3 +618,132 @@ class DipendentePartTimeTestCase(TestCase):
             is_part_time=True, tipo_part_time='M'
         )
         self.assertEqual(admin_obj.part_time_display(dip_part), "Part-Time (M - Misto)")
+
+
+from core.models import TimeTracking
+from decimal import Decimal
+
+
+class PreservazioneTurniPassatiTestCase(TestCase):
+    def setUp(self):
+        self.today = timezone.now().date()
+        self.past_date = self.today - timedelta(days=5)
+        self.future_date = self.today + timedelta(days=5)
+
+        self.capo = Dipendente.objects.create(
+            nome='Marco', cognome='Capo', codice_fiscale='CPOMRC80A01H501A', stato='ATTIVO'
+        )
+        self.comp1 = Dipendente.objects.create(
+            nome='Luca', cognome='Bianchi', codice_fiscale='BNCLCU80A01H501B', stato='ATTIVO'
+        )
+        self.comp2 = Dipendente.objects.create(
+            nome='Paolo', cognome='Neri', codice_fiscale='NRIPLA80A01H501C', stato='ATTIVO'
+        )
+
+        self.squadra = Squadra.objects.create(nome='Squadra Storica', caposquadra=self.capo)
+        self.squadra.componenti.add(self.comp1)
+
+        self.cliente = Cliente.objects.create(ragione_sociale='Cliente Storico', ore_mensili_contratto=40)
+
+        # Turno passato con ore lavorate
+        self.turno_past = Turno.objects.create(data=self.past_date, squadra=self.squadra)
+        self.assign_past = AssegnazioneTurno.objects.create(
+            turno=self.turno_past,
+            cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0),
+            ore_previste_contratto=4.0,
+        )
+        self.tt_past_capo = TimeTracking.objects.create(
+            dipendente=self.capo,
+            assegnazione=self.assign_past,
+            ore_dichiarate=Decimal('4.00'),
+            is_validated=True,
+            source='ADMIN',
+        )
+        self.tt_past_comp1 = TimeTracking.objects.create(
+            dipendente=self.comp1,
+            assegnazione=self.assign_past,
+            ore_dichiarate=Decimal('4.00'),
+            is_validated=True,
+            source='ADMIN',
+        )
+
+        # Turno futuro
+        self.turno_future = Turno.objects.create(data=self.future_date, squadra=self.squadra)
+        self.assign_future = AssegnazioneTurno.objects.create(
+            turno=self.turno_future,
+            cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0),
+            ore_previste_contratto=4.0,
+        )
+
+    def test_1_eliminazione_squadra_preserva_turni_passati_cancella_futuri(self):
+        past_turno_id = self.turno_past.id
+        future_turno_id = self.turno_future.id
+
+        # Elimina la squadra
+        self.squadra.delete()
+
+        # Il turno futuro deve essere stato cancellato
+        self.assertFalse(Turno.objects.filter(id=future_turno_id).exists())
+        self.assertFalse(AssegnazioneTurno.objects.filter(id=self.assign_future.id).exists())
+
+        # Il turno passato, l'assegnazione e le ore lavorate devono essere intatti!
+        self.assertTrue(Turno.objects.filter(id=past_turno_id).exists())
+        turno_past_db = Turno.objects.get(id=past_turno_id)
+        self.assertIsNone(turno_past_db.squadra)
+        self.assertEqual(turno_past_db.nome_squadra, 'Squadra Storica')
+        self.assertEqual(TimeTracking.objects.filter(assegnazione=self.assign_past).count(), 2)
+
+    def test_2_modifica_squadra_preserva_turni_passati(self):
+        # Rimuovi comp1 e aggiungi comp2 alla squadra
+        self.squadra.componenti.remove(self.comp1)
+        self.squadra.componenti.add(self.comp2)
+
+        # Nel turno passato: comp1 NON è escluso e conserva le sue 4 ore; comp2 è escluso dal turno passato
+        self.assign_past.refresh_from_db()
+        esclusi_past = set(self.assign_past.dipendenti_esclusi.values_list('pk', flat=True))
+        self.assertNotIn(self.comp1.pk, esclusi_past)
+        self.assertIn(self.comp2.pk, esclusi_past)
+        self.assertTrue(
+            TimeTracking.objects.filter(assegnazione=self.assign_past, dipendente=self.comp1, ore_dichiarate=Decimal('4.00')).exists()
+        )
+
+    def test_3_licenziamento_dipendente_cancella_solo_futuri_preserva_cedolini_passati(self):
+        # Aggiungi anche un TimeTracking futuro pre-compilato per verificare che venga rimosso
+        TimeTracking.objects.create(
+            dipendente=self.comp1,
+            assegnazione=self.assign_future,
+            ore_dichiarate=Decimal('4.00'),
+            is_validated=False,
+        )
+
+        # Licenzia comp1 in data odierna
+        self.comp1.stato = 'INATTIVO'
+        self.comp1.data_licenziamento = self.today
+        self.comp1.save()
+
+        # Nel turno futuro comp1 è stato escluso e il TimeTracking futuro è stato cancellato
+        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assign_future, dipendente=self.comp1).exists())
+        self.assertIn(self.comp1.pk, set(self.assign_future.dipendenti_esclusi.values_list('pk', flat=True)))
+
+        # Nel turno passato comp1 mantiene le sue ore e NON è escluso
+        self.assertTrue(
+            TimeTracking.objects.filter(assegnazione=self.assign_past, dipendente=self.comp1, ore_dichiarate=Decimal('4.00')).exists()
+        )
+        self.assertNotIn(self.comp1.pk, set(self.assign_past.dipendenti_esclusi.values_list('pk', flat=True)))
+
+        # Verifica che il dipendente licenziato compaia regolarmente nel report cedolini paghe del periodo
+        data_inizio = (self.past_date - timedelta(days=2)).isoformat()
+        data_fine = self.today.isoformat()
+        res = self.client.get(f'/report-paghe/?data_inizio={data_inizio}&data_fine={data_fine}')
+        self.assertEqual(res.status_code, 200)
+        report_list = res.context['report_list']
+        comp1_row = next((r for r in report_list if r['dip_id'] == self.comp1.pk), None)
+        self.assertIsNotNone(comp1_row, "Il dipendente licenziato con ore nel periodo deve comparire nel report cedolini paghe!")
+        self.assertEqual(comp1_row['ore_lavorate'], 4.0)
+        self.assertEqual(comp1_row['ore_validate'], 4.0)
+        self.assertEqual(comp1_row['giorni_lavorati'], 1)
+

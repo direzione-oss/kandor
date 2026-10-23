@@ -352,17 +352,13 @@
     <!-- Widget Telegram Feed -->
     {% telegram_feed_widget %}
 
-    <!-- RIGA SUPERIORE: Scadenze Mezzi, Visite Mediche & Compleanni (Affiancati) -->
+    <!-- RIGA SUPERIORE: Scadenze Mezzi, Visite Mediche, Corsi Formazione & Compleanni (Affiancati) -->
+    <style>.dashboard-alert-col:empty { display: none; }</style>
     <div style="display: flex; gap: 24px; margin-bottom: 28px; flex-wrap: wrap;">
-        <div style="flex: 1; min-width: 320px;">
-            {% expiring_vehicles_widget %}
-        </div>
-        <div style="flex: 1; min-width: 320px;">
-            {% expiring_medical_visits_widget %}
-        </div>
-        <div style="flex: 1; min-width: 320px;">
-            {% upcoming_birthdays_widget %}
-        </div>
+        <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% expiring_vehicles_widget %}</div>
+        <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% expiring_medical_visits_widget %}</div>
+        <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% expiring_training_courses_widget %}</div>
+        <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% upcoming_birthdays_widget %}</div>
     </div>
 
     <!-- Widget Contratti in Scadenza -->

@@ -1411,6 +1411,16 @@ def titolari_dashboard_view(request):
     ).count()
     if visite_in_scadenza > 0:
         alerts.append({'msg': f'🩺 {visite_in_scadenza} visita/e medica/he in scadenza (o scadute) entro 20 giorni', 'critico': False})
+    try:
+        from .models import CorsoDipendente
+        corsi_in_scadenza = CorsoDipendente.objects.exclude(dipendente__stato='INATTIVO').filter(
+            data_scadenza__isnull=False,
+            data_scadenza__lte=oggi + timedelta(days=20)
+        ).count()
+        if corsi_in_scadenza > 0:
+            alerts.append({'msg': f'🎓 {corsi_in_scadenza} corso/i di formazione in scadenza (o scaduti) entro 20 giorni', 'critico': False})
+    except Exception:
+        pass
     
     return render(request, 'core/titolari_dashboard.html', {
         'oggi': oggi, 'lun': lun, 'ven': ven,
@@ -3086,10 +3096,10 @@ def settimana_pdf_view(request):
                     c.setFont('Helvetica', 5.5)
                     c.drawString(tx, ty - 8, nome)
                     # Terza riga: squadra (solo se c'è spazio)
-                    if avail_h >= 28 and t.squadra:
+                    if avail_h >= 28:
                         c.setFont('Helvetica', 5)
                         c.setFillColor(colors.HexColor(sq_color_hex))
-                        c.drawString(tx, ty - 15, t.squadra.nome)
+                        c.drawString(tx, ty - 15, t.nome_squadra)
 
 
     # ── Legenda squadre ──────────────────────────────────────────────
@@ -3100,10 +3110,13 @@ def settimana_pdf_view(request):
     c.drawString(legend_x, legend_y, 'Squadre: ')
     lx = legend_x + 38
     for sq_id, hex_col in squad_color_map.items():
-        try:
-            sq_nome = Squadra.objects.get(pk=sq_id).nome
-        except Exception:
-            continue
+        if isinstance(sq_id, str) and sq_id.startswith('hist_'):
+            sq_nome = sq_id[5:]
+        else:
+            try:
+                sq_nome = Squadra.objects.get(pk=sq_id).nome
+            except Exception:
+                continue
         c.setFillColor(colors.HexColor(hex_col))
         c.rect(lx, legend_y - 1, 8, 8, fill=1, stroke=0)
         c.setFillColor(colors.HexColor('#333333'))
@@ -3796,8 +3809,27 @@ def report_paghe_view(request):
         last_day = calendar.monthrange(now.year, now.month)[1]
         data_fine = now.replace(day=last_day)
 
-    # Query Dipendenti
-    dip_qs = Dipendente.objects.filter(stato='ATTIVO')
+    # Query Dipendenti (includi anche i dipendenti licenziati/inattivi che erano in forza o hanno storico nel periodo)
+    dip_ids_con_storico = (
+        set(TimeTracking.objects.filter(
+            assegnazione__turno__data__gte=data_inizio,
+            assegnazione__turno__data__lte=data_fine,
+            ore_dichiarate__gt=0,
+        ).values_list('dipendente_id', flat=True))
+        | set(Assenza.objects.filter(
+            Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio)
+        ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
+        | set(ModificaCedolino.objects.filter(
+            data_inizio=data_inizio,
+            data_fine=data_fine,
+        ).values_list('dipendente_id', flat=True))
+    )
+    dip_qs = Dipendente.objects.filter(
+        Q(stato='ATTIVO')
+        | (Q(data_licenziamento__gte=data_inizio) & (Q(data_assunzione__isnull=True) | Q(data_assunzione__lte=data_fine)))
+        | Q(pk__in=dip_ids_con_storico)
+    ).distinct()
+    all_dipendenti = dip_qs.order_by('cognome', 'nome')
     if dipendente_id and dipendente_id.isdigit():
         dip_qs = dip_qs.filter(pk=int(dipendente_id))
     
@@ -3863,11 +3895,12 @@ def report_paghe_view(request):
         if tt.is_validated:
             report_data[dip_id]['ore_validate'] += ore
 
-        report_data[dip_id]['giorni_lavorati_set'].add(data_turno)
+        if ore > 0:
+            report_data[dip_id]['giorni_lavorati_set'].add(data_turno)
 
-        if cl_nome not in report_data[dip_id]['clienti_dict']:
-            report_data[dip_id]['clienti_dict'][cl_nome] = 0.0
-        report_data[dip_id]['clienti_dict'][cl_nome] += ore
+            if cl_nome not in report_data[dip_id]['clienti_dict']:
+                report_data[dip_id]['clienti_dict'][cl_nome] = 0.0
+            report_data[dip_id]['clienti_dict'][cl_nome] += ore
 
     # Processa Assenze
     for assenza in assenze_qs:
@@ -3974,8 +4007,6 @@ def report_paghe_view(request):
         'l104_totale': sum(x['assenze_dict']['104'] for x in report_list),
     }
 
-    all_dipendenti = Dipendente.objects.filter(stato='ATTIVO').order_by('cognome', 'nome')
-
     context = {
         'report_list': report_list,
         'totale_generale': totale_generale,
@@ -4023,7 +4054,25 @@ def pdf_report_paghe(request):
         last_day = calendar.monthrange(now.year, now.month)[1]
         data_fine = now.replace(day=last_day)
 
-    dip_qs = Dipendente.objects.filter(stato='ATTIVO')
+    dip_ids_con_storico = (
+        set(TimeTracking.objects.filter(
+            assegnazione__turno__data__gte=data_inizio,
+            assegnazione__turno__data__lte=data_fine,
+            ore_dichiarate__gt=0,
+        ).values_list('dipendente_id', flat=True))
+        | set(Assenza.objects.filter(
+            Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio)
+        ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
+        | set(ModificaCedolino.objects.filter(
+            data_inizio=data_inizio,
+            data_fine=data_fine,
+        ).values_list('dipendente_id', flat=True))
+    )
+    dip_qs = Dipendente.objects.filter(
+        Q(stato='ATTIVO')
+        | (Q(data_licenziamento__gte=data_inizio) & (Q(data_assunzione__isnull=True) | Q(data_assunzione__lte=data_fine)))
+        | Q(pk__in=dip_ids_con_storico)
+    ).distinct()
     if dipendente_id and dipendente_id.isdigit():
         dip_qs = dip_qs.filter(pk=int(dipendente_id))
     dipendenti_map = {d.pk: d for d in dip_qs.order_by('cognome', 'nome')}
@@ -4067,9 +4116,10 @@ def pdf_report_paghe(request):
         report_data[dip_id]['ore_lavorate'] += ore
         if tt.is_validated:
             report_data[dip_id]['ore_validate'] += ore
-        report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
-        cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
-        report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
+        if ore > 0:
+            report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
+            cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
+            report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
 
     for ass in assenze_qs:
         dip_id = ass.dipendente_id
@@ -4263,7 +4313,25 @@ def export_paghe_csv(request):
         last_day = calendar.monthrange(now.year, now.month)[1]
         data_fine = now.replace(day=last_day)
 
-    dip_qs = Dipendente.objects.filter(stato='ATTIVO')
+    dip_ids_con_storico = (
+        set(TimeTracking.objects.filter(
+            assegnazione__turno__data__gte=data_inizio,
+            assegnazione__turno__data__lte=data_fine,
+            ore_dichiarate__gt=0,
+        ).values_list('dipendente_id', flat=True))
+        | set(Assenza.objects.filter(
+            Q(data_inizio__lte=data_fine) & Q(data_fine__gte=data_inizio)
+        ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
+        | set(ModificaCedolino.objects.filter(
+            data_inizio=data_inizio,
+            data_fine=data_fine,
+        ).values_list('dipendente_id', flat=True))
+    )
+    dip_qs = Dipendente.objects.filter(
+        Q(stato='ATTIVO')
+        | (Q(data_licenziamento__gte=data_inizio) & (Q(data_assunzione__isnull=True) | Q(data_assunzione__lte=data_fine)))
+        | Q(pk__in=dip_ids_con_storico)
+    ).distinct()
     if dipendente_id and dipendente_id.isdigit():
         dip_qs = dip_qs.filter(pk=int(dipendente_id))
     dipendenti_map = {d.pk: d for d in dip_qs.order_by('cognome', 'nome')}
@@ -4308,9 +4376,10 @@ def export_paghe_csv(request):
         report_data[dip_id]['ore_lavorate'] += ore
         if tt.is_validated:
             report_data[dip_id]['ore_validate'] += ore
-        report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
-        cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
-        report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
+        if ore > 0:
+            report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
+            cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
+            report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
 
     for ass in assenze_qs:
         dip_id = ass.dipendente_id

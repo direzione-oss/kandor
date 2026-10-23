@@ -28,7 +28,8 @@ from .models import (
     Dipendente, Qualifica, Cliente, Mezzo, 
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
     ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
-    ResponsabileArea, RichiestaSostituzione, Titolare, ModificaCedolino
+    ResponsabileArea, RichiestaSostituzione, Titolare, ModificaCedolino,
+    CorsoFormazione, CorsoDipendente, ensure_default_corsi_formazione, ensure_corsi_per_dipendente
 )
 
 @admin.register(ModificaCedolino)
@@ -189,12 +190,120 @@ admin.site.site_header = "Kandor Administration"
 admin.site.site_title = "Kandor Portal"
 admin.site.index_title = "Benvenuto in Kandor"
 
+
+from django.forms.models import BaseInlineFormSet
+
+@admin.register(CorsoFormazione)
+class CorsoFormazioneAdmin(KandorBaseAdmin):
+    list_display = ('nome', 'ordine', 'attivo', 'descrizione')
+    list_editable = ('ordine', 'attivo')
+    search_fields = ('nome', 'descrizione')
+    ordering = ('ordine', 'nome')
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Se il corso viene creato/attivato fuori dal popup dell'inline, lo aggiungiamo alla tabella di tutti i dipendenti
+        is_popup = ('_popup' in request.POST) or ('_popup' in request.GET)
+        if obj.attivo and not is_popup:
+            try:
+                esistenti_dip_ids = set(
+                    CorsoDipendente.objects.filter(corso=obj).values_list('dipendente_id', flat=True)
+                )
+                nuovi = [
+                    CorsoDipendente(dipendente=dip, corso=obj, stato='NON_PREVISTO')
+                    for dip in Dipendente.objects.exclude(id__in=esistenti_dip_ids)
+                ]
+                if nuovi:
+                    CorsoDipendente.objects.bulk_create(nuovi, ignore_conflicts=True)
+            except Exception:
+                pass
+
+
+class CorsoDipendenteInlineFormSet(BaseInlineFormSet):
+    def __init__(self, *args, **kwargs):
+        if self.instance and not self.instance.pk and 'initial' not in kwargs:
+            ensure_default_corsi_formazione()
+            corsi = list(CorsoFormazione.objects.filter(attivo=True).order_by('ordine', 'nome'))
+            kwargs['initial'] = [{'corso': c.pk, 'stato': 'NON_PREVISTO'} for c in corsi]
+        super().__init__(*args, **kwargs)
+
+    def save_new(self, form, commit=True):
+        corso = form.cleaned_data.get('corso')
+        if commit and self.instance and self.instance.pk and corso:
+            existing = CorsoDipendente.objects.filter(dipendente=self.instance, corso=corso).first()
+            if existing:
+                existing.stato = form.cleaned_data.get('stato') or existing.stato
+                existing.data_scadenza = form.cleaned_data.get('data_scadenza')
+                existing.note = form.cleaned_data.get('note') or ''
+                existing.save()
+                form.instance = existing
+                return existing
+        return super().save_new(form, commit=commit)
+
+
+class CorsoDipendenteInline(admin.TabularInline):
+    model = CorsoDipendente
+    formset = CorsoDipendenteInlineFormSet
+    fields = ('corso', 'stato', 'data_scadenza', 'stato_scadenza_badge', 'note')
+    readonly_fields = ('stato_scadenza_badge',)
+    ordering = ('corso__ordine', 'corso__nome')
+    verbose_name = "Corso di Formazione"
+    verbose_name_plural = "🎓 Corsi di Formazione (usa '+ Aggiungi un altro Corso di Formazione' o il tasto '+' sul corso per aggiungerne uno nuovo)"
+
+    def get_extra(self, request, obj=None, **kwargs):
+        if obj is None or not obj.pk:
+            ensure_default_corsi_formazione()
+            return CorsoFormazione.objects.filter(attivo=True).count() + 1
+        return 1
+
+    @admin.display(description="Stato Scadenza")
+    def stato_scadenza_badge(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        from django.utils import timezone
+        from datetime import timedelta
+        today = timezone.now().date()
+        threshold = today + timedelta(days=20)
+        if obj.data_scadenza:
+            if obj.data_scadenza < today:
+                return format_html(
+                    '<span style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                    '🔴 SCADUTO ({})</span>',
+                    obj.data_scadenza.strftime('%d/%m/%Y')
+                )
+            elif obj.data_scadenza <= threshold:
+                days = (obj.data_scadenza - today).days
+                lbl = "Scade OGGI" if days == 0 else f"Scade tra {days} gg"
+                return format_html(
+                    '<span style="background:#FEF3C7;color:#B45309;border:1px solid #FDE68A;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                    '🟠 {}</span>',
+                    lbl
+                )
+            else:
+                return format_html(
+                    '<span style="background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                    '🟢 Valido</span>'
+                )
+        if obj.stato == 'DA_FARE':
+            return mark_safe(
+                '<span style="background:#FEF3C7;color:#B45309;border:1px solid #FDE68A;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                '⏳ Da pianificare</span>'
+            )
+        if obj.stato == 'FATTO':
+            return mark_safe(
+                '<span style="background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                '✅ Fatto</span>'
+            )
+        return "—"
+
+
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'telegram_chat_id')
     list_filter = ('stato', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
+    inlines = [CorsoDipendenteInline]
     actions = ['send_telegram_message_action']
     readonly_fields = ('anteprima_foto_telegram',)
     fieldsets = (
@@ -221,6 +330,18 @@ class DipendenteAdmin(KandorBaseAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        if object_id and request.method == 'GET':
+            dip = Dipendente.objects.filter(pk=object_id).first()
+            if dip:
+                ensure_corsi_per_dipendente(dip)
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        if form.instance and form.instance.pk:
+            ensure_corsi_per_dipendente(form.instance)
 
     @admin.display(description='Legge 104', boolean=True)
     def usufruisce_104_display(self, obj):
