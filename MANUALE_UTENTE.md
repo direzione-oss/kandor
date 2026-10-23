@@ -1,8 +1,9 @@
 # 📘 KANDOR — Manuale d'Uso Completo e Guida Operativa
 
-> **Versione**: 2.6  
-> **Ultimo aggiornamento**: Ottobre 2026 (Integrazione Avvallo Sostituzione & Validazione Form)  
-> **Applicazione Web**: [kandor.onrender.com](https://kandor.onrender.com)  
+> **Versione**: 2.8  
+> **Ultimo aggiornamento**: Ottobre 2026 (Web App Mobile Dipendenti con PIN 4 cifre, Conferma Squadra, Corsi Sicurezza & Scadenze ZTL)  
+> **Applicazione Web Gestionale**: [kandor.onrender.com](https://kandor.onrender.com)  
+> **Web App Mobile Dipendenti**: [kandor.onrender.com/app/](https://kandor.onrender.com/app/)  
 > **Sistema ERP per Imprese di Pulizie e Facility Management**
 
 ---
@@ -12,29 +13,30 @@
 1. [Introduzione e Architettura di Sistema](#1-introduzione-e-architettura-di-sistema)
 2. [Accesso al Sistema e Sicurezza](#2-accesso-al-sistema-e-sicurezza)
 3. [Dashboard Principale e Navigazione](#3-dashboard-principale-e-navigazione)
-4. [Gestione Anagrafica Dipendenti](#4-gestione-anagrafica-dipendenti)
+4. [Gestione Anagrafica Dipendenti, PIN App e Corsi](#4-gestione-anagrafica-dipendenti-pin-app-e-corsi)
 5. [Gestione Anagrafica Clienti e Sedi](#5-gestione-anagrafica-clienti-e-sedi)
 6. [Gestione Qualifiche e Competenze](#6-gestione-qualifiche-e-competenze)
-7. [Gestione Parco Mezzi Aziendali](#7-gestione-parco-mezzi-aziendali)
+7. [Gestione Parco Mezzi Aziendali e Permessi ZTL](#7-gestione-parco-mezzi-aziendali-e-permessi-ztl)
 8. [Gestione Squadre Operative](#8-gestione-squadre-operative)
 9. [Gestione Responsabili Area (RA)](#9-gestione-responsabili-area-ra)
 10. [Pianificazione Turni, Calendario e Composizione Retroattiva](#10-pianificazione-turni-calendario-e-composizione-retroattiva)
 11. [Programmazione Ricorrente Contratti](#11-programmazione-ricorrente-contratti)
 12. [Richieste e Interventi Straordinari](#12-richieste-e-interventi-straordinari)
 13. [Gestione Sostituti e Ricerca "Trova Jolly"](#13-gestione-sostituti-e-ricerca-trova-jolly)
-14. [Registrazione Ore (Time Tracking) e Validazione 1-Click](#14-registrazione-ore-time-tracking-e-validazione-1-click)
+14. [Registrazione Ore (Time Tracking), Conferma Squadra e Validazione 1-Click](#14-registrazione-ore-time-tracking-conferma-squadra-e-validazione-1-click)
 15. [Verifica Ore Mensili e Riconciliazione Storica](#15-verifica-ore-mensili-e-riconciliazione-storica)
 16. [Report Paghe, Buste Paga e Rettifiche Amministrative](#16-report-paghe-buste-paga-e-rettifiche-amministrative)
 17. [Gestione Assenze, Avvallo e Sostituzioni Automatiche](#17-gestione-assenze-avvallo-e-sostituzioni-automatiche)
 18. [Segnalazioni dagli Operatori](#18-segnalazioni-dagli-operatori)
 19. [Riconciliazione Ore e Monitoraggio Cantieri](#19-riconciliazione-ore-e-monitoraggio-cantieri)
 20. [Analisi Economica Contratti e Marginalità](#20-analisi-economica-contratti-e-marginalita)
-21. [Integrazione Bot Telegram per Lavoratori](#21-integrazione-bot-telegram-per-lavoratori)
-22. [Messaggi Programmati e Comunicazioni di Massa](#22-messaggi-programmati-e-comunicazioni-di-massa)
-23. [Centro Messaggi e Chat Bidirezionale Telegram](#23-centro-messaggi-e-chat-bidirezionale-telegram)
-24. [Gestione Dati, Import/Export Excel e Backup](#24-gestione-dati-importexport-excel-e-backup)
-25. [Widget Dashboard e Monitoraggio Scadenze](#25-widget-dashboard-e-monitoraggio-scadenze)
-26. [FAQ, Risoluzione Problemi e Domande Frequenti](#26-faq-risoluzione-problemi-e-domande-frequenti)
+21. [Web App Mobile per Dipendenti (`/app/`) e Accesso con PIN 4 Cifre](#21-web-app-mobile-per-dipendenti-app-e-accesso-con-pin-4-cifre)
+22. [Integrazione Bot Telegram per Lavoratori](#22-integrazione-bot-telegram-per-lavoratori)
+23. [Messaggi Programmati e Comunicazioni di Massa](#23-messaggi-programmati-e-comunicazioni-di-massa)
+24. [Centro Messaggi Unificato (Web App + Telegram) e Invio Allegati](#24-centro-messaggi-unificato-web-app--telegram-e-invio-allegati)
+25. [Gestione Dati, Import/Export Excel e Backup](#25-gestione-dati-importexport-excel-e-backup)
+26. [Widget Dashboard e Monitoraggio Scadenze](#26-widget-dashboard-e-monitoraggio-scadenze)
+27. [FAQ, Risoluzione Problemi e Domande Frequenti](#27-faq-risoluzione-problemi-e-domande-frequenti)
 
 ---
 
@@ -119,32 +121,42 @@ La Dashboard di Kandor costituisce il centro di controllo di tutte le attività 
 
 ---
 
-## 4. Gestione Anagrafica Dipendenti
+## 4. Gestione Anagrafica Dipendenti, PIN App e Corsi
 
 ### Scopo Operativo
-Il modulo Dipendenti censisce tutti i lavoratori aziendali, raccogliendo le informazioni anagrafiche, le qualifiche professionali, i recapiti di contatto e la disponibilità ad effettuare sostituzioni d'emergenza.
+Il modulo Dipendenti censisce tutti i lavoratori aziendali, raccogliendo le informazioni anagrafiche, le credenziali di accesso alla Web App Mobile (**Codice Fiscale + PIN di 4 cifre**), il contatto Telegram, le qualifiche professionali, la sorveglianza sanitaria, i corsi di formazione obbligatori e la disponibilità ad effettuare sostituzioni d'emergenza.
 
 ### Percorso di Navigazione
 👉 **Dashboard** → **Dipendenti** (oppure `/admin/core/dipendente/`)
 
-### Guida Passo-Passo per l'Inserimento di un Nuovo Dipendente
+### Guida Passo-Passo per l'Inserimento e la Gestione di un Dipendente
 1. Clicca su **Dipendenti** e poi sul pulsante in alto a destra **"+ Aggiungi Dipendente"**.
-2. **Dati Anagrafici**:
+2. **Dati Anagrafici e Foto Profilo**:
    - Inserisci **Nome** e **Cognome**.
+   - **Foto Profilo**: Puoi caricare la fotografia del lavoratore (con strumento di ritaglio circolare integrato) oppure lasciare che sia il dipendente stesso a caricarla dalla propria Web App Mobile.
    - Inserisci il **Codice Fiscale** (16 caratteri alfanumerici).  
      *Automazione*: Se lasci il campo "Data di Nascita" vuoto, il sistema estrapolerà automaticamente la data di nascita corretta decodificando il Codice Fiscale.
    - Digita l'**Indirizzo di Residenza** completo (Via/Piazza, Numero Civico, CAP, Comune, Provincia).  
      *Automazione GPS*: Al salvataggio della scheda, Kandor invierà l'indirizzo al servizio di geocodifica integrato per calcolare la latitudine e la longitudine GPS. Tali coordinate sono indispensabili per calcolare i km di distanza quando si cercano sostituti per i cantieri.
-3. **Contatti e Telegram**:
+3. **Contatti, Web App Mobile (PIN 4 cifre) e Telegram**:
    - Inserisci il **Telefono** e l'**Email** del lavoratore.
-   - **Telegram Chat ID**: Inserisci l'identificativo univoco dell'account Telegram del dipendente per abilitare l'invio e la ricezione di messaggi dal Bot aziendale.
+   - **PIN Accesso App Mobile (4 cifre)**:  
+     - Al salvataggio di un nuovo dipendente, se il campo viene lasciato vuoto, il sistema **genera automaticamente un PIN numerico casuale di 4 cifre** (es. `4829`).  
+     - L'amministratore può leggere o modificare manualmente il PIN in qualsiasi momento all'interno della scheda dipendente.  
+     - Nella lista generale **Dipendenti**, la colonna **`🔑 PIN & App`** mostra in chiaro il PIN di 4 cifre di ciascun lavoratore insieme al pulsante rapido **`📲 App`** per aprire l'anteprima della Web App Mobile.  
+     - **Rigenerazione Multipla del PIN**: Selezionando uno o più dipendenti nella lista e scegliendo dal menu *Azione* in alto **"🔑 Rigenera PIN 4 cifre (App Mobile)"**, il sistema assegna istantaneamente un nuovo PIN casuale.
+   - **Telegram Chat ID**: Inserisci l'identificativo univoco dell'account Telegram del dipendente (opzionale se il lavoratore utilizza la Web App Mobile `/app/`).
 4. **Competenze, Sostituzioni e Sorveglianza Sanitaria**:
    - Seleziona le **Qualifiche Possedute** nella lista a scelta multipla (es. Pulizie Industriali, Uso Monospazzola, Trattamento Cotto).
    - Se il lavoratore è disponibile a coprire i turni dei colleghi assenti, spunta la casella **"Disponibile come Sostituto"**.
    - **Prossima scadenza visita medica**: Inserisci la data della prossima visita medica periodica obbligatoria. Il sistema attiverà automaticamente un alert nella Dashboard principale **20 giorni prima** della scadenza (ed evidenzierà in rosso le visite eventualmente scadute).
-5. **Stato Operativo**:
+5. **Corsi di Formazione e Sicurezza (D.Lgs. 81/08)**:
+   - In fondo alla scheda del dipendente (oppure dalla voce dedicata **Corsi Dipendenti** in Dashboard) è possibile registrare tutti i corsi obbligatori sostenuti dal lavoratore (*Formazione Generale e Specifica*, *Primo Soccorso*, *Antincendio*, *Preposto*, *HACCP*, *Lavori in Quota*, ecc.).
+   - **Calcolo Automatico della Scadenza**: Inserendo la **Data di Conseguimento** e gli **Anni di Validità** (es. 5 anni, 3 anni), Kandor calcola e compila **automaticamente la Data di Scadenza** dell'attestato, attivando il monitoraggio nel widget Scadenze della Dashboard e mostrando il corso anche nel profilo della Web App del dipendente.
+   - È possibile allegare la scansione PDF o l'immagine dell'**Attestato** conseguito.
+6. **Stato Operativo**:
    - Imposta lo stato su **Attivo** per i lavoratori in servizio regolare. Gli altri stati (In Malattia, In Ferie, In Permesso, Legge 104, Licenziato/Inattivo) vengono aggiornati automaticamente dal sistema o dall'amministrazione.
-6. Clicca **"Salva"** in basso a destra.
+7. Clicca **"Salva"** in basso a destra.
 
 ---
 
@@ -188,10 +200,10 @@ Le qualifiche rappresentano i requisiti tecnici e le idoneità professionali nec
 
 ---
 
-## 7. Gestione Parco Mezzi Aziendali
+## 7. Gestione Parco Mezzi Aziendali e Permessi ZTL
 
 ### Scopo Operativo
-Monitoraggio e assegnazione dei veicoli commerciali e delle autovetture aziendali utilizzate dalle squadre per raggiungere i cantieri.
+Monitoraggio e assegnazione dei veicoli commerciali e delle autovetture aziendali utilizzate dalle squadre per raggiungere i cantieri, con controllo completo delle scadenze amministrative e dei permessi ZTL.
 
 ### Percorso di Navigazione
 👉 **Dashboard** → **Mezzi Aziendali** (oppure `/admin/core/mezzo/`)
@@ -201,11 +213,19 @@ Monitoraggio e assegnazione dei veicoli commerciali e delle autovetture aziendal
 - **Targa**: Targa del veicolo (univoca nel sistema).
 - **Stato Attuale**: Selezionabile tra *Disponibile*, *In Manutenzione*, *In Riparazione*, *Dismesso*.
 - **Km Percorsi**: Chilometraggio aggiornato del veicolo.
-- **Scadenza Polizza Assicurativa**: Data di scadenza dell'assicurazione.
-- **Scadenza Bollo**: Data di scadenza della tassa di circolazione.
+- **Scadenze & Permessi**:
+  - **Scadenza Polizza Assicurativa**: Data di scadenza dell'assicurazione RCA.
+  - **Scadenza Bollo**: Data di scadenza della tassa di circolazione.
+  - **Scadenza Revisione**: Data di scadenza della revisione ministeriale periodica.
+  - **Scadenza Permesso Città Alta (ZTL)**: Data di scadenza del permesso di transito/sosta in Zona a Traffico Limitato.
+  - **Numero Permesso Città Alta**: Codice identificativo / numero di contrassegno o pratica associato al permesso ZTL.
 
-### Alert Scadenze Automatico
-Il sistema controlla costantemente le date di scadenza di polizze e bolli. I veicoli con scadenze nei successivi 45 giorni o già scaduti vengono evidenziati nel widget **Scadenze Veicoli** nella Dashboard principale.
+### Badge Semaforici nella Lista Mezzi e Alert in Dashboard
+- Nella tabella **Mezzi Aziendali**, ogni scadenza (*Assicurazione*, *Bollo*, *Revisione*, *Permesso Città Alta*) viene mostrata con un **badge colorato semaforico**:
+  - 🟢 **Verde**: Scadenza regolare (oltre 30 giorni).
+  - 🟠 **Arancione (`⚠️ Xgg`)**: Scadenza imminente entro i prossimi 30 giorni, con indicazione dei giorni residui.
+  - 🔴 **Rosso (`SCADUTA`)**: Scadenza superata da rinnovare con urgenza.
+- Il widget **Scadenze Veicoli** nella Dashboard principale riepiloga automaticamente tutti i mezzi con polizza, bollo, revisione o permesso ZTL in scadenza (entro 45 giorni) o scaduti, mostrando anche il numero del permesso Città Alta.
 
 ---
 
@@ -346,20 +366,28 @@ Il sostituto ha tempo per accettare. Qualora rifiuti o non risponda, il sistema 
 
 ---
 
-## 14. Registrazione Ore (Time Tracking) e Validazione 1-Click
+## 14. Registrazione Ore (Time Tracking), Conferma Squadra e Validazione 1-Click
 
 ### Scopo Operativo
-Consuntivazione delle ore di lavoro effettivamente svolte dagli operatori sul campo e relativo processo di approvazione contabile.
+Consuntivazione delle ore di lavoro effettivamente svolte dagli operatori sul campo, verifica automatica della presenza dei compagni di squadra e relativo processo di approvazione contabile.
 
 ### Modalità di Registrazione delle Ore
-Le ore possono entrare nel sistema attraverso due canali:
-1. **Via Telegram (da parte del lavoratore)**: A fine giornata l'operatore seleziona il turno dal bot Telegram e digita le ore svolte (es. `8` o `7.5`).
-2. **Inserimento Manuale Admin**: Dall'interfaccia di gestione `Time Tracking` o direttamente dal Calendario dei turni.
+Le ore possono entrare nel sistema attraverso **tre canali sincronizzati**:
+1. **Via Web App Mobile (`/app/` — Fonte `WEBAPP`)**: L'operatore accede con Codice Fiscale + PIN di 4 cifre e salva le ore del turno direttamente dallo smartphone.
+2. **Via Bot Telegram (`@kandor_gestionale_bot` — Fonte `TELEGRAM`)**: A fine giornata l'operatore seleziona il turno dal bot Telegram e digita le ore svolte (es. `8` o `7.5`).
+3. **Inserimento Manuale Admin (Fonte `ADMIN`)**: Dall'interfaccia di gestione `Time Tracking` o direttamente dal Calendario dei turni.
+
+### Conferma Automatica Presenza Compagni di Squadra
+Quando un turno è assegnato ad una **Squadra Operativa**:
+- Al primo operatore della squadra che registra le ore (sia da **Web App Mobile** sia da **Telegram**) viene mostrato l'elenco dei compagni previsti in squadra in quella giornata.
+- L'operatore conferma con una spunta chi era presente:
+  - Per tutti i colleghi confermati **presenti**, Kandor **registra automaticamente le stesse ore provvisorie**, evitando doppi inserimenti.
+  - Se un collega previsto viene deselezionato come **assente**, il sistema invia automaticamente una segnalazione all'amministrazione per verificare l'assenza non comunicata.
 
 ### Procedura di Validazione Rapida 1-Click dal Calendario
 Per velocizzare il lavoro quotidiano dell'amministrazione:
 1. Apri la vista **Pianificazione Settimanale** nella Dashboard.
-2. I turni per i quali il lavoratore ha inserito le ore via Telegram presentano il badge ambra **`⏳ Provvisorie: Xh`** e il pulsante con l'icona della spunta `✓` evidenziato in colore arancione.
+2. I turni per i quali il lavoratore ha inserito le ore via Web App Mobile o via Telegram presentano il badge ambra **`⏳ Provvisorie: Xh`** e il pulsante con l'icona della spunta `✓` evidenziato in colore arancione.
 3. Cliccando direttamente sull'icona `✓`, le ore vengono **convalidate al volo** con un solo click e il badge diventa verde **`✅ Validate: Xh`**.
 4. In alternativa, cliccando sul turno si apre la scheda di dettaglio da cui è possibile rettificare le ore e cliccare su **"✔ Salva e valida"**.
 
@@ -475,10 +503,44 @@ Il sistema confronta l'importo mensile fatturato al cliente con la somma del cos
 
 ---
 
-## 21. Integrazione Bot Telegram per Lavoratori
+## 21. Web App Mobile per Dipendenti (`/app/`) e Accesso con PIN 4 Cifre
 
 ### Scopo Operativo
-Fornire ai lavoratori uno strumento semplice ed immediato sul proprio smartphone per interagire con l'azienda senza installare app complesse.
+Fornire a tutti i dipendenti un'applicazione mobile completa (Progressive Web App — PWA), installabile sulla schermata Home dello smartphone (Android e iPhone) **senza bisogno di avere Telegram**, con il 100% delle funzionalità operative sincronizzate in tempo reale col gestionale.
+
+### Indirizzo Ufficiale e Accesso Rapido
+- **URL per i Dipendenti**: 👉 **[https://kandor.onrender.com/app/](https://kandor.onrender.com/app/)**
+- **Accesso dall'Admin**: Riquadro **"📲 App Dipendenti"** nella Dashboard principale oppure pulsante **`📲 App`** nella colonna **`🔑 PIN & App`** della lista Dipendenti.
+
+### Credenziali di Accesso del Lavoratore
+Per accedere alla Web App Mobile, il dipendente inserisce:
+1. **Codice Fiscale** (16 caratteri alfanumerici).
+2. **PIN personale di 4 cifre** (`pin_accesso`), generato automaticamente da Kandor al momento della creazione del dipendente e sempre visibile/modificabile dall'amministrazione nella lista Dipendenti.
+
+### Le 5 Schede Operative della Web App Mobile
+1. **⏱ Oggi & Ore**:
+   - Riepilogo mensile in tempo reale (*Ore Validate ✅*, *In Attesa ⏳*, *Totale Mese*).
+   - Elenco dei turni della giornata con orari, squadra, mezzo, istruzioni di cantiere e pulsante **📍 Apri Mappa (Google Maps)**.
+   - Registrazione delle ore svolte con **conferma presenza dei compagni di squadra** (registrazione automatica per i colleghi presenti e segnalazione assenza per gli assenti).
+   - Sezione **📋 Turni da Compilare (Ultimi 7 Giorni)** per recuperare in autonomia i turni passati dimenticati.
+2. **📅 Calendario**:
+   - Navigatore giornaliero (`◀ Prec.` / `Oggi` / `Succ. ▶`) e panoramica completa dei turni programmati nei **prossimi 7 giorni**.
+3. **🏥 Assenze**:
+   - Invio immediato di comunicazioni per **Malattia**, **Ferie**, **Permesso Orario** (con selettore ora inizio/fine) e **Legge 104** (giornaliera o ad ore), più storico delle richieste con stato di avvallo in tempo reale (*In attesa di avvallo*, *Approvata*, *Rifiutata*).
+4. **💬 Ufficio (Chat Diretta & Segnalazioni)**:
+   - **Chat Bidirezionale**: Messaggistica istantanea con l'amministrazione con possibilità di inviare **foto dalla fotocamera o allegati PDF** e scaricare documenti/cedolini inviati dall'ufficio.
+   - **🚨 Segnalazioni Cantiere**: Modulo dedicato per segnalare guasti o anomalie (anche con foto allegata) e consultare lo stato di risoluzione e la risposta dell'amministrazione.
+5. **👤 Profilo & 🔄 Sostituzioni**:
+   - Caricamento/aggiornamento della **Foto Profilo** direttamente dallo smartphone.
+   - Visualizzazione scadenze della **Visita Medica** e dei **Corsi di Formazione**.
+   - **Banner Sostituzioni Urgenti**: Quando il lavoratore (Jolly) o il Responsabile Area riceve una proposta di sostituzione, compare in cima all'app un avviso interattivo con i pulsanti **`✅ Accetta Sostituzione`** e **`❌ Rifiuta`**.
+
+---
+
+## 22. Integrazione Bot Telegram per Lavoratori
+
+### Scopo Operativo
+Fornire ai lavoratori che utilizzano Telegram uno strumento immediato a bottoni sul proprio smartphone, completamente sincronizzato con la Web App Mobile e con il gestionale.
 
 ### Nome e Contatto del Bot
 - Nome Bot: **Kandor Assistente** (`@kandor_gestionale_bot`)
@@ -486,18 +548,19 @@ Fornire ai lavoratori uno strumento semplice ed immediato sul proprio smartphone
 
 ### Bottoni del Menu Principale Telegram
 All'invio di qualsiasi testo, il bot risponde mostrando i bottoni guida:
-- ⏱ **Registra Ore**: Mostra i turni della giornata e permette di digitare le ore svolte.
+- ⏱ **Registra Ore**: Mostra i turni della giornata, permette di confermare i compagni di squadra presenti e di digitare le ore svolte.
 - 📋 **Turni Non Compilati**: Elenca i turni degli ultimi 7 giorni ancora privi di consuntivo.
-- 🤒 **Malattia** / 🏖️ **Ferie** / 📝 **Permesso**: Registrazione immediata dello stato di assenza per la giornata.
+- 📅 **I Miei Turni**: Mostra il calendario dei turni di oggi e della settimana.
+- 🤒 **Malattia** / 🏖️ **Ferie** / 📝 **Permesso**: Registrazione guidata dello stato di assenza (anche con fascia oraria o Legge 104).
 - ⚠️ **Segnalazione**: Invio di note o fotografie direttamente all'ufficio.
-- 📖 **Guida**: Apertura del manuale istruzioni per il lavoratore.
+- 📖 **Guida**: Apertura del manuale istruzioni completo per il lavoratore (`/manuale-dipendente/`).
 
 ---
 
-## 22. Messaggi Programmati e Comunicazioni di Massa
+## 23. Messaggi Programmati e Comunicazioni di Massa
 
 ### Scopo Operativo
-Pianificazione dell'invio differito di comunicazioni o circolari aziendali via Telegram.
+Pianificazione dell'invio differito di comunicazioni o circolari aziendali ai lavoratori.
 
 ### Percorso di Navigazione
 👉 **Dashboard** → **Messaggi Programmabili** (oppure `/admin/core/messaggioprogrammato/`)
@@ -510,22 +573,23 @@ Pianificazione dell'invio differito di comunicazioni o circolari aziendali via T
 
 ---
 
-## 23. Centro Messaggi e Chat Bidirezionale Telegram
+## 24. Centro Messaggi Unificato (Web App + Telegram) e Invio Allegati
 
 ### Scopo Operativo
-Console di messaggistica bidirezionale in tempo reale per conversare direttamente con i dipendenti via Telegram senza uscire dall'interfaccia di Kandor.
+Console di messaggistica bidirezionale in tempo reale per conversare direttamente con tutti i dipendenti attivi (sia quelli che usano la **Web App Mobile `/app/`**, sia quelli collegati a **Telegram**) senza uscire dall'interfaccia di Kandor.
 
 ### Percorso di Navigazione
 👉 **Operazioni Frequenti** → **Centro Messaggi** (oppure `/chat-simulator/`)
 
-### Funzionalità della Chat
-- **Lista Conversazioni**: Elenco a sinistra dei lavoratori con badge rosso per i messaggi non letti.
-- **Visualizzazione Foto**: Possibilità di ingrandire e scaricare le foto inviate dagli operatori dai cantieri.
+### Funzionalità della Chat Unificata
+- **Lista Completa Dipendenti Attivi**: Elenco a sinistra di tutti i lavoratori attivi con badge rosso per i messaggi non letti, anche per chi utilizza esclusivamente la Web App Mobile senza Telegram.
+- **Invio e Ricezione Allegati (PDF, Cedolini, Foto)**: L'amministrazione può allegare documenti PDF (es. buste paga, CU, circolari) o immagini; il lavoratore li riceve sia su Telegram sia nella scheda **💬 Ufficio** della Web App Mobile.
+- **Visualizzazione Foto dai Cantieri**: Possibilità di ingrandire e scaricare le foto inviate dagli operatori tramite Web App o Telegram.
 - **Invio Broadcast / Per Squadra**: Pulsanti dedicati per inviare comunicazioni istantanee ad una specifica squadra o a tutti i lavoratori.
 
 ---
 
-## 24. Gestione Dati, Import/Export Excel e Backup
+## 25. Gestione Dati, Import/Export Excel e Backup
 
 ### Scopo Operativo
 Strumenti di caricamento massivo dati da fogli di calcolo e salvataggio di sicurezza dell'intero database aziendale.
@@ -546,32 +610,40 @@ Strumenti di caricamento massivo dati da fogli di calcolo e salvataggio di sicur
 
 ---
 
-## 25. Widget Dashboard e Monitoraggio Scadenze
+## 26. Widget Dashboard e Monitoraggio Scadenze
 
 Il pannello informativo destro della Dashboard include widget ad aggiornamento automatico:
 
 1. 🚗 **Scadenze Veicoli**:
-   - Visualizza i veicoli con assicurazione o bollo in scadenza nei successivi 45 giorni (colore arancione) o già scaduti (colore rosso).
+   - Visualizza i veicoli con **Assicurazione**, **Bollo**, **Revisione** o **Permesso ZTL Città Alta** (con relativo numero permesso) in scadenza nei successivi 45 giorni (colore arancione) o già scaduti (colore rosso).
 2. 🩺 **Scadenze Visite Mediche**:
    - Segnala automaticamente i dipendenti attivi con **Prossima scadenza visita medica** entro i successivi **20 giorni** (in arancione) o già scaduta (in rosso), con collegamento diretto alla scheda del lavoratore.
-3. 🎂 **Compleanni in Arrivo**:
+3. 🎓 **Scadenze Corsi di Formazione**:
+   - Monitora gli attestati di sicurezza dei lavoratori (*Primo Soccorso*, *Antincendio*, *Formazione Specifica*, ecc.) evidenziando quelli in scadenza entro **30 giorni** o scaduti.
+4. 🎂 **Compleanni in Arrivo**:
    - Mostra i compleanni dei dipendenti e dei referenti clienti nei successivi 20 giorni.
-4. 📅 **Pianificazione Settimanale**:
+5. 📅 **Pianificazione Settimanale**:
    - Calendario sintetico dei turni con stato delle ore e navigazione rapida.
-5. 📱 **Feed Telegram**:
+6. 📱 **Feed Operativo (Web App & Telegram)**:
    - Flusso in tempo reale degli ultimi messaggi, timbrature e segnalazioni ricevute dagli operatori.
 
 ---
 
-## 26. FAQ, Risoluzione Problemi e Domande Frequenti
+## 27. FAQ, Risoluzione Problemi e Domande Frequenti
 
 ### ❓ Il primo caricamento del sito Cloud è lento. È un malfunzionamento?
 **Risposta**: No. Su Render (piano gratuito) il server va in standby dopo 15 minuti di inattività per risparmiare risorse. Il riavvio richiede circa 45-60 secondi, trascorsi i quali la navigazione torna ad essere velocissima.
 
+### ❓ Un dipendente non ha Telegram o non riesce ad usarlo. Come può registrare le ore e comunicare con l'ufficio?
+**Risposta**: Può utilizzare la **Web App Mobile Dipendenti** collegandosi dal browser del suo cellulare all'indirizzo **`https://kandor.onrender.com/app/`**. Accede inserendo il suo **Codice Fiscale** e il **PIN di 4 cifre** visibile nella colonna **`🔑 PIN & App`** della lista Dipendenti in Admin, ed ha a disposizione tutte le funzioni (registrazione ore, calendario, assenze, chat con allegati, segnalazioni e sostituzioni).
+
+### ❓ Dove trovo o come cambio il PIN di 4 cifre di un dipendente?
+**Risposta**: Vai in **Dashboard → Dipendenti**: nella tabella vedrai la colonna **`🔑 PIN & App`** con il codice di 4 cifre di ciascun lavoratore. Puoi cambiarlo aprendo la scheda del dipendente (sezione *Contatti, App Mobile & Telegram*) oppure rigenerarlo in automatico selezionando il dipendente e usando l'azione **"🔑 Rigenera PIN 4 cifre (App Mobile)"**.
+
 ### ❓ Un dipendente dice di non ricevere i messaggi dal Bot Telegram. Cosa verificare?
 **Risposta**:
 1. Verifica che nella scheda del dipendente sia stato inserito il **Telegram Chat ID** corretto.
-2. Assicurati che il dipendente abbia cliccato su **"AVVIA"** / **"/start"** all'interno del Bot `@kandor_gestionale_bot`.
+2. Assicurati che il dipendente abbia cliccato su **"AVVIA"** / **"/start"** all'interno del Bot `@kandor_gestionale_bot` (oppure fagli usare direttamente la Web App Mobile `/app/`).
 
 ### ❓ Come si recupera il Telegram Chat ID di un dipendente?
 **Risposta**: Fai scrivere un messaggio qualsiasi al lavoratore verso il bot `@kandor_gestionale_bot`. Se il suo ID non è ancora registrato, il bot gli risponderà comunicandogli il suo numero univoco (es. `123456789`). L'amministratore dovrà semplicemente copiare quel numero nella scheda del dipendente.

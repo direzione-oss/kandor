@@ -45,11 +45,12 @@ class ManualePDF(FPDF):
         # Info
         self.set_font('Helvetica', '', 11)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 7, 'Versione 2.6 - Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Versione 2.8 - Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 7, 'Sistema ERP per Imprese di Pulizie e Facility Management', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(8)
-        self.cell(0, 7, 'URL: https://kandor.onrender.com', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.ln(35)
+        self.cell(0, 7, 'URL Gestionale: https://kandor.onrender.com', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Web App Dipendenti: https://kandor.onrender.com/app/', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.ln(30)
         self.set_font('Helvetica', 'I', 10)
         self.cell(0, 7, 'Sviluppato per Studio Serra - (c) 2026', align='C', new_x="LMARGIN", new_y="NEXT")
 
@@ -317,7 +318,7 @@ def main():
     pdf.add_page()
     render_markdown_content(pdf, content_main.split('\n'), skip_first_h1=True)
     
-    # Parte II: Guida Operativa per il Dipendente - Bot Telegram
+    # Parte II: Guida Operativa per il Dipendente - Web App Mobile & Bot Telegram
     pdf.add_page()
     pdf.ln(10)
     pdf.set_font('Helvetica', 'B', 24)
@@ -325,7 +326,7 @@ def main():
     pdf.cell(0, 15, 'PARTE II: GUIDA OPERATIVA DIPENDENTE', new_x="LMARGIN", new_y="NEXT", align='C')
     pdf.set_font('Helvetica', 'I', 14)
     pdf.set_text_color(41, 128, 185)
-    pdf.cell(0, 10, 'Istruzioni e utilizzo del Bot Telegram (@kandor_gestionale_bot)', new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf.cell(0, 10, 'Web App Mobile (/app/) & Bot Telegram (@kandor_gestionale_bot)', new_x="LMARGIN", new_y="NEXT", align='C')
     pdf.ln(10)
     pdf.set_draw_color(41, 128, 185)
     pdf.set_line_width(0.8)
@@ -338,6 +339,28 @@ def main():
     pdf.output(output)
     print(f"PDF generato con successo: {output}")
     print(f"Pagine totali: {pdf.page_no()}")
+
+    # Genera anche il PDF autonomo per il Dipendente (Web App + Telegram)
+    pdf_dip = ManualePDF()
+    pdf_dip.alias_nb_pages()
+    pdf_dip.set_auto_page_break(auto=True, margin=20)
+    pdf_dip.add_page()
+    pdf_dip.ln(10)
+    pdf_dip.set_font('Helvetica', 'B', 22)
+    pdf_dip.set_text_color(26, 82, 118)
+    pdf_dip.cell(0, 14, 'KANDOR - GUIDA OPERATIVA DIPENDENTE', new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf_dip.set_font('Helvetica', 'I', 13)
+    pdf_dip.set_text_color(41, 128, 185)
+    pdf_dip.cell(0, 9, 'Web App Mobile (https://kandor.onrender.com/app/) & Bot Telegram', new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf_dip.ln(6)
+    pdf_dip.set_draw_color(41, 128, 185)
+    pdf_dip.set_line_width(0.8)
+    pdf_dip.line(10, pdf_dip.get_y(), 200, pdf_dip.get_y())
+    pdf_dip.ln(8)
+    render_markdown_content(pdf_dip, content_telegram.split('\n'), skip_first_h1=True)
+    output_dip = 'MANUALE_DIPENDENTE_KANDOR.pdf'
+    pdf_dip.output(output_dip)
+    print(f"PDF Dipendente generato con successo: {output_dip} ({pdf_dip.page_no()} pagine)")
 
 if __name__ == '__main__':
     main()

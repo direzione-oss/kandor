@@ -1571,7 +1571,7 @@ def manuale_dipendente_view(request):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guida Dipendente — Bot Telegram Kandor</title>
+    <title>Guida Operativa Dipendente — Web App Mobile & Bot Telegram Kandor</title>
     <style>
         body {{ font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }}
         h1 {{ color: #ff6f00; border-bottom: 3px solid #ff6f00; padding-bottom: 10px; }}
