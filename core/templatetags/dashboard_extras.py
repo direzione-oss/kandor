@@ -47,8 +47,10 @@ def expiring_vehicles_widget():
     expiring_polizza = Q(scadenza_polizza__isnull=False) & Q(scadenza_polizza__lte=threshold)
     # Revisione
     expiring_revisione = Q(scadenza_revisione__isnull=False) & Q(scadenza_revisione__lte=threshold)
+    # Permesso Città Alta (Bergamo)
+    expiring_permesso_ca = Q(scadenza_permesso_citta_alta__isnull=False) & Q(scadenza_permesso_citta_alta__lte=threshold)
     
-    veicoli = Mezzo.objects.filter(expiring_polizza | expiring_revisione).distinct()
+    veicoli = Mezzo.objects.filter(expiring_polizza | expiring_revisione | expiring_permesso_ca).distinct()
     
     processed_vehicles = []
     for mezzo in veicoli:
@@ -68,6 +70,14 @@ def expiring_vehicles_widget():
             elif mezzo.scadenza_revisione <= threshold:
                 days = (mezzo.scadenza_revisione - today).days
                 alerts.append({'type': 'Revisione', 'date': mezzo.scadenza_revisione, 'status': f'Scade tra {days} gg', 'color': 'orange'})
+
+        # Check Permesso Città Alta (Bergamo)
+        if mezzo.scadenza_permesso_citta_alta:
+            if mezzo.scadenza_permesso_citta_alta < today:
+                alerts.append({'type': 'Permesso Città Alta (BG)', 'date': mezzo.scadenza_permesso_citta_alta, 'status': 'SCADUTO', 'color': 'red'})
+            elif mezzo.scadenza_permesso_citta_alta <= threshold:
+                days = (mezzo.scadenza_permesso_citta_alta - today).days
+                alerts.append({'type': 'Permesso Città Alta (BG)', 'date': mezzo.scadenza_permesso_citta_alta, 'status': f'Scade tra {days} gg', 'color': 'orange'})
         
         # Filtra solo quelli rilevanti (potrebbe averne una ok e una scaduta, mostriamo solo alerts)
         relevant_alerts = [a for a in alerts if a['date'] <= threshold]

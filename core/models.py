@@ -358,6 +358,11 @@ class Mezzo(models.Model):
     km_attuali = models.IntegerField(default=0, verbose_name="Km Percorsi")
     scadenza_polizza = models.DateField(null=True, blank=True, verbose_name="Scadenza Polizza")
     scadenza_revisione = models.DateField(null=True, blank=True, verbose_name="Scadenza Revisione")
+    scadenza_permesso_citta_alta = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Scadenza Permesso Città Alta (Bergamo)",
+    )
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -794,27 +799,44 @@ class ModificaCedolino(models.Model):
 
 
 DEFAULT_CORSI_FORMAZIONE = [
-    (1, "Corso sicurezza generale"),
-    (2, "Corso Specifico Basso Rischio"),
-    (3, "Corso Movimentazione manuale carichi"),
-    (4, "Corso DPI 3 lavori in quota"),
-    (5, "Corso RLS"),
-    (6, "Corso preposto"),
-    (7, "Corso primo soccorso"),
-    (8, "Corso piattaforme mobili con o senza stabilizzatori"),
-    (9, "Corso HACCP"),
-    (10, "Corso antincendio livello 2"),
+    (1, "Corso sicurezza generale", 5),
+    (2, "Corso Specifico Basso Rischio", 5),
+    (3, "Corso Movimentazione manuale carichi", 5),
+    (4, "Corso DPI 3 lavori in quota", 5),
+    (5, "Corso RLS", 3),
+    (6, "Corso preposto", 2),
+    (7, "Corso primo soccorso", 3),
+    (8, "Corso piattaforme mobili con o senza stabilizzatori", 5),
+    (9, "Corso HACCP", 2),
+    (10, "Corso antincendio livello 2", 5),
 ]
+
+
+def calcola_data_scadenza_corso(data_esecuzione, durata_anni):
+    """Calcola automaticamente la data di scadenza sommando gli anni di durata alla data di esecuzione."""
+    if not data_esecuzione or not durata_anni or durata_anni <= 0:
+        return None
+    try:
+        return data_esecuzione.replace(year=data_esecuzione.year + int(durata_anni))
+    except ValueError:
+        # Gestione 29 febbraio su anno non bisestile -> 28 febbraio
+        return data_esecuzione.replace(year=data_esecuzione.year + int(durata_anni), day=28)
 
 
 class CorsoFormazione(models.Model):
     nome = models.CharField(max_length=200, unique=True, verbose_name="Nome Corso")
+    durata_anni = models.PositiveIntegerField(
+        default=5,
+        verbose_name="Durata (anni)",
+        help_text="Durata di validità del corso in anni (calcola automaticamente la data di scadenza)",
+    )
     descrizione = models.TextField(blank=True, verbose_name="Descrizione / Note")
     ordine = models.PositiveIntegerField(default=100, verbose_name="Ordine")
     attivo = models.BooleanField(default=True, verbose_name="Attivo")
 
     def __str__(self):
-        return self.nome
+        unita = "anno" if self.durata_anni == 1 else "anni"
+        return f"{self.nome} ({self.durata_anni} {unita})"
 
     class Meta:
         verbose_name = "Corso di Formazione"
@@ -847,6 +869,11 @@ class CorsoDipendente(models.Model):
         default='NON_PREVISTO',
         verbose_name="Stato (Fatto / Deve essere fatto)",
     )
+    data_esecuzione = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Data di Esecuzione",
+    )
     data_scadenza = models.DateField(
         null=True,
         blank=True,
@@ -864,18 +891,43 @@ class CorsoDipendente(models.Model):
         unique_together = ('dipendente', 'corso')
         ordering = ['corso__ordine', 'corso__nome']
 
+    def _applica_calcolo_automatico(self):
+        # Se il corso è FATTO e la data è stata inserita in data_scadenza con data_esecuzione vuota,
+        # la usiamo come data_esecuzione e calcoliamo la scadenza dopo il periodo di validità
+        if not self.data_esecuzione and self.data_scadenza and self.stato == 'FATTO':
+            self.data_esecuzione = self.data_scadenza
+        if self.data_esecuzione:
+            if self.stato == 'NON_PREVISTO':
+                self.stato = 'FATTO'
+            if self.corso_id and self.corso and self.corso.durata_anni:
+                self.data_scadenza = calcola_data_scadenza_corso(
+                    self.data_esecuzione,
+                    self.corso.durata_anni,
+                )
+
+    def clean(self):
+        super().clean()
+        self._applica_calcolo_automatico()
+
+    def save(self, *args, **kwargs):
+        self._applica_calcolo_automatico()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.dipendente} - {self.corso} ({self.get_stato_display()})"
 
 
 def ensure_default_corsi_formazione():
-    """Assicura che i 10 corsi di formazione standard siano presenti nel catalogo."""
+    """Assicura che i 10 corsi di formazione standard siano presenti nel catalogo con la relativa durata."""
     try:
-        for ordine, nome in DEFAULT_CORSI_FORMAZIONE:
-            CorsoFormazione.objects.get_or_create(
+        for ordine, nome, durata_anni in DEFAULT_CORSI_FORMAZIONE:
+            corso, created = CorsoFormazione.objects.get_or_create(
                 nome=nome,
-                defaults={'ordine': ordine, 'attivo': True}
+                defaults={'ordine': ordine, 'durata_anni': durata_anni, 'attivo': True}
             )
+            if not created and corso.durata_anni != durata_anni:
+                corso.durata_anni = durata_anni
+                corso.save(update_fields=['durata_anni'])
     except Exception:
         pass
 
@@ -897,6 +949,17 @@ def ensure_corsi_per_dipendente(dipendente):
         ]
         if nuovi:
             CorsoDipendente.objects.bulk_create(nuovi, ignore_conflicts=True)
+        # Allinea eventuali corsi già inseriti in precedenza (es. data inserita solo in data_scadenza su corso FATTO)
+        for cd in CorsoDipendente.objects.filter(dipendente=dipendente).select_related('corso'):
+            if cd.stato == 'FATTO' and not cd.data_esecuzione and cd.data_scadenza:
+                cd.data_esecuzione = cd.data_scadenza
+                cd.data_scadenza = calcola_data_scadenza_corso(cd.data_esecuzione, cd.corso.durata_anni)
+                cd.save(update_fields=['data_esecuzione', 'data_scadenza'])
+            elif cd.data_esecuzione and cd.corso and cd.corso.durata_anni:
+                attesa = calcola_data_scadenza_corso(cd.data_esecuzione, cd.corso.durata_anni)
+                if attesa and cd.data_scadenza != attesa:
+                    cd.data_scadenza = attesa
+                    cd.save(update_fields=['data_scadenza'])
     except Exception:
         pass
 

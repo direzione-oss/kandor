@@ -794,18 +794,22 @@ class CorsiFormazioneTestCase(TestCase):
         c_haccp = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso HACCP")
         c_rls = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso RLS")
 
-        # 1) Scadenza tra 25 giorni -> NON deve comparire nell'alert 20 gg
+        # 1) Corso eseguito 2 anni fa + 25 gg -> scadenza automatica tra 25 giorni -> NON deve comparire nell'alert 20 gg
+        target_25 = self.today + timedelta(days=25)
         c_haccp.stato = 'FATTO'
-        c_haccp.data_scadenza = self.today + timedelta(days=25)
+        c_haccp.data_esecuzione = target_25.replace(year=target_25.year - 2)
         c_haccp.save()
+        self.assertEqual(c_haccp.data_scadenza, target_25)
 
         ctx = expiring_training_courses_widget()
         self.assertFalse(ctx['has_urgent'])
         self.assertEqual(len(ctx['training_courses']), 0)
 
-        # 2) Scadenza tra 15 giorni (entro 20 gg) -> DEVE comparire nell'alert
-        c_haccp.data_scadenza = self.today + timedelta(days=15)
+        # 2) Corso eseguito 2 anni fa + 15 gg -> scadenza automatica tra 15 giorni (entro 20 gg) -> DEVE comparire nell'alert
+        target_15 = self.today + timedelta(days=15)
+        c_haccp.data_esecuzione = target_15.replace(year=target_15.year - 2)
         c_haccp.save()
+        self.assertEqual(c_haccp.data_scadenza, target_15)
 
         # 3) Corso "Deve essere fatto" gia' scaduto ieri -> DEVE comparire come SCADUTO
         c_rls.stato = 'DA_FARE'
@@ -820,5 +824,76 @@ class CorsiFormazioneTestCase(TestCase):
         self.assertEqual(ctx['training_courses'][0]['corso'].nome, "Corso RLS")
         self.assertFalse(ctx['training_courses'][1]['is_expired'])
         self.assertEqual(ctx['training_courses'][1]['corso'].nome, "Corso HACCP")
+
+    def test_3_durate_corsi_e_calcolo_automatico_scadenza(self):
+        from core.models import CorsoFormazione, CorsoDipendente, ensure_corsi_per_dipendente
+        ensure_corsi_per_dipendente(self.dip)
+
+        expected_durations = {
+            "Corso sicurezza generale": 5,
+            "Corso Specifico Basso Rischio": 5,
+            "Corso Movimentazione manuale carichi": 5,
+            "Corso DPI 3 lavori in quota": 5,
+            "Corso RLS": 3,
+            "Corso preposto": 2,
+            "Corso primo soccorso": 3,
+            "Corso piattaforme mobili con o senza stabilizzatori": 5,
+            "Corso HACCP": 2,
+            "Corso antincendio livello 2": 5,
+        }
+        for nome_corso, durata_attesa in expected_durations.items():
+            corso = CorsoFormazione.objects.get(nome=nome_corso)
+            self.assertEqual(corso.durata_anni, durata_attesa, f"Durata errata per {nome_corso}")
+
+        # Verifica calcolo automatico scadenza:
+        # 1) Corso sicurezza generale (durata 5 anni)
+        cd_sic = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso sicurezza generale")
+        cd_sic.data_esecuzione = datetime.date(2024, 3, 15)
+        cd_sic.save()
+        self.assertEqual(cd_sic.stato, 'FATTO')
+        self.assertEqual(cd_sic.data_scadenza, datetime.date(2029, 3, 15))
+
+        # 2) Corso RLS (durata 3 anni)
+        cd_rls = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso RLS")
+        cd_rls.data_esecuzione = datetime.date(2024, 5, 10)
+        cd_rls.save()
+        self.assertEqual(cd_rls.stato, 'FATTO')
+        self.assertEqual(cd_rls.data_scadenza, datetime.date(2027, 5, 10))
+
+        # 3) Corso preposto (durata 2 anni)
+        cd_prep = CorsoDipendente.objects.get(dipendente=self.dip, corso__nome="Corso preposto")
+        cd_prep.data_esecuzione = datetime.date(2025, 1, 20)
+        cd_prep.save()
+        self.assertEqual(cd_prep.stato, 'FATTO')
+        self.assertEqual(cd_prep.data_scadenza, datetime.date(2027, 1, 20))
+
+        # 4) Nuovo corso aggiunto con durata personalizzata (es. 4 anni) e anno bisestile 29/02/2024 -> 29/02/2028
+        nuovo = CorsoFormazione.objects.create(nome="Corso Carrelli Elevatori", durata_anni=4, ordine=12, attivo=True)
+        cd_nuovo = CorsoDipendente.objects.create(
+            dipendente=self.dip,
+            corso=nuovo,
+            data_esecuzione=datetime.date(2024, 2, 29),
+        )
+        self.assertEqual(cd_nuovo.stato, 'FATTO')
+        self.assertEqual(cd_nuovo.data_scadenza, datetime.date(2028, 2, 29))
+
+    def test_4_mezzo_scadenza_permesso_citta_alta_bergamo(self):
+        from core.models import Mezzo
+        from core.templatetags.dashboard_extras import expiring_vehicles_widget
+
+        mezzo = Mezzo.objects.create(
+            modello="Fiat Ducato",
+            targa="BG123CA",
+            stato="DISPONIBILE",
+            scadenza_permesso_citta_alta=self.today + timedelta(days=10),
+        )
+        ctx = expiring_vehicles_widget()
+        self.assertEqual(len(ctx['vehicles']), 1)
+        alerts = ctx['vehicles'][0]['alerts']
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]['type'], 'Permesso Città Alta (BG)')
+        self.assertEqual(alerts[0]['date'], mezzo.scadenza_permesso_citta_alta)
+
+
 
 

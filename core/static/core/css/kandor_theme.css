@@ -473,3 +473,36 @@ input[type=search] {
 .inline-group .form-row:last-child {
     border-bottom: none !important;
 }
+
+/* TabularInline Table Layout Fix (override .form-row flex on <tr>) */
+.inline-group .tabular tr.form-row,
+table tr.form-row {
+    display: table-row !important;
+    padding: 0 !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+.inline-group .tabular tr.form-row > td,
+table tr.form-row > td {
+    display: table-cell !important;
+    vertical-align: middle !important;
+    padding: 8px 10px !important;
+}
+
+.inline-group .tabular th.original,
+.inline-group .tabular td.original {
+    width: 1px !important;
+    max-width: 1px !important;
+    padding: 0 !important;
+    border: none !important;
+}
+
+.inline-group .tabular td.original p {
+    display: none !important;
+}
+
+.inline-group .tabular fieldset.module {
+    padding: 0 !important;
+    overflow-x: auto !important;
+}
+

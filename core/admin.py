@@ -29,7 +29,8 @@ from .models import (
     Squadra, Turno, AssegnazioneTurno, TimeTracking,
     ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
     ResponsabileArea, RichiestaSostituzione, Titolare, ModificaCedolino,
-    CorsoFormazione, CorsoDipendente, ensure_default_corsi_formazione, ensure_corsi_per_dipendente
+    CorsoFormazione, CorsoDipendente, calcola_data_scadenza_corso,
+    ensure_default_corsi_formazione, ensure_corsi_per_dipendente
 )
 
 @admin.register(ModificaCedolino)
@@ -195,13 +196,24 @@ from django.forms.models import BaseInlineFormSet
 
 @admin.register(CorsoFormazione)
 class CorsoFormazioneAdmin(KandorBaseAdmin):
-    list_display = ('nome', 'ordine', 'attivo', 'descrizione')
-    list_editable = ('ordine', 'attivo')
+    list_display = ('nome', 'durata_anni', 'ordine', 'attivo', 'descrizione')
+    list_editable = ('durata_anni', 'ordine', 'attivo')
+    fields = ('nome', 'durata_anni', 'ordine', 'attivo', 'descrizione')
     search_fields = ('nome', 'descrizione')
     ordering = ('ordine', 'nome')
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
+        # Ricalcola la data di scadenza per tutti i dipendenti che hanno già una data di esecuzione per questo corso
+        if obj.durata_anni:
+            try:
+                for cd in CorsoDipendente.objects.filter(corso=obj, data_esecuzione__isnull=False):
+                    nuova_scad = calcola_data_scadenza_corso(cd.data_esecuzione, obj.durata_anni)
+                    if nuova_scad and cd.data_scadenza != nuova_scad:
+                        cd.data_scadenza = nuova_scad
+                        cd.save(update_fields=['data_scadenza'])
+            except Exception:
+                pass
         # Se il corso viene creato/attivato fuori dal popup dell'inline, lo aggiungiamo alla tabella di tutti i dipendenti
         is_popup = ('_popup' in request.POST) or ('_popup' in request.GET)
         if obj.attivo and not is_popup:
@@ -234,6 +246,7 @@ class CorsoDipendenteInlineFormSet(BaseInlineFormSet):
             existing = CorsoDipendente.objects.filter(dipendente=self.instance, corso=corso).first()
             if existing:
                 existing.stato = form.cleaned_data.get('stato') or existing.stato
+                existing.data_esecuzione = form.cleaned_data.get('data_esecuzione')
                 existing.data_scadenza = form.cleaned_data.get('data_scadenza')
                 existing.note = form.cleaned_data.get('note') or ''
                 existing.save()
@@ -245,17 +258,88 @@ class CorsoDipendenteInlineFormSet(BaseInlineFormSet):
 class CorsoDipendenteInline(admin.TabularInline):
     model = CorsoDipendente
     formset = CorsoDipendenteInlineFormSet
-    fields = ('corso', 'stato', 'data_scadenza', 'stato_scadenza_badge', 'note')
-    readonly_fields = ('stato_scadenza_badge',)
+    fields = ('corso', 'durata_corso_badge', 'stato', 'data_esecuzione', 'data_scadenza', 'stato_scadenza_badge', 'note')
+    readonly_fields = ('durata_corso_badge', 'stato_scadenza_badge')
     ordering = ('corso__ordine', 'corso__nome')
     verbose_name = "Corso di Formazione"
-    verbose_name_plural = "🎓 Corsi di Formazione (usa '+ Aggiungi un altro Corso di Formazione' o il tasto '+' sul corso per aggiungerne uno nuovo)"
+    verbose_name_plural = "🎓 Corsi di Formazione (inserendo la Data di Esecuzione la Data di Scadenza viene calcolata in automatico)"
 
     def get_extra(self, request, obj=None, **kwargs):
         if obj is None or not obj.pk:
             ensure_default_corsi_formazione()
             return CorsoFormazione.objects.filter(attivo=True).count() + 1
         return 1
+
+    @admin.display(description="Durata")
+    def durata_corso_badge(self, obj):
+        script = (
+            "<script>"
+            "if(!window._kandorCorsiAutoCalcInit){"
+            "window._kandorCorsiAutoCalcInit=true;"
+            "function _kandorCalcScadenzaRow(row){"
+            "if(!row)return;"
+            "var execInput=row.querySelector('input[name$=\"-data_esecuzione\"]');"
+            "var scadInput=row.querySelector('input[name$=\"-data_scadenza\"]');"
+            "var statoSel=row.querySelector('select[name$=\"-stato\"]');"
+            "var corsoSel=row.querySelector('select[name$=\"-corso\"]');"
+            "if(!execInput||!scadInput)return;"
+            "var val=(execInput.value||'').trim();"
+            "if(!val)return;"
+            "var durata=0;"
+            "var badge=row.querySelector('[data-durata-anni]');"
+            "if(corsoSel&&corsoSel.selectedOptions&&corsoSel.selectedOptions.length){"
+            "var txt=corsoSel.selectedOptions[0].text||'';"
+            "var m=txt.match(/\\((\\d+)\\s*ann[oi]\\)/i);"
+            "if(m)durata=parseInt(m[1],10);"
+            "}"
+            "if(!durata&&badge){durata=parseInt(badge.getAttribute('data-durata-anni')||'0',10);}"
+            "if(!durata||durata<=0)return;"
+            "var d=null,isIso=false;"
+            "var mIt=val.match(/^(\\d{1,2})[\\/\\-](\\d{1,2})[\\/\\-](\\d{4})$/);"
+            "var mIso=val.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);"
+            "if(mIt){d=new Date(parseInt(mIt[3],10),parseInt(mIt[2],10)-1,parseInt(mIt[1],10));}"
+            "else if(mIso){d=new Date(parseInt(mIso[1],10),parseInt(mIso[2],10)-1,parseInt(mIso[3],10));isIso=true;}"
+            "if(!d||isNaN(d.getTime()))return;"
+            "var targetYear=d.getFullYear()+durata;"
+            "var month=d.getMonth();"
+            "var day=d.getDate();"
+            "var out=new Date(targetYear,month,day);"
+            "if(out.getMonth()!==month){out=new Date(targetYear,month,28);}"
+            "var dd=String(out.getDate()).padStart(2,'0');"
+            "var mm=String(out.getMonth()+1).padStart(2,'0');"
+            "var yyyy=out.getFullYear();"
+            "scadInput.value=isIso?(yyyy+'-'+mm+'-'+dd):(dd+'/'+mm+'/'+yyyy);"
+            "if(statoSel&&statoSel.value==='NON_PREVISTO'){statoSel.value='FATTO';}"
+            "}"
+            "document.addEventListener('change',function(e){"
+            "if(e.target&&(e.target.name||'').match(/-(data_esecuzione|corso)$/)){_kandorCalcScadenzaRow(e.target.closest('tr'));}"
+            "},true);"
+            "document.addEventListener('input',function(e){"
+            "if(e.target&&(e.target.name||'').match(/-data_esecuzione$/)){_kandorCalcScadenzaRow(e.target.closest('tr'));}"
+            "},true);"
+            "document.addEventListener('blur',function(e){"
+            "if(e.target&&(e.target.name||'').match(/-data_esecuzione$/)){_kandorCalcScadenzaRow(e.target.closest('tr'));}"
+            "},true);"
+            "document.addEventListener('click',function(e){"
+            "if(e.target&&e.target.closest&&e.target.closest('.calendarbox,.datetimeshortcuts')){"
+            "setTimeout(function(){document.querySelectorAll('input[name$=\"-data_esecuzione\"]').forEach(function(inp){_kandorCalcScadenzaRow(inp.closest('tr'));});},60);"
+            "}"
+            "},true);"
+            "}"
+            "</script>"
+        )
+        if not obj or not obj.corso_id:
+            return mark_safe(f'<span style="color:#64748b;font-size:11px;">Auto da corso</span>{script}')
+        anni = obj.corso.durata_anni
+        unita = "anno" if anni == 1 else "anni"
+        return format_html(
+            '<span data-durata-anni="{}" style="background:#EFF6FF;color:#1D4ED8;border:1px solid #BFDBFE;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;white-space:nowrap;">'
+            '⏱️ {} {}</span>{}',
+            anni,
+            anni,
+            unita,
+            mark_safe(script),
+        )
 
     @admin.display(description="Stato Scadenza")
     def stato_scadenza_badge(self, obj):
@@ -631,7 +715,10 @@ class ClienteAdmin(KandorBaseAdmin):
 
 @admin.register(Mezzo)
 class MezzoAdmin(KandorBaseAdmin):
-    list_display = ('targa', 'modello', 'stato', 'km_attuali', 'scadenza_polizza', 'scadenza_revisione')
+    list_display = (
+        'targa', 'modello', 'stato', 'km_attuali',
+        'scadenza_polizza', 'scadenza_revisione', 'scadenza_permesso_citta_alta'
+    )
     list_filter = ('stato',)
     search_fields = ('targa', 'modello')  # Necessario per autocomplete_fields
 
