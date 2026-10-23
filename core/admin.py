@@ -221,7 +221,8 @@ class CorsoFormazioneAdmin(KandorBaseAdmin):
 
 class CorsoDipendenteInlineFormSet(BaseInlineFormSet):
     def __init__(self, *args, **kwargs):
-        if self.instance and not self.instance.pk and 'initial' not in kwargs:
+        instance = kwargs.get('instance')
+        if (instance is None or not instance.pk) and 'initial' not in kwargs:
             ensure_default_corsi_formazione()
             corsi = list(CorsoFormazione.objects.filter(attivo=True).order_by('ordine', 'nome'))
             kwargs['initial'] = [{'corso': c.pk, 'stato': 'NON_PREVISTO'} for c in corsi]
