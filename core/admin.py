@@ -719,11 +719,53 @@ class ClienteAdmin(KandorBaseAdmin):
 class MezzoAdmin(KandorBaseAdmin):
     list_display = (
         'targa', 'modello', 'stato', 'km_attuali',
-        'scadenza_polizza', 'scadenza_revisione',
-        'numero_permesso_citta_alta', 'scadenza_permesso_citta_alta'
+        'scadenza_polizza_badge', 'scadenza_revisione_badge',
+        'permesso_citta_alta_badge'
     )
     list_filter = ('stato',)
     search_fields = ('targa', 'modello', 'numero_permesso_citta_alta')
+
+    @admin.display(description="Scadenza Polizza", ordering="scadenza_polizza")
+    def scadenza_polizza_badge(self, obj):
+        return self._render_scadenza_badge(obj.scadenza_polizza)
+
+    @admin.display(description="Scadenza Revisione", ordering="scadenza_revisione")
+    def scadenza_revisione_badge(self, obj):
+        return self._render_scadenza_badge(obj.scadenza_revisione)
+
+    @admin.display(description="Permesso Città Alta (BG)", ordering="scadenza_permesso_citta_alta")
+    def permesso_citta_alta_badge(self, obj):
+        suffix = f" (n. {obj.numero_permesso_citta_alta})" if obj.numero_permesso_citta_alta else ""
+        return self._render_scadenza_badge(obj.scadenza_permesso_citta_alta, suffix=suffix)
+
+    def _render_scadenza_badge(self, date_val, suffix=""):
+        if not date_val:
+            return mark_safe('<span style="color:#94A3B8;">—</span>')
+        from django.utils import timezone
+        from datetime import timedelta
+        today = timezone.now().date()
+        threshold = today + timedelta(days=30)
+        formatted_date = date_val.strftime('%d/%m/%Y')
+        if date_val < today:
+            return format_html(
+                '<span style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                '🔴 SCADUTO ({}{})</span>',
+                formatted_date, suffix
+            )
+        elif date_val <= threshold:
+            days = (date_val - today).days
+            lbl = "Scade OGGI" if days == 0 else f"Scade tra {days} gg"
+            return format_html(
+                '<span style="background:#FEF3C7;color:#B45309;border:1px solid #FDE68A;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                '🟠 {} ({}{})</span>',
+                lbl, formatted_date, suffix
+            )
+        else:
+            return format_html(
+                '<span style="background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
+                '🟢 {} ({})</span>',
+                formatted_date, suffix.strip(" ()") if suffix else "Regolare"
+            )
 
 @admin.register(Squadra)
 class SquadraAdmin(KandorBaseAdmin):
