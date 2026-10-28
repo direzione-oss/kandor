@@ -959,10 +959,20 @@ class TimeTrackingAdmin(KandorBaseAdmin):
     get_data.short_description = 'Data'
     get_data.admin_order_field = 'assegnazione__turno__data'
 
-    @admin.action(description="Valida ore selezionate")
+    @admin.action(description="Valida ore selezionate (solo se inviate dal dipendente)")
     def valida_ore(self, request, queryset):
-        updated = queryset.update(is_validated=True)
-        self.message_user(request, f"{updated} ore validate.", messages.SUCCESS)
+        from django.db.models import Q
+        valid_qs = queryset.filter(Q(ore_dichiarate__gt=0) | Q(check_out__isnull=False))
+        skipped = queryset.count() - valid_qs.count()
+        updated = valid_qs.update(is_validated=True)
+        if skipped > 0:
+            self.message_user(
+                request,
+                f"{updated} ore validate. {skipped} record ignorati perché il dipendente non ha inviato ore.",
+                messages.WARNING,
+            )
+        else:
+            self.message_user(request, f"{updated} ore validate.", messages.SUCCESS)
 
 from .models import MessaggioProgrammato
 @admin.register(MessaggioProgrammato)

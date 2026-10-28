@@ -651,12 +651,13 @@ def delete_turno_ajax(request, assign_id):
 
 @csrf_exempt
 def validate_ore_ajax(request, assign_id):
-    """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra (escludendo gli assenti)."""
+    """Valida o invalida le ore di un'assegnazione turno SOLO se il dipendente ha effettivamente inviato le ore."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     try:
         from .models import TimeTracking, AssegnazioneTurno, Dipendente, Assenza
         from decimal import Decimal
+        from django.db.models import Q
         from .models import RichiestaSostituzione
 
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
@@ -671,101 +672,53 @@ def validate_ore_ajax(request, assign_id):
             data_fine__gte=data_turno
         ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
 
-        # Raccogli componenti attivi (non esclusi dal turno E NON IN ASSENZA)
-        active_dips = []
-        active_pks = set()
-        if squadra:
-            if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids and squadra.caposquadra.pk not in assenti_ids:
-                active_dips.append(squadra.caposquadra)
-                active_pks.add(squadra.caposquadra.pk)
-            for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
-                if c.pk not in esclusi_ids and c.pk not in assenti_ids and c.pk not in active_pks:
-                    active_dips.append(c)
-                    active_pks.add(c.pk)
-
-        # Includi eventuali componenti storici (con TimeTracking già associato al turno)
-        for tt_existing in TimeTracking.objects.filter(assegnazione=assign).select_related('dipendente'):
-            dip_ex = tt_existing.dipendente
-            if dip_ex and dip_ex.pk not in esclusi_ids and dip_ex.pk not in assenti_ids and dip_ex.pk not in active_pks:
-                active_dips.append(dip_ex)
-                active_pks.add(dip_ex.pk)
-
-        # Includi eventuali SOSTITUTI confermati (COMPLETATA / ACCETTATA) per questa assegnazione
-        sost_confermate = RichiestaSostituzione.objects.filter(
-            assegnazione_originale=assign,
-            stato__in=['ACCETTATA', 'COMPLETATA'],
-            sostituto__isnull=False
-        ).select_related('sostituto')
-        for sc in sost_confermate:
-            if sc.sostituto and sc.sostituto.pk not in active_pks and sc.sostituto.pk not in assenti_ids:
-                active_dips.append(sc.sostituto)
-                active_pks.add(sc.sostituto.pk)
-
-        # Rimuovi eventuali TimeTracking registrati per i dipendenti in ASSENZA per questo turno
+        # Rimuovi eventuali TimeTracking registrati per i dipendenti in ASSENZA o esclusi per questo turno
         if assenti_ids:
             TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=assenti_ids).delete()
-
-        if not active_dips:
-            # Se tutti sono in assenza o esclusi e non c'è sostituto
-            return JsonResponse({
-                'status': 'ok',
-                'message': f"Tutti i componenti della squadra {sq_nome} sono in assenza o esclusi per la data {data_turno.strftime('%d/%m')}.",
-                'validated': False,
-                'count': 0,
-            })
+        if esclusi_ids:
+            TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=esclusi_ids).delete()
 
         data = json.loads(request.body) if request.body else {}
         action = data.get('action', 'validate')
         ore_param = data.get('ore')
         validate_flag = data.get('validate', False) or (action == 'validate')
 
-        # Determina il valore delle ore da applicare
+        # Seleziona SOLO le registrazioni TimeTracking già inviate dai dipendenti per questo turno
+        existing_tts = list(
+            TimeTracking.objects.filter(assegnazione=assign)
+            .filter(Q(ore_dichiarate__gt=0) | Q(check_out__isnull=False))
+            .select_related('dipendente')
+        )
+
+        if not existing_tts:
+            return JsonResponse({
+                'status': 'error',
+                'error': 'Impossibile validare: il dipendente non ha ancora inviato le ore per questo turno.',
+                'validated': False,
+                'count': 0,
+            }, status=400)
+
         ore_val = None
         if ore_param is not None:
             ore_val = Decimal(str(float(str(ore_param).replace(',', '.'))))
-        else:
-            # Cerca ore esistenti registrate dal primo dipendente che ha scritto
-            first_tt = TimeTracking.objects.filter(assegnazione=assign, dipendente__in=active_dips).order_by('id').first()
-            if first_tt and (first_tt.ore_dichiarate is not None or first_tt.durata_ore):
-                ore_val = Decimal(str(first_tt.ore_dichiarate or first_tt.durata_ore))
-            elif assign.ore_previste_contratto:
-                ore_val = Decimal(str(assign.ore_previste_contratto))
-            elif assign.orario_inizio_previsto and assign.orario_fine_previsto:
-                t1 = assign.orario_inizio_previsto
-                t2 = assign.orario_fine_previsto
-                minuti = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
-                if minuti < 0:
-                    minuti += 24 * 60
-                ore_val = Decimal(str(round(minuti / 60.0, 2)))
+            if ore_val <= 0:
+                return JsonResponse({
+                    'status': 'error',
+                    'error': 'Inserisci un numero di ore valido (> 0).',
+                }, status=400)
 
-        # Applica a TUTTI i componenti attivi (inclusi i sostituti confermati)
         updated_count = 0
-        for dip in active_dips:
-            tt, created = TimeTracking.objects.get_or_create(
-                dipendente=dip,
-                assegnazione=assign,
-                defaults={
-                    'ore_dichiarate': ore_val,
-                    'is_validated': validate_flag if action != 'unvalidate' else False,
-                    'source': 'ADMIN',
-                    'note': f"Ore valide per la squadra ({sq_nome})",
-                }
-            )
-            if not created:
-                if ore_val is not None:
-                    tt.ore_dichiarate = ore_val
-                if action == 'unvalidate':
-                    tt.is_validated = False
-                elif validate_flag:
-                    tt.is_validated = True
-                tt.save()
+        for tt in existing_tts:
+            if ore_val is not None:
+                tt.ore_dichiarate = ore_val
+            if action == 'unvalidate':
+                tt.is_validated = False
+            elif validate_flag:
+                tt.is_validated = True
+            tt.save()
             updated_count += 1
 
-        # Elimina/Invalida eventuali registrazioni per dipendenti esclusi
-        if esclusi_ids:
-            TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=esclusi_ids).delete()
-
-        status_msg = "Ore validate" if validate_flag else ("Validazione rimossa" if action == 'unvalidate' else "Ore salvate")
+        status_msg = "Ore validate" if (validate_flag and action != 'unvalidate') else ("Validazione rimossa" if action == 'unvalidate' else "Ore aggiornate")
         return JsonResponse({
             'status': 'ok',
             'message': f"{status_msg} per {updated_count} dipendenti della squadra {sq_nome}",
@@ -1196,6 +1149,8 @@ def toggle_telegram_status(request, model_name, item_id):
         new_state = False
         extra_payload = {}
         if model_name.lower() == 'timetracking':
+            if not item.is_validated and not (item.ore_dichiarate and item.ore_dichiarate > 0) and not (item.durata_ore and item.durata_ore > 0):
+                return JsonResponse({'status': 'error', 'message': 'Impossibile validare: il dipendente non ha inviato le ore.'}, status=400)
             item.is_validated = not item.is_validated
             new_state = item.is_validated
             item.save()
@@ -4735,7 +4690,11 @@ def ia_auto_valida_ore_api(request):
             'message': 'Nessuna nuova registrazione regolare da auto-validare nel periodo.',
         })
 
-    updated = TimeTracking.objects.filter(id__in=ids, is_validated=False).update(is_validated=True)
+    updated = TimeTracking.objects.filter(
+        id__in=ids,
+        is_validated=False,
+        ore_dichiarate__gt=0,
+    ).update(is_validated=True)
     return JsonResponse({
         'ok': True,
         'validate_count': updated,

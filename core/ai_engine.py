@@ -171,7 +171,7 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
                     f"Turno del {data_turno.strftime('%d/%m/%Y')} ({ora_ini_s}-"
                     f"{ora_fin_s}) non ancora compilato da nessun componente."
                 )
-                sug_manc = "Sollecita il caposquadra o valida d'ufficio da Verifica Ore."
+                sug_manc = "Sollecita il dipendente/caposquadra a inviare le ore tramite App o Telegram (la validazione è consentita solo dopo l'invio)."
                 anomalie.append({
                     'tipo': 'ORE_MANCANTI',
                     'severita': 'ATTENZIONE',
@@ -287,7 +287,7 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
                     'suggerimento': az_cons,
                 })
             else:
-                if not tt.is_validated:
+                if not tt.is_validated and ore_dich > 0:
                     timetracks_auto_validabili_ids.append(tt.id)
 
         if not assign_has_anomaly:

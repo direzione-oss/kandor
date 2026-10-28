@@ -580,9 +580,10 @@ def telegram_feed_widget():
     from core.models import TimeTracking, Assenza, Segnalazione
     from core.services import get_richieste_sostituzione_per_assenza
 
-    # Ultime 10 Ore Lavorate da Telegram (usa -id per B-tree index istantaneo)
+    # Ultime 10 Ore Lavorate inviate dai dipendenti (Telegram / WebApp)
     latest_hours = TimeTracking.objects.filter(
-        source='TELEGRAM'
+        source__in=['TELEGRAM', 'WEBAPP'],
+        ore_dichiarate__gt=0,
     ).select_related(
         'dipendente', 'assegnazione__cliente', 'assegnazione__turno__squadra'
     ).order_by('-id')[:10]

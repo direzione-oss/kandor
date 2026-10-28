@@ -101,7 +101,9 @@
   onclick="clickEventEdit(this, event)">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
-<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="{% if ev.ore_stato == 'yellow' %}Valida ore provvisorie ({{ ev.ore_dichiarate_fmt }}){% else %}Valida ore{% endif %}">✓</button>
+{% if ev.ore_stato == 'yellow' or ev.ore_stato == 'green' %}
+<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="{% if ev.ore_stato == 'yellow' %}Valida ore inviate dal dipendente ({{ ev.ore_dichiarate_fmt }}){% else %}Ore già validate ({{ ev.ore_dichiarate_fmt }}){% endif %}">✓</button>
+{% endif %}
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
 <div style="font-size:9px;color:#777;margin-top:2px">{{ ev.time_range }}</div>
@@ -207,10 +209,13 @@
     <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate / da validare</span>
     <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
   </div>
-  <div style="display:flex;gap:8px">
-    <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 8)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
-    <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✔ Salva e valida ore</button>
+  <div id="edit-ore-controls" style="display:flex;gap:8px">
+    <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore inviate" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+    <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✔ Valida ore inviate</button>
     <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">↩ Rimuovi validazione</button>
+  </div>
+  <div id="edit-ore-no-submit-msg" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:8px 10px">
+    ⏳ In attesa dell'invio ore da parte del dipendente. La validazione è consentita solo dopo che il dipendente ha inviato le ore.
   </div>
 </div>
 <!-- SEZIONE COPIA / SPOSTA SU ALTRO GIORNO -->
@@ -390,13 +395,10 @@ try {
   document.getElementById('edit-note').value=note||'';
   
   var calcShiftHours = _calcHoursFromTimes(oraInizio, oraFine);
-  var prefillOrePreviste = '';
-  if (orePreviste && parseFloat(orePreviste) > 0) {
-    prefillOrePreviste = orePreviste;
-  } else if (calcShiftHours > 0) {
-    prefillOrePreviste = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
-  }
-  document.getElementById('edit-ore-input').value = prefillOrePreviste;
+  var hasOreInviate = (oreDichiarate && parseFloat(oreDichiarate) > 0);
+  document.getElementById('edit-ore-input').value = hasOreInviate ? oreDichiarate : '';
+  document.getElementById('edit-ore-controls').style.display = hasOreInviate ? 'flex' : 'none';
+  document.getElementById('edit-ore-no-submit-msg').style.display = hasOreInviate ? 'none' : 'block';
   
   var _op = (orePreviste && parseFloat(orePreviste) > 0) ? parseFloat(orePreviste) : calcShiftHours;
   var displayStr = '—';
@@ -407,7 +409,7 @@ try {
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
   
   var badge=document.getElementById('edit-ore-badge');
-  if (oreDichiarate && parseFloat(oreDichiarate) > 0) {
+  if (hasOreInviate) {
     badge.textContent = 'Segnalate: ' + oreDichiarate + 'h';
     badge.style.background = '#e2e8f0';
     badge.style.color = '#334155';
@@ -516,11 +518,17 @@ try {
       listEl.appendChild(lbl);
     });
 
-    if (maxOreDichiarate !== null) {
+    if (maxOreDichiarate !== null && maxOreDichiarate > 0) {
       badge.textContent = 'Segnalate: ' + maxOreDichiarate + 'h';
       badge.style.background = '#e2e8f0';
       badge.style.color = '#334155';
       badge.style.border = '1px solid #cbd5e1';
+      document.getElementById('edit-ore-input').value = maxOreDichiarate;
+      document.getElementById('edit-ore-controls').style.display = 'flex';
+      document.getElementById('edit-ore-no-submit-msg').style.display = 'none';
+    } else {
+      document.getElementById('edit-ore-controls').style.display = 'none';
+      document.getElementById('edit-ore-no-submit-msg').style.display = 'block';
     }
   }).catch(function(){listEl.innerHTML='<span style="font-size:11px;color:#e74c3c">Errore nel caricamento dei componenti</span>';});
 }catch(e){alert(e);console.error(e);}
