@@ -232,10 +232,11 @@ def dipendente_app_view(request):
     # 1. Turni di Oggi
     turni_oggi = _get_assegnazioni_dipendente(dip, today, today)
 
-    # 2. Turni da compilare negli ultimi 7 giorni (escluso oggi se già mostrato sopra, oppure tutti quelli non compilati)
-    seven_days_ago = today - timedelta(days=7)
-    turni_7gg = _get_assegnazioni_dipendente(dip, seven_days_ago, today)
-    turni_da_compilare = [t for t in turni_7gg if not t['is_compilato']]
+    # 2. Turni da compilare e turni compilati negli ultimi 31 giorni
+    thirty_one_days_ago = today - timedelta(days=31)
+    turni_31gg = _get_assegnazioni_dipendente(dip, thirty_one_days_ago, today)
+    turni_da_compilare = [t for t in turni_31gg if not t['is_compilato']]
+    turni_compilati_31gg = [t for t in reversed(turni_31gg) if t['is_compilato']]
 
     # 3. Turni del giorno selezionato nel Calendario + striscia 7 giorni
     turni_calendario = _get_assegnazioni_dipendente(dip, cal_date, cal_date)
@@ -339,6 +340,7 @@ def dipendente_app_view(request):
         'active_tab': active_tab,
         'turni_oggi': turni_oggi,
         'turni_da_compilare': turni_da_compilare,
+        'turni_compilati_31gg': turni_compilati_31gg,
         'cal_date': cal_date,
         'cal_date_iso': cal_date.strftime('%Y-%m-%d'),
         'cal_date_str': f"{GIORNI_SETT_FULL[cal_date.weekday()]} {cal_date.strftime('%d/%m/%Y')}",

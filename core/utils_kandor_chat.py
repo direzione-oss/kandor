@@ -167,17 +167,19 @@ def get_turni_oggi_keyboard(dipendente):
         ]}
 
 def get_turni_non_compilati_keyboard(dipendente):
-    """Ritorna tastiera con turni passati senza ore compilate (ultimi 7 giorni)."""
+    """Ritorna tastiera con turni passati senza ore compilate (ultimi 31 giorni)."""
     try:
         from datetime import timedelta as td
         today = timezone.now().date()
-        sette_giorni_fa = today - td(days=7)
+        trentuno_giorni_fa = today - td(days=31)
         
         assegnazioni = AssegnazioneTurno.objects.filter(
-            turno__data__gte=sette_giorni_fa,
+            turno__data__gte=trentuno_giorni_fa,
             turno__data__lte=today,
         ).filter(
             Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+        ).exclude(
+            dipendenti_esclusi=dipendente
         ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
         
         keyboard = []
@@ -705,7 +707,7 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     # Turni da compilare
     if callback_data == 'menu_turni_mancanti':
         return {
-            'text': "Turni senza ore (ultimi 7 giorni):\nSeleziona per inserire le ore.",
+            'text': "Turni senza ore (ultimi 31 giorni):\nSeleziona per inserire le ore.",
             'reply_markup': get_turni_non_compilati_keyboard(dipendente)
         }
     

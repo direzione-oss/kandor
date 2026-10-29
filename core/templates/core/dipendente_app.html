@@ -661,9 +661,9 @@
                 </div>
             {% endif %}
 
-            <!-- Turni da Compilare (ultimi 7 giorni) -->
+            <!-- Turni da Compilare (ultimi 31 giorni) -->
             <div class="section-title">
-                <span>📋 Turni da Compilare (Ultimi 7 Giorni)</span>
+                <span>📋 Turni da Compilare (Ultimi 31 Giorni)</span>
                 {% if turni_da_compilare %}
                 <span class="badge badge-red">{{ turni_da_compilare|length }} da inserire</span>
                 {% else %}
@@ -698,7 +698,49 @@
                 {% endfor %}
             {% else %}
                 <div class="card" style="text-align:center; color:#166534; background:#F0FDF4; border-color:#BBF7D0;">
-                    ✅ Tutti i turni degli ultimi 7 giorni risultano compilati!
+                    ✅ Tutti i turni degli ultimi 31 giorni risultano compilati!
+                </div>
+            {% endif %}
+
+            <!-- Turni Compilati (ultimi 31 giorni) -->
+            <div class="section-title" style="margin-top: 22px;">
+                <span>✅ Turni Compilati (Ultimi 31 Giorni)</span>
+                <span class="badge badge-green">{{ turni_compilati_31gg|length }} compilati</span>
+            </div>
+
+            {% if turni_compilati_31gg %}
+                {% for t in turni_compilati_31gg %}
+                <div class="card" style="border-left: 4px solid var(--green);">
+                    <div class="shift-header">
+                        <div>
+                            <div style="font-size:12px; font-weight:800; color:#15803D;">📅 {{ t.data_str }}</div>
+                            <div class="shift-client">{{ t.cliente_nome }}</div>
+                        </div>
+                        <div class="shift-time">{{ t.orario_inizio }} - {{ t.orario_fine }}</div>
+                    </div>
+                    <div class="shift-actions" style="margin-top:8px; padding-top:8px;">
+                        <div>
+                            <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h inserite</span>
+                            {% if t.compilato_da_collega %}
+                            <div style="font-size:11px; color:#64748B; margin-top:3px;">da {{ t.compilato_da }}</div>
+                            {% endif %}
+                        </div>
+                        <button type="button" class="btn btn-outline"
+                            data-assign-id="{{ t.id }}"
+                            data-cliente="{{ t.cliente_nome }}"
+                            data-datastr="{{ t.data_str }}"
+                            data-ore="{{ t.ore_dichiarate_str }}"
+                            data-note="{{ t.note|default:'' }}"
+                            data-compagni="{{ t.compagni_json }}"
+                            onclick="apriModalOreFromBtn(this)">
+                            ✏️ Modifica
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="card" style="text-align:center; color:#64748B;">
+                    Nessun turno compilato negli ultimi 31 giorni.
                 </div>
             {% endif %}
         </section>
