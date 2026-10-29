@@ -205,27 +205,53 @@ def _gestisci_rimozione_membri_squadra(squadra, removed_ids, cutoff_date=None):
 def _gestisci_aggiunta_membri_squadra(squadra, added_ids, cutoff_date=None):
     """
     Quando uno o più dipendenti vengono aggiunti a una Squadra:
-    - Esclude i nuovi membri dai turni passati (data < cutoff_date) in cui non avevano
-      TimeTracking, così la modifica ha effetto SOLO da cutoff_date in avanti.
-    - Riabilita i nuovi membri nei turni futuri (data >= cutoff_date) rimuovendoli da dipendenti_esclusi.
+    - Se cutoff_date non è specificato, la retroattività parte dal 1° giorno del mese corrente
+      (o dalla data_assunzione del dipendente, se successiva al 1° del mese).
+    - Esclude i nuovi membri SOLO dai turni dei mesi precedenti (data < effective_start)
+      in cui non avevano TimeTracking, preservando i cedolini già chiusi.
+    - Dal 1° del mese corrente in poi (data >= effective_start):
+      * Rimuove i nuovi membri attivi da dipendenti_esclusi.
+      * Propaga retroattivamente i TimeTracking già registrati per gli altri componenti
+        della squadra nei turni del mese corrente (effective_start <= data <= oggi),
+        salvo assenze registrate per il dipendente.
     """
-    from core.models import AssegnazioneTurno, TimeTracking, Dipendente
+    from core.models import AssegnazioneTurno, TimeTracking, Dipendente, Assenza
 
     if not squadra or not squadra.pk or not added_ids:
         return
 
-    if cutoff_date is None:
-        cutoff_date = timezone.now().date()
+    today = timezone.now().date()
+    default_start = today.replace(day=1)
 
     added_ids = [int(pk) for pk in added_ids if pk]
     if not added_ids:
         return
 
+    dipendenti_map = {
+        d.pk: d for d in Dipendente.objects.filter(pk__in=added_ids)
+    }
+    if not dipendenti_map:
+        return
+
+    # Calcola la data di decorrenza effettiva per ciascun dipendente aggiunto
+    effective_starts = {}
+    for dip_id, dip in dipendenti_map.items():
+        if cutoff_date is not None:
+            start_d = cutoff_date
+        else:
+            start_d = default_start
+            if dip.data_assunzione and dip.data_assunzione > start_d:
+                start_d = dip.data_assunzione
+        effective_starts[dip_id] = start_d
+
+    max_cutoff = max(effective_starts.values())
+
+    # 1. Escludi i nuovi membri dai turni precedenti alla loro data di decorrenza (es. mesi passati)
     past_assigns = list(
         AssegnazioneTurno.objects.filter(
             turno__squadra=squadra,
-            turno__data__lt=cutoff_date
-        )
+            turno__data__lt=max_cutoff
+        ).select_related('turno')
     )
     if past_assigns:
         past_assign_ids = [a.pk for a in past_assigns]
@@ -236,21 +262,106 @@ def _gestisci_aggiunta_membri_squadra(squadra, added_ids, cutoff_date=None):
             ).values_list('assegnazione_id', 'dipendente_id')
         )
         for assign in past_assigns:
-            to_exclude = [dip_id for dip_id in added_ids if (assign.pk, dip_id) not in tt_pairs]
+            d_turno = assign.turno.data
+            to_exclude = [
+                dip_id for dip_id, start_d in effective_starts.items()
+                if d_turno < start_d and (assign.pk, dip_id) not in tt_pairs
+            ]
             if to_exclude:
                 assign.dipendenti_esclusi.add(*to_exclude)
 
-    # Nei turni futuri (data >= cutoff_date), rimuovi da dipendenti_esclusi i nuovi membri attivi
-    active_added_ids = list(
-        Dipendente.objects.filter(pk__in=added_ids).exclude(stato='INATTIVO').values_list('pk', flat=True)
-    )
-    if active_added_ids:
-        future_assigns = AssegnazioneTurno.objects.filter(
+    # 2. Dal effective_start in avanti: rimuovi da dipendenti_esclusi e propaga le ore già lavorate nel mese
+    min_start = min(effective_starts.values())
+    active_added_ids = [
+        dip_id for dip_id, dip in dipendenti_map.items()
+        if dip.stato != 'INATTIVO'
+    ]
+    if not active_added_ids:
+        return
+
+    active_assigns = list(
+        AssegnazioneTurno.objects.filter(
             turno__squadra=squadra,
-            turno__data__gte=cutoff_date
-        )
-        for assign in future_assigns:
-            assign.dipendenti_esclusi.remove(*active_added_ids)
+            turno__data__gte=min_start
+        ).select_related('turno')
+    )
+    if not active_assigns:
+        return
+
+    active_assign_ids = [a.pk for a in active_assigns]
+    existing_tt_pairs = set(
+        TimeTracking.objects.filter(
+            assegnazione_id__in=active_assign_ids,
+            dipendente_id__in=active_added_ids
+        ).values_list('assegnazione_id', 'dipendente_id')
+    )
+
+    # Mappa dei TimeTracking già presenti per gli altri componenti della squadra nei turni fino a oggi
+    squad_tts = list(
+        TimeTracking.objects.filter(
+            assegnazione_id__in=active_assign_ids,
+            ore_dichiarate__gt=0
+        ).order_by('-is_validated', 'id')
+    )
+    sample_tt_by_assign = {}
+    for stt in squad_tts:
+        if stt.assegnazione_id not in sample_tt_by_assign:
+            sample_tt_by_assign[stt.assegnazione_id] = stt
+
+    assenze_list = list(
+        Assenza.objects.filter(
+            dipendente_id__in=active_added_ids,
+            data_inizio__lte=today,
+            data_fine__gte=min_start
+        ).exclude(stato_approvazione='RIFIUTATA')
+    )
+
+    def _is_assente(dip_id, d):
+        for ass in assenze_list:
+            if ass.dipendente_id == dip_id and ass.data_inizio <= d <= ass.data_fine:
+                return True
+        return False
+
+    to_create_tt = []
+    for assign in active_assigns:
+        d_turno = assign.turno.data
+        eligible_ids = [
+            dip_id for dip_id in active_added_ids
+            if d_turno >= effective_starts[dip_id]
+        ]
+        if not eligible_ids:
+            continue
+
+        assign.dipendenti_esclusi.remove(*eligible_ids)
+
+        if d_turno <= today and assign.pk in sample_tt_by_assign:
+            ref_tt = sample_tt_by_assign[assign.pk]
+            for dip_id in eligible_ids:
+                dip = dipendenti_map[dip_id]
+                if (assign.pk, dip_id) in existing_tt_pairs:
+                    continue
+                if dip.data_licenziamento and d_turno >= dip.data_licenziamento:
+                    continue
+                if _is_assente(dip_id, d_turno):
+                    continue
+                to_create_tt.append(
+                    TimeTracking(
+                        dipendente=dip,
+                        assegnazione=assign,
+                        ore_dichiarate=ref_tt.ore_dichiarate,
+                        is_validated=ref_tt.is_validated,
+                        source=ref_tt.source,
+                        note=(
+                            f"Ore valide per la squadra ({squadra.nome})"
+                            if ref_tt.source == 'ADMIN'
+                            else ref_tt.note
+                        )
+                    )
+                )
+                existing_tt_pairs.add((assign.pk, dip_id))
+
+    if to_create_tt:
+        TimeTracking.objects.bulk_create(to_create_tt)
 
 
 def gestisci_licenziamento_dipendente(dipendente, cutoff_date=None):

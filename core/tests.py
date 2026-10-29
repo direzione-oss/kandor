@@ -698,18 +698,41 @@ class PreservazioneTurniPassatiTestCase(TestCase):
         self.assertEqual(TimeTracking.objects.filter(assegnazione=self.assign_past).count(), 2)
 
     def test_2_modifica_squadra_preserva_turni_passati(self):
+        # Crea anche un turno nel mese precedente (cedolino chiuso)
+        prev_month_date = self.today.replace(day=1) - timedelta(days=5)
+        turno_prev_month = Turno.objects.create(data=prev_month_date, squadra=self.squadra)
+        assign_prev_month = AssegnazioneTurno.objects.create(
+            turno=turno_prev_month,
+            cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0),
+            ore_previste_contratto=4.0,
+        )
+
         # Rimuovi comp1 e aggiungi comp2 alla squadra
         self.squadra.componenti.remove(self.comp1)
         self.squadra.componenti.add(self.comp2)
 
-        # Nel turno passato: comp1 NON è escluso e conserva le sue 4 ore; comp2 è escluso dal turno passato
+        # Nel mese precedente (chiuso): comp2 è escluso
+        assign_prev_month.refresh_from_db()
+        esclusi_prev_month = set(assign_prev_month.dipendenti_esclusi.values_list('pk', flat=True))
+        self.assertIn(self.comp2.pk, esclusi_prev_month)
+
+        # Nel turno passato: comp1 NON è escluso e conserva le sue 4 ore;
+        # se past_date è nel mese corrente, comp2 riceve la retroattività dal 1° del mese
         self.assign_past.refresh_from_db()
         esclusi_past = set(self.assign_past.dipendenti_esclusi.values_list('pk', flat=True))
         self.assertNotIn(self.comp1.pk, esclusi_past)
-        self.assertIn(self.comp2.pk, esclusi_past)
         self.assertTrue(
             TimeTracking.objects.filter(assegnazione=self.assign_past, dipendente=self.comp1, ore_dichiarate=Decimal('4.00')).exists()
         )
+        if self.past_date >= self.today.replace(day=1):
+            self.assertNotIn(self.comp2.pk, esclusi_past)
+            self.assertTrue(
+                TimeTracking.objects.filter(assegnazione=self.assign_past, dipendente=self.comp2, ore_dichiarate=Decimal('4.00')).exists()
+            )
+        else:
+            self.assertIn(self.comp2.pk, esclusi_past)
 
     def test_3_licenziamento_dipendente_cancella_solo_futuri_preserva_cedolini_passati(self):
         # Aggiungi anche un TimeTracking futuro pre-compilato per verificare che venga rimosso
