@@ -7,106 +7,21 @@ from .models import Dipendente, AssegnazioneTurno, ProgrammazioneRicorrente, Ric
 def genera_turni_automatici(days=365):
     """
     Genera i turni per i prossimi 'days' giorni (default 12 mesi = 365)
-    basandosi sulla ProgrammazioneRicorrente.
+    basandosi sulla ProgrammazioneRicorrente con query bulk ottimizzate.
     Rispetta le date di inizio/fine contratto.
     Ritorna il numero di assegnazioni create.
     """
-    today = timezone.now().date()
-    end_date = today + timedelta(days=days)
-    
+    from .signals import _genera_turni_singola_programmazione
+
     count = 0
-    programmazioni = ProgrammazioneRicorrente.objects.filter(squadra_abituale__isnull=False)
-
-    # Programmazioni che hanno già uno storico nel passato non devono rigenerare nuovi turni nel passato
-    progs_with_past = set(
-        AssegnazioneTurno.objects.filter(
-            programmazione_feriale__in=programmazioni,
-            turno__data__lt=today
-        ).values_list('programmazione_feriale_id', flat=True).distinct()
+    programmazioni = (
+        ProgrammazioneRicorrente.objects
+        .filter(squadra_abituale__isnull=False)
+        .select_related('squadra_abituale__caposquadra', 'cliente', 'mezzo_abituale', 'qualifica_richiesta')
+        .prefetch_related('squadra_abituale__componenti')
     )
-
-    # Trova la data piu' remota tra i contratti attivi (senza storico già consolidato) e oggi
-    min_start = today
     for prog in programmazioni:
-        if prog.pk not in progs_with_past and prog.data_inizio_contratto and prog.data_inizio_contratto < min_start:
-            min_start = prog.data_inizio_contratto
-
-    start_date = min_start
-    current_date = start_date
-    while current_date <= end_date:
-        weekday = current_date.weekday()
-        day_of_month = current_date.day
-        
-        match_giornalieri = programmazioni.filter(tipo_ripetizione='GIORNALIERO')
-        match_settimanali = programmazioni.filter(tipo_ripetizione='SETTIMANALE', giorno_settimana=weekday)
-        match_mensili = programmazioni.filter(tipo_ripetizione='MENSILE', giorno_mese=day_of_month)
-        
-        # Bisettimanale: stesso giorno della settimana, ma solo nelle settimane "attive"
-        match_bisettimanali_candidates = programmazioni.filter(tipo_ripetizione='BISETTIMANALE', giorno_settimana=weekday)
-        match_bisettimanali = []
-        for prog in match_bisettimanali_candidates:
-            if prog.data_inizio_contratto:
-                # Calcola quante settimane sono passate dalla data_inizio_contratto
-                delta_days = (current_date - prog.data_inizio_contratto).days
-                settimane_passate = delta_days // 7
-                # Settimana attiva se il numero di settimane passate è pari (0, 2, 4...)
-                if delta_days >= 0 and settimane_passate % 2 == 0:
-                    match_bisettimanali.append(prog)
-        
-        matches = list(match_giornalieri) + list(match_settimanali) + list(match_mensili) + match_bisettimanali
-        
-        for prog in matches:
-            # Controllo periodo contrattuale
-            if prog.data_inizio_contratto and current_date < prog.data_inizio_contratto:
-                continue  # Non ancora iniziato
-            if prog.data_fine_contratto and current_date > prog.data_fine_contratto:
-                continue  # Contratto scaduto
-            
-            if current_date < today and prog.pk in progs_with_past:
-                continue
-
-            squadra = prog.squadra_abituale
-
-            # Evita duplicati (controlla sulla data per non duplicare se la squadra è cambiata)
-            exists = AssegnazioneTurno.objects.filter(
-                turno__data=current_date,
-                programmazione_feriale=prog
-            ).exists()
-            
-            if not exists:
-                # Crea/Recupera Turno
-                turno = Turno.objects.filter(data=current_date, squadra=squadra).first()
-                if not turno:
-                    turno = Turno.objects.create(
-                        data=current_date,
-                        squadra=squadra,
-                        mezzo=prog.mezzo_abituale
-                    )
-
-                orario_inizio = prog.ora_inizio
-                
-                if prog.durata:
-                        dummy_date = date.today()
-                        dt_start = datetime.combine(dummy_date, orario_inizio)
-                        hours = int(prog.durata)
-                        minutes = int((prog.durata - hours) * 60)
-                        dt_end = dt_start + timedelta(hours=hours, minutes=minutes)
-                        orario_fine = dt_end.time()
-                else:
-                        orario_fine = orario_inizio # Should not happen ideally
-                
-                assign = AssegnazioneTurno.objects.create(
-                    turno=turno,
-                    cliente=prog.cliente,
-                    programmazione_feriale=prog,
-                    orario_inizio_previsto=orario_inizio,
-                    orario_fine_previsto=orario_fine,
-                    mansione_svolta=f"Generato autom. (Qualifica: {prog.qualifica_richiesta})"
-                )
-                count += 1
-        
-        current_date += timedelta(days=1)
-    
+        count += _genera_turni_singola_programmazione(prog, days=days)
     return count
 
 def _is_qualifica_compatibile(qualifica_richiesta, dip_qualifiche_nomi):

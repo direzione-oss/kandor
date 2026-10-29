@@ -1557,6 +1557,7 @@ def manuale_dipendente_view(request):
 def extend_contract_view(request, prog_id):
     """Prolunga un contratto di 12 mesi e rigenera i turni."""
     from .models import ProgrammazioneRicorrente
+    from .signals import _genera_turni_singola_programmazione
     from dateutil.relativedelta import relativedelta
     
     prog = get_object_or_404(ProgrammazioneRicorrente, pk=prog_id)
@@ -1567,8 +1568,8 @@ def extend_contract_view(request, prog_id):
         prog.data_fine_contratto = old_date + relativedelta(months=12)
         prog.save()
         
-        # Rigenera i turni per coprire il nuovo periodo
-        count = genera_turni_automatici()
+        # Rigenera i turni della programmazione per coprire il nuovo periodo
+        count = _genera_turni_singola_programmazione(prog, days=365, only_future=True)
         
         messages.success(
             request,

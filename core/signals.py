@@ -479,17 +479,49 @@ def _cleanup_future_assignments(instance):
     return deleted_count
 
 
+def _calcola_date_programmazione(prog, start_date, end_date):
+    """Calcola in memoria (0 query SQL) tutte le date tra start_date ed end_date che soddisfano la programmazione."""
+    matching_dates = []
+    current_date = start_date
+    while current_date <= end_date:
+        if prog.data_inizio_contratto and current_date < prog.data_inizio_contratto:
+            current_date += timedelta(days=1)
+            continue
+        if prog.data_fine_contratto and current_date > prog.data_fine_contratto:
+            break
+
+        match = False
+        weekday = current_date.weekday()
+        if prog.tipo_ripetizione == 'GIORNALIERO':
+            match = True
+        elif prog.tipo_ripetizione == 'SETTIMANALE' and prog.giorno_settimana == weekday:
+            match = True
+        elif prog.tipo_ripetizione == 'MENSILE' and prog.giorno_mese == current_date.day:
+            match = True
+        elif prog.tipo_ripetizione == 'BISETTIMANALE' and prog.giorno_settimana == weekday:
+            if prog.data_inizio_contratto:
+                delta_days = (current_date - prog.data_inizio_contratto).days
+                settimane = delta_days // 7
+                if delta_days >= 0 and settimane % 2 == 0:
+                    match = True
+
+        if match:
+            matching_dates.append(current_date)
+        current_date += timedelta(days=1)
+    return matching_dates
+
+
 def _genera_turni_singola_programmazione(prog, days=365, only_future=False):
     """
-    Genera turni per UNA SOLA programmazione ricorrente.
+    Genera turni per UNA SOLA programmazione ricorrente usando operazioni bulk veloci.
     Se la programmazione esisteva già e ha già turni nel passato (o only_future=True),
     genera i turni SOLO da oggi in avanti, lasciando intatto lo storico passato.
     """
     from core.models import Turno, AssegnazioneTurno
-    
-    if not prog.squadra_abituale:
+
+    if not prog.squadra_abituale_id:
         return 0
-    
+
     today = timezone.now().date()
     has_past_assignments = AssegnazioneTurno.objects.filter(
         programmazione_feriale=prog,
@@ -504,82 +536,98 @@ def _genera_turni_singola_programmazione(prog, days=365, only_future=False):
         start_date = today
 
     end_date = today + timedelta(days=days)
-    count = 0
-    
-    current_date = start_date
-    while current_date <= end_date:
-        # Controllo periodo contrattuale
-        if prog.data_inizio_contratto and current_date < prog.data_inizio_contratto:
-            current_date += timedelta(days=1)
-            continue
-        if prog.data_fine_contratto and current_date > prog.data_fine_contratto:
-            break  # Oltre la fine contratto, stop
-        
-        match = False
-        weekday = current_date.weekday()
-        
-        if prog.tipo_ripetizione == 'GIORNALIERO':
-            match = True
-        elif prog.tipo_ripetizione == 'SETTIMANALE' and prog.giorno_settimana == weekday:
-            match = True
-        elif prog.tipo_ripetizione == 'MENSILE' and prog.giorno_mese == current_date.day:
-            match = True
-        elif prog.tipo_ripetizione == 'BISETTIMANALE' and prog.giorno_settimana == weekday:
-            if prog.data_inizio_contratto:
-                delta_days = (current_date - prog.data_inizio_contratto).days
-                settimane = delta_days // 7
-                if delta_days >= 0 and settimane % 2 == 0:
-                    match = True
-        
-        if match:
-            # Verifica se esiste già un'assegnazione per questa programmazione nella data corrente
-            exists = AssegnazioneTurno.objects.filter(
-                turno__data=current_date,
-                programmazione_feriale=prog
-            ).exists()
-            
-            if not exists:
-                turno, _ = Turno.objects.get_or_create(
-                    data=current_date,
-                    squadra=prog.squadra_abituale,
-                    defaults={'mezzo': prog.mezzo_abituale}
-                )
-                orario_inizio = prog.ora_inizio
-                if prog.durata:
-                    dt_start = datetime.combine(date.today(), orario_inizio)
-                    hours = int(prog.durata)
-                    minutes = int((prog.durata - hours) * 60)
-                    dt_end = dt_start + timedelta(hours=hours, minutes=minutes)
-                    orario_fine = dt_end.time()
-                else:
-                    orario_fine = orario_inizio
-                
-                assign = AssegnazioneTurno.objects.create(
-                    turno=turno,
-                    cliente=prog.cliente,
-                    programmazione_feriale=prog,
-                    orario_inizio_previsto=orario_inizio,
-                    orario_fine_previsto=orario_fine,
-                    mansione_svolta=f"Generato autom. (Qualifica: {prog.qualifica_richiesta})"
-                )
-                # Escludi eventuali componenti della squadra già licenziati a questa data
-                squadra = prog.squadra_abituale
-                esclusi_licenziati = []
-                if squadra.caposquadra and (
-                    squadra.caposquadra.stato == 'INATTIVO' or
-                    (squadra.caposquadra.data_licenziamento and current_date >= squadra.caposquadra.data_licenziamento)
-                ):
-                    esclusi_licenziati.append(squadra.caposquadra.pk)
-                for comp in squadra.componenti.all():
-                    if comp.stato == 'INATTIVO' or (comp.data_licenziamento and current_date >= comp.data_licenziamento):
-                        esclusi_licenziati.append(comp.pk)
-                if esclusi_licenziati:
-                    assign.dipendenti_esclusi.add(*esclusi_licenziati)
-                count += 1
-        
-        current_date += timedelta(days=1)
-    
-    return count
+    matching_dates = _calcola_date_programmazione(prog, start_date, end_date)
+    if not matching_dates:
+        return 0
+
+    existing_dates = set(
+        AssegnazioneTurno.objects.filter(
+            programmazione_feriale=prog,
+            turno__data__in=matching_dates
+        ).values_list('turno__data', flat=True)
+    )
+    missing_dates = [d for d in matching_dates if d not in existing_dates]
+    if not missing_dates:
+        return 0
+
+    squadra = prog.squadra_abituale
+    existing_turni = {
+        t.data: t for t in Turno.objects.filter(
+            squadra_id=prog.squadra_abituale_id,
+            data__in=missing_dates
+        )
+    }
+    turni_to_create = [
+        Turno(
+            data=d,
+            squadra_id=prog.squadra_abituale_id,
+            mezzo_id=prog.mezzo_abituale_id
+        )
+        for d in missing_dates if d not in existing_turni
+    ]
+    if turni_to_create:
+        Turno.objects.bulk_create(turni_to_create)
+        existing_turni = {
+            t.data: t for t in Turno.objects.filter(
+                squadra_id=prog.squadra_abituale_id,
+                data__in=missing_dates
+            )
+        }
+
+    orario_inizio = prog.ora_inizio
+    if prog.durata:
+        dt_start = datetime.combine(date.today(), orario_inizio)
+        hours = int(prog.durata)
+        minutes = int((prog.durata - hours) * 60)
+        dt_end = dt_start + timedelta(hours=hours, minutes=minutes)
+        orario_fine = dt_end.time()
+    else:
+        orario_fine = orario_inizio
+
+    mansione_str = f"Generato autom. (Qualifica: {prog.qualifica_richiesta})"
+    assigns_to_create = [
+        AssegnazioneTurno(
+            turno=existing_turni[d],
+            cliente_id=prog.cliente_id,
+            programmazione_feriale=prog,
+            orario_inizio_previsto=orario_inizio,
+            orario_fine_previsto=orario_fine,
+            mansione_svolta=mansione_str
+        )
+        for d in missing_dates if d in existing_turni
+    ]
+    if not assigns_to_create:
+        return 0
+
+    created_assigns = AssegnazioneTurno.objects.bulk_create(assigns_to_create)
+
+    # Pre-carica i componenti inattivi/licenziati una sola volta fuori dal ciclo
+    membri_licenziamento = []
+    if squadra.caposquadra_id and squadra.caposquadra:
+        capo = squadra.caposquadra
+        if capo.stato == 'INATTIVO' or capo.data_licenziamento:
+            membri_licenziamento.append((capo.pk, capo.stato == 'INATTIVO', capo.data_licenziamento))
+    for comp in squadra.componenti.all():
+        if comp.stato == 'INATTIVO' or comp.data_licenziamento:
+            membri_licenziamento.append((comp.pk, comp.stato == 'INATTIVO', comp.data_licenziamento))
+
+    if membri_licenziamento:
+        ThroughModel = AssegnazioneTurno.dipendenti_esclusi.through
+        through_rows = []
+        for assign in created_assigns:
+            d_turno = assign.turno.data
+            for dip_pk, is_inattivo, data_lic in membri_licenziamento:
+                if is_inattivo or (data_lic and d_turno >= data_lic):
+                    through_rows.append(
+                        ThroughModel(
+                            assegnazioneturno_id=assign.pk,
+                            dipendente_id=dip_pk
+                        )
+                    )
+        if through_rows:
+            ThroughModel.objects.bulk_create(through_rows, ignore_conflicts=True)
+
+    return len(created_assigns)
 
 
 @receiver(pre_delete, sender='core.ProgrammazioneRicorrente')
@@ -591,10 +639,51 @@ def on_programmazione_delete(sender, instance, **kwargs):
 
 @receiver(post_save, sender='core.ProgrammazioneRicorrente')
 def on_programmazione_save(sender, instance, created=False, raw=False, **kwargs):
-    """Quando modificata: cancella e rigenera SOLO i turni futuri di questa programmazione."""
+    """Quando modificata: aggiorna/pulisce e rigenera SOLO i turni futuri in modalità bulk."""
     if raw:
         return
-    deleted = _cleanup_future_assignments(instance)
+    from core.models import AssegnazioneTurno, Turno
+
+    today = timezone.now().date()
+    deleted = 0
+    if not created:
+        if not instance.squadra_abituale_id:
+            deleted = _cleanup_future_assignments(instance)
+        else:
+            start_date = max(today, instance.data_inizio_contratto) if instance.data_inizio_contratto else today
+            end_date = today + timedelta(days=365)
+            valid_dates = set(_calcola_date_programmazione(instance, start_date, end_date))
+
+            obsolete_qs = AssegnazioneTurno.objects.filter(
+                programmazione_feriale=instance,
+                turno__data__gte=today
+            ).filter(
+                ~Q(turno__data__in=valid_dates) | ~Q(turno__squadra_id=instance.squadra_abituale_id)
+            )
+            obsolete_turno_ids = list(obsolete_qs.values_list('turno_id', flat=True))
+            deleted = obsolete_qs.count()
+            if deleted:
+                obsolete_qs.delete()
+                Turno.objects.filter(pk__in=obsolete_turno_ids, data__gte=today).exclude(assegnazioni__isnull=False).delete()
+
+            orario_inizio = instance.ora_inizio
+            if instance.durata:
+                dt_start = datetime.combine(date.today(), orario_inizio)
+                hours = int(instance.durata)
+                minutes = int((instance.durata - hours) * 60)
+                orario_fine = (dt_start + timedelta(hours=hours, minutes=minutes)).time()
+            else:
+                orario_fine = orario_inizio
+
+            AssegnazioneTurno.objects.filter(
+                programmazione_feriale=instance,
+                turno__data__gte=today
+            ).update(
+                cliente_id=instance.cliente_id,
+                orario_inizio_previsto=orario_inizio,
+                orario_fine_previsto=orario_fine,
+            )
+
     created_count = _genera_turni_singola_programmazione(instance, only_future=(not created))
     print(f"[SYNC] Aggiornata prog. '{instance.cliente}': {deleted} rimossi, {created_count} creati.")
 

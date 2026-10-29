@@ -277,16 +277,20 @@ class ProgrammazioneRicorrente(models.Model):
 
         # Calcolo proiettivo ora_fine per la validazione (se non ancora salvato)
         check_ora_fine = self.ora_fine
-        if not check_ora_fine and self.ora_inizio and self.durata:
+        if self.ora_inizio and self.durata:
             dummy_date = datetime.date.today()
             dt_start = datetime.datetime.combine(dummy_date, self.ora_inizio)
             hours = int(self.durata)
             minutes = int((self.durata - hours) * 60)
             dt_end = dt_start + datetime.timedelta(hours=hours, minutes=minutes)
-            check_ora_fine = dt_end.time()
+            if dt_end.date() > dummy_date:
+                check_ora_fine = datetime.time(23, 59, 59)
+            else:
+                check_ora_fine = dt_end.time()
         
         # Validazione Sovrapposizioni (Squadra e Mezzo)
-        if self.ora_inizio and check_ora_fine and (self.squadra_abituale or self.mezzo_abituale):
+        if self.ora_inizio and check_ora_fine and check_ora_fine > self.ora_inizio and (self.squadra_abituale or self.mezzo_abituale):
+            today = datetime.date.today()
             # Filtro base: stessa periodicità
             query = Q(tipo_ripetizione=self.tipo_ripetizione)
             if self.tipo_ripetizione in ('SETTIMANALE', 'BISETTIMANALE'):
@@ -296,6 +300,13 @@ class ProgrammazioneRicorrente(models.Model):
             
             # Filtro orario: overlap (StartA < EndB) and (EndA > StartB)
             query &= Q(ora_inizio__lt=check_ora_fine) & Q(ora_fine__gt=self.ora_inizio)
+
+            # Escludi contratti già scaduti o con periodo contrattuale non sovrapposto
+            query &= (Q(data_fine_contratto__isnull=True) | Q(data_fine_contratto__gte=today))
+            if self.data_inizio_contratto:
+                query &= (Q(data_fine_contratto__isnull=True) | Q(data_fine_contratto__gte=self.data_inizio_contratto))
+            if self.data_fine_contratto:
+                query &= (Q(data_inizio_contratto__isnull=True) | Q(data_inizio_contratto__lte=self.data_fine_contratto))
             
             # Escludi se stesso (in caso di modifica)
             if self.pk:
@@ -303,14 +314,14 @@ class ProgrammazioneRicorrente(models.Model):
             
             # Controllo Squadra
             if self.squadra_abituale:
-                conflitti_squadra = ProgrammazioneRicorrente.objects.filter(query, squadra_abituale=self.squadra_abituale)
+                conflitti_squadra = ProgrammazioneRicorrente.objects.filter(query, squadra_abituale=self.squadra_abituale).select_related('cliente')
                 if conflitti_squadra.exists():
                     conflitto = conflitti_squadra.first()
                     raise ValidationError(f"La squadra '{self.squadra_abituale}' è già impegnata in orario sovrapposto (Cliente: {conflitto.cliente}).")
 
             # Controllo Mezzo
             if self.mezzo_abituale:
-                conflitti_mezzo = ProgrammazioneRicorrente.objects.filter(query, mezzo_abituale=self.mezzo_abituale)
+                conflitti_mezzo = ProgrammazioneRicorrente.objects.filter(query, mezzo_abituale=self.mezzo_abituale).select_related('cliente')
                 if conflitti_mezzo.exists():
                     conflitto = conflitti_mezzo.first()
                     raise ValidationError(f"Il mezzo '{self.mezzo_abituale}' è già impegnato in orario sovrapposto (Cliente: {conflitto.cliente}).")
