@@ -4061,6 +4061,27 @@ def report_paghe_view(request):
         'l104_totale': sum(x['assenze_dict']['104'] for x in report_list),
     }
 
+    from datetime import timedelta
+    for dip_id, item in report_data.items():
+        calendario_weeks = []
+        curr_d = data_inizio
+        row = [{'date': None, 'day': '', 'ore': None, 'assenze': []} for _ in range(7)]
+        while curr_d <= data_fine:
+            wd = curr_d.weekday()
+            ore = item['ore_per_giorno'].get(curr_d, 0.0)
+            assenze = item['assenze_per_giorno'].get(curr_d, [])
+            row[wd] = {
+                'date': curr_d.isoformat(), 
+                'day': curr_d.day, 
+                'ore': round(ore, 1) if ore > 0 else None,
+                'assenze': assenze
+            }
+            if wd == 6 or curr_d == data_fine:
+                calendario_weeks.append(row)
+                row = [{'date': None, 'day': '', 'ore': None, 'assenze': []} for _ in range(7)]
+            curr_d += timedelta(days=1)
+        item['calendario_weeks'] = calendario_weeks
+
     context = {
         'report_list': report_list,
         'totale_generale': totale_generale,
