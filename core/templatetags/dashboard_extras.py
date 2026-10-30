@@ -235,18 +235,34 @@ def upcoming_birthdays_widget():
 
 @register.inclusion_tag('admin/widgets/weekly_schedule_widget.html', takes_context=True)
 def weekly_schedule_widget(context):
+    import calendar
+    import json
+    from datetime import date as _date, datetime as _dt
+    from core.models import Turno, Squadra, AssegnazioneTurno
+
     request = context.get('request')
-    try:
-        week_offset = int(request.GET.get('week', 0)) if request else 0
-    except (ValueError, TypeError, AttributeError):
-        week_offset = 0
-    
+    today = timezone.now().date()
+    current_monday = today - timedelta(days=today.weekday())
+
+    week_offset = 0
+    if request:
+        week_date_str = (request.GET.get('week_date') or '').strip()
+        if week_date_str:
+            try:
+                target_d = _dt.strptime(week_date_str, '%Y-%m-%d').date()
+                target_monday = target_d - timedelta(days=target_d.weekday())
+                week_offset = (target_monday - current_monday).days // 7
+            except (ValueError, TypeError):
+                week_offset = 0
+        else:
+            try:
+                week_offset = int(request.GET.get('week', 0))
+            except (ValueError, TypeError, AttributeError):
+                week_offset = 0
+
     # Filtro squadra
     squadra_filter = request.GET.get('squadra', '') if request else ''
-        
-    from core.models import Turno, Squadra, AssegnazioneTurno
-    today = timezone.now().date()
-    
+
     # Lista squadre per il dropdown (con attributo selected pre-calcolato)
     squadre_raw = Squadra.objects.all().order_by('nome')
     squadre = []
@@ -256,19 +272,97 @@ def weekly_schedule_widget(context):
             'nome': sq.nome,
             'selected': 'selected' if str(sq.id) == squadra_filter else '',
         })
-    
+
     # Calculate start of the week (Monday)
-    start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
-    
+    start_of_week = current_monday + timedelta(weeks=week_offset)
+
     # Generate 7 days from Monday
     dates = [start_of_week + timedelta(days=i) for i in range(7)]
-    
+
     DAYS_MAP = {
         0: 'LUNEDÌ', 1: 'MARTEDÌ', 2: 'MERCOLEDÌ', 3: 'GIOVEDÌ', 4: 'VENERDÌ', 5: 'SABATO', 6: 'DOMENICA'
     }
     MONTHS_MAP = {
         1: 'Gen', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'Mag', 6: 'Giu', 7: 'Lug', 8: 'Ago', 9: 'Set', 10: 'Ott', 11: 'Nov', 12: 'Dic'
     }
+    MONTHS_FULL_MAP = {
+        1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno',
+        7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'
+    }
+
+    # Determina il mese di riferimento attivo (da parametro ?cal_month=YYYY-MM oppure giovedì della settimana visualizzata)
+    ref_thursday = start_of_week + timedelta(days=3)
+    active_month_key = f"{ref_thursday.year:04d}-{ref_thursday.month:02d}"
+    req_cal_month = (request.GET.get('cal_month') or '').strip() if request else ''
+    if req_cal_month and len(req_cal_month) == 7 and req_cal_month[4] == '-':
+        try:
+            _y, _m = int(req_cal_month[:4]), int(req_cal_month[5:7])
+            if 1 <= _m <= 12:
+                # Verifica che la settimana corrente tocchi effettivamente questo mese, altrimenti usa ref_thursday
+                _m_first = _date(_y, _m, 1)
+                _m_last = _date(_y, _m, calendar.monthrange(_y, _m)[1])
+                if start_of_week <= _m_last and dates[-1] >= _m_first:
+                    active_month_key = f"{_y:04d}-{_m:02d}"
+        except (ValueError, TypeError):
+            pass
+
+    min_year = min(today.year - 1, start_of_week.year)
+    max_year = max(today.year + 1, start_of_week.year + 1)
+
+    calendar_months = []
+    active_month_weeks = []
+    active_month_label = f"{MONTHS_FULL_MAP[ref_thursday.month]} {ref_thursday.year}"
+
+    for y in range(min_year, max_year + 1):
+        for m in range(1, 13):
+            m_key = f"{y:04d}-{m:02d}"
+            m_label = f"{MONTHS_FULL_MAP[m]} {y}"
+            m_first = _date(y, m, 1)
+            m_last = _date(y, m, calendar.monthrange(y, m)[1])
+
+            w_mon = m_first - timedelta(days=m_first.weekday())
+            m_weeks = []
+            while w_mon <= m_last:
+                w_sun = w_mon + timedelta(days=6)
+                w_off = (w_mon - current_monday).days // 7
+                w_lbl = f"{w_mon.day:02d} {MONTHS_MAP[w_mon.month]} - {w_sun.day:02d} {MONTHS_MAP[w_sun.month]}"
+                if w_off == 0:
+                    w_lbl += " (Oggi)"
+                w_item = {
+                    'week_offset': w_off,
+                    'label': w_lbl,
+                    'short_label': f"{w_mon.day:02d} {MONTHS_MAP[w_mon.month]} – {w_sun.day:02d} {MONTHS_MAP[w_sun.month]}",
+                    'is_selected': w_off == week_offset,
+                    'selected': 'selected' if w_off == week_offset else '',
+                    'is_current': w_off == 0,
+                    'days': [
+                        {
+                            'num': (w_mon + timedelta(days=di)).day,
+                            'in_month': (w_mon + timedelta(days=di)).month == m,
+                            'is_today': (w_mon + timedelta(days=di)) == today,
+                        }
+                        for di in range(7)
+                    ],
+                }
+                m_weeks.append(w_item)
+                w_mon += timedelta(days=7)
+
+            is_sel_month = (m_key == active_month_key)
+            if is_sel_month:
+                active_month_weeks = m_weeks
+                active_month_label = m_label
+
+            calendar_months.append({
+                'key': m_key,
+                'year': y,
+                'month': m,
+                'label': m_label,
+                'selected': 'selected' if is_sel_month else '',
+                'is_selected': is_sel_month,
+                'weeks': m_weeks,
+            })
+
+    calendar_months_json = json.dumps(calendar_months)
 
     # Colori per squadre
     COLORS = ['#0277bd', '#2e7d32', '#c62828', '#f57c00', '#6a1b9a', '#00838f', '#ad1457', '#4e342e']
@@ -564,7 +658,12 @@ def weekly_schedule_widget(context):
         'next_week_offset': week_offset + 1,
         'week_start': start_of_week,
         'week_end': dates[-1],
-        'week_range': f"{start_of_week.day:02d} {MONTHS_MAP[start_of_week.month]} - {dates[-1].day:02d} {MONTHS_MAP[dates[-1].month]}"
+        'week_range': f"{start_of_week.day:02d} {MONTHS_MAP[start_of_week.month]} - {dates[-1].day:02d} {MONTHS_MAP[dates[-1].month]}",
+        'calendar_months': calendar_months,
+        'active_month_weeks': active_month_weeks,
+        'active_month_key': active_month_key,
+        'active_month_label': active_month_label,
+        'calendar_months_json': calendar_months_json,
     }
 
 @register.filter

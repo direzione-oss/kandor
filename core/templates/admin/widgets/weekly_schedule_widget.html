@@ -30,15 +30,68 @@
 .btn-save-turno {background:#059669;color:#fff}
 .btn-save-turno:hover {background:#047857}
 .btn-cancel-turno {background:#F1F5F9;color:#475569}
+.cal-picker-wrap {position:relative;display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cal-select {padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.25);font-size:13px;background:rgba(255,255,255,.95);color:#0F172A;font-weight:700;cursor:pointer;text-transform:none;letter-spacing:normal}
+.cal-select:focus {outline:2px solid #10B981}
+.cal-popover-btn {background:#059669;color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;text-transform:none;letter-spacing:normal;transition:background .15s}
+.cal-popover-btn:hover {background:#047857}
+.cal-month-popover {display:none;position:absolute;top:calc(100% + 8px);left:0;background:#fff;color:#0F172A;border-radius:12px;box-shadow:0 20px 35px -5px rgba(15,23,42,.35),0 8px 15px -6px rgba(15,23,42,.2);border:1px solid #CBD5E1;width:370px;max-width:92vw;z-index:9999;padding:14px;text-transform:none;letter-spacing:normal;font-weight:normal}
+.cal-month-popover.open {display:block}
+.cal-pop-header {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #E2E8F0}
+.cal-pop-nav {background:#F1F5F9;border:1px solid #CBD5E1;color:#0F172A;border-radius:6px;width:30px;height:30px;cursor:pointer;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.cal-pop-nav:hover {background:#E2E8F0}
+.cal-pop-weekdays {display:grid;grid-template-columns:105px repeat(7,1fr);gap:2px;font-size:10px;font-weight:700;color:#64748B;text-align:center;margin-bottom:4px;padding:0 4px}
+.cal-pop-week-row {display:grid;grid-template-columns:105px repeat(7,1fr);gap:2px;align-items:center;padding:6px 4px;border-radius:8px;cursor:pointer;text-decoration:none;color:#0F172A;border:1px solid transparent;transition:all .12s;margin-bottom:3px}
+.cal-pop-week-row:hover {background:#ECFDF5;border-color:#10B981}
+.cal-pop-week-row.selected {background:#059669;color:#fff;font-weight:700}
+.cal-pop-week-row.current-week:not(.selected) {border-color:#059669;background:#F0FDF4}
+.cal-pop-wlabel {font-size:11px;font-weight:700;padding-left:4px;white-space:nowrap}
+.cal-pop-day {font-size:12px;text-align:center;padding:4px 0;border-radius:5px;line-height:1.2}
+.cal-pop-day.out-month {opacity:.35}
+.cal-pop-day.is-today {background:#F59E0B;color:#fff;font-weight:800}
+.cal-pop-week-row.selected .cal-pop-day.out-month {opacity:.65}
 </style>
 
-<div class="k-card" style="margin-bottom:28px;overflow:hidden">
-<h3 style="background:#0F172A;color:#fff;margin:0;padding:14px 20px;font-size:0.95rem;text-transform:uppercase;letter-spacing:.025em;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:2px solid var(--primary-color)">
-<div style="display:flex;align-items:center;gap:14px">
+<div class="k-card" style="margin-bottom:28px;overflow:visible">
+<h3 style="background:#0F172A;color:#fff;margin:0;padding:14px 20px;font-size:0.95rem;text-transform:uppercase;letter-spacing:.025em;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:2px solid var(--primary-color);border-radius:12px 12px 0 0">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
 <span style="font-weight:700">📅 Settimana: {{ week_range }}</span>
 <div style="background:rgba(255,255,255,.12);border-radius:6px;display:flex;overflow:hidden">
-<a href="?week={{ prev_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#fff;padding:6px 12px;text-decoration:none;border-right:1px solid rgba(255,255,255,.15);font-size:13px;font-weight:600">&larr; Prev</a>
-<a href="?week={{ next_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#fff;padding:6px 12px;text-decoration:none;font-size:13px;font-weight:600">Next &rarr;</a>
+<a href="?week={{ prev_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#fff;padding:6px 12px;text-decoration:none;border-right:1px solid rgba(255,255,255,.15);font-size:13px;font-weight:600" title="Settimana precedente">&larr; Prev</a>
+{% if current_week_offset != 0 %}
+<a href="?week=0{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#FCD34D;padding:6px 10px;text-decoration:none;border-right:1px solid rgba(255,255,255,.15);font-size:13px;font-weight:700" title="Torna alla settimana corrente">Oggi</a>
+{% endif %}
+<a href="?week={{ next_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" style="color:#fff;padding:6px 12px;text-decoration:none;font-size:13px;font-weight:600" title="Settimana successiva">Next &rarr;</a>
+</div>
+
+<div class="cal-picker-wrap" id="cal-picker-wrap">
+  <select id="cal-month-select" class="cal-select" onchange="onCalMonthSelectChange(this.value)" title="Scegli il Mese">
+    {% for m in calendar_months %}
+    <option value="{{ m.key }}" {% if m.is_selected %}selected{% endif %}>📅 {{ m.label }}</option>
+    {% endfor %}
+  </select>
+  <select id="cal-week-select" class="cal-select" onchange="jumpToWeekOffset(this.value)" title="Scegli la Settimana del mese selezionato">
+    {% for w in active_month_weeks %}
+    <option value="{{ w.week_offset }}" {% if w.is_selected %}selected{% endif %}>Sett. {{ w.short_label }}{% if w.is_current %} (Oggi){% endif %}</option>
+    {% endfor %}
+  </select>
+  <button type="button" class="cal-popover-btn" onclick="toggleCalMonthPopover(event)" title="Apri il calendario mensile per scegliere la settimana">
+    🗓️ Mese &#9662;
+  </button>
+
+  <div class="cal-month-popover" id="cal-month-popover" onclick="event.stopPropagation()">
+    <div class="cal-pop-header">
+      <button type="button" class="cal-pop-nav" onclick="stepCalPopoverMonth(-1)" title="Mese precedente">&larr;</button>
+      <span id="cal-pop-title" style="font-weight:800;font-size:14px;color:#0F172A">{{ active_month_label }}</span>
+      <button type="button" class="cal-pop-nav" onclick="stepCalPopoverMonth(1)" title="Mese successivo">&rarr;</button>
+    </div>
+    <div style="font-size:11px;color:#475569;margin-bottom:8px;text-align:center">Clicca su una settimana per aprirla nel calendario:</div>
+    <div class="cal-pop-weekdays">
+      <div style="text-align:left;padding-left:4px">SETTIMANA</div>
+      <div>L</div><div>M</div><div>M</div><div>G</div><div>V</div><div>S</div><div>D</div>
+    </div>
+    <div id="cal-pop-weeks-list"></div>
+  </div>
 </div>
 </div>
 <div style="display:flex;align-items:center;gap:12px">
@@ -209,10 +262,15 @@
     <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate / da validare</span>
     <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
   </div>
-  <div id="edit-ore-controls" style="display:flex;gap:8px">
-    <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 8)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
-    <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✔ Salva e valida ore</button>
-    <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">↩ Rimuovi validazione</button>
+  <div id="edit-ore-controls" style="display:flex;flex-direction:column;gap:8px">
+    <div style="display:flex;gap:8px">
+      <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 8)" style="width:120px;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+      <input type="text" id="edit-ore-note-input" placeholder="Note / Motivazione Straordinari (opzionale)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="submitOreManual(true)" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✔ Salva e valida ore</button>
+      <button onclick="submitValidaOre('unvalidate')" style="background:#f39c12;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">↩ Rimuovi validazione</button>
+    </div>
   </div>
   <div id="edit-ore-no-submit-msg" style="display:none;margin-top:8px;font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:6px 10px">
     ℹ️ Il lavoratore non ha ancora inviato le ore: puoi inserirle e validarle direttamente qui dall'amministrazione.
@@ -521,6 +579,16 @@ try {
         oreSpan.style.cssText = 'background:' + (c.is_validated ? '#d1fae5' : '#fef3c7') + ';color:' + (c.is_validated ? '#047857' : '#92400e') + ';padding:2px 7px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px;border:1px solid ' + (c.is_validated ? '#a7f3d0' : '#fde68a');
         oreSpan.textContent = (c.is_validated ? '✅ ' : '⏳ ') + c.ore_dichiarate + 'h';
         lbl.appendChild(oreSpan);
+
+        if (c.note) {
+          var noteSpan = document.createElement('span');
+          noteSpan.style.cssText = 'background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:10px;margin-left:4px;font-size:10px;border:1px solid #cbd5e1;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+          noteSpan.textContent = '📝 ' + c.note;
+          noteSpan.title = c.note;
+          lbl.appendChild(noteSpan);
+          var noteInp = document.getElementById('edit-ore-note-input');
+          if (noteInp && !noteInp.value) noteInp.value = c.note;
+        }
       }
       
       listEl.appendChild(lbl);
@@ -550,11 +618,12 @@ function closeEditTurno(){
 function submitOreManual(validate){
   if(!_editId)return;
   var ore=parseFloat(document.getElementById('edit-ore-input').value);
+  var noteVal=(document.getElementById('edit-ore-note-input') ? document.getElementById('edit-ore-note-input').value : '').trim();
   if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido');return;}
   var esclusi=[];
   document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({ore:ore,validate:validate,dipendenti_esclusi:esclusi})
+    body:JSON.stringify({ore:ore,note:noteVal,validate:validate,dipendenti_esclusi:esclusi})
   }).then(function(r){return r.json()}).then(function(d){
     if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
   }).catch(function(){alert('Errore di connessione')})
@@ -657,4 +726,126 @@ function saveTurno(){
   var payload={data:_turnoDate,squadra_id:document.getElementById('turno-squadra').value,cliente_id:document.getElementById('turno-cliente').value,ora_inizio:document.getElementById('turno-inizio').value,ora_fine:document.getElementById('turno-fine').value,note:document.getElementById('turno-note').value,ore_previste:orePrev,tipo:tipo,tipo_ripetizione:tipo_ripetizione};
   fetch('/api/add-turno/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeAddTurno();location.reload()}else{alert('Errore: '+d.error)}}).catch(function(e){alert('Errore di connessione')})
 }
+
+var _calMonthsData = {{ calendar_months_json|safe }};
+var _calActiveMonthKey = "{{ active_month_key }}";
+var _calSquadraFilter = "{{ squadra_filter|default:''|escapejs }}";
+
+function buildWeekHref(weekOffset, monthKey){
+  var url = '?week=' + encodeURIComponent(weekOffset);
+  if(monthKey) url += '&cal_month=' + encodeURIComponent(monthKey);
+  if(_calSquadraFilter) url += '&squadra=' + encodeURIComponent(_calSquadraFilter);
+  return url;
+}
+
+function jumpToWeekOffset(weekOffset, monthKey){
+  var mKey = monthKey || (document.getElementById('cal-month-select') ? document.getElementById('cal-month-select').value : _calActiveMonthKey);
+  window.location.href = buildWeekHref(weekOffset, mKey);
+}
+
+function findCalMonthObj(monthKey){
+  for(var i=0; i<_calMonthsData.length; i++){
+    if(_calMonthsData[i].key === monthKey) return _calMonthsData[i];
+  }
+  return _calMonthsData[0] || null;
+}
+
+function renderCalMonthPopover(monthKey){
+  var mObj = findCalMonthObj(monthKey);
+  if(!mObj) return;
+  _calActiveMonthKey = mObj.key;
+
+  var mSel = document.getElementById('cal-month-select');
+  if(mSel && mSel.value !== mObj.key) mSel.value = mObj.key;
+
+  var titleEl = document.getElementById('cal-pop-title');
+  if(titleEl) titleEl.textContent = mObj.label;
+
+  var wSel = document.getElementById('cal-week-select');
+  if(wSel){
+    wSel.innerHTML = '';
+    var hasSelected = false;
+    var placeholderOpt = document.createElement('option');
+    placeholderOpt.value = '';
+    placeholderOpt.textContent = '▾ Scegli settimana di ' + mObj.label.split(' ')[0] + '...';
+    placeholderOpt.disabled = true;
+
+    mObj.weeks.forEach(function(w){
+      var opt = document.createElement('option');
+      opt.value = w.week_offset;
+      opt.textContent = 'Sett. ' + w.short_label + (w.is_current ? ' (Oggi)' : '');
+      if(w.is_selected){
+        opt.selected = true;
+        hasSelected = true;
+      }
+      wSel.appendChild(opt);
+    });
+    if(!hasSelected){
+      placeholderOpt.selected = true;
+      wSel.insertBefore(placeholderOpt, wSel.firstChild);
+    }
+  }
+
+  var listEl = document.getElementById('cal-pop-weeks-list');
+  if(!listEl) return;
+  listEl.innerHTML = '';
+
+  mObj.weeks.forEach(function(w){
+    var row = document.createElement('a');
+    row.href = buildWeekHref(w.week_offset, mObj.key);
+    row.className = 'cal-pop-week-row' + (w.is_selected ? ' selected' : '') + (w.is_current ? ' current-week' : '');
+    row.title = 'Vai alla settimana ' + w.label;
+
+    var lbl = document.createElement('div');
+    lbl.className = 'cal-pop-wlabel';
+    lbl.textContent = w.short_label + (w.is_current ? ' ★' : '');
+    row.appendChild(lbl);
+
+    w.days.forEach(function(d){
+      var dCell = document.createElement('div');
+      dCell.className = 'cal-pop-day' + (!d.in_month ? ' out-month' : '') + (d.is_today ? ' is-today' : '');
+      dCell.textContent = d.num;
+      row.appendChild(dCell);
+    });
+
+    listEl.appendChild(row);
+  });
+}
+
+function onCalMonthSelectChange(monthKey){
+  renderCalMonthPopover(monthKey);
+  var pop = document.getElementById('cal-month-popover');
+  if(pop) pop.classList.add('open');
+}
+
+function toggleCalMonthPopover(ev){
+  if(ev) ev.stopPropagation();
+  var pop = document.getElementById('cal-month-popover');
+  if(!pop) return;
+  if(pop.classList.contains('open')){
+    pop.classList.remove('open');
+  } else {
+    renderCalMonthPopover(_calActiveMonthKey);
+    pop.classList.add('open');
+  }
+}
+
+function stepCalPopoverMonth(delta){
+  var idx = -1;
+  for(var i=0; i<_calMonthsData.length; i++){
+    if(_calMonthsData[i].key === _calActiveMonthKey){ idx = i; break; }
+  }
+  if(idx === -1) return;
+  var nextIdx = idx + delta;
+  if(nextIdx < 0 || nextIdx >= _calMonthsData.length) return;
+  renderCalMonthPopover(_calMonthsData[nextIdx].key);
+}
+
+document.addEventListener('click', function(e){
+  var wrap = document.getElementById('cal-picker-wrap');
+  var pop = document.getElementById('cal-month-popover');
+  if(pop && pop.classList.contains('open') && wrap && !wrap.contains(e.target)){
+    pop.classList.remove('open');
+  }
+});
 </script>
