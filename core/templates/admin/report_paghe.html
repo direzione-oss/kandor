@@ -523,7 +523,9 @@
                         </td>
                         <td style="font-size: 0.82rem; color: var(--text-main);">{{ item.clienti_str }}</td>
                         <td style="text-align: center;">
-                            <button type="button" class="btn-modifica-cedolino" onclick="apriModalModifica(
+                            <div style="display: flex; gap: 4px; justify-content: center;">
+                                <button type="button" class="btn-calendario" onclick="toggleCalendario('{{ item.dip_id }}')" style="background: #334155; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 0.75rem; font-weight: 600; white-space: nowrap;">?? Calendario</button>
+                                <button type="button" class="btn-modifica-cedolino" onclick="apriModalModifica(
                                 '{{ item.dip_id }}',
                                 '{{ item.cognome_nome|escapejs }}',
                                 '{{ item.giorni_lavorati_orig }}',
@@ -645,7 +647,17 @@
     </div>
 </div>
 
-<script>
+
+    <script>
+        function toggleCalendario(dipId) {
+            var row = document.getElementById('cal-row-' + dipId);
+            if (row.style.display === 'none') {
+                row.style.display = 'table-row';
+            } else {
+                row.style.display = 'none';
+            }
+        }
+
     function apriModalModifica(dipId, dipNome, glOrig, oreLavOrig, oreValOrig, ferieOrig, permOrig, malOrig, l104Orig, glOv, oreLavOv, oreValOv, ferieOv, permOv, malOv, l104Ov, note, isRett) {
         document.getElementById('modal_dipendente_id').value = dipId;
         document.getElementById('modal_dipendente_nome').innerText = dipNome;

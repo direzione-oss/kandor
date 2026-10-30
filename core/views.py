@@ -3930,6 +3930,8 @@ def report_paghe_view(request):
             },
             'giorni_assenza_totali': 0,
             'dettaglio_assenze': [],
+            'ore_per_giorno': {},
+            'assenze_per_giorno': {},
         }
 
     # Processa TimeTracking
