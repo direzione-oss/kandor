@@ -467,7 +467,7 @@
                     {% for item in report_list %}
                     <tr>
                         <td>
-                            <b style="cursor: pointer; color: #2563EB;" onclick="toggleCalendario('{{ item.dip_id }}')" title="Visualizza dettaglio calendario giornaliero">{{ item.cognome_nome }}</b><br>
+                            <a href="?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}&dipendente_id={{ item.dip_id }}" style="color: #2563EB; text-decoration: none; font-weight: bold;" title="Filtra report per questo dipendente">{{ item.cognome_nome }}</a><br>
                             <span style="font-size: 0.78rem; color: var(--text-muted);">{{ item.ruolo }}</span>
                             {% if item.is_rettificato %}
                             <br><span class="badge-rettificato" title="Motivazione: {{ item.modifica_note|default:'Nessuna nota' }}">✏️ Rettificato</span>

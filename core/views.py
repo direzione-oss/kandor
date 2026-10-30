@@ -3955,8 +3955,10 @@ def report_paghe_view(request):
             if cl_nome not in report_data[dip_id]['clienti_dict']:
                 report_data[dip_id]['clienti_dict'][cl_nome] = 0.0
             report_data[dip_id]['clienti_dict'][cl_nome] += ore
+            report_data[dip_id]['ore_per_giorno'][data_turno] = report_data[dip_id]['ore_per_giorno'].get(data_turno, 0.0) + ore
 
     # Processa Assenze
+    from datetime import timedelta
     for assenza in assenze_qs:
         dip_id = assenza.dipendente_id
         if dip_id not in report_data:
@@ -3964,6 +3966,12 @@ def report_paghe_view(request):
 
         inizio_eff = max(assenza.data_inizio, data_inizio)
         fine_eff = min(assenza.data_fine, data_fine)
+        
+        curr_d = inizio_eff
+        while curr_d <= fine_eff:
+            report_data[dip_id]['assenze_per_giorno'].setdefault(curr_d, []).append(assenza.tipo)
+            curr_d += timedelta(days=1)
+            
         giorni = (fine_eff - inizio_eff).days + 1
 
         tipo = assenza.tipo if assenza.tipo in report_data[dip_id]['assenze_dict'] else 'ALTRO'
