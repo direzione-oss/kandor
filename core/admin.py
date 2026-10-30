@@ -530,9 +530,67 @@ class DipendenteAdmin(KandorBaseAdmin):
             'wa_url': wa_url,
         }
 
+    def _get_webapp_connected_dip_ids(self):
+        import base64
+        import json
+        import zlib
+        from django.contrib.sessions.models import Session
+
+        connected_ids = set()
+        try:
+            for raw in Session.objects.values_list('session_data', flat=True):
+                if not raw:
+                    continue
+                try:
+                    b64_part = raw.split(':', 1)[0]
+                    pad = b64_part + '=' * (-len(b64_part) % 4)
+                    dec = base64.urlsafe_b64decode(pad)
+                    if dec.startswith(b'.'):
+                        dec = zlib.decompress(dec[1:])
+                    payload = json.loads(dec.decode('utf-8'))
+                    dip_id = payload.get('dipendente_app_id')
+                    if dip_id and (payload.get('dipendente_webapp_auth') or '_auth_user_id' not in payload):
+                        connected_ids.add(int(dip_id))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return connected_ids
+
+    def changelist_view(self, request, extra_context=None):
+        self._cached_webapp_dip_ids = self._get_webapp_connected_dip_ids()
+        return super().changelist_view(request, extra_context=extra_context)
+
     @admin.display(description='🔑 PIN & App', ordering='pin_accesso')
     def pin_accesso_badge(self, obj):
         data = self._build_whatsapp_invite_data(obj)
+        webapp_ids = getattr(self, '_cached_webapp_dip_ids', None)
+        if webapp_ids is None:
+            webapp_ids = self._get_webapp_connected_dip_ids()
+            self._cached_webapp_dip_ids = webapp_ids
+
+        has_tg = bool(obj.telegram_chat_id and str(obj.telegram_chat_id).strip())
+        has_wa = bool(obj.pk and obj.pk in webapp_ids)
+
+        if has_tg:
+            tg_badge = format_html(
+                '<span style="background:#E0F2FE; color:#0369A1; border:1px solid #7DD3FC; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:800; white-space:nowrap;" title="✅ Collegato a Telegram (Chat ID: {})">✈️ TG ✓</span>',
+                obj.telegram_chat_id,
+            )
+        else:
+            tg_badge = mark_safe(
+                '<span style="background:#F1F5F9; color:#94A3B8; border:1px dashed #CBD5E1; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:600; white-space:nowrap; opacity:0.75;" title="❌ Non collegato a Telegram">✈️ TG</span>'
+            )
+
+        if has_wa:
+            wa_status_badge = mark_safe(
+                '<span style="background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:800; white-space:nowrap;" title="✅ Collegato e attivo sull\'App WhatsApp (Web App)">💚 WA ✓</span>'
+            )
+        else:
+            wa_status_badge = mark_safe(
+                '<span style="background:#F1F5F9; color:#94A3B8; border:1px dashed #CBD5E1; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:600; white-space:nowrap; opacity:0.75;" title="❌ Non ha ancora effettuato l\'accesso all\'App WhatsApp">💬 WA</span>'
+            )
+
         wa_title = (
             f"Invia Link e PIN su WhatsApp al numero +{data['raw_phone']}"
             if data['raw_phone']
@@ -540,11 +598,15 @@ class DipendenteAdmin(KandorBaseAdmin):
         )
         return format_html(
             '<div style="display:inline-flex; align-items:center; gap:5px; flex-wrap:nowrap;">'
+            '{}'
+            '{}'
             '<span style="font-family:monospace; background:#FFF7ED; color:#C2410C; border:1px solid #FDBA74; padding:2px 7px; border-radius:6px; font-weight:800; font-size:12px; letter-spacing:1px;" title="Codice Fiscale: {} — PIN Web App: {}">{}</span>'
-            '<a href="{}" target="_blank" rel="noopener" style="background:#16A34A; color:#FFF; padding:2px 7px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none; white-space:nowrap;" title="{}">💬 WhatsApp</a>'
+            '<a href="{}" target="_blank" rel="noopener" style="background:#16A34A; color:#FFF; padding:2px 7px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none; white-space:nowrap;" title="{}">💬 Invia</a>'
             '<button type="button" data-msg="{}" onclick="navigator.clipboard.writeText(this.getAttribute(\'data-msg\')); var b=this; var old=b.innerHTML; b.innerHTML=\'✅\'; setTimeout(function(){{b.innerHTML=old;}}, 1500);" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer;" title="Copia messaggio di invito con Link diretto e PIN">📋</button>'
             '<a href="/app/?preview_dip_id={}" target="_blank" style="background:#0F172A; color:#FFF; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none; white-space:nowrap;" title="Apri anteprima Web App di {}">📲 App</a>'
             '</div>',
+            tg_badge,
+            wa_status_badge,
             data['cf'],
             data['pin'],
             data['pin'],

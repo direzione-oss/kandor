@@ -49,6 +49,7 @@ def _get_logged_dipendente(request):
         cand = Dipendente.objects.filter(codice_fiscale__iexact=cf_q, stato='ATTIVO').first()
         if cand and cand.pin_accesso and cand.pin_accesso.strip() == pin_q:
             request.session[SESSION_KEY_DIP_ID] = cand.pk
+            request.session['dipendente_webapp_auth'] = True
             request.session.set_expiry(60 * 60 * 24 * 90)
             return cand
 
@@ -213,6 +214,7 @@ def dipendente_app_login_view(request):
                     error = "PIN di accesso non corretto. Verifica il PIN di 4 cifre con l'Amministrazione."
                 else:
                     request.session[SESSION_KEY_DIP_ID] = cand.pk
+                    request.session['dipendente_webapp_auth'] = True
                     # Sessione persistente per 90 giorni sul cellulare
                     request.session.set_expiry(60 * 60 * 24 * 90)
                     return HttpResponseRedirect('/app/')
