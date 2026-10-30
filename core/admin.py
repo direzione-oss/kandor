@@ -390,10 +390,17 @@ class DipendenteAdmin(KandorBaseAdmin):
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
     actions = ['send_telegram_message_action', 'rigenera_pin_action']
-    readonly_fields = ('anteprima_foto_telegram',)
+    readonly_fields = ('anteprima_foto_telegram', 'condivisione_whatsapp_box')
     fieldsets = (
         ('Dati Anagrafici & Accesso App', {
-            'fields': (('nome', 'cognome', 'anteprima_foto_telegram'), ('codice_fiscale', 'pin_accesso'), 'data_nascita', 'indirizzo_residenza', 'email', 'telefono')
+            'fields': (
+                ('nome', 'cognome', 'anteprima_foto_telegram'),
+                ('codice_fiscale', 'pin_accesso', 'condivisione_whatsapp_box'),
+                'data_nascita',
+                'indirizzo_residenza',
+                'email',
+                'telefono',
+            )
         }),
         ('Stato', {
             'fields': ('stato',)
@@ -416,22 +423,99 @@ class DipendenteAdmin(KandorBaseAdmin):
         }),
     )
 
+    def _build_whatsapp_invite_data(self, obj):
+        import os
+        import random
+        import re
+        from urllib.parse import quote
+
+        if not obj.pin_accesso or len(obj.pin_accesso.strip()) != 4:
+            obj.pin_accesso = f"{random.randint(1000, 9999)}"
+            if obj.pk:
+                Dipendente.objects.filter(pk=obj.pk).update(pin_accesso=obj.pin_accesso)
+
+        cf = (obj.codice_fiscale or '').strip().upper()
+        pin = (obj.pin_accesso or '').strip()
+        base_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://kandor.onrender.com').rstrip('/')
+        direct_url = f"{base_url}/app/login/?cf={quote(cf)}&pin={quote(pin)}"
+        manual_url = f"{base_url}/app/"
+
+        raw_phone = re.sub(r'\D', '', obj.telefono or '')
+        if raw_phone.startswith('00'):
+            raw_phone = raw_phone[2:]
+        if len(raw_phone) in (9, 10) and raw_phone.startswith('3'):
+            raw_phone = '39' + raw_phone
+
+        msg = (
+            f"Ciao {obj.nome}! 👋\n"
+            f"Ecco il tuo accesso personale all'App Turni e Ore *Kandor*:\n\n"
+            f"👉 *Entra subito con un clic (senza password):*\n"
+            f"{direct_url}\n\n"
+            f"📌 *Credenziali personali (se richieste):*\n"
+            f"• Sito: {manual_url}\n"
+            f"• Codice Fiscale: *{cf}*\n"
+            f"• PIN: *{pin}*"
+        )
+        encoded_msg = quote(msg)
+        wa_url = f"https://wa.me/{raw_phone}?text={encoded_msg}" if raw_phone else f"https://wa.me/?text={encoded_msg}"
+        return {
+            'cf': cf,
+            'pin': pin,
+            'direct_url': direct_url,
+            'manual_url': manual_url,
+            'raw_phone': raw_phone,
+            'msg': msg,
+            'wa_url': wa_url,
+        }
+
     @admin.display(description='🔑 PIN & App', ordering='pin_accesso')
     def pin_accesso_badge(self, obj):
-        if not obj.pin_accesso or len(obj.pin_accesso.strip()) != 4:
-            import random
-            obj.pin_accesso = f"{random.randint(1000, 9999)}"
-            Dipendente.objects.filter(pk=obj.pk).update(pin_accesso=obj.pin_accesso)
+        data = self._build_whatsapp_invite_data(obj)
+        wa_title = (
+            f"Invia Link e PIN su WhatsApp al numero +{data['raw_phone']}"
+            if data['raw_phone']
+            else "Invia Link e PIN su WhatsApp (scegli il contatto su WhatsApp)"
+        )
         return format_html(
-            '<div style="display:inline-flex; align-items:center; gap:5px;">'
+            '<div style="display:inline-flex; align-items:center; gap:5px; flex-wrap:nowrap;">'
             '<span style="font-family:monospace; background:#FFF7ED; color:#C2410C; border:1px solid #FDBA74; padding:2px 7px; border-radius:6px; font-weight:800; font-size:12px; letter-spacing:1px;" title="Codice Fiscale: {} — PIN Web App: {}">{}</span>'
-            '<a href="/app/?preview_dip_id={}" target="_blank" style="background:#0F172A; color:#FFF; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none;" title="Apri anteprima Web App di {}">📲 App</a>'
+            '<a href="{}" target="_blank" rel="noopener" style="background:#16A34A; color:#FFF; padding:2px 7px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none; white-space:nowrap;" title="{}">💬 WhatsApp</a>'
+            '<button type="button" data-msg="{}" onclick="navigator.clipboard.writeText(this.getAttribute(\'data-msg\')); var b=this; var old=b.innerHTML; b.innerHTML=\'✅\'; setTimeout(function(){{b.innerHTML=old;}}, 1500);" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:700; cursor:pointer;" title="Copia messaggio di invito con Link diretto e PIN">📋</button>'
+            '<a href="/app/?preview_dip_id={}" target="_blank" style="background:#0F172A; color:#FFF; padding:2px 6px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none; white-space:nowrap;" title="Apri anteprima Web App di {}">📲 App</a>'
             '</div>',
-            obj.codice_fiscale,
-            obj.pin_accesso,
-            obj.pin_accesso,
+            data['cf'],
+            data['pin'],
+            data['pin'],
+            data['wa_url'],
+            wa_title,
+            data['msg'],
             obj.pk,
             obj.cognome,
+        )
+
+    @admin.display(description='📲 Condividi Accesso App (WhatsApp)')
+    def condivisione_whatsapp_box(self, obj):
+        if not obj or not obj.pk:
+            return "Salva prima la scheda del dipendente per generare il link diretto e l'invito WhatsApp."
+        data = self._build_whatsapp_invite_data(obj)
+        phone_badge = (
+            f"Numero: +{data['raw_phone']}"
+            if data['raw_phone']
+            else "Nessun telefono salvato (potrai scegliere il contatto direttamente su WhatsApp)"
+        )
+        return format_html(
+            '<div style="display:flex; flex-direction:column; gap:8px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:10px; padding:10px 14px; max-width:520px;">'
+            '  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">'
+            '    <a href="{}" target="_blank" rel="noopener" style="background:#16A34A; color:#FFF; padding:6px 12px; border-radius:7px; font-size:12px; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; gap:5px;">💬 Invia Link &amp; PIN su WhatsApp</a>'
+            '    <button type="button" data-msg="{}" onclick="navigator.clipboard.writeText(this.getAttribute(\'data-msg\')); var b=this; var old=b.innerHTML; b.innerHTML=\'✅ Messaggio Copiato!\'; setTimeout(function(){{b.innerHTML=old;}}, 1800);" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; padding:6px 10px; border-radius:7px; font-size:12px; font-weight:700; cursor:pointer;">📋 Copia Invito</button>'
+            '    <a href="{}" target="_blank" rel="noopener" style="background:#0F172A; color:#FFF; padding:6px 10px; border-radius:7px; font-size:12px; font-weight:700; text-decoration:none;">🔗 Link Auto-Login</a>'
+            '  </div>'
+            '  <div style="font-size:11px; color:#475569;">{} — Tocca <strong>💬 Invia Link &amp; PIN su WhatsApp</strong> per inviare il link con accesso automatico a 1 clic.</div>'
+            '</div>',
+            data['wa_url'],
+            data['msg'],
+            data['direct_url'],
+            phone_badge,
         )
 
     @admin.action(description='🔑 Rigenera PIN 4 cifre (Web App Dipendenti)')

@@ -42,6 +42,16 @@ def _get_photo_url(dip):
 
 
 def _get_logged_dipendente(request):
+    # Permetti accesso diretto tramite link personale (Magic Link WhatsApp: ?cf=...&pin=...)
+    cf_q = (request.GET.get('cf') or '').strip().upper().replace(' ', '')
+    pin_q = (request.GET.get('pin') or '').strip()
+    if cf_q and pin_q:
+        cand = Dipendente.objects.filter(codice_fiscale__iexact=cf_q, stato='ATTIVO').first()
+        if cand and cand.pin_accesso and cand.pin_accesso.strip() == pin_q:
+            request.session[SESSION_KEY_DIP_ID] = cand.pk
+            request.session.set_expiry(60 * 60 * 24 * 90)
+            return cand
+
     # Permetti allo staff admin di aprire l'anteprima rapida di un dipendente con ?preview_dip_id=XX
     preview_id = request.GET.get('preview_dip_id')
     if preview_id and getattr(request, 'user', None) and request.user.is_authenticated and request.user.is_staff:
@@ -178,7 +188,11 @@ def dipendente_app_login_view(request):
         return HttpResponseRedirect('/app/')
 
     error = None
-    cf_val = ''
+    cf_val = (request.GET.get('cf') or '').strip().upper().replace(' ', '')
+    pin_get = (request.GET.get('pin') or '').strip()
+    if cf_val and pin_get:
+        error = "Il link di accesso automatico non è aggiornato (PIN modificato o profilo non attivo). Inserisci il tuo PIN aggiornato."
+
     if request.method == 'POST':
         cf_val = (request.POST.get('codice_fiscale') or '').strip().upper().replace(' ', '')
         pin_val = (request.POST.get('pin_accesso') or '').strip()
