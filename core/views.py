@@ -4062,7 +4062,7 @@ def report_paghe_view(request):
     }
 
     from datetime import timedelta
-    for dip_id, item in report_data.items():
+    for item in report_list:
         calendario_weeks = []
         curr_d = data_inizio
         row = [{'date': None, 'day': '', 'ore': None, 'assenze': []} for _ in range(7)]

@@ -467,7 +467,7 @@
                     {% for item in report_list %}
                     <tr>
                         <td>
-                            <b>{{ item.cognome_nome }}</b><br>
+                            <b style="cursor: pointer; color: #2563EB;" onclick="toggleCalendario('{{ item.dip_id }}')" title="Visualizza dettaglio calendario giornaliero">{{ item.cognome_nome }}</b><br>
                             <span style="font-size: 0.78rem; color: var(--text-muted);">{{ item.ruolo }}</span>
                             {% if item.is_rettificato %}
                             <br><span class="badge-rettificato" title="Motivazione: {{ item.modifica_note|default:'Nessuna nota' }}">✏️ Rettificato</span>
