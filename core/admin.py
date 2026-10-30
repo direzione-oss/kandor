@@ -382,11 +382,45 @@ class CorsoDipendenteInline(admin.TabularInline):
         return "—"
 
 
+class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
+    title = 'stato'
+    parameter_name = 'stato'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('INATTIVO', '🔴 Inattivo / Licenziato'),
+            ('IN_MALATTIA', '🤒 In Malattia'),
+            ('IN_FERIE', '🏖️ In Ferie'),
+            ('TUTTI', '👥 Tutti (inclusi Inattivi)'),
+        )
+
+    def choices(self, changelist):
+        yield {
+            'selected': self.value() is None or self.value() == 'ATTIVO',
+            'query_string': changelist.get_query_string(remove=[self.parameter_name]),
+            'display': '🟢 Solo Attivi (Predefinito)',
+        }
+        for lookup, title in self.lookup_choices:
+            yield {
+                'selected': self.value() == str(lookup),
+                'query_string': changelist.get_query_string({self.parameter_name: lookup}),
+                'display': title,
+            }
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val is None or val == 'ATTIVO':
+            return queryset.filter(stato='ATTIVO')
+        if val == 'TUTTI':
+            return queryset
+        return queryset.filter(stato=val)
+
+
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'sostituto_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
-    list_filter = ('stato', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
+    list_filter = (StatoDipendenteDefaultAttiviFilter, 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
     actions = ['send_telegram_message_action', 'rigenera_pin_action']
