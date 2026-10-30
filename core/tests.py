@@ -1117,6 +1117,27 @@ class AIEngineAndHubTestCase(TestCase):
         resp = self.client.get('/ia-hub/')
         self.assertEqual(resp.status_code, 200)
 
+    def test_6_inserimento_ore_amministrazione_da_turno_calendario(self):
+        # Nessun TimeTracking ancora inviato dal lavoratore per self.assegnazione
+        self.assertEqual(TimeTracking.objects.filter(assegnazione=self.assegnazione).count(), 0)
+
+        # L'amministrazione inserisce e valida le ore (es. 4.5h) dalla modale del turno nel calendario
+        resp = self.client.post(
+            f'/api/validate-ore/{self.assegnazione.id}/',
+            data=json.dumps({'ore': 4.5, 'validate': True, 'dipendenti_esclusi': []}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['status'], 'ok')
+        self.assertTrue(data['validated'])
+        self.assertEqual(data['count'], 1)
+
+        tt = TimeTracking.objects.get(assegnazione=self.assegnazione, dipendente=self.dip_capo)
+        self.assertEqual(tt.ore_dichiarate, Decimal('4.5'))
+        self.assertTrue(tt.is_validated)
+        self.assertEqual(tt.source, 'ADMIN')
+
 
 
 

@@ -651,19 +651,27 @@ def delete_turno_ajax(request, assign_id):
 
 @csrf_exempt
 def validate_ore_ajax(request, assign_id):
-    """Valida o invalida le ore di un'assegnazione turno SOLO se il dipendente ha effettivamente inviato le ore."""
+    """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra (escludendo gli assenti e gli esclusi)."""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
     try:
         from .models import TimeTracking, AssegnazioneTurno, Dipendente, Assenza
         from decimal import Decimal
-        from django.db.models import Q
         from .models import RichiestaSostituzione
 
         assign = AssegnazioneTurno.objects.select_related('turno__squadra__caposquadra').get(pk=assign_id)
         squadra = assign.turno.squadra
         sq_nome = assign.turno.nome_squadra
         data_turno = assign.turno.data
+
+        data = json.loads(request.body) if request.body else {}
+        action = data.get('action', 'validate')
+        ore_param = data.get('ore')
+        validate_flag = data.get('validate', False) or (action == 'validate')
+
+        if 'dipendenti_esclusi' in data and isinstance(data['dipendenti_esclusi'], list):
+            assign.dipendenti_esclusi.set(data['dipendenti_esclusi'])
+
         esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
         # Trova dipendenti della squadra in ASSENZA per questa data
@@ -672,32 +680,51 @@ def validate_ore_ajax(request, assign_id):
             data_fine__gte=data_turno
         ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
 
+        # Raccogli componenti attivi (non esclusi dal turno E NON IN ASSENZA)
+        active_dips = []
+        active_pks = set()
+        if squadra:
+            if squadra.caposquadra and squadra.caposquadra.pk not in esclusi_ids and squadra.caposquadra.pk not in assenti_ids:
+                active_dips.append(squadra.caposquadra)
+                active_pks.add(squadra.caposquadra.pk)
+            for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
+                if c.pk not in esclusi_ids and c.pk not in assenti_ids and c.pk not in active_pks:
+                    active_dips.append(c)
+                    active_pks.add(c.pk)
+
+        # Includi eventuali componenti storici (con TimeTracking già associato al turno)
+        for tt_existing in TimeTracking.objects.filter(assegnazione=assign).select_related('dipendente'):
+            dip_ex = tt_existing.dipendente
+            if dip_ex and dip_ex.pk not in esclusi_ids and dip_ex.pk not in assenti_ids and dip_ex.pk not in active_pks:
+                active_dips.append(dip_ex)
+                active_pks.add(dip_ex.pk)
+
+        # Includi eventuali SOSTITUTI confermati (COMPLETATA / ACCETTATA) per questa assegnazione
+        sost_confermate = RichiestaSostituzione.objects.filter(
+            assegnazione_originale=assign,
+            stato__in=['ACCETTATA', 'COMPLETATA'],
+            sostituto__isnull=False
+        ).select_related('sostituto')
+        for sc in sost_confermate:
+            if sc.sostituto and sc.sostituto.pk not in active_pks and sc.sostituto.pk not in assenti_ids:
+                active_dips.append(sc.sostituto)
+                active_pks.add(sc.sostituto.pk)
+
         # Rimuovi eventuali TimeTracking registrati per i dipendenti in ASSENZA o esclusi per questo turno
         if assenti_ids:
             TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=assenti_ids).delete()
         if esclusi_ids:
             TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=esclusi_ids).delete()
 
-        data = json.loads(request.body) if request.body else {}
-        action = data.get('action', 'validate')
-        ore_param = data.get('ore')
-        validate_flag = data.get('validate', False) or (action == 'validate')
-
-        # Seleziona SOLO le registrazioni TimeTracking già inviate dai dipendenti per questo turno
-        existing_tts = list(
-            TimeTracking.objects.filter(assegnazione=assign)
-            .filter(Q(ore_dichiarate__gt=0) | Q(check_out__isnull=False))
-            .select_related('dipendente')
-        )
-
-        if not existing_tts:
+        if not active_dips:
             return JsonResponse({
-                'status': 'error',
-                'error': 'Impossibile validare: il dipendente non ha ancora inviato le ore per questo turno.',
+                'status': 'ok',
+                'message': f"Tutti i componenti della squadra {sq_nome} sono in assenza o esclusi per la data {data_turno.strftime('%d/%m')}.",
                 'validated': False,
                 'count': 0,
-            }, status=400)
+            })
 
+        # Determina il valore delle ore da applicare
         ore_val = None
         if ore_param is not None:
             ore_val = Decimal(str(float(str(ore_param).replace(',', '.'))))
@@ -706,19 +733,48 @@ def validate_ore_ajax(request, assign_id):
                     'status': 'error',
                     'error': 'Inserisci un numero di ore valido (> 0).',
                 }, status=400)
+        elif action != 'unvalidate':
+            first_tt = TimeTracking.objects.filter(assegnazione=assign, dipendente__in=active_dips).order_by('id').first()
+            if first_tt and (first_tt.ore_dichiarate is not None or first_tt.durata_ore):
+                ore_val = Decimal(str(first_tt.ore_dichiarate or first_tt.durata_ore))
+            elif assign.ore_previste_contratto:
+                ore_val = Decimal(str(assign.ore_previste_contratto))
+            elif assign.orario_inizio_previsto and assign.orario_fine_previsto:
+                t1 = assign.orario_inizio_previsto
+                t2 = assign.orario_fine_previsto
+                minuti = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
+                if minuti < 0:
+                    minuti += 24 * 60
+                ore_val = Decimal(str(round(minuti / 60.0, 2)))
 
+        # Applica a TUTTI i componenti attivi (inclusi i sostituti confermati)
         updated_count = 0
-        for tt in existing_tts:
-            if ore_val is not None:
-                tt.ore_dichiarate = ore_val
-            if action == 'unvalidate':
+        if action == 'unvalidate':
+            for tt in TimeTracking.objects.filter(assegnazione=assign, dipendente__in=active_dips):
                 tt.is_validated = False
-            elif validate_flag:
-                tt.is_validated = True
-            tt.save()
-            updated_count += 1
+                tt.save()
+                updated_count += 1
+        else:
+            for dip in active_dips:
+                tt, created = TimeTracking.objects.get_or_create(
+                    dipendente=dip,
+                    assegnazione=assign,
+                    defaults={
+                        'ore_dichiarate': ore_val,
+                        'is_validated': validate_flag,
+                        'source': 'ADMIN',
+                        'note': f"Ore valide per la squadra ({sq_nome})",
+                    }
+                )
+                if not created:
+                    if ore_val is not None:
+                        tt.ore_dichiarate = ore_val
+                    if validate_flag:
+                        tt.is_validated = True
+                    tt.save()
+                updated_count += 1
 
-        status_msg = "Ore validate" if (validate_flag and action != 'unvalidate') else ("Validazione rimossa" if action == 'unvalidate' else "Ore aggiornate")
+        status_msg = "Ore validate" if (validate_flag and action != 'unvalidate') else ("Validazione rimossa" if action == 'unvalidate' else "Ore salvate")
         return JsonResponse({
             'status': 'ok',
             'message': f"{status_msg} per {updated_count} dipendenti della squadra {sq_nome}",
@@ -4102,6 +4158,8 @@ def pdf_report_paghe(request):
             'giorni_set': set(),
             'ferie': 0, 'permessi': 0, 'malattia': 0, 'altri': 0,
             'clienti_dict': {},
+            'ore_per_giorno': {},
+            'assenze_per_giorno': {},
         }
 
     for tt in tt_qs:
@@ -4113,14 +4171,24 @@ def pdf_report_paghe(request):
         if tt.is_validated:
             report_data[dip_id]['ore_validate'] += ore
         if ore > 0:
-            report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
+            d_turno = tt.assegnazione.turno.data
+            report_data[dip_id]['giorni_set'].add(d_turno)
             cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
             report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
+            report_data[dip_id]['ore_per_giorno'][d_turno] = report_data[dip_id]['ore_per_giorno'].get(d_turno, 0.0) + ore
 
+    from datetime import timedelta
     for ass in assenze_qs:
         dip_id = ass.dipendente_id
         if dip_id not in report_data:
             continue
+            
+        curr_d = max(ass.data_inizio, data_inizio)
+        end_d = min(ass.data_fine, data_fine)
+        while curr_d <= end_d:
+            report_data[dip_id]['assenze_per_giorno'].setdefault(curr_d, []).append(ass.tipo)
+            curr_d += timedelta(days=1)
+            
         giorni = (min(ass.data_fine, data_fine) - max(ass.data_inizio, data_inizio)).days + 1
         if ass.tipo == 'FERIE':
             report_data[dip_id]['ferie'] += giorni
@@ -4274,6 +4342,63 @@ def pdf_report_paghe(request):
         story.append(Spacer(1, 10))
         story.append(Paragraph("<i>* Note: I dipendenti contrassegnati con (*) presentano modifiche/rettifiche manuali apportate dall'Amministrazione.</i>", cell_style))
 
+    from reportlab.platypus import PageBreak
+    day_style = ParagraphStyle('day', fontSize=8, textColor=colors.gray, alignment=2) # Right
+    mid_style = ParagraphStyle('mid', fontSize=14, alignment=1) # Center
+    
+    cal_style = TableStyle([
+        ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#CBD5E1')),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#0F172A')),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('PADDING', (0,0), (-1,-1), 4),
+    ])
+
+    for d_id, item in sorted(report_data.items(), key=lambda x: x[1]['cognome_nome']):
+        story.append(PageBreak())
+        story.append(Paragraph(f"Dettaglio Mensile - {item['cognome_nome']}", title_style))
+        story.append(Paragraph(f"Periodo: {data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}", sub_style))
+        
+        cal_data = [['LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB', 'DOM']]
+        row = ['', '', '', '', '', '', '']
+        
+        curr_d = data_inizio
+        while curr_d <= data_fine:
+            wd = curr_d.weekday()
+            
+            cell_flowables = [Paragraph(str(curr_d.day), day_style)]
+            
+            ore = item['ore_per_giorno'].get(curr_d, 0.0)
+            assenze = item['assenze_per_giorno'].get(curr_d, [])
+            
+            middle = ""
+            if ore > 0:
+                middle += f"<b>{round(ore, 1)}</b>"
+            if assenze:
+                if middle:
+                    middle += "<br/>"
+                middle += f"<font size=8>{'+'.join(assenze)}</font>"
+                
+            if middle:
+                cell_flowables.append(Spacer(1, 8))
+                cell_flowables.append(Paragraph(middle, mid_style))
+            else:
+                cell_flowables.append(Spacer(1, 25))
+                
+            row[wd] = cell_flowables
+            
+            if wd == 6 or curr_d == data_fine:
+                cal_data.append(row)
+                row = ['', '', '', '', '', '', '']
+                
+            curr_d += timedelta(days=1)
+            
+        t_cal = Table(cal_data, colWidths=[110]*7)
+        t_cal.setStyle(cal_style)
+        story.append(t_cal)
+
     doc.build(story)
     return response
 
@@ -4373,14 +4498,24 @@ def export_paghe_csv(request):
         if tt.is_validated:
             report_data[dip_id]['ore_validate'] += ore
         if ore > 0:
-            report_data[dip_id]['giorni_set'].add(tt.assegnazione.turno.data)
+            d_turno = tt.assegnazione.turno.data
+            report_data[dip_id]['giorni_set'].add(d_turno)
             cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
             report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
+            report_data[dip_id]['ore_per_giorno'][d_turno] = report_data[dip_id]['ore_per_giorno'].get(d_turno, 0.0) + ore
 
+    from datetime import timedelta
     for ass in assenze_qs:
         dip_id = ass.dipendente_id
         if dip_id not in report_data:
             continue
+            
+        curr_d = max(ass.data_inizio, data_inizio)
+        end_d = min(ass.data_fine, data_fine)
+        while curr_d <= end_d:
+            report_data[dip_id]['assenze_per_giorno'].setdefault(curr_d, []).append(ass.tipo)
+            curr_d += timedelta(days=1)
+            
         giorni = (min(ass.data_fine, data_fine) - max(ass.data_inizio, data_inizio)).days + 1
         if ass.tipo == 'FERIE':
             report_data[dip_id]['ferie'] += giorni
