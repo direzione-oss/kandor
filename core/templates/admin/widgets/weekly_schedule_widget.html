@@ -444,10 +444,71 @@ function validateOre(assignId,e){
   .catch(function(){alert('Errore di connessione')});
 }
 
+var _sostChangedInModal = false;
+
+function _collectEsclusiAndSostituti(){
+  var esclusi = [];
+  var sostituzioni_esclusi = {};
+  document.querySelectorAll('.comp-check').forEach(function(chk){
+    if(!chk.checked && !chk.disabled){
+      var dipId = parseInt(chk.value);
+      esclusi.push(dipId);
+      var sel = document.querySelector('.comp-sostituto-select[data-dip-id="'+dipId+'"]');
+      sostituzioni_esclusi[String(dipId)] = (sel && sel.value) ? parseInt(sel.value) : null;
+    }
+  });
+  return {esclusi: esclusi, sostituzioni_esclusi: sostituzioni_esclusi};
+}
+
+function _syncSostitutoTurnoAjax(assignId, dipId, sostitutoId, riattiva, statusEl){
+  _sostChangedInModal = true;
+  if(statusEl){
+    statusEl.style.display = 'inline-block';
+    statusEl.style.background = '#e0f2fe';
+    statusEl.style.color = '#0369a1';
+    statusEl.textContent = '⏳ Salvataggio...';
+  }
+  var collected = _collectEsclusiAndSostituti();
+  fetch('/api/assegna-sostituto-turno/'+assignId+'/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({
+      dipendente_escluso_id: dipId,
+      sostituto_id: sostitutoId || null,
+      riattiva_dipendente: !!riattiva,
+      dipendenti_esclusi: collected.esclusi,
+      sostituzioni_esclusi: collected.sostituzioni_esclusi
+    })
+  }).then(function(r){return r.json();}).then(function(res){
+    if(statusEl){
+      if(res.status === 'ok'){
+        if(sostitutoId && !riattiva){
+          statusEl.style.display = 'inline-block';
+          statusEl.style.background = '#dcfce7';
+          statusEl.style.color = '#15803d';
+          statusEl.textContent = '✅ Sostituto attivo';
+        } else {
+          statusEl.style.display = 'none';
+        }
+      } else {
+        statusEl.style.display = 'inline-block';
+        statusEl.style.background = '#fee2e2';
+        statusEl.style.color = '#b91c1c';
+        statusEl.textContent = '⚠️ Errore';
+      }
+    }
+  }).catch(function(){
+    if(statusEl){
+      statusEl.style.display = 'none';
+    }
+  });
+}
+
 function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente){
 try {
 
   _editId=assignId;
+  _sostChangedInModal=false;
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
@@ -507,29 +568,104 @@ try {
     if(!d.componenti||!d.componenti.length){listEl.innerHTML='<span style="font-size:11px;color:#999">Nessun componente</span>';return;}
     
     var maxOreDichiarate = null;
+    var sostDisponibili = d.sostituti_disponibili || [];
     d.componenti.forEach(function(c){
       var isAssente = c.in_assenza;
       var isSostituto = c.is_sostituto_turno;
       var bgCol = isAssente ? '#f3e8ff' : (isSostituto ? '#ecfdf5' : (c.escluso ? '#ffeaea' : '#f0fff4'));
       var brdCol = isAssente ? '#d8b4fe' : (isSostituto ? '#10b981' : (c.escluso ? '#f5c6cb' : '#c3e6cb'));
       
-      var lbl=document.createElement('label');
-      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+bgCol+';padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid '+brdCol+';flex-wrap:wrap';
+      var lbl=document.createElement('div');
+      lbl.style.cssText='display:flex;align-items:center;gap:4px;background:'+bgCol+';padding:4px 10px;border-radius:16px;font-size:11px;border:1px solid '+brdCol+';flex-wrap:wrap';
+      
+      var chkLabel=document.createElement('label');
+      chkLabel.style.cssText='display:inline-flex;align-items:center;gap:4px;cursor:pointer;margin:0;font-weight:500';
       var chk=document.createElement('input');
       chk.type='checkbox';chk.value=c.id;chk.dataset.dipId=c.id;chk.className='comp-check';
       chk.checked=!c.escluso && !isAssente;
       chk.disabled=isAssente || isSostituto;
       chk.style.transform='scale(0.85)';
-      chk.onchange=function(){lbl.style.background=this.checked?'#f0fff4':'#ffeaea';lbl.style.borderColor=this.checked?'#c3e6cb':'#f5c6cb';};
-      lbl.appendChild(chk);
+      chkLabel.appendChild(chk);
       
       var txtNode = document.createTextNode(c.nome+(c.ruolo==='Caposquadra'?' ⭐':''));
-      lbl.appendChild(txtNode);
+      chkLabel.appendChild(txtNode);
+      lbl.appendChild(chkLabel);
+
+      if (!isAssente && !isSostituto) {
+        var sostWrap = document.createElement('span');
+        sostWrap.className = 'comp-sostituto-wrap';
+        sostWrap.style.cssText = 'display:' + (chk.checked ? 'none' : 'inline-flex') + ';align-items:center;gap:5px;margin-left:6px;flex-wrap:wrap';
+        sostWrap.onclick = function(ev){ ev.stopPropagation(); };
+
+        var sostLbl = document.createElement('span');
+        sostLbl.style.cssText = 'font-size:10px;font-weight:700;color:#0f766e';
+        sostLbl.textContent = '🔄 Sostituto:';
+        sostWrap.appendChild(sostLbl);
+
+        var sostSelect = document.createElement('select');
+        sostSelect.className = 'comp-sostituto-select';
+        sostSelect.dataset.dipId = c.id;
+        sostSelect.style.cssText = 'font-size:11px;padding:2px 6px;border-radius:8px;border:1px solid #0d9488;background:#fff;color:#0f172a;cursor:pointer;max-width:230px';
+
+        var optNone = document.createElement('option');
+        optNone.value = '';
+        optNone.textContent = '— Nessun sostituto (solo escluso) —';
+        sostSelect.appendChild(optNone);
+
+        var hasAssignedInList = false;
+        sostDisponibili.forEach(function(s){
+          if (String(s.id) === String(c.id)) return;
+          var opt = document.createElement('option');
+          opt.value = s.id;
+          var distTxt = (s.distanza_km !== null && s.distanza_km !== undefined) ? (' • ' + s.distanza_km + ' km') : '';
+          var starTxt = s.consigliato ? ' ⭐' : '';
+          opt.textContent = s.nome + distTxt + starTxt;
+          if (c.sostituto_id && String(c.sostituto_id) === String(s.id)) {
+            opt.selected = true;
+            hasAssignedInList = true;
+          }
+          sostSelect.appendChild(opt);
+        });
+
+        if (c.sostituto_id && !hasAssignedInList && c.sostituto_assegnato) {
+          var optAssigned = document.createElement('option');
+          optAssigned.value = c.sostituto_id;
+          optAssigned.textContent = c.sostituto_assegnato;
+          optAssigned.selected = true;
+          sostSelect.appendChild(optAssigned);
+        }
+
+        var sostStatus = document.createElement('span');
+        sostStatus.style.cssText = 'font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;display:' + (c.sostituto_id ? 'inline-block' : 'none') + ';background:#dcfce7;color:#15803d';
+        sostStatus.textContent = c.sostituto_id ? '✅ Sostituto attivo' : '';
+
+        sostSelect.onchange = function(){
+          _syncSostitutoTurnoAjax(assignId, c.id, this.value || null, false, sostStatus);
+        };
+
+        sostWrap.appendChild(sostSelect);
+        sostWrap.appendChild(sostStatus);
+        lbl.appendChild(sostWrap);
+
+        chk.onchange = function(){
+          lbl.style.background = this.checked ? '#f0fff4' : '#ffeaea';
+          lbl.style.borderColor = this.checked ? '#c3e6cb' : '#f5c6cb';
+          if (!this.checked) {
+            sostWrap.style.display = 'inline-flex';
+            _syncSostitutoTurnoAjax(assignId, c.id, sostSelect.value || null, false, sostStatus);
+          } else {
+            sostWrap.style.display = 'none';
+            sostSelect.value = '';
+            sostStatus.style.display = 'none';
+            _syncSostitutoTurnoAjax(assignId, c.id, null, true, sostStatus);
+          }
+        };
+      }
 
       if (isSostituto) {
         var sostTag = document.createElement('span');
         sostTag.style.cssText = 'background:#059669;color:#fff;padding:2px 7px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px';
-        sostTag.textContent = '🔄 SOSTITUTO';
+        sostTag.textContent = '🔄 SOSTITUTO' + (c.sostituto_di ? (' (per ' + c.sostituto_di + ')') : '');
         lbl.appendChild(sostTag);
       }
 
@@ -610,9 +746,13 @@ try {
 }catch(e){alert(e);console.error(e);}
 }
 
-function closeEditTurno(){
+function closeEditTurno(skipReload){
   document.getElementById('edit-modal-overlay').classList.remove('active');
   _editId=null;
+  if(!skipReload && _sostChangedInModal){
+    _sostChangedInModal=false;
+    location.reload();
+  }
 }
 
 function submitOreManual(validate){
@@ -620,21 +760,21 @@ function submitOreManual(validate){
   var ore=parseFloat(document.getElementById('edit-ore-input').value);
   var noteVal=(document.getElementById('edit-ore-note-input') ? document.getElementById('edit-ore-note-input').value : '').trim();
   if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido');return;}
-  var esclusi=[];
-  document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
+  var collected=_collectEsclusiAndSostituti();
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({ore:ore,note:noteVal,validate:validate,dipendenti_esclusi:esclusi})
+    body:JSON.stringify({ore:ore,note:noteVal,validate:validate,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
   }).then(function(r){return r.json()}).then(function(d){
-    if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
+    if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
   }).catch(function(){alert('Errore di connessione')})
 }
 
 function submitValidaOre(action){
   if(!_editId)return;
+  var collected=_collectEsclusiAndSostituti();
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({action:action})
+    body:JSON.stringify({action:action,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
   }).then(function(r){return r.json()}).then(function(d){
-    if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata'))}
+    if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata'))}
   }).catch(function(){alert('Errore di connessione')})
 }
 
@@ -644,8 +784,7 @@ function saveEditTurno(){
   var tEnd = document.getElementById('edit-fine').value;
   var orePrev = _calcHoursFromTimes(tStart, tEnd);
   var isStr=document.getElementById('edit-straordinario').checked;
-  var esclusi=[];
-  document.querySelectorAll('.comp-check').forEach(function(chk){if(!chk.checked)esclusi.push(parseInt(chk.value));});
+  var collected=_collectEsclusiAndSostituti();
   var payload={
     squadra_id:document.getElementById('edit-squadra').value,
     cliente_id:document.getElementById('edit-cliente').value,
@@ -653,10 +792,11 @@ function saveEditTurno(){
     ora_fine:document.getElementById('edit-fine').value,
     note:document.getElementById('edit-note').value,
     ore_previste:orePrev,
-    dipendenti_esclusi:esclusi,
+    dipendenti_esclusi:collected.esclusi,
+    sostituzioni_esclusi:collected.sostituzioni_esclusi,
     tipo:isStr?'straordinario':'ricorrente'
   };
-  fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno();location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
+  fetch('/api/edit-turno/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(d){if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}}).catch(function(){alert('Errore di connessione')})
 }
 
 function confirmDeleteEdit(){

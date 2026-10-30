@@ -564,12 +564,61 @@ def edit_turno_ajax(request, assign_id):
 
         assign.save()
 
-        # Gestione dipendenti esclusi (M2M)
-        if 'dipendenti_esclusi' in data:
-            esclusi = data['dipendenti_esclusi']
-            assign.dipendenti_esclusi.set(esclusi if esclusi else [])
+        # Gestione dipendenti esclusi (M2M) e sostituti diretti da scheda turno
+        if 'dipendenti_esclusi' in data or 'sostituzioni_esclusi' in data:
+            from .services import gestisci_sostituzioni_turno_admin
+            esclusi = data.get('dipendenti_esclusi')
+            if esclusi is None:
+                esclusi = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
+            gestisci_sostituzioni_turno_admin(
+                assign,
+                esclusi,
+                data.get('sostituzioni_esclusi')
+            )
 
         return JsonResponse({'status': 'ok', 'message': 'Turno aggiornato'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+
+@csrf_exempt
+def assegna_sostituto_turno_ajax(request, assign_id):
+    """
+    Salva immediatamente dall'interno della scheda turno la deselezione di un componente
+    e l'eventuale selezione del sostituto (senza necessità di validazione assenza).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    try:
+        from .models import AssegnazioneTurno
+        from .services import gestisci_sostituzioni_turno_admin
+
+        assign = AssegnazioneTurno.objects.select_related('turno__squadra', 'cliente').get(pk=assign_id)
+        data = json.loads(request.body) if request.body else {}
+
+        esclusi = data.get('dipendenti_esclusi')
+        if esclusi is None:
+            esclusi = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
+            dip_id = data.get('dipendente_escluso_id')
+            riattiva = data.get('riattiva_dipendente', False)
+            if dip_id and str(dip_id).isdigit():
+                dip_id_int = int(dip_id)
+                if riattiva:
+                    esclusi = [x for x in esclusi if x != dip_id_int]
+                elif dip_id_int not in esclusi:
+                    esclusi.append(dip_id_int)
+
+        sost_map = data.get('sostituzioni_esclusi')
+        if sost_map is None and data.get('dipendente_escluso_id'):
+            sost_map = {str(data.get('dipendente_escluso_id')): data.get('sostituto_id')}
+
+        gestisci_sostituzioni_turno_admin(assign, esclusi, sost_map)
+
+        return JsonResponse({
+            'status': 'ok',
+            'message': 'Sostituzione turno aggiornata',
+            'esclusi_ids': list(assign.dipendenti_esclusi.values_list('pk', flat=True)),
+        })
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)})
 
@@ -667,10 +716,19 @@ def validate_ore_ajax(request, assign_id):
         data = json.loads(request.body) if request.body else {}
         action = data.get('action', 'validate')
         ore_param = data.get('ore')
+        note_param = (data.get('note') or '').strip() if 'note' in data else None
         validate_flag = data.get('validate', False) or (action == 'validate')
 
-        if 'dipendenti_esclusi' in data and isinstance(data['dipendenti_esclusi'], list):
-            assign.dipendenti_esclusi.set(data['dipendenti_esclusi'])
+        if 'dipendenti_esclusi' in data or 'sostituzioni_esclusi' in data:
+            from .services import gestisci_sostituzioni_turno_admin
+            esclusi_input = data.get('dipendenti_esclusi')
+            if esclusi_input is None:
+                esclusi_input = list(assign.dipendenti_esclusi.values_list('pk', flat=True))
+            gestisci_sostituzioni_turno_admin(
+                assign,
+                esclusi_input,
+                data.get('sostituzioni_esclusi')
+            )
 
         esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
 
@@ -756,6 +814,7 @@ def validate_ore_ajax(request, assign_id):
                 updated_count += 1
         else:
             for dip in active_dips:
+                default_note = note_param if note_param else f"Ore valide per la squadra ({sq_nome})"
                 tt, created = TimeTracking.objects.get_or_create(
                     dipendente=dip,
                     assegnazione=assign,
@@ -763,12 +822,14 @@ def validate_ore_ajax(request, assign_id):
                         'ore_dichiarate': ore_val,
                         'is_validated': validate_flag,
                         'source': 'ADMIN',
-                        'note': f"Ore valide per la squadra ({sq_nome})",
+                        'note': default_note,
                     }
                 )
                 if not created:
                     if ore_val is not None:
                         tt.ore_dichiarate = ore_val
+                    if note_param is not None and note_param != '':
+                        tt.note = note_param
                     if validate_flag:
                         tt.is_validated = True
                     tt.save()
@@ -835,6 +896,7 @@ def get_assegnazione_componenti_json(request, assign_id):
                 'nome': f"{dip.cognome} {dip.nome}",
                 'ruolo': ruolo,
                 'sostituto_di': sostituto_di,
+                'is_sostituto_turno': bool(sostituto_di),
                 'escluso': (dip.pk in esclusi_ids) if not sostituto_di else False,
                 'in_assenza': ass is not None,
                 'assenza_id': ass.id if ass else None,
@@ -843,6 +905,7 @@ def get_assegnazione_componenti_json(request, assign_id):
                 'assenza_display': f"🏥 {ass.get_tipo_display()}" if ass else None,
                 'richiesta_sostituzione_id': req_sost.id if req_sost else None,
                 'richiesta_sostituzione_stato': req_sost.stato if req_sost else None,
+                'sostituto_id': req_sost.sostituto_id if req_sost else None,
                 'sostituto_assegnato': f"{req_sost.sostituto.cognome} {req_sost.sostituto.nome}" if (req_sost and req_sost.sostituto) else None,
                 'ore_dichiarate': ore_d if not ass else None,
                 'is_validated': (tt.is_validated if tt else False) if not ass else False,
@@ -852,13 +915,16 @@ def get_assegnazione_componenti_json(request, assign_id):
 
         componenti = []
         presenti_ids = set()
+        squadra_orig_ids = set()
         if squadra:
             if squadra.caposquadra:
                 componenti.append(_build_comp_dict(squadra.caposquadra, 'Caposquadra'))
                 presenti_ids.add(squadra.caposquadra.pk)
+                squadra_orig_ids.add(squadra.caposquadra.pk)
             for c in squadra.componenti.exclude(pk=squadra.caposquadra.pk if squadra.caposquadra else None):
                 componenti.append(_build_comp_dict(c, 'Componente'))
                 presenti_ids.add(c.pk)
+                squadra_orig_ids.add(c.pk)
 
         # Aggiungi i sostituti confermati alla lista componenti del turno
         for r in richieste_sost_qs:
@@ -876,9 +942,51 @@ def get_assegnazione_componenti_json(request, assign_id):
                 componenti.append(_build_comp_dict(tt_obj.dipendente, 'Componente (storico)'))
                 presenti_ids.add(tt_dip_id)
 
+        # Costruisci l'elenco dei sostituti selezionabili direttamente dalla scheda turno
+        sostituti_disponibili = []
+        sost_seen_ids = set()
+        try:
+            from .services import trova_sostituti
+            from .models import Dipendente
+            cand_list = trova_sostituti(
+                cliente=assign.cliente,
+                data=data_turno,
+                ora_inizio=assign.orario_inizio_previsto,
+                ora_fine=assign.orario_fine_previsto,
+                escludi_dipendenti_ids=list(squadra_orig_ids),
+            )
+            for s in cand_list:
+                d_cand = s['dipendente']
+                dist_val = round(s['distanza_km'], 1) if s['distanza_km'] != float('inf') else None
+                sostituti_disponibili.append({
+                    'id': d_cand.pk,
+                    'nome': f"{d_cand.cognome} {d_cand.nome}",
+                    'distanza_km': dist_val,
+                    'ai_score': s.get('ai_score', 50),
+                    'compatibilita': s.get('compatibilita', 'libero'),
+                    'consigliato': True,
+                })
+                sost_seen_ids.add(d_cand.pk)
+
+            # Includi anche eventuali altri dipendenti (es. già assegnati o su altri turni) come scelta manuale
+            for d_extra in Dipendente.objects.exclude(pk__in=squadra_orig_ids).order_by('cognome', 'nome'):
+                if d_extra.pk not in sost_seen_ids and d_extra.pk not in assenze_map:
+                    sostituti_disponibili.append({
+                        'id': d_extra.pk,
+                        'nome': f"{d_extra.cognome} {d_extra.nome}",
+                        'distanza_km': None,
+                        'ai_score': None,
+                        'compatibilita': 'altro',
+                        'consigliato': False,
+                    })
+                    sost_seen_ids.add(d_extra.pk)
+        except Exception:
+            pass
+
         return JsonResponse({
             'componenti': componenti,
             'esclusi_ids': esclusi_ids,
+            'sostituti_disponibili': sostituti_disponibili,
             'assign_id': assign.id,
             'ore_previste': float(assign.ore_previste_contratto) if assign.ore_previste_contratto else None,
         })

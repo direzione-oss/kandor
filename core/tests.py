@@ -1142,6 +1142,80 @@ class AIEngineAndHubTestCase(TestCase):
         self.assertTrue(tt.is_validated)
         self.assertEqual(tt.source, 'ADMIN')
 
+    def test_7_deselezione_dipendente_e_selezione_sostituto_diretta_da_turno(self):
+        from core.models import RichiestaSostituzione
+        from core.views_webapp import _get_assegnazioni_dipendente
+
+        # 1. Verifica che get_assegnazione_componenti_json restituisca sostituti_disponibili
+        resp_comp = self.client.get(f'/api/assegnazione-componenti/{self.assegnazione.id}/')
+        self.assertEqual(resp_comp.status_code, 200)
+        comp_data = resp_comp.json()
+        self.assertIn('sostituti_disponibili', comp_data)
+        sost_ids = [s['id'] for s in comp_data['sostituti_disponibili']]
+        self.assertIn(self.jolly_nuovo.id, sost_ids)
+
+        # 2. Deseleziona self.dip_capo e seleziona self.jolly_nuovo come sostituto direttamente dalla scheda del turno
+        resp_sost = self.client.post(
+            f'/api/assegna-sostituto-turno/{self.assegnazione.id}/',
+            data=json.dumps({
+                'dipendente_escluso_id': self.dip_capo.id,
+                'sostituto_id': self.jolly_nuovo.id,
+                'dipendenti_esclusi': [self.dip_capo.id],
+                'sostituzioni_esclusi': {str(self.dip_capo.id): self.jolly_nuovo.id},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp_sost.status_code, 200)
+        self.assertEqual(resp_sost.json()['status'], 'ok')
+
+        # Verifica che dip_capo sia tra i dipendenti_esclusi e che la RichiestaSostituzione sia COMPLETATA senza validazione assenza
+        self.assertIn(self.dip_capo.id, list(self.assegnazione.dipendenti_esclusi.values_list('id', flat=True)))
+        req = RichiestaSostituzione.objects.get(
+            assegnazione_originale=self.assegnazione,
+            dipendente_assente=self.dip_capo,
+        )
+        self.assertEqual(req.stato, 'COMPLETATA')
+        self.assertEqual(req.sostituto, self.jolly_nuovo)
+
+        # Verifica che il sostituto veda il turno nella sua web app mobile
+        assigns_sost = _get_assegnazioni_dipendente(self.jolly_nuovo, self.today)
+        self.assertTrue(any(a['id'] == self.assegnazione.id and a['is_sostituzione'] for a in assigns_sost))
+
+        # 3. Inserimento e validazione ore del turno: le ore vanno al sostituto e NON al dipendente escluso
+        resp_ore = self.client.post(
+            f'/api/validate-ore/{self.assegnazione.id}/',
+            data=json.dumps({
+                'ore': 4.0,
+                'validate': True,
+                'dipendenti_esclusi': [self.dip_capo.id],
+                'sostituzioni_esclusi': {str(self.dip_capo.id): self.jolly_nuovo.id},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp_ore.status_code, 200)
+        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assegnazione, dipendente=self.dip_capo).exists())
+        tt_sost = TimeTracking.objects.get(assegnazione=self.assegnazione, dipendente=self.jolly_nuovo)
+        self.assertEqual(tt_sost.ore_dichiarate, Decimal('4.0'))
+        self.assertTrue(tt_sost.is_validated)
+
+        # 4. Ri-selezionando il dipendente titolare nella scheda del turno, la sostituzione viene annullata e il TimeTracking del sostituto rimosso
+        resp_riattiva = self.client.post(
+            f'/api/assegna-sostituto-turno/{self.assegnazione.id}/',
+            data=json.dumps({
+                'dipendente_escluso_id': self.dip_capo.id,
+                'sostituto_id': None,
+                'riattiva_dipendente': True,
+                'dipendenti_esclusi': [],
+                'sostituzioni_esclusi': {},
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp_riattiva.status_code, 200)
+        req.refresh_from_db()
+        self.assertEqual(req.stato, 'ANNULLATA')
+        self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assegnazione, dipendente=self.jolly_nuovo).exists())
+
+
 
 
 

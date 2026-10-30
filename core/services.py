@@ -853,6 +853,153 @@ def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_peri
     }
 
 
+def gestisci_sostituzioni_turno_admin(assign, esclusi_ids, sostituzioni_esclusi=None):
+    """
+    Gestisce in modo diretto (senza necessità di validazione assenza o attesa risposta Telegram)
+    la selezione/rimozione dei sostituti per i dipendenti deselezionati nella scheda del turno:
+    - Aggiorna assign.dipendenti_esclusi
+    - Se un dipendente viene ri-selezionato (non più in esclusi_ids e non in assenza), annulla
+      l'eventuale RichiestaSostituzione da turno e rimuove il TimeTracking del vecchio sostituto.
+    - Se per un dipendente deselezionato viene scelto un sostituto, crea/aggiorna la
+      RichiestaSostituzione direttamente in stato COMPLETATA tramite assegna_sostituto_da_ufficio
+      e allinea eventuale TimeTracking già presente sul turno.
+    """
+    from .models import RichiestaSostituzione, Dipendente, Assenza, TimeTracking, ResponsabileArea
+
+    esclusi_set = set(int(x) for x in (esclusi_ids or []) if str(x).isdigit())
+    assign.dipendenti_esclusi.set(list(esclusi_set))
+
+    data_turno = assign.turno.data
+    squadra = assign.turno.squadra
+
+    assenti_ids = set(Assenza.objects.filter(
+        data_inizio__lte=data_turno,
+        data_fine__gte=data_turno
+    ).exclude(stato_approvazione='RIFIUTATA').values_list('dipendente_id', flat=True))
+
+    # Normalizza mappa {int(dip_escluso_id): int(sostituto_id) | None}
+    sost_map = {}
+    if isinstance(sostituzioni_esclusi, dict):
+        for k, v in sostituzioni_esclusi.items():
+            if str(k).isdigit():
+                sost_map[int(k)] = int(v) if (v and str(v).isdigit() and int(v) > 0) else None
+
+    # Componenti standard della squadra per verificare se un ex-sostituto fa già parte della squadra
+    squadra_member_ids = set()
+    if squadra:
+        squadra_member_ids.update(squadra.componenti.values_list('id', flat=True))
+        if squadra.caposquadra_id:
+            squadra_member_ids.add(squadra.caposquadra_id)
+
+    # 1. Dipendenti ri-selezionati (non più in esclusi_set e non in assenza): annulla sostituzioni da turno
+    active_reqs = RichiestaSostituzione.objects.filter(
+        assegnazione_originale=assign,
+        stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA']
+    )
+    for req in active_reqs:
+        if req.dipendente_assente_id not in esclusi_set and req.dipendente_assente_id not in assenti_ids:
+            old_sost_id = req.sostituto_id
+            req.stato = 'ANNULLATA'
+            req.save(update_fields=['stato'])
+            if old_sost_id and (old_sost_id not in squadra_member_ids or old_sost_id in esclusi_set):
+                TimeTracking.objects.filter(assegnazione=assign, dipendente_id=old_sost_id).delete()
+
+    # 2. Rimuovi TimeTracking dei dipendenti esclusi
+    if esclusi_set:
+        TimeTracking.objects.filter(assegnazione=assign, dipendente_id__in=esclusi_set).delete()
+
+    # 3. Gestisci sostituti per i dipendenti deselezionati
+    ra = None
+    if squadra:
+        try:
+            ra = ResponsabileArea.objects.filter(squadre=squadra).first()
+        except Exception:
+            pass
+
+    for dip_escluso_id in list(esclusi_set):
+        if dip_escluso_id not in sost_map:
+            continue
+
+        target_sost_id = sost_map[dip_escluso_id]
+        req_esistente = RichiestaSostituzione.objects.filter(
+            assegnazione_originale=assign,
+            dipendente_assente_id=dip_escluso_id,
+            stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA']
+        ).order_by('-id').first()
+
+        if not target_sost_id:
+            # Nessun sostituto selezionato -> se c'era una sostituzione attiva la annulliamo
+            if req_esistente:
+                old_sost_id = req_esistente.sostituto_id
+                req_esistente.stato = 'ANNULLATA'
+                req_esistente.save(update_fields=['stato'])
+                if old_sost_id and (old_sost_id not in squadra_member_ids or old_sost_id in esclusi_set):
+                    TimeTracking.objects.filter(assegnazione=assign, dipendente_id=old_sost_id).delete()
+            continue
+
+        sostituto = Dipendente.objects.filter(pk=target_sost_id).first()
+        dip_escluso = Dipendente.objects.filter(pk=dip_escluso_id).first()
+        if not sostituto or not dip_escluso:
+            continue
+
+        # Se il sostituto scelto era per caso tra gli esclusi, rimuovilo dagli esclusi
+        if sostituto.pk in esclusi_set:
+            esclusi_set.discard(sostituto.pk)
+            assign.dipendenti_esclusi.remove(sostituto)
+
+        if req_esistente:
+            old_sost_id = req_esistente.sostituto_id
+            if old_sost_id and old_sost_id != sostituto.pk:
+                if old_sost_id not in squadra_member_ids or old_sost_id in esclusi_set:
+                    TimeTracking.objects.filter(assegnazione=assign, dipendente_id=old_sost_id).delete()
+            if req_esistente.sostituto_id != sostituto.pk or req_esistente.stato != 'COMPLETATA':
+                assegna_sostituto_da_ufficio(req_esistente.pk, sostituto_id=sostituto.pk, applica_a_periodo=False)
+        else:
+            now = timezone.now()
+            nuova_req = RichiestaSostituzione.objects.create(
+                assegnazione_originale=assign,
+                dipendente_assente=dip_escluso,
+                motivo_assenza='SOSTITUZIONE DA TURNO',
+                responsabile_area=ra,
+                sostituto=sostituto,
+                stato='COMPLETATA',
+                approvata_ra_il=now,
+                inviata_sostituto_il=now,
+                risposta_sostituto_il=now,
+                sostituti_candidati=[sostituto.pk],
+                note=f"Sostituzione diretta da scheda turno (Amministrazione)",
+            )
+            assegna_sostituto_da_ufficio(nuova_req.pk, sostituto_id=sostituto.pk, applica_a_periodo=False)
+
+        # Se sul turno sono già state registrate/validate le ore per altri componenti attivi,
+        # allinea automaticamente anche il TimeTracking del sostituto!
+        ref_tt = TimeTracking.objects.filter(
+            assegnazione=assign
+        ).exclude(
+            dipendente_id__in=esclusi_set
+        ).exclude(
+            dipendente_id=sostituto.pk
+        ).order_by('-is_validated', '-id').first()
+
+        if ref_tt and (ref_tt.ore_dichiarate is not None or ref_tt.durata_ore):
+            ore_ref = ref_tt.ore_dichiarate if ref_tt.ore_dichiarate is not None else ref_tt.durata_ore
+            tt_sost, created = TimeTracking.objects.get_or_create(
+                dipendente=sostituto,
+                assegnazione=assign,
+                defaults={
+                    'ore_dichiarate': ore_ref,
+                    'is_validated': ref_tt.is_validated,
+                    'source': 'ADMIN',
+                    'note': ref_tt.note or f"Sostituto di {dip_escluso.cognome} {dip_escluso.nome}",
+                }
+            )
+            if not created:
+                tt_sost.ore_dichiarate = ore_ref
+                tt_sost.is_validated = ref_tt.is_validated
+                tt_sost.save()
+
+
+
 def avvalla_assenza_da_amministrazione(assenza_id, note_admin=''):
     """
     Procedura di avvallo dell'amministrazione:
