@@ -384,7 +384,7 @@ class CorsoDipendenteInline(admin.TabularInline):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'is_sostituto', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'sostituto_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
     list_filter = ('stato', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
     filter_horizontal = ('qualifiche',)
@@ -422,6 +422,68 @@ class DipendenteAdmin(KandorBaseAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'toggle-sostituto/<int:dip_id>/',
+                self.admin_site.admin_view(self.toggle_sostituto_view),
+                name='core_dipendente_toggle_sostituto',
+            ),
+        ]
+        return custom_urls + urls
+
+    def toggle_sostituto_view(self, request, dip_id):
+        from django.http import JsonResponse
+        dip = Dipendente.objects.filter(pk=dip_id).first()
+        if not dip:
+            return JsonResponse({'ok': False, 'error': 'Dipendente non trovato'}, status=404)
+        val_raw = request.GET.get('val') or request.POST.get('val')
+        if val_raw is not None:
+            new_val = str(val_raw).lower() in ('1', 'true', 'yes', 'on')
+        else:
+            new_val = not dip.is_sostituto
+        Dipendente.objects.filter(pk=dip.pk).update(is_sostituto=new_val)
+        return JsonResponse({'ok': True, 'id': dip.pk, 'is_sostituto': new_val})
+
+    @admin.display(description='🔄 Sostituto', ordering='is_sostituto')
+    def sostituto_toggle_badge(self, obj):
+        checked_attr = 'checked' if obj.is_sostituto else ''
+        bg = '#DCFCE7' if obj.is_sostituto else '#F1F5F9'
+        fg = '#166534' if obj.is_sostituto else '#64748B'
+        border = '#86EFAC' if obj.is_sostituto else '#CBD5E1'
+        lbl = 'Disponibile' if obj.is_sostituto else 'No'
+        js_call = (
+            "var cb=this; var wrap=cb.closest('label'); var sp=wrap.querySelector('.sost-lbl');"
+            "cb.disabled=true; sp.textContent='⏳...';"
+            "fetch('/admin/core/dipendente/toggle-sostituto/' + cb.getAttribute('data-dip-id') + '/?val=' + (cb.checked ? '1' : '0'), {credentials:'same-origin'})"
+            ".then(function(r){return r.json();})"
+            ".then(function(d){"
+            "  cb.disabled=false;"
+            "  if(d && d.ok){"
+            "    wrap.style.background = d.is_sostituto ? '#DCFCE7' : '#F1F5F9';"
+            "    wrap.style.color = d.is_sostituto ? '#166534' : '#64748B';"
+            "    wrap.style.borderColor = d.is_sostituto ? '#86EFAC' : '#CBD5E1';"
+            "    sp.textContent = '✓ Salvato';"
+            "    setTimeout(function(){ sp.textContent = d.is_sostituto ? 'Disponibile' : 'No'; }, 900);"
+            "  } else { cb.checked = !cb.checked; sp.textContent = 'Errore'; }"
+            "}).catch(function(){ cb.disabled=false; cb.checked = !cb.checked; sp.textContent='Errore'; });"
+        )
+        return format_html(
+            '<label style="display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; border:1px solid {}; background:{}; color:{}; font-size:11.5px; font-weight:700; cursor:pointer; user-select:none; white-space:nowrap;" title="Spunta o rimuovi per attivare/disattivare la disponibilità come Sostituto (salvataggio automatico)">'
+            '<input type="checkbox" data-dip-id="{}" {} onchange="{}" style="cursor:pointer; width:14px; height:14px; margin:0; accent-color:#16A34A;" />'
+            '<span class="sost-lbl">{}</span>'
+            '</label>',
+            border,
+            bg,
+            fg,
+            obj.pk,
+            checked_attr,
+            js_call,
+            lbl,
+        )
 
     def _build_whatsapp_invite_data(self, obj):
         import os
