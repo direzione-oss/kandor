@@ -549,6 +549,51 @@
                             </button>
                         </td>
                     </tr>
+                    
+                    <!-- CALENDARIO ROW -->
+                    <tr id="cal-row-{{ item.dip_id }}" style="display: none;">
+                        <td colspan="11" style="background-color: #F8FAFC; padding: 15px 30px;">
+                            <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); table-layout: fixed;">
+                                <thead>
+                                    <tr>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">LUN</th>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">MAR</th>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">MER</th>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">GIO</th>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">VEN</th>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">SAB</th>
+                                        <th style="border: 1px solid #CBD5E1; text-align: center; padding: 8px; background: #0F172A; color: white; width: 14.28%;">DOM</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for week in item.calendario_weeks %}
+                                    <tr>
+                                        {% for day in week %}
+                                        <td style="border: 1px solid #CBD5E1; height: 80px; vertical-align: top; position: relative; padding: 0;">
+                                            {% if day.date %}
+                                                <span style="position: absolute; top: 4px; right: 6px; font-size: 0.8rem; color: #94A3B8;">{{ day.day }}</span>
+                                                <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 10px;">
+                                                    {% if day.ore %}
+                                                    <div style="font-size: 1.2rem; font-weight: bold; color: #0F172A;">{{ day.ore }}</div>
+                                                    {% endif %}
+                                                    
+                                                    {% if day.assenze %}
+                                                        <div style="font-size: 0.75rem; color: #475569; font-weight: 600; margin-top: 2px;">
+                                                            {% if day.ore %}+ {% endif %}{{ day.assenze|join:" + " }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <div style="background: #F1F5F9; height: 100%;"></div>
+                                            {% endif %}
+                                        </td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
                     {% empty %}
                     <tr>
                         <td colspan="11" style="text-align: center; padding: 32px; color: var(--text-muted);">
