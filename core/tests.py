@@ -1113,9 +1113,13 @@ class AIEngineAndHubTestCase(TestCase):
         self.assertEqual(len(marg['lavori_extra']), 1)
         self.assertEqual(marg['lavori_extra'][0]['cliente_nome'], 'Condominio Città Alta')
 
-        # Verifica che la dashboard /ia-hub/ risponda 200 OK
+        # Verifica che la dashboard /ia-hub/ risponda 200 OK e includa l'intestazione con logo e link Home
         resp = self.client.get('/ia-hub/')
         self.assertEqual(resp.status_code, 200)
+        html_content = resp.content.decode('utf-8')
+        self.assertIn('core/img/logo.png', html_content)
+        self.assertIn('Kandor Portal', html_content)
+        self.assertIn('href="/admin/"', html_content)
 
     def test_6_inserimento_ore_amministrazione_da_turno_calendario(self):
         # Nessun TimeTracking ancora inviato dal lavoratore per self.assegnazione
