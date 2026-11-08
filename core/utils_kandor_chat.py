@@ -130,7 +130,7 @@ def get_main_menu(dipendente=None):
     
     keyboard.extend([
         [{'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}],
-        [{'text': '📖 Guida', 'url': 'https://kandor.onrender.com/manuale-dipendente/'}],
+        [{'text': '📖 Guida', 'url': 'https://kandor.187.126.30.207.sslip.io/manuale-dipendente/'}],
     ])
     return {'inline_keyboard': keyboard}
 
@@ -286,10 +286,20 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             assegnazione_id = state.get('assegnazione_id')
             del _TELEGRAM_STATE[telegram_chat_id]
             
-            try:
-                hours = float(clean_text.replace(',', '.').replace(':', '.'))
-            except ValueError:
-                return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
+            note_extra = ""
+            match = re.match(r'^\s*(\d+(?:[.,]\d+)?)\s*(?:or[ae]|h)?(?:\s*[-:]?\s*(.*))?$', clean_text, re.IGNORECASE)
+            if match:
+                hours_str = match.group(1).replace(',', '.')
+                note_extra = (match.group(2) or '').strip()
+                try:
+                    hours = float(hours_str)
+                except ValueError:
+                    return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
+            else:
+                try:
+                    hours = float(clean_text.replace(',', '.').replace(':', '.'))
+                except ValueError:
+                    return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
             
             try:
                 assegnazione = AssegnazioneTurno.objects.filter(
@@ -302,7 +312,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             except Exception:
                 return {"text": "Errore nel recupero del turno.", "reply_markup": get_main_menu()}
             
-            return _salva_ore_turno(dipendente, assegnazione, hours, text)
+            return _salva_ore_turno(dipendente, assegnazione, hours, text, note_extra=note_extra)
         
         # Attesa testo segnalazione
         
@@ -1005,11 +1015,15 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     return {'text': "Comando non riconosciuto.", 'reply_markup': get_main_menu(dipendente)}
 
 
-def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
+def _salva_ore_turno(dipendente, assegnazione, hours, original_text, note_extra=None):
     """Salva le ore lavorate per una specifica assegnazione turno ed estende la registrazione a tutta la squadra con notifiche Telegram."""
     from decimal import Decimal
     from .models import Squadra
     decimal_hours = Decimal(str(hours))
+
+    base_note = f"Registrato da {dipendente.nome} {dipendente.cognome}"
+    note_dip = f"{note_extra} ({base_note})" if note_extra else base_note
+    note_team = f"{note_extra} (Registrato dal collega {dipendente.nome} {dipendente.cognome})" if note_extra else f"Registrato dal collega {dipendente.nome} {dipendente.cognome}"
 
     # 1. Salva le ore per il dipendente che le ha digitate
     tt, created = TimeTracking.objects.update_or_create(
@@ -1018,7 +1032,7 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
         defaults={
             'ore_dichiarate': decimal_hours,
             'source': 'TELEGRAM',
-            'note': f"Registrato da {dipendente.nome} {dipendente.cognome}",
+            'note': note_dip,
             'is_validated': False,
         }
     )
@@ -1046,7 +1060,7 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text):
             defaults={
                 'ore_dichiarate': decimal_hours,
                 'source': 'TELEGRAM',
-                'note': f"Registrato dal collega {dipendente.nome} {dipendente.cognome}",
+                'note': note_team,
                 'is_validated': False,
             }
         )

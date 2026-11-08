@@ -668,11 +668,28 @@ def weekly_schedule_widget(context):
 
 @register.filter
 def is_operational_model(model_name):
-    return model_name in ['AssegnazioneTurno', 'Assenza', 'TimeTracking', 'Turno']
+    return model_name in ['AssegnazioneTurno', 'Assenza', 'TimeTracking', 'Turno', 'ProceduraAvviata']
 
 @register.filter
 def is_resource_model(model_name):
-    return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione', 'Squadra', 'MessaggioProgrammato']
+    return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione', 'ModelloProcedura', 'Squadra', 'MessaggioProgrammato']
+
+@register.simple_tag
+def active_procedures_badge():
+    from core.models import ProceduraAvviata
+    from django.utils.safestring import mark_safe
+    try:
+        count = ProceduraAvviata.objects.filter(stato='IN_CORSO').count()
+        if not count:
+            return ''
+        return mark_safe(
+            f'<span style="position:absolute;top:8px;right:8px;background:#D97706;color:white;'
+            f'border-radius:12px;min-width:20px;height:20px;font-size:11px;font-weight:bold;'
+            f'display:inline-flex;align-items:center;justify-content:center;padding:0 6px">'
+            f'{count} in corso</span>'
+        )
+    except Exception:
+        return ''
 
 @register.inclusion_tag('admin/widgets/telegram_feed_widget.html')
 def telegram_feed_widget():
@@ -730,6 +747,7 @@ def expiring_contracts_widget():
         contracts.append({
             'prog': prog,
             'cliente': prog.cliente.ragione_sociale,
+            'cliente_id': prog.cliente_id,
             'tipo': prog.get_tipo_ripetizione_display(),
             'giorno': 'Ogni giorno' if prog.tipo_ripetizione == 'GIORNALIERO' else (prog.get_giorno_settimana_display() if prog.giorno_settimana is not None else f"Giorno {prog.giorno_mese}"),
             'data_fine': prog.data_fine_contratto,

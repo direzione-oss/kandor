@@ -45,12 +45,12 @@ class ManualePDF(FPDF):
         # Info
         self.set_font('Helvetica', '', 11)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 7, 'Versione 3.0 - Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Versione 3.1 - 30 Ottobre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 7, 'Sistema ERP con Centro IA & Automazioni Smart a Costo Zero', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(8)
-        self.cell(0, 7, 'URL Gestionale: https://kandor.onrender.com', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 7, 'Centro IA & Automazioni: https://kandor.onrender.com/ia-hub/', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 7, 'Web App Dipendenti: https://kandor.onrender.com/app/', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'URL Gestionale: https://kandor.187.126.30.207.sslip.io', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Centro IA & Automazioni: https://kandor.187.126.30.207.sslip.io/ia-hub/', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Web App Dipendenti: https://kandor.187.126.30.207.sslip.io/app/', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(30)
         self.set_font('Helvetica', 'I', 10)
         self.cell(0, 7, 'Sviluppato per Studio Serra - (c) 2026', align='C', new_x="LMARGIN", new_y="NEXT")
@@ -149,9 +149,9 @@ def render_markdown_content(pdf, lines, skip_first_h1=False):
             full_img_path = os.path.normpath(os.path.join(os.path.dirname(__file__), img_path))
             if os.path.exists(full_img_path):
                 pdf.ln(4)
-                if pdf.get_y() > 190:
+                if pdf.get_y() > 160:
                     pdf.add_page()
-                pdf.image(full_img_path, w=170)
+                pdf.image(full_img_path, w=175)
                 if caption:
                     pdf.set_font('Helvetica', 'I', 9)
                     pdf.set_text_color(100, 100, 100)
@@ -341,6 +341,11 @@ def main():
     print(f"PDF generato con successo: {output}")
     print(f"Pagine totali: {pdf.page_no()}")
 
+    import shutil
+    for extra_pdf in ['Manuale di utilizzo del portale Kandor.pdf', 'Kandor_Portal_Operational_Guide.pdf']:
+        shutil.copyfile(output, extra_pdf)
+        print(f"PDF aggiornato e sostituito: {extra_pdf} ({pdf.page_no()} pagine)")
+
     # Genera anche il PDF autonomo per il Dipendente (Web App + Telegram)
     pdf_dip = ManualePDF()
     pdf_dip.alias_nb_pages()
@@ -352,7 +357,7 @@ def main():
     pdf_dip.cell(0, 14, 'KANDOR - GUIDA OPERATIVA DIPENDENTE', new_x="LMARGIN", new_y="NEXT", align='C')
     pdf_dip.set_font('Helvetica', 'I', 13)
     pdf_dip.set_text_color(41, 128, 185)
-    pdf_dip.cell(0, 9, 'Web App Mobile (https://kandor.onrender.com/app/) & Bot Telegram', new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf_dip.cell(0, 9, 'Web App Mobile (https://kandor.187.126.30.207.sslip.io/app/) & Bot Telegram', new_x="LMARGIN", new_y="NEXT", align='C')
     pdf_dip.ln(6)
     pdf_dip.set_draw_color(41, 128, 185)
     pdf_dip.set_line_width(0.8)

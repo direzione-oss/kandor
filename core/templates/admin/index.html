@@ -332,6 +332,21 @@
             </div>
         </div>
 
+        <!-- Gestione Procedure (Disdetta Contratto, Checklist, ecc.) -->
+        <div class="quick-card" style="position: relative;">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #FEF3C7; color: #D97706;">📋</div>
+                    <h3>Procedure</h3>
+                </div>
+                <p>Checklist operative, disdetta contratti e gestione passaggi personalizzabili</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'gestione_procedure' %}" class="quick-btn" style="background:#D97706;">Gestisci Procedure &rarr;</a>
+                {% active_procedures_badge %}
+            </div>
+        </div>
+
         <!-- Dati -->
         <div class="quick-card">
             <div>

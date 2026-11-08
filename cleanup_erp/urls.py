@@ -4,7 +4,8 @@ URL configuration for cleanup_erp project.
 import traceback
 import sys
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.views.static import serve
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import HttpResponseServerError, JsonResponse
@@ -156,5 +157,6 @@ urlpatterns = [
     path('api/cron/invia-auguri/', invia_auguri_cron_view),
     path('debug-db/', debug_db_view),
     path('admin/', admin.site.urls),
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
     path('', include('core.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

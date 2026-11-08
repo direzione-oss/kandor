@@ -27,11 +27,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-66-qje)8zh_9*$a0pf5&llh9jn6&s0q68&p(w*s!wq*jl*cz_g')
 
-is_render = 'RENDER' in os.environ or os.environ.get('RENDER') == 'true'
+is_render = (
+    'RENDER' in os.environ
+    or os.environ.get('RENDER') == 'true'
+    or os.environ.get('VPS_PROD') in ('1', 'true', 'True')
+)
 DEBUG = os.environ.get('DEBUG', 'False' if is_render else 'True').lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.app', '.ngrok-free.dev',
-                 '.railway.app', '.render.com', '.onrender.com']
+ALLOWED_HOSTS = [
+    'localhost', '127.0.0.1', '187.126.30.207',
+    'kandor.187.126.30.207.sslip.io', 'kandor.serrastudio.it',
+    '.sslip.io', '.serrastudio.it',
+    '.ngrok-free.app', '.ngrok-free.dev',
+    '.railway.app', '.render.com', '.onrender.com', '*'
+]
 
 
 # Application definition
@@ -116,6 +125,10 @@ if use_postgres:
         db_name = os.environ.get('SUPABASE_DB_NAME', 'postgres')
         db_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
 
+    db_sslmode = os.environ.get('DB_SSLMODE')
+    if not db_sslmode:
+        db_sslmode = 'require' if ('supabase.com' in db_host or 'supabase.co' in db_host) else 'prefer'
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -125,10 +138,10 @@ if use_postgres:
             'HOST': db_host,
             'PORT': db_port,
             'OPTIONS': {
-                'sslmode': 'require',
+                'sslmode': db_sslmode,
                 'connect_timeout': 15,
             },
-            'CONN_MAX_AGE': 0,
+            'CONN_MAX_AGE': 60,
             'DISABLE_SERVER_SIDE_CURSORS': True,
         }
     }
@@ -193,7 +206,12 @@ STORAGES = {
 
 # Media files (foto profilo, contratti, ecc.)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_ROOT = Path(os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media')))
+PUBLIC_BASE_URL = (
+    os.environ.get('PUBLIC_BASE_URL')
+    or os.environ.get('RENDER_EXTERNAL_URL')
+    or 'https://kandor.187.126.30.207.sslip.io'
+).rstrip('/')
 
 # Cache - usa memoria locale per velocizzare
 CACHES = {
@@ -260,6 +278,13 @@ LOGOUT_REDIRECT_URL = '/admin/login/'
 
 # Origini fidate per CSRF (necessario in Django per richieste HTTPS)
 CSRF_TRUSTED_ORIGINS = [
+    'https://kandor.187.126.30.207.sslip.io',
+    'http://kandor.187.126.30.207.sslip.io',
+    'https://*.187.126.30.207.sslip.io',
+    'http://*.187.126.30.207.sslip.io',
+    'https://kandor.serrastudio.it',
+    'http://kandor.serrastudio.it',
+    'https://*.serrastudio.it',
     'https://kandor.onrender.com',
     'http://kandor.onrender.com',
     'https://*.onrender.com',

@@ -1491,9 +1491,9 @@ def titolari_dashboard_view(request):
     
     # --- Settimana ---
     ore_r = TimeTracking.objects.filter(
-        timestamp__date__gte=lun, timestamp__date__lte=ven
-    ).aggregate(tot=Sum('ore_lavorate'))
-    ore_settimana = round(ore_r['tot'] or 0, 1)
+        assegnazione__turno__data__gte=lun, assegnazione__turno__data__lte=ven
+    ).aggregate(tot=Sum('ore_dichiarate'))
+    ore_settimana = round(float(ore_r['tot'] or 0), 1)
     
     turni_sett_tot = AssegnazioneTurno.objects.filter(
         turno__data__gte=lun, turno__data__lte=ven
@@ -4980,14 +4980,15 @@ def ia_auto_valida_ore_api(request):
 @csrf_exempt
 def ia_invia_briefing_api(request):
     """
-    Invia il Briefing Mattutino IA su Telegram a tutti i Titolari e Responsabili Area configurati.
+    Invia il Briefing Mattutino IA (incluso l'avanzamento delle procedure aperte)
+    su Telegram a tutti i Titolari, Responsabili Area e operatori incaricati di procedure aperte.
     """
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
     if not request.user.is_staff and not request.session.get('titolare_id'):
         return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
 
-    from .models import Titolare, ResponsabileArea
+    from .models import Titolare, ResponsabileArea, ProceduraAvviata
     from .ai_engine import genera_briefing_mattutino
     from .utils_kandor_chat import send_telegram_message
 
@@ -5000,6 +5001,9 @@ def ia_invia_briefing_api(request):
     for ra in ResponsabileArea.objects.select_related('dipendente').all():
         if ra.dipendente and ra.dipendente.telegram_chat_id:
             destinatari.add(ra.dipendente.telegram_chat_id)
+    for proc in ProceduraAvviata.objects.filter(stato='IN_CORSO').select_related('dipendente'):
+        if proc.dipendente and proc.dipendente.telegram_chat_id:
+            destinatari.add(proc.dipendente.telegram_chat_id)
 
     inviati = 0
     for cid in destinatari:
@@ -5010,7 +5014,8 @@ def ia_invia_briefing_api(request):
         'ok': True,
         'inviati': inviati,
         'destinatari_totali': len(destinatari),
-        'message': f'📲 Briefing mattutino IA inviato su Telegram a {inviati} destinatari (Titolari / Resp. Area).',
+        'briefing_text': testo_msg,
+        'message': f'📲 Briefing aggiornato (con stato procedure aperte) inviato su Telegram a {inviati} destinatari.',
     })
 
 
@@ -5072,4 +5077,752 @@ def ia_analizza_documento_api(request):
         'ok': True,
         'risultato': risultato,
     })
+
+
+# ==============================================================================
+# GESTIONE PROCEDURE OPERATIVE E CHECKLIST (es. Disdetta Contratto)
+# ==============================================================================
+
+def _serialize_pratica(pratica):
+    """Serializza una ProceduraAvviata con i suoi passaggi per risposte JSON."""
+    passaggi = list(pratica.passaggi.all().order_by('ordine', 'id'))
+    totale = len(passaggi)
+    completati = sum(1 for p in passaggi if p.completato)
+    percentuale = int(round((completati / totale) * 100)) if totale else 0
+    return {
+        'id': pratica.id,
+        'modello_id': pratica.modello_id,
+        'modello_nome': pratica.modello.nome if pratica.modello else 'Procedura Personalizzata',
+        'titolo': pratica.titolo,
+        'cliente_id': pratica.cliente_id,
+        'cliente_nome': str(pratica.cliente) if pratica.cliente else '',
+        'dipendente_id': pratica.dipendente_id,
+        'dipendente_nome': str(pratica.dipendente) if pratica.dipendente else '',
+        'stato': pratica.stato,
+        'stato_label': pratica.get_stato_display(),
+        'data_avvio': pratica.data_avvio.strftime('%Y-%m-%d') if pratica.data_avvio else '',
+        'data_avvio_fmt': pratica.data_avvio.strftime('%d/%m/%Y') if pratica.data_avvio else '',
+        'data_scadenza': pratica.data_scadenza.strftime('%Y-%m-%d') if pratica.data_scadenza else '',
+        'data_scadenza_fmt': pratica.data_scadenza.strftime('%d/%m/%Y') if pratica.data_scadenza else '',
+        'data_completamento_fmt': pratica.data_completamento.strftime('%d/%m/%Y %H:%M') if pratica.data_completamento else '',
+        'note': pratica.note or '',
+        'totale_passaggi': totale,
+        'passaggi_completati': completati,
+        'percentuale': percentuale,
+        'passaggi': [
+            {
+                'id': p.id,
+                'ordine': p.ordine,
+                'titolo': p.titolo,
+                'descrizione': p.descrizione or '',
+                'completato': p.completato,
+                'data_completamento_fmt': p.data_completamento.strftime('%d/%m/%Y %H:%M') if p.data_completamento else '',
+                'note_esecuzione': p.note_esecuzione or '',
+            }
+            for p in passaggi
+        ],
+    }
+
+
+def _serialize_modello(modello):
+    """Serializza un ModelloProcedura con i suoi passaggi per risposte JSON."""
+    passaggi = list(modello.passaggi.all().order_by('ordine', 'id'))
+    return {
+        'id': modello.id,
+        'nome': modello.nome,
+        'categoria': modello.categoria or 'Operativa / Contrattuale',
+        'descrizione': modello.descrizione or '',
+        'attivo': modello.attivo,
+        'totale_passaggi': len(passaggi),
+        'pratiche_attive': modello.procedure_avviate.filter(stato='IN_CORSO').count(),
+        'passaggi': [
+            {
+                'id': p.id,
+                'ordine': p.ordine,
+                'titolo': p.titolo,
+                'descrizione': p.descrizione or '',
+                'obbligatorio': p.obbligatorio,
+            }
+            for p in passaggi
+        ],
+    }
+
+
+def gestione_procedure_view(request):
+    """
+    Dashboard completa per la gestione delle Procedure aziendali:
+    - Pratiche avviate per i clienti (es. Disdetta di un contratto) con checklist interattiva
+      e possibilità di aggiungere/modificare/rimuovere/riordinare i punti sulla singola pratica.
+    - Catalogo Modelli di Procedura con possibilità di modificare i passaggi standard
+      (aggiungere o togliere punti) e creare nuove procedure.
+    """
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.get_full_path(), '/admin/login/')
+
+    from django.contrib import admin
+    from .models import (
+        ModelloProcedura, PassoModelloProcedura,
+        ProceduraAvviata, PassoProceduraAvviata,
+        Cliente, Dipendente, ensure_default_procedure,
+    )
+
+    ensure_default_procedure()
+
+    tab_attivo = request.GET.get('tab', 'pratiche').strip()
+    if tab_attivo not in ('pratiche', 'modelli'):
+        tab_attivo = 'pratiche'
+
+    stato_filter = request.GET.get('stato', 'TUTTE').strip().upper()
+    if stato_filter not in ('TUTTE', 'IN_CORSO', 'COMPLETATA', 'ANNULLATA'):
+        stato_filter = 'TUTTE'
+
+    q = request.GET.get('q', '').strip()
+    cliente_filter = request.GET.get('cliente', '').strip()
+    modello_filter = request.GET.get('modello', '').strip()
+    avvia_cliente_id = request.GET.get('avvia_cliente', '').strip()
+    avvia_modello_id = request.GET.get('avvia_modello', '').strip()
+    pratica_focus_id = request.GET.get('pratica', '').strip()
+
+    modelli = list(
+        ModelloProcedura.objects.prefetch_related('passaggi', 'procedure_avviate').order_by('ordine', 'nome')
+    )
+
+    pratiche_qs = ProceduraAvviata.objects.select_related(
+        'modello', 'cliente', 'dipendente'
+    ).prefetch_related('passaggi').order_by('-data_avvio', '-id')
+
+    totale_pratiche = pratiche_qs.count()
+    pratiche_in_corso = pratiche_qs.filter(stato='IN_CORSO').count()
+    pratiche_completate = pratiche_qs.filter(stato='COMPLETATA').count()
+
+    if stato_filter != 'TUTTE':
+        pratiche_qs = pratiche_qs.filter(stato=stato_filter)
+    if cliente_filter.isdigit():
+        pratiche_qs = pratiche_qs.filter(cliente_id=int(cliente_filter))
+    if modello_filter.isdigit():
+        pratiche_qs = pratiche_qs.filter(modello_id=int(modello_filter))
+    if q:
+        from django.db.models import Q
+        pratiche_qs = pratiche_qs.filter(
+            Q(titolo__icontains=q)
+            | Q(cliente__ragione_sociale__icontains=q)
+            | Q(modello__nome__icontains=q)
+            | Q(note__icontains=q)
+        )
+
+    pratiche = list(pratiche_qs)
+    clienti = Cliente.objects.all().order_by('ragione_sociale')
+    dipendenti = Dipendente.objects.all().order_by('cognome', 'nome')
+
+    modello_disdetta = next((m for m in modelli if 'disdetta' in m.nome.lower()), modelli[0] if modelli else None)
+
+    context = {
+        **admin.site.each_context(request),
+        'title': 'Gestione Procedure Operative',
+        'tab_attivo': tab_attivo,
+        'stato_filter': stato_filter,
+        'q': q,
+        'cliente_filter': int(cliente_filter) if cliente_filter.isdigit() else None,
+        'modello_filter': int(modello_filter) if modello_filter.isdigit() else None,
+        'avvia_cliente_id': int(avvia_cliente_id) if avvia_cliente_id.isdigit() else None,
+        'avvia_modello_id': int(avvia_modello_id) if avvia_modello_id.isdigit() else (modello_disdetta.id if modello_disdetta else None),
+        'pratica_focus_id': int(pratica_focus_id) if pratica_focus_id.isdigit() else None,
+        'modelli': modelli,
+        'pratiche': pratiche,
+        'clienti': clienti,
+        'dipendenti': dipendenti,
+        'totale_pratiche': totale_pratiche,
+        'pratiche_in_corso': pratiche_in_corso,
+        'pratiche_completate': pratiche_completate,
+        'totale_modelli': len(modelli),
+        'oggi_iso': timezone.localdate().strftime('%Y-%m-%d'),
+    }
+    return render(request, 'core/procedure.html', context)
+
+
+@csrf_exempt
+def gestione_procedure_api(request):
+    """
+    Endpoint API JSON per tutte le operazioni sulle Procedure (Modelli e Pratiche Avviate):
+    - Aggiunta, modifica, rimozione e riordino passaggi sia nei Modelli sia nelle Pratiche.
+    - Spunta dei passaggi completati e salvataggio note operative.
+    - Avvio di una nuova procedura per un cliente e creazione di nuovi modelli di procedura.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
+    if not request.user.is_staff and not request.session.get('titolare_id'):
+        return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
+
+    from .models import (
+        ModelloProcedura, PassoModelloProcedura,
+        ProceduraAvviata, PassoProceduraAvviata,
+        Cliente, Dipendente, DEFAULT_PROCEDURE, ensure_default_procedure,
+    )
+    from datetime import datetime
+
+    try:
+        data = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        data = request.POST.dict()
+
+    action = (data.get('action') or '').strip()
+
+    try:
+        # ------------------------------------------------------------------
+        # 1. AVVIA UNA NUOVA PROCEDURA (PRATICA)
+        # ------------------------------------------------------------------
+        if action == 'avvia_procedura':
+            modello_id = data.get('modello_id')
+            cliente_id = data.get('cliente_id')
+            dipendente_id = data.get('dipendente_id')
+            titolo = (data.get('titolo') or '').strip()
+            note = (data.get('note') or '').strip()
+            data_avvio_str = (data.get('data_avvio') or '').strip()
+            data_scadenza_str = (data.get('data_scadenza') or '').strip()
+
+            modello = ModelloProcedura.objects.filter(pk=modello_id).first() if modello_id else None
+            cliente = Cliente.objects.filter(pk=cliente_id).first() if cliente_id else None
+            dipendente = Dipendente.objects.filter(pk=dipendente_id).first() if dipendente_id else None
+
+            if not modello and not titolo:
+                return JsonResponse({'ok': False, 'error': 'Seleziona una procedura o inserisci un titolo.'}, status=400)
+
+            if not titolo:
+                if modello and cliente:
+                    titolo = f"{modello.nome} - {cliente.ragione_sociale}"
+                elif modello:
+                    titolo = modello.nome
+
+            data_avvio = timezone.localdate()
+            if data_avvio_str:
+                try:
+                    data_avvio = datetime.strptime(data_avvio_str, '%Y-%m-%d').date()
+                except ValueError:
+                    pass
+
+            data_scadenza = None
+            if data_scadenza_str:
+                try:
+                    data_scadenza = datetime.strptime(data_scadenza_str, '%Y-%m-%d').date()
+                except ValueError:
+                    pass
+
+            pratica = ProceduraAvviata.objects.create(
+                modello=modello,
+                titolo=titolo,
+                cliente=cliente,
+                dipendente=dipendente,
+                stato='IN_CORSO',
+                data_avvio=data_avvio,
+                data_scadenza=data_scadenza,
+                note=note,
+            )
+            if modello:
+                pratica.copia_passaggi_da_modello()
+
+            # Eventuali passaggi extra passati direttamente in creazione
+            passaggi_extra = data.get('passaggi_extra') or []
+            if isinstance(passaggi_extra, list) and passaggi_extra:
+                base_ord = pratica.passaggi.count()
+                for idx, p_item in enumerate(passaggi_extra, start=base_ord + 1):
+                    p_titolo = (p_item.get('titolo') if isinstance(p_item, dict) else str(p_item)).strip()
+                    p_desc = (p_item.get('descrizione', '') if isinstance(p_item, dict) else '').strip()
+                    if p_titolo:
+                        PassoProceduraAvviata.objects.create(
+                            procedura=pratica,
+                            ordine=idx,
+                            titolo=p_titolo,
+                            descrizione=p_desc,
+                        )
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Procedura "{pratica.titolo}" avviata con successo.',
+                'pratica': _serialize_pratica(pratica),
+            })
+
+        # ------------------------------------------------------------------
+        # 2. SPUNTA / DESPUNTA PASSAGGIO DI UNA PRATICA AVVIATA
+        # ------------------------------------------------------------------
+        elif action == 'toggle_passo_pratica':
+            passo_id = data.get('passo_id')
+            passo = PassoProceduraAvviata.objects.select_related('procedura').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Passaggio non trovato.'}, status=404)
+
+            if 'completato' in data and data.get('completato') is not None:
+                passo.completato = bool(data.get('completato'))
+            else:
+                passo.completato = not passo.completato
+
+            passo.data_completamento = timezone.now() if passo.completato else None
+            passo.save(update_fields=['completato', 'data_completamento'])
+
+            pratica = passo.procedura
+            pratica.ricalcola_stato()
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Punto #{passo.ordine} {"completato ✅" if passo.completato else "riaperto"}.',
+                'pratica': _serialize_pratica(pratica),
+            })
+
+        # ------------------------------------------------------------------
+        # 3. AGGIUNGI UN NUOVO PUNTO A UNA PRATICA IN CORSO
+        # ------------------------------------------------------------------
+        elif action == 'aggiungi_passo_pratica':
+            pratica_id = data.get('pratica_id')
+            titolo = (data.get('titolo') or '').strip()
+            descrizione = (data.get('descrizione') or '').strip()
+            salva_anche_nel_modello = bool(data.get('salva_anche_nel_modello', False))
+
+            if not titolo:
+                return JsonResponse({'ok': False, 'error': 'Inserisci il titolo del nuovo punto.'}, status=400)
+
+            pratica = ProceduraAvviata.objects.filter(pk=pratica_id).first()
+            if not pratica:
+                return JsonResponse({'ok': False, 'error': 'Procedura non trovata.'}, status=404)
+
+            nuovo_ordine = pratica.passaggi.count() + 1
+            PassoProceduraAvviata.objects.create(
+                procedura=pratica,
+                ordine=nuovo_ordine,
+                titolo=titolo,
+                descrizione=descrizione,
+                completato=False,
+            )
+            pratica.riordina_passaggi()
+            pratica.ricalcola_stato()
+
+            modello_serializzato = None
+            if salva_anche_nel_modello and pratica.modello:
+                ord_mod = pratica.modello.passaggi.count() + 1
+                PassoModelloProcedura.objects.create(
+                    modello=pratica.modello,
+                    ordine=ord_mod,
+                    titolo=titolo,
+                    descrizione=descrizione,
+                    obbligatorio=True,
+                )
+                pratica.modello.riordina_passaggi()
+                modello_serializzato = _serialize_modello(pratica.modello)
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Nuovo punto "{titolo}" aggiunto alla procedura.',
+                'pratica': _serialize_pratica(pratica),
+                'modello': modello_serializzato,
+            })
+
+        # ------------------------------------------------------------------
+        # 4. MODIFICA UN PUNTO DI UNA PRATICA (titolo, descrizione, note)
+        # ------------------------------------------------------------------
+        elif action == 'modifica_passo_pratica':
+            passo_id = data.get('passo_id')
+            passo = PassoProceduraAvviata.objects.select_related('procedura').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Passaggio non trovato.'}, status=404)
+
+            if 'titolo' in data:
+                nuovo_titolo = (data.get('titolo') or '').strip()
+                if not nuovo_titolo:
+                    return JsonResponse({'ok': False, 'error': 'Il titolo del punto non può essere vuoto.'}, status=400)
+                passo.titolo = nuovo_titolo
+            if 'descrizione' in data:
+                passo.descrizione = (data.get('descrizione') or '').strip()
+            if 'note_esecuzione' in data:
+                passo.note_esecuzione = (data.get('note_esecuzione') or '').strip()
+
+            passo.save()
+            return JsonResponse({
+                'ok': True,
+                'message': f'Punto #{passo.ordine} aggiornato.',
+                'pratica': _serialize_pratica(passo.procedura),
+            })
+
+        # ------------------------------------------------------------------
+        # 5. ELIMINA UN PUNTO DA UNA PRATICA
+        # ------------------------------------------------------------------
+        elif action == 'elimina_passo_pratica':
+            passo_id = data.get('passo_id')
+            passo = PassoProceduraAvviata.objects.select_related('procedura').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Passaggio non trovato.'}, status=404)
+
+            pratica = passo.procedura
+            titolo_rimosso = passo.titolo
+            passo.delete()
+            pratica.riordina_passaggi()
+            pratica.ricalcola_stato()
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Punto "{titolo_rimosso}" rimosso dalla procedura.',
+                'pratica': _serialize_pratica(pratica),
+            })
+
+        # ------------------------------------------------------------------
+        # 6. SPOSTA SU / GIÙ UN PUNTO DI UNA PRATICA
+        # ------------------------------------------------------------------
+        elif action == 'sposta_passo_pratica':
+            passo_id = data.get('passo_id')
+            direzione = (data.get('direzione') or '').strip().lower()
+            passo = PassoProceduraAvviata.objects.select_related('procedura').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Passaggio non trovato.'}, status=404)
+
+            pratica = passo.procedura
+            passaggi = list(pratica.passaggi.all().order_by('ordine', 'id'))
+            idx = next((i for i, p in enumerate(passaggi) if p.id == passo.id), None)
+            if idx is not None:
+                if direzione == 'up' and idx > 0:
+                    passaggi[idx], passaggi[idx - 1] = passaggi[idx - 1], passaggi[idx]
+                elif direzione == 'down' and idx < len(passaggi) - 1:
+                    passaggi[idx], passaggi[idx + 1] = passaggi[idx + 1], passaggi[idx]
+
+                for nuovo_idx, item in enumerate(passaggi, start=1):
+                    if item.ordine != nuovo_idx:
+                        item.ordine = nuovo_idx
+                        item.save(update_fields=['ordine'])
+
+            return JsonResponse({
+                'ok': True,
+                'message': 'Ordine dei punti aggiornato.',
+                'pratica': _serialize_pratica(pratica),
+            })
+
+        # ------------------------------------------------------------------
+        # 7. MODIFICA / CAMBIA STATO / ELIMINA PRATICA
+        # ------------------------------------------------------------------
+        elif action == 'modifica_pratica':
+            pratica_id = data.get('pratica_id')
+            pratica = ProceduraAvviata.objects.filter(pk=pratica_id).first()
+            if not pratica:
+                return JsonResponse({'ok': False, 'error': 'Pratica non trovata.'}, status=404)
+
+            if 'titolo' in data and (data.get('titolo') or '').strip():
+                pratica.titolo = data.get('titolo').strip()
+            if 'note' in data:
+                pratica.note = (data.get('note') or '').strip()
+            if 'cliente_id' in data:
+                cid = data.get('cliente_id')
+                pratica.cliente = Cliente.objects.filter(pk=cid).first() if cid else None
+            if 'dipendente_id' in data:
+                did = data.get('dipendente_id')
+                pratica.dipendente = Dipendente.objects.filter(pk=did).first() if did else None
+            if 'data_scadenza' in data:
+                ds = (data.get('data_scadenza') or '').strip()
+                if ds:
+                    try:
+                        pratica.data_scadenza = datetime.strptime(ds, '%Y-%m-%d').date()
+                    except ValueError:
+                        pass
+                else:
+                    pratica.data_scadenza = None
+            if 'stato' in data and data.get('stato') in ('IN_CORSO', 'COMPLETATA', 'ANNULLATA'):
+                pratica.stato = data.get('stato')
+                if pratica.stato == 'COMPLETATA' and not pratica.data_completamento:
+                    pratica.data_completamento = timezone.now()
+                elif pratica.stato != 'COMPLETATA':
+                    pratica.data_completamento = None
+
+            pratica.save()
+            return JsonResponse({
+                'ok': True,
+                'message': 'Pratica aggiornata.',
+                'pratica': _serialize_pratica(pratica),
+            })
+
+        elif action == 'elimina_pratica':
+            pratica_id = data.get('pratica_id')
+            pratica = ProceduraAvviata.objects.filter(pk=pratica_id).first()
+            if not pratica:
+                return JsonResponse({'ok': False, 'error': 'Pratica non trovata.'}, status=404)
+            titolo = pratica.titolo
+            pratica.delete()
+            return JsonResponse({
+                'ok': True,
+                'message': f'Pratica "{titolo}" eliminata.',
+                'deleted_id': pratica_id,
+            })
+
+        # ==================================================================
+        # AZIONI SUI MODELLI DI PROCEDURA (CATALOGO STANDARD)
+        # ==================================================================
+
+        # ------------------------------------------------------------------
+        # 8. CREA UN NUOVO MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'crea_modello':
+            nome = (data.get('nome') or '').strip()
+            categoria = (data.get('categoria') or 'Operativa / Contrattuale').strip()
+            descrizione = (data.get('descrizione') or '').strip()
+            passaggi_raw = data.get('passaggi') or []
+
+            if not nome:
+                return JsonResponse({'ok': False, 'error': 'Inserisci il nome della procedura.'}, status=400)
+            if ModelloProcedura.objects.filter(nome__iexact=nome).exists():
+                return JsonResponse({'ok': False, 'error': f'Esiste già una procedura chiamata "{nome}".'}, status=400)
+
+            modello = ModelloProcedura.objects.create(
+                nome=nome,
+                categoria=categoria or 'Operativa / Contrattuale',
+                descrizione=descrizione,
+                ordine=ModelloProcedura.objects.count() + 1,
+                attivo=True,
+            )
+
+            if isinstance(passaggi_raw, str):
+                # Supporto inserimento rapido multilinea (un punto per riga)
+                lines = [ln.strip() for ln in passaggi_raw.splitlines() if ln.strip()]
+                passaggi_raw = [{'titolo': ln, 'descrizione': ''} for ln in lines]
+
+            if isinstance(passaggi_raw, list):
+                for idx, item in enumerate(passaggi_raw, start=1):
+                    if isinstance(item, dict):
+                        p_titolo = (item.get('titolo') or '').strip()
+                        p_desc = (item.get('descrizione') or '').strip()
+                    else:
+                        p_titolo = str(item).strip()
+                        p_desc = ''
+                    if p_titolo:
+                        PassoModelloProcedura.objects.create(
+                            modello=modello,
+                            ordine=idx,
+                            titolo=p_titolo,
+                            descrizione=p_desc,
+                            obbligatorio=True,
+                        )
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Modello di procedura "{modello.nome}" creato con successo.',
+                'modello': _serialize_modello(modello),
+            })
+
+        # ------------------------------------------------------------------
+        # 9. MODIFICA TESTATA DI UN MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'modifica_modello':
+            modello_id = data.get('modello_id')
+            modello = ModelloProcedura.objects.filter(pk=modello_id).first()
+            if not modello:
+                return JsonResponse({'ok': False, 'error': 'Modello di procedura non trovato.'}, status=404)
+
+            if 'nome' in data:
+                nuovo_nome = (data.get('nome') or '').strip()
+                if not nuovo_nome:
+                    return JsonResponse({'ok': False, 'error': 'Il nome della procedura non può essere vuoto.'}, status=400)
+                modello.nome = nuovo_nome
+            if 'categoria' in data:
+                modello.categoria = (data.get('categoria') or 'Operativa / Contrattuale').strip()
+            if 'descrizione' in data:
+                modello.descrizione = (data.get('descrizione') or '').strip()
+
+            modello.save()
+            return JsonResponse({
+                'ok': True,
+                'message': f'Procedura "{modello.nome}" aggiornata.',
+                'modello': _serialize_modello(modello),
+            })
+
+        # ------------------------------------------------------------------
+        # 10. ELIMINA UN MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'elimina_modello':
+            modello_id = data.get('modello_id')
+            modello = ModelloProcedura.objects.filter(pk=modello_id).first()
+            if not modello:
+                return JsonResponse({'ok': False, 'error': 'Modello non trovato.'}, status=404)
+            nome = modello.nome
+            modello.delete()
+            return JsonResponse({
+                'ok': True,
+                'message': f'Modello "{nome}" eliminato.',
+                'deleted_id': modello_id,
+            })
+
+        # ------------------------------------------------------------------
+        # 11. AGGIUNGI UN PUNTO A UN MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'aggiungi_passo_modello':
+            modello_id = data.get('modello_id')
+            titolo = (data.get('titolo') or '').strip()
+            descrizione = (data.get('descrizione') or '').strip()
+            propaga_in_corso = bool(data.get('propaga_in_corso', True))
+
+            if not titolo:
+                return JsonResponse({'ok': False, 'error': 'Inserisci il titolo del punto da aggiungere.'}, status=400)
+
+            modello = ModelloProcedura.objects.filter(pk=modello_id).first()
+            if not modello:
+                return JsonResponse({'ok': False, 'error': 'Modello di procedura non trovato.'}, status=404)
+
+            nuovo_ordine = modello.passaggi.count() + 1
+            PassoModelloProcedura.objects.create(
+                modello=modello,
+                ordine=nuovo_ordine,
+                titolo=titolo,
+                descrizione=descrizione,
+                obbligatorio=True,
+            )
+            modello.riordina_passaggi()
+
+            pratiche_aggiornate = []
+            if propaga_in_corso:
+                for pratica in modello.procedure_avviate.filter(stato='IN_CORSO'):
+                    if not pratica.passaggi.filter(titolo__iexact=titolo).exists():
+                        PassoProceduraAvviata.objects.create(
+                            procedura=pratica,
+                            ordine=pratica.passaggi.count() + 1,
+                            titolo=titolo,
+                            descrizione=descrizione,
+                            completato=False,
+                        )
+                        pratica.riordina_passaggi()
+                        pratica.ricalcola_stato()
+                        pratiche_aggiornate.append(_serialize_pratica(pratica))
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Punto "{titolo}" aggiunto a "{modello.nome}".',
+                'modello': _serialize_modello(modello),
+                'pratiche_aggiornate': pratiche_aggiornate,
+            })
+
+        # ------------------------------------------------------------------
+        # 12. MODIFICA UN PUNTO DI UN MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'modifica_passo_modello':
+            passo_id = data.get('passo_id')
+            passo = PassoModelloProcedura.objects.select_related('modello').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Punto del modello non trovato.'}, status=404)
+
+            vecchio_titolo = passo.titolo
+            nuovo_titolo = (data.get('titolo') or passo.titolo).strip()
+            if not nuovo_titolo:
+                return JsonResponse({'ok': False, 'error': 'Il titolo non può essere vuoto.'}, status=400)
+
+            passo.titolo = nuovo_titolo
+            if 'descrizione' in data:
+                passo.descrizione = (data.get('descrizione') or '').strip()
+            passo.save()
+
+            pratiche_aggiornate = []
+            if bool(data.get('propaga_in_corso', True)):
+                for pratica in passo.modello.procedure_avviate.filter(stato='IN_CORSO'):
+                    updated = pratica.passaggi.filter(titolo__iexact=vecchio_titolo).update(
+                        titolo=passo.titolo,
+                        descrizione=passo.descrizione,
+                    )
+                    if updated:
+                        pratiche_aggiornate.append(_serialize_pratica(pratica))
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Punto #{passo.ordine} aggiornato.',
+                'modello': _serialize_modello(passo.modello),
+                'pratiche_aggiornate': pratiche_aggiornate,
+            })
+
+        # ------------------------------------------------------------------
+        # 13. ELIMINA UN PUNTO DA UN MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'elimina_passo_modello':
+            passo_id = data.get('passo_id')
+            propaga_in_corso = bool(data.get('propaga_in_corso', True))
+            passo = PassoModelloProcedura.objects.select_related('modello').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Punto non trovato.'}, status=404)
+
+            modello = passo.modello
+            titolo_rimosso = passo.titolo
+            passo.delete()
+            modello.riordina_passaggi()
+
+            pratiche_aggiornate = []
+            if propaga_in_corso:
+                for pratica in modello.procedure_avviate.filter(stato='IN_CORSO'):
+                    qs_del = pratica.passaggi.filter(titolo__iexact=titolo_rimosso, completato=False)
+                    if qs_del.exists():
+                        qs_del.delete()
+                        pratica.riordina_passaggi()
+                        pratica.ricalcola_stato()
+                        pratiche_aggiornate.append(_serialize_pratica(pratica))
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'Punto "{titolo_rimosso}" rimosso dal modello "{modello.nome}".',
+                'modello': _serialize_modello(modello),
+                'pratiche_aggiornate': pratiche_aggiornate,
+            })
+
+        # ------------------------------------------------------------------
+        # 14. SPOSTA SU / GIÙ UN PUNTO DI UN MODELLO DI PROCEDURA
+        # ------------------------------------------------------------------
+        elif action == 'sposta_passo_modello':
+            passo_id = data.get('passo_id')
+            direzione = (data.get('direzione') or '').strip().lower()
+            passo = PassoModelloProcedura.objects.select_related('modello').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Punto non trovato.'}, status=404)
+
+            modello = passo.modello
+            passaggi = list(modello.passaggi.all().order_by('ordine', 'id'))
+            idx = next((i for i, p in enumerate(passaggi) if p.id == passo.id), None)
+            if idx is not None:
+                if direzione == 'up' and idx > 0:
+                    passaggi[idx], passaggi[idx - 1] = passaggi[idx - 1], passaggi[idx]
+                elif direzione == 'down' and idx < len(passaggi) - 1:
+                    passaggi[idx], passaggi[idx + 1] = passaggi[idx + 1], passaggi[idx]
+
+                for nuovo_idx, item in enumerate(passaggi, start=1):
+                    if item.ordine != nuovo_idx:
+                        item.ordine = nuovo_idx
+                        item.save(update_fields=['ordine'])
+
+            return JsonResponse({
+                'ok': True,
+                'message': 'Ordine dei punti aggiornato.',
+                'modello': _serialize_modello(modello),
+            })
+
+        # ------------------------------------------------------------------
+        # 15. RIPRISTINA I 6 PUNTI PREDEFINITI DELLA "DISDETTA DI UN CONTRATTO"
+        # ------------------------------------------------------------------
+        elif action == 'ripristina_default_disdetta':
+            ensure_default_procedure()
+            proc_def = DEFAULT_PROCEDURE[0]
+            modello = ModelloProcedura.objects.filter(nome__iexact=proc_def['nome']).first()
+            if not modello:
+                modello = ModelloProcedura.objects.create(
+                    nome=proc_def['nome'],
+                    categoria=proc_def['categoria'],
+                    descrizione=proc_def['descrizione'],
+                    ordine=1,
+                    attivo=True,
+                )
+            modello.passaggi.all().delete()
+            for idx, (titolo_p, desc_p) in enumerate(proc_def['passaggi'], start=1):
+                PassoModelloProcedura.objects.create(
+                    modello=modello,
+                    ordine=idx,
+                    titolo=titolo_p,
+                    descrizione=desc_p,
+                    obbligatorio=True,
+                )
+            return JsonResponse({
+                'ok': True,
+                'message': 'I 6 punti predefiniti della procedura "Disdetta di un contratto" sono stati ripristinati.',
+                'modello': _serialize_modello(modello),
+            })
+
+        else:
+            return JsonResponse({'ok': False, 'error': f'Azione non riconosciuta: {action}'}, status=400)
+
+    except Exception as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
+
 

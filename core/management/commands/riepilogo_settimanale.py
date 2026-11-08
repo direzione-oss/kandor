@@ -39,7 +39,7 @@ class Command(BaseCommand):
         # --- Ore totali registrate ---
         from django.db.models import Sum
         ore_result = TimeTracking.objects.filter(
-            timestamp__date__gte=lun, timestamp__date__lte=ven
+            assegnazione__turno__data__gte=lun, assegnazione__turno__data__lte=ven
         ).aggregate(tot=Sum('ore_dichiarate'))
         ore_tot = round(ore_result['tot'] or 0, 1)
 
@@ -67,7 +67,7 @@ class Command(BaseCommand):
             f"\u23f1 Ore registrate: <b>{ore_tot}h</b>\n"
             f"\U0001f504 Sostituzioni: <b>{n_sost_ok}</b> risolte, <b>{n_sost_fail}</b> fallite\n"
             f"\U0001f912 Assenze: <b>{n_malattia}</b> malattia | <b>{n_ferie}</b> ferie | <b>{n_permesso}</b> permesso\n\n"
-            f"\U0001f517 <a href='https://kandor.onrender.com/titolari/'>Apri Dashboard Supervisione</a>"
+            f"\U0001f517 <a href='https://kandor.187.126.30.207.sslip.io/titolari/'>Apri Dashboard Supervisione</a>"
         )
 
         notifica_titolari(msg)

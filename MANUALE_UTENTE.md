@@ -1,10 +1,10 @@
 # 📘 KANDOR — Manuale d'Uso Completo e Guida Operativa
 
-> **Versione**: 3.0  
-> **Ultimo aggiornamento**: Ottobre 2026 (Centro IA & Automazioni Smart a Costo Zero `/ia-hub/`, Assistente Vocale/Testuale NLP, Smart Sostituzioni 0–100, Gestione Salto Turno "Non Sostituito", Web App Mobile Dipendenti con PIN 4 cifre, Corsi Sicurezza & Scadenze ZTL Città Alta)  
-> **Applicazione Web Gestionale**: [kandor.onrender.com](https://kandor.onrender.com)  
-> **Centro IA & Automazioni Smart**: [kandor.onrender.com/ia-hub/](https://kandor.onrender.com/ia-hub/)  
-> **Web App Mobile Dipendenti**: [kandor.onrender.com/app/](https://kandor.onrender.com/app/)  
+> **Versione**: 3.1  
+> **Ultimo aggiornamento**: 30 Ottobre 2026 (Selettore Rapido Mese/Settimana e Calendario Popover `🗓️ Mese ▾`, Inserimento e Validazione Diretta delle Ore da Amministrazione nel Modale Turno, Gestione Assenze e Sostituti nel Modale Turno, Preservazione Storico Turni Passati e Cedolini Chiusi per Squadre Eliminate e Dipendenti Licenziati/Inattivi, Contratto Part-Time `M`/`V`/`O`, 10 Corsi Sicurezza con Calcolo Automatico Scadenza, Scadenze ZTL Città Alta, Centro IA `/ia-hub/` con Barra Unificata Kandor Portal, Chat & Cedolini PDF)  
+> **Applicazione Web Gestionale**: [kandor.187.126.30.207.sslip.io](https://kandor.187.126.30.207.sslip.io)  
+> **Centro IA & Automazioni Smart**: [kandor.187.126.30.207.sslip.io/ia-hub/](https://kandor.187.126.30.207.sslip.io/ia-hub/)  
+> **Web App Mobile Dipendenti**: [kandor.187.126.30.207.sslip.io/app/](https://kandor.187.126.30.207.sslip.io/app/)  
 > **Sistema ERP per Imprese di Pulizie e Facility Management**
 
 ---
@@ -63,7 +63,7 @@ Con Kandor l'azienda ottiene:
 ### Requisiti Tecnici
 - **Browser consigliati**: Google Chrome, Mozilla Firefox, Microsoft Edge o Apple Safari (versione aggiornata).
 - **Connessione**: Connessione Internet attiva per l'utilizzo Cloud su Render, oppure rete locale in caso di installazione desktop locale.
-- **Dispositivi Mobili**: Qualsiasi smartphone Android o iOS tramite browser (`https://kandor.onrender.com/app/`) e/o l'app gratuita Telegram (`@kandor_gestionale_bot`).
+- **Dispositivi Mobili**: Qualsiasi smartphone Android o iOS tramite browser (`https://kandor.187.126.30.207.sslip.io/app/`) e/o l'app gratuita Telegram (`@kandor_gestionale_bot`).
 
 ---
 
@@ -71,7 +71,7 @@ Con Kandor l'azienda ottiene:
 
 ### Accesso alla Piattaforma Cloud
 L'indirizzo di riferimento per accedere al gestionale da qualsiasi postazione web è:
-👉 **[https://kandor.onrender.com](https://kandor.onrender.com)**
+👉 **[https://kandor.187.126.30.207.sslip.io](https://kandor.187.126.30.207.sslip.io)**
 
 Qualora l'utente non sia ancora autenticato, il sistema reindirizzerà automaticamente alla pagina di Login protetta.
 
@@ -157,15 +157,31 @@ Il modulo Dipendenti censisce tutti i lavoratori aziendali, raccogliendo le info
      - Nella lista generale **Dipendenti**, la colonna **`🔑 PIN & App`** mostra in chiaro il PIN di 4 cifre di ciascun lavoratore insieme al pulsante rapido **`📲 App`** per aprire l'anteprima della Web App Mobile.  
      - **Rigenerazione Multipla del PIN**: Selezionando uno o più dipendenti nella lista e scegliendo dal menu *Azione* in alto **"🔑 Rigenera PIN 4 cifre (App Mobile)"**, il sistema assegna istantaneamente un nuovo PIN casuale.
    - **Telegram Chat ID**: Inserisci l'identificativo univoco dell'account Telegram del dipendente (opzionale se il lavoratore utilizza la Web App Mobile `/app/`).
-4. **Competenze, Sostituzioni e Sorveglianza Sanitaria**:
+4. **Competenze, Contratto Part-Time (`M` / `V` / `O`), Sostituzioni e Sorveglianza Sanitaria**:
+   - **Tipologia Contratto e Part-Time**: Spuntando la casella **"Contratto Part-Time"** (`is_part_time`), diventa obbligatorio selezionare il **Tipo Part-Time** (`tipo_part_time`) tra:
+     - **`M` — Part-Time Misto**
+     - **`V` — Part-Time Verticale**
+     - **`O` — Part-Time Orizzontale**
+     *(Se si salva con "Contratto Part-Time" attivo senza specificare il tipo `M`, `V` o `O`, il form mostra un avviso di validazione invitando a selezionarlo).*
    - Seleziona le **Qualifiche Possedute** nella lista a scelta multipla (es. Pulizie Industriali, Uso Monospazzola, Trattamento Cotto).
    - Se il lavoratore è disponibile a coprire i turni dei colleghi assenti, spunta la casella **"Disponibile come Sostituto"**.
    - **Prossima scadenza visita medica**: Inserisci la data della prossima visita medica periodica obbligatoria. Il sistema attiverà automaticamente un alert nella Dashboard principale **20 giorni prima** della scadenza (ed evidenzierà in rosso le visite eventualmente scadute, bloccando o segnalando eventuali anomalie anche nel modulo *Compliance Guardian IA*).
-5. **Corsi di Formazione e Sicurezza (D.Lgs. 81/08)**:
-   - In fondo alla scheda del dipendente (oppure dalla voce dedicata **Corsi Dipendenti** in Dashboard) sono presenti i 10 corsi di formazione standard del settore (*Corso sicurezza generale*, *Corso Specifico Basso Rischio*, *Movimentazione manuale carichi*, *DPI 3 lavori in quota*, *RLS*, *Preposto*, *Primo soccorso*, *Piattaforme mobili (PLE)*, *HACCP*, *Antincendio livello 2*).
-   - **Calcolo Automatico della Scadenza**: Impostando lo stato su **`✅ Fatto`** e inserendo la **Data di Esecuzione**, Kandor calcola e compila **automaticamente la Data di Scadenza** dell'attestato sommando gli anni di validità previsti dal catalogo, attivando il monitoraggio nel widget Scadenze della Dashboard, nel modulo *Compliance Guardian IA* e nel profilo della Web App del dipendente.
-6. **Stato Operativo**:
-   - Imposta lo stato su **Attivo** per i lavoratori in servizio regolare. Gli altri stati (In Malattia, In Ferie, In Permesso, Legge 104, Licenziato/Inattivo) vengono aggiornati automaticamente dal sistema o dall'amministrazione.
+5. **Corsi di Formazione e Sicurezza (D.Lgs. 81/08) con Calcolo Automatico Scadenza**:
+   - In fondo alla scheda del dipendente (oppure dalla voce dedicata **Corsi Dipendenti** in Dashboard) sono precaricati i **10 corsi di formazione standard** con le rispettive durate di legge:
+     1. *Corso sicurezza generale* (5 anni)
+     2. *Corso Specifico Basso Rischio* (5 anni)
+     3. *Movimentazione manuale dei carichi* (5 anni)
+     4. *DPI 3 lavori in quota* (5 anni)
+     5. *RLS* (5 anni)
+     6. *Preposto* (2 anni)
+     7. *Primo soccorso* (3 anni)
+     8. *Piattaforme mobili (PLE)* (5 anni)
+     9. *HACCP* (5 anni)
+     10. *Antincendio livello 2* (5 anni)
+   - **Calcolo Automatico della Scadenza**: Impostando lo stato su **`✅ Fatto`** e inserendo la **Data di Esecuzione**, Kandor calcola e compila **automaticamente la Data di Scadenza** dell'attestato sommando gli anni di validità previsti dal catalogo (con gestione automatica anche degli anni bisestili), attivando il monitoraggio nel widget Scadenze della Dashboard (**20 giorni prima** della scadenza), nel modulo *Compliance Guardian IA* e nel profilo della Web App del dipendente.
+6. **Stato Operativo, Data Licenziamento e Tutela dello Storico Cedolini**:
+   - Imposta lo stato su **Attivo** per i lavoratori in servizio regolare.
+   - **Passaggio a Inattivo o Inserimento Data di Licenziamento**: Quando un lavoratore cessa il rapporto di lavoro (stato impostato su **Inattivo** e/o compilazione della **Data di Licenziamento**), Kandor **rimuove automaticamente il lavoratore soltanto dai turni futuri** (successivi ad oggi o alla data di licenziamento), **preservando integralmente tutti i turni passati, le timbrature (`TimeTracking`) e le assenze storiche**. In questo modo i cedolini paga dei mesi passati e del mese di cessazione rimangono completi ed esportabili in `/report-paghe/`.
 7. Clicca **"Salva"** in basso a destra.
 
 ---
@@ -256,6 +272,10 @@ Raggruppamento organizzativo dei dipendenti che lavorano abitualmente insieme ne
 ### Funzionalità Speciale: Messaggio di Gruppo alla Squadra
 Dalla lista delle squadre, selezionando una squadra e scegliendo dal menu in basso **"💬 Invia Messaggio alla Squadra"**, l'amministrazione può inviare istantaneamente una comunicazione (Telegram + Web App) a tutti i componenti della squadra contemporaneamente.
 
+### Protezione dello Storico Turni Passati in caso di Modifica o Eliminazione Squadra
+- **Modifica Componenti della Squadra**: Quando aggiungi o rimuovi operatori da una squadra esistente, Kandor aggiorna i componenti solo per i turni correnti e futuri, **senza mai alterare i turni dei mesi passati (cedolini chiusi)**.
+- **Eliminazione di una Squadra**: Se elimini una squadra non più operativa, il sistema **cancella unicamente i turni futuri non ancora svolti**, mentre **conserva intatti tutti i turni passati**, il nome storico della squadra (`nome_squadra`), i componenti presenti e le ore lavorate (`TimeTracking`), garantendo la totale integrità contabile dello storico aziendale.
+
 ---
 
 ## 9. Gestione Responsabili Area (RA)
@@ -282,14 +302,38 @@ Pianificazione delle attività lavorative quotidiane con visualizzazione a calen
 ### Percorso di Navigazione
 👉 **Dashboard** → **Turni** oppure **Pianificazione Settimanale** (Calendario Interattivo)
 
-### Caratteristiche del Calendario Interattivo
+### Caratteristiche del Calendario Interattivo e Navigazione Rapida Mese/Settimana
 - **Vista Oraria Settimanale**: Mostra tutti i turni disposti nei vari giorni della settimana con l'indicazione del cliente, della squadra e degli orari previsti.
-- **Filtri e Navigazione**: Pulsanti ← / → per spostarsi tra le settimane dell'anno, menu a tendina per filtrare per specifica squadra e pulsante **🖨️ Stampa Settimana PDF**.
-- **Badge di Stato delle Ore e delle Sostituzioni**:
-  - 🟢 **Verde (`✅ Validate: Xh`)**: Le ore lavorate sono state verificate e approvate dall'amministrazione.
-  - 🟡 **Giallo / Ambra (`⏳ Provvisorie: Xh`)**: Ore comunicate dal lavoratore via Web App o Telegram ma non ancora convalidate.
-  - 🔴 **Rosso con punto esclamativo (`! In attesa di conferma`)**: Turno passato i cui consuntivi non sono ancora stati confermati.
+- **Selettore Rapido Mese, Settimana e Mini-Calendario Mensile (`🗓️ Mese ▾`)**:
+  - Oltre ai pulsanti **`← PREV`** e **`NEXT →`**, la barra del calendario integra:
+    1. **Menu a tendina del Mese (`📅 Ottobre 2026 ▾`)**: Permette di saltare con un click a qualsiasi mese dell'anno (6 mesi precedenti e 6 mesi successivi).
+    2. **Menu a tendina delle Settimane del Mese (`Sett: 26 Ott - 01 Nov ▾`)**: Elenca tutte le settimane che compongono il mese selezionato per aprirle istantaneamente.
+    3. **Mini-Calendario Mensile Interattivo a Comparsa (`🗓️ Mese ▾`)**: Cliccando sul pulsante blu **`🗓️ Mese ▾`** si apre una griglia mensile interattiva completa (Lunedì–Domenica) con frecce `◀` / `▶` per sfogliare i mesi, evidenziazione della settimana attualmente aperta in blu e del giorno odierno in arancione. Cliccando su qualsiasi giorno del mini-calendario, il sistema apre subito quella settimana **mantenendo attivo l'eventuale filtro per Squadra** selezionato!
+- **Badge di Stato delle Ore, delle Assenze e delle Sostituzioni sulle Card Turno**:
+  - 🟢 **Verde (`✔ Xh`)**: Le ore lavorate sono state verificate e approvate dall'amministrazione.
+  - 🟡 **Giallo / Ambra (`⏳ Xh`)**: Ore comunicate dal lavoratore via Web App o Telegram (o con differenza oraria rispetto al previsto) in attesa di convalida.
+  - 🔴 **Rosso con punto esclamativo (`! Ore mancanti`)**: Turno passato i cui consuntivi non sono ancora stati inseriti; cliccando sulla card l'amministrazione può inserire e validare direttamente le ore.
+  - 🟣 **Viola (`🏥 Malattia` / `🏖️ Ferie` / `🕐 Permesso` / `♿ Legge 104`)**: Indica che i componenti attivi del turno risultano assenti e non è ancora subentrato un sostituto.
   - 🔴 **Bordo/Badge Rosso `⏭️ Non Sostituito (Salto Turno)`**: Indica che un dipendente assente in quel turno non è stato sostituito per decisione dell'ufficio (mostrando il nome dell'assente e la motivazione registrata).
+
+![Calendario Settimanale Turni con Selettore Rapido Mese/Settimana e Mini-Calendario Mensile Popover](screenshots/02_calendario_turni.png)
+
+### Inserimento Diretto Ore da Amministrazione e Gestione Assenze/Sostituti nel Modale "Modifica Turno"
+Cliccando su qualsiasi card turno nel Calendario Settimanale si apre la finestra modale **"✏️ Modifica Turno"**, che permette all'ufficio di gestire tutto da un'unica schermata senza cambiare pagina:
+1. **Gestione Assenze e Sostituti Direttamente nell'Elenco Componenti del Turno**:
+   - Nella sezione **"👥 Dipendenti presenti in questo turno"**, i dipendenti che hanno un'assenza registrata in quella data vengono evidenziati con un riquadro viola, il nome barrato e un badge indicante il tipo e lo stato dell'assenza (es. `🏥 Malattia — In attesa avvallo` oppure `🏖️ Ferie`).
+   - Accanto al dipendente assente compaiono i pulsanti operativi immediati:
+     - **`✅ Valida e Sostituisci`** (se l'assenza è ancora in attesa di avvallo): approva l'assenza con 1 click e apre subito la ricerca del sostituto ordinata per Smart Score IA.
+     - **`👥 Scegli Sostituto`**: apre il selettore dei candidati Jolly disponibili per quel turno.
+     - **`🏢 Conferma / Sostituto`**: permette all'ufficio di confermare direttamente un sostituto già contattato per le vie brevi.
+   - Quando un sostituto è già stato confermato per quel turno, compare nell'elenco con il badge verde **`🔄 SOSTITUTO`** (indicando anche chi sostituisce) e il pulsante rapido per cambiarlo se necessario.
+2. **Sezione "⏱ Ore Lavorate Dichiarate / Inserimento Diretto Amministrazione"**:
+   - Anche quando il lavoratore **non ha ancora inviato le ore** da Telegram o Web App, la sezione delle ore è **sempre visibile e compilabile dall'Amministrazione** (con l'avviso azzurro: *"ℹ️ Il lavoratore non ha ancora inviato le ore: puoi inserirle e validarle direttamente qui dall'amministrazione"*).
+   - Il campo **"Ore effettive"** viene precompilato automaticamente con le ore previste da contratto/turno (es. `4.0`), confrontandole in tempo reale con la durata programmata.
+   - L'amministratore può digitare le ore effettivamente svolte (es. `4.5`), inserire una motivazione o nota nel campo **"📝 Note ore / Motivazione variazione o straordinario"** (es. *"Pulizia straordinaria vetrate ingresso richiesta dal cliente (+0.5h)"*) e cliccare direttamente sul pulsante verde **`✔ Salva e valida ore`**.
+   - **Effetto Immediato**: Kandor crea e convalida automaticamente i record `TimeTracking` (`source='ADMIN'`, `is_validated=True`) per tutti i componenti attivi presenti nel turno (escludendo automaticamente gli assenti/deselezionati e includendo gli eventuali sostituti confermati!) e colora subito la card del turno in **verde (`✔ Validate`)** sul calendario.
+
+![Modale Modifica Turno con Inserimento e Validazione Diretta Ore da Amministrazione e Gestione Assenze/Sostituti](screenshots/06_modale_turno_ore_admin.png)
 
 ### Generazione Automatica dei Turni
 Dalla barra laterale, cliccando su **"⚡ Genera Turni"**, il sistema prende tutte le *Programmazioni Ricorrenti* attive dei clienti e genera automaticamente le assegnazioni per i **prossimi 7 giorni**, evitando la creazione di duplicati.
@@ -525,8 +569,11 @@ Il **Centro IA & Automazioni Smart** raccoglie in un'unica console direzionale t
 > Tutti i calcoli predittivi, le regole di audit, il parser del linguaggio naturale italiano e l'incrocio dei dati girano **localmente nel motore Python di Kandor (`core/ai_engine.py`)** interrogando direttamente il database aziendale, senza dipendere da abbonamenti a pagamento.  
 > In più, il sistema è già predisposto in **modalità ibrida opzionale**: se in futuro viene inserita una chiave gratuita `GEMINI_API_KEY` di Google AI Studio, Kandor attiva automaticamente anche il supporto generativo *Gemini Flash* mantenendo sempre il motore locale come garanzia di funzionamento al 100%.
 
-### Percorso di Navigazione
-👉 **Dashboard Principale** → Pulsante in alto **`🤖 Centro IA & Automazioni`** (oppure direttamente all'indirizzo **`https://kandor.onrender.com/ia-hub/`**)
+### Percorso di Navigazione e Nuova Barra Superiore Unificata "Kandor Portal"
+👉 **Dashboard Principale** → Pulsante in alto **`🤖 Centro IA & Automazioni`** (oppure direttamente all'indirizzo **`https://kandor.187.126.30.207.sslip.io/ia-hub/`**)
+- La pagina del **Centro IA (`/ia-hub/`)** integra ora la barra superiore istituzionale **Kandor Portal** con il Logo ufficiale Kandor, i collegamenti rapidi a **`🏠 Home`**, **`💬 Chat Telegram`**, **`💰 Cedolini Paghe`**, **`Modifica password`** e la barra breadcrumb di navigazione (`Home › Centro IA & Automazioni Smart`).
+
+![Schermata Centro IA & Automazioni Smart (/ia-hub/) con i 5 Moduli e Barra Superiore Kandor Portal](screenshots/07_ia_hub.png)
 
 ### Guida Dettagliata alle 5 Schede del Centro IA
 
@@ -571,7 +618,7 @@ Offre il controllo economico in tempo reale su tutti i cantieri attivi nel mese:
 Fornire a tutti i dipendenti un'applicazione mobile completa (Progressive Web App — PWA), installabile sulla schermata Home dello smartphone (Android e iPhone) **senza bisogno di avere Telegram**, dotata anche di **Assistente Rapido IA con dettatura vocale**.
 
 ### Indirizzo Ufficiale e Credenziali di Accesso
-- **URL per i Dipendenti**: 👉 **[https://kandor.onrender.com/app/](https://kandor.onrender.com/app/)**
+- **URL per i Dipendenti**: 👉 **[https://kandor.187.126.30.207.sslip.io/app/](https://kandor.187.126.30.207.sslip.io/app/)**
 - **Credenziali del Lavoratore**:
   1. **Codice Fiscale** (16 caratteri alfanumerici).
   2. **PIN personale di 4 cifre** (`pin_accesso`), visibile e gestibile dall'amministrazione nella colonna **`🔑 PIN & App`** della lista Dipendenti.
@@ -600,6 +647,8 @@ In cima alla scheda principale **⏱ Oggi & Ore**, il dipendente trova il box **
    - Caricamento/aggiornamento della **Foto Profilo** (con avatar automatico su iniziali in caso di assenza foto).
    - Visualizzazione scadenze della **Visita Medica** e dei **Corsi di Formazione**.
    - **Banner Sostituzioni Urgenti**: Avviso interattivo in cima all'app con i pulsanti **`✅ Accetta Sostituzione`** e **`❌ Rifiuta`**.
+
+![Panoramica Schermate Web App Mobile Dipendenti Kandor (/app/)](screenshots/08_webapp_dipendente.png)
 
 ---
 
@@ -702,7 +751,7 @@ Il pannello informativo destro della Dashboard include widget ad aggiornamento a
 **Risposta**: Quando si apre il modale di sostituzione (o dalla sezione *Richieste Sostituzione*), clicca sul pulsante **"⏭️ Non Sostituito (Salto Turno)"** e inserisci la motivazione. La richiesta verrà chiusa come `NON_SOSTITUITO` e sul calendario il turno apparirà evidenziato in **rosso** con il nome dell'assente non sostituito e la nota inserita.
 
 ### ❓ Un dipendente non ha Telegram. Come può registrare le ore e comunicare con l'ufficio?
-**Risposta**: Può utilizzare la **Web App Mobile Dipendenti** all'indirizzo **`https://kandor.onrender.com/app/`** entrando con il suo **Codice Fiscale** e il **PIN di 4 cifre** visibile nella colonna **`🔑 PIN & App`** della lista Dipendenti. Dall'app può anche usare il microfono dell'**Assistente Rapido IA** per dettare a voce le ore lavorate!
+**Risposta**: Può utilizzare la **Web App Mobile Dipendenti** all'indirizzo **`https://kandor.187.126.30.207.sslip.io/app/`** entrando con il suo **Codice Fiscale** e il **PIN di 4 cifre** visibile nella colonna **`🔑 PIN & App`** della lista Dipendenti. Dall'app può anche usare il microfono dell'**Assistente Rapido IA** per dettare a voce le ore lavorate!
 
 ### ❓ Dove trovo o come cambio il PIN di 4 cifre di un dipendente?
 **Risposta**: Vai in **Dashboard → Dipendenti**: nella tabella vedrai la colonna **`🔑 PIN & App`** con il codice di 4 cifre di ciascun lavoratore. Puoi cambiarlo aprendo la scheda del dipendente oppure rigenerarlo in automatico selezionando il dipendente e usando l'azione **"🔑 Rigenera PIN 4 cifre (App Mobile)"**.
@@ -713,4 +762,4 @@ Il pannello informativo destro della Dashboard include widget ad aggiornamento a
 ---
 
 > **KANDOR ERP** — Gestionale Operativo con Intelligenza Artificiale Integrata per Imprese di Servizi  
-> *Sviluppato da Studio Serra — Versione 3.0 — © 2026*
+> *Sviluppato da Studio Serra — Versione 3.1 (30/10/2026) — © 2026*

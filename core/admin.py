@@ -30,7 +30,9 @@ from .models import (
     ProgrammazioneRicorrente, RichiestaStraordinaria, Assenza,
     ResponsabileArea, RichiestaSostituzione, Titolare, ModificaCedolino,
     CorsoFormazione, CorsoDipendente, calcola_data_scadenza_corso,
-    ensure_default_corsi_formazione, ensure_corsi_per_dipendente
+    ensure_default_corsi_formazione, ensure_corsi_per_dipendente,
+    ModelloProcedura, PassoModelloProcedura, ProceduraAvviata, PassoProceduraAvviata,
+    ensure_default_procedure
 )
 
 @admin.register(ModificaCedolino)
@@ -532,7 +534,7 @@ class DipendenteAdmin(KandorBaseAdmin):
 
         cf = (obj.codice_fiscale or '').strip().upper()
         pin = (obj.pin_accesso or '').strip()
-        base_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://kandor.onrender.com').rstrip('/')
+        base_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
         direct_url = f"{base_url}/app/login/?cf={quote(cf)}&pin={quote(pin)}"
         manual_url = f"{base_url}/app/"
 
@@ -946,10 +948,67 @@ class RichiestaStraordinariaAdmin(KandorBaseAdmin):
 
 @admin.register(Cliente)
 class ClienteAdmin(KandorBaseAdmin):
-    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto')
+    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'procedure_cliente_badge')
     search_fields = ('ragione_sociale', 'partita_iva')
     inlines = [ProgrammazioneInline, StraordinarioInline]
-    actions = ['duplica_per_nuova_sede']
+    actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action']
+
+    @admin.display(description="📋 Procedure / Disdetta")
+    def procedure_cliente_badge(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        pratiche = list(obj.procedure.all()[:3])
+        if not pratiche:
+            return format_html(
+                '<a href="/procedure/?avvia_cliente={}" style="background:#EFF6FF; color:#1D4ED8; border:1px solid #BFDBFE; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">+ Avvia Procedura</a>',
+                obj.pk,
+            )
+        badges = []
+        for p in pratiche:
+            comp = p.passaggi_completati
+            tot = p.totale_passaggi
+            if p.stato == 'COMPLETATA':
+                bg, fg, bd = '#DCFCE7', '#166534', '#86EFAC'
+                icon = '✅'
+            elif p.stato == 'ANNULLATA':
+                bg, fg, bd = '#F1F5F9', '#64748B', '#CBD5E1'
+                icon = '❌'
+            else:
+                bg, fg, bd = '#FEF3C7', '#B45309', '#FDE68A'
+                icon = '⏳'
+            nome_short = (p.modello.nome if p.modello else p.titolo)[:22]
+            badges.append(
+                f'<a href="/procedure/?pratica={p.pk}" style="background:{bg}; color:{fg}; border:1px solid {bd}; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">'
+                f'{icon} {nome_short} ({comp}/{tot})</a>'
+            )
+        badges.append(
+            f'<a href="/procedure/?avvia_cliente={obj.pk}" style="background:#F8FAFC; color:#334155; border:1px solid #CBD5E1; padding:2px 6px; border-radius:6px; font-size:10.5px; font-weight:700; text-decoration:none;" title="Avvia nuova procedura per questo cliente">+</a>'
+        )
+        return mark_safe('<div style="display:inline-flex; gap:4px; flex-wrap:wrap; align-items:center;">' + ''.join(badges) + '</div>')
+
+    @admin.action(description="📋 Avvia procedura 'Disdetta di un contratto' per i clienti selezionati")
+    def avvia_disdetta_action(self, request, queryset):
+        from django.utils import timezone
+        ensure_default_procedure()
+        modello = ModelloProcedura.objects.filter(nome__icontains='Disdetta').first() or ModelloProcedura.objects.filter(attivo=True).first()
+        if not modello:
+            self.message_user(request, "Nessun modello di procedura disponibile.", messages.ERROR)
+            return
+        created_count = 0
+        for cliente in queryset:
+            pratica = ProceduraAvviata.objects.create(
+                modello=modello,
+                cliente=cliente,
+                data_avvio=timezone.now().date(),
+                stato='IN_CORSO',
+            )
+            pratica.copia_passaggi_da_modello()
+            created_count += 1
+        self.message_user(
+            request,
+            f"✅ Avviata procedura '{modello.nome}' per {created_count} cliente/i. Puoi seguire e modificare i passaggi nella sezione Procedure.",
+            messages.SUCCESS,
+        )
     
     def duplica_per_nuova_sede(self, request, queryset):
         """Duplica i clienti selezionati per gestire sedi multiple."""
@@ -1304,4 +1363,128 @@ class RichiestaSostituzioneAdmin(KandorBaseAdmin):
         if errori > 0:
             self.message_user(request, f"⚠️ {errori} richieste non avevano ancora un sostituto selezionato (usa il pulsante '👥 Scegli / Conferma Sostituto').", messages.WARNING)
     conferma_ufficio_selezionate.short_description = "🏢 Conferma dall'Ufficio il sostituto indicato"
+
+
+# ==============================================================================
+# ADMIN PROCEDURE OPERATIVE & CHECKLIST
+# ==============================================================================
+
+class PassoModelloProceduraInline(admin.TabularInline):
+    model = PassoModelloProcedura
+    extra = 1
+    fields = ('ordine', 'titolo', 'descrizione', 'obbligatorio')
+    ordering = ('ordine', 'id')
+    verbose_name = "Punto / Passaggio della Procedura"
+    verbose_name_plural = "📋 Passaggi della Procedura (puoi modificare, aggiungere altri punti o spuntare 'Elimina' per toglierli)"
+
+
+@admin.register(ModelloProcedura)
+class ModelloProceduraAdmin(KandorBaseAdmin):
+    list_display = ('nome', 'categoria', 'riepilogo_passaggi_badge', 'ordine', 'attivo', 'link_hub_procedure')
+    list_editable = ('ordine', 'attivo')
+    list_filter = ('categoria', 'attivo')
+    search_fields = ('nome', 'descrizione', 'passaggi__titolo')
+    inlines = [PassoModelloProceduraInline]
+    ordering = ('ordine', 'nome')
+
+    def changelist_view(self, request, extra_context=None):
+        ensure_default_procedure()
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        if form.instance and form.instance.pk:
+            form.instance.riordina_passaggi()
+
+    @admin.display(description="Passaggi Configurati")
+    def riepilogo_passaggi_badge(self, obj):
+        passi = list(obj.passaggi.order_by('ordine', 'id'))
+        if not passi:
+            return mark_safe('<span style="color:#94A3B8;">Nessun punto</span>')
+        items_html = "".join(
+            f'<span style="background:#F1F5F9; color:#334155; border:1px solid #CBD5E1; padding:2px 7px; border-radius:5px; font-size:11px; font-weight:600; white-space:nowrap;">'
+            f'{p.ordine}) {p.titolo}</span>'
+            for p in passi
+        )
+        return mark_safe(
+            f'<div style="display:flex; flex-wrap:wrap; gap:5px; align-items:center;">'
+            f'<strong style="color:#0F172A; font-size:11.5px; margin-right:4px;">{len(passi)} punti:</strong>{items_html}</div>'
+        )
+
+    @admin.display(description="Gestione Rapida")
+    def link_hub_procedure(self, obj):
+        return format_html(
+            '<a href="/procedure/?tab=modelli&modello={}" style="background:#0F172A; color:#FFF; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">⚙️ Gestisci / Avvia &rarr;</a>',
+            obj.pk,
+        )
+
+
+class PassoProceduraAvviataInline(admin.TabularInline):
+    model = PassoProceduraAvviata
+    extra = 1
+    fields = ('ordine', 'completato', 'titolo', 'descrizione', 'note_esecuzione', 'data_completamento')
+    readonly_fields = ('data_completamento',)
+    ordering = ('ordine', 'id')
+    verbose_name = "Punto / Passaggio"
+    verbose_name_plural = "✅ Checklist Passaggi (spunta i punti completati, aggiungine di nuovi o spunta 'Elimina' per toglierli)"
+
+
+@admin.register(ProceduraAvviata)
+class ProceduraAvviataAdmin(KandorBaseAdmin):
+    list_display = ('titolo', 'modello', 'cliente', 'dipendente', 'avanzamento_badge', 'stato', 'data_avvio', 'data_scadenza', 'apri_checklist_btn')
+    list_filter = ('stato', 'modello', 'data_avvio')
+    search_fields = ('titolo', 'cliente__ragione_sociale', 'dipendente__cognome', 'dipendente__nome', 'note')
+    autocomplete_fields = ('cliente', 'dipendente')
+    inlines = [PassoProceduraAvviataInline]
+    readonly_fields = ('data_completamento', 'created_at', 'updated_at')
+    fieldsets = (
+        ('📋 Dati Procedura', {
+            'fields': (
+                ('modello', 'stato'),
+                'titolo',
+                ('cliente', 'dipendente'),
+                ('data_avvio', 'data_scadenza', 'data_completamento'),
+                'note',
+            ),
+            'description': "Selezionando un Modello Procedura (es. 'Disdetta di un contratto') e salvando, tutti i passaggi vengono creati automaticamente nella checklist sottostante. Puoi sempre aggiungere o togliere punti anche su questa singola pratica."
+        }),
+    )
+
+    def changelist_view(self, request, extra_context=None):
+        ensure_default_procedure()
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        obj = form.instance
+        if obj and obj.pk:
+            if not obj.passaggi.exists() and obj.modello_id:
+                obj.copia_passaggi_da_modello()
+            obj.ricalcola_stato()
+
+    @admin.display(description="Avanzamento")
+    def avanzamento_badge(self, obj):
+        tot = obj.totale_passaggi
+        comp = obj.passaggi_completati
+        perc = obj.percentuale_completamento
+        bg = '#DCFCE7' if (tot > 0 and comp == tot) else '#EFF6FF'
+        fg = '#166534' if (tot > 0 and comp == tot) else '#1D4ED8'
+        bar_col = '#16A34A' if (tot > 0 and comp == tot) else '#2563EB'
+        return format_html(
+            '<div style="display:inline-flex; align-items:center; gap:8px; min-width:130px;">'
+            '  <div style="flex:1; height:8px; background:#E2E8F0; border-radius:99px; overflow:hidden; min-width:60px;">'
+            '    <div style="width:{}%; height:100%; background:{}; border-radius:99px;"></div>'
+            '  </div>'
+            '  <span style="background:{}; color:{}; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; white-space:nowrap;">{}/{} ({}%)</span>'
+            '</div>',
+            perc, bar_col, bg, fg, comp, tot, perc
+        )
+
+    @admin.display(description="Checklist Interattiva")
+    def apri_checklist_btn(self, obj):
+        return format_html(
+            '<a href="/procedure/?pratica={}" style="background:#2563EB; color:#FFF; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">☑️ Apri Checklist &rarr;</a>',
+            obj.pk,
+        )
+
 

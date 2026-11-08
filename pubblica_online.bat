@@ -1,5 +1,5 @@
 @echo off
-title Kandor — Pubblicazione Modifiche Online (Render)
+title Kandor ERP — Pubblicazione Modifiche su VPS (Coolify)
 cd /d "%~dp0"
 if not exist "manage.py" (
     if exist "%USERPROFILE%\Kandor\manage.py" (
@@ -9,7 +9,8 @@ if not exist "manage.py" (
 
 echo.
 echo  ============================================================
-echo    KANDOR - Pubblicazione Modifiche su Render (Produzione)
+echo    KANDOR ERP - Pubblicazione su VPS (187.126.30.207)
+echo    URL: https://kandor.187.126.30.207.sslip.io
 echo  ============================================================
 echo.
 
@@ -19,30 +20,29 @@ echo.
 set /p MSG="Inserisci una breve descrizione delle modifiche (invio per default): "
 
 if "%MSG%"=="" (
-    set MSG=Aggiornamento programma Kandor
+    set MSG=Aggiornamento programma Kandor su VPS
 )
 
 echo.
 echo  1/3 Aggiunta file modificati...
-git add .
+git add -A
 
-echo  2/3 Creazione commit...
+echo  2/3 Creazione commit e invio a GitHub...
 git commit -m "%MSG%"
-
-echo  3/3 Invio aggiornamenti a GitHub e Render...
 git push origin main
+
+echo  3/3 Avvio deploy automatico su VPS Coolify...
+ssh root@187.126.30.207 "/root/deploy_app.sh kandor000000000000000001"
 
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo  ============================================================
-    echo    SUCCESS: Modifiche inviate con successo!
-    echo    Render aggiornera automaticamente il sito online
-    echo    (kandor.onrender.com) in circa 1-2 minuti, applicando
-    echo    anche le nuove migrazioni del database senza perdere dati.
+    echo    SUCCESS: Modifiche inviate e deploy avviato sulla VPS!
+    echo    Sito online: https://kandor.187.126.30.207.sslip.io
     echo  ============================================================
 ) else (
     echo.
-    echo  [ERRORE] Invio fallito. Controlla la connessione o eventuali conflitti Git.
+    echo  [ERRORE] Invio o deploy fallito.
 )
 
 echo.

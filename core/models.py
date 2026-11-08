@@ -1010,6 +1010,316 @@ def ensure_corsi_per_dipendente(dipendente):
         pass
 
 
+# ==============================================================================
+# GESTIONE PROCEDURE OPERATIVE E CHECKLIST (es. Disdetta Contratto, ecc.)
+# ==============================================================================
+
+DEFAULT_PROCEDURE = [
+    {
+        'nome': 'Disdetta di un contratto',
+        'categoria': 'CONTRATTO_CLIENTE',
+        'descrizione': 'Procedura standard per la gestione completa della disdetta di un contratto cliente.',
+        'ordine': 1,
+        'passaggi': [
+            (1, 'Invio disdetta', 'Verifica o invio formale della comunicazione di disdetta contrattuale'),
+            (2, 'Avviso degli operatori addetti', 'Comunicare la cessazione del servizio alle squadre e agli operatori assegnati'),
+            (3, 'Recupero oggetti presso il cliente', 'Ritirare macchinari, prodotti, attrezzature e materiali lasciati in cantiere'),
+            (4, 'Consegna chiavi o telecomandi', 'Riconsegnare al cliente o referente tutte le chiavi, badge o telecomandi in possesso'),
+            (5, 'Invio ultima fattura', 'Emettere e inviare la fattura di chiusura/conguaglio finale'),
+            (6, 'Aggiornare il database', 'Impostare la data di fine contratto nelle programmazioni ricorrenti e aggiornare l\'anagrafica'),
+        ],
+    },
+]
+
+
+class ModelloProcedura(models.Model):
+    CATEGORIA_CHOICES = [
+        ('CONTRATTO_CLIENTE', '🏢 Contratto / Cliente'),
+        ('DIPENDENTE', '👤 Personale / Dipendente'),
+        ('MEZZO', '🚐 Mezzi / Attrezzature'),
+        ('GENERALE', '📋 Amministrazione / Generale'),
+    ]
+
+    nome = models.CharField(max_length=200, unique=True, verbose_name="Nome Procedura")
+    categoria = models.CharField(
+        max_length=30,
+        choices=CATEGORIA_CHOICES,
+        default='CONTRATTO_CLIENTE',
+        verbose_name="Categoria",
+    )
+    descrizione = models.TextField(blank=True, verbose_name="Descrizione / Istruzioni")
+    ordine = models.PositiveIntegerField(default=10, verbose_name="Ordine")
+    attivo = models.BooleanField(default=True, verbose_name="Attiva")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Modello Procedura"
+        verbose_name_plural = "Modelli Procedure"
+        ordering = ['ordine', 'nome']
+
+    def __str__(self):
+        return self.nome
+
+    def riordina_passaggi(self):
+        """Rinumera in modo progressivo (1, 2, 3...) i passaggi del modello."""
+        for idx, passo in enumerate(self.passaggi.order_by('ordine', 'id'), start=1):
+            if passo.ordine != idx:
+                PassoModelloProcedura.objects.filter(pk=passo.pk).update(ordine=idx)
+
+
+class PassoModelloProcedura(models.Model):
+    modello = models.ForeignKey(
+        ModelloProcedura,
+        on_delete=models.CASCADE,
+        related_name='passaggi',
+        verbose_name="Modello Procedura",
+    )
+    ordine = models.PositiveIntegerField(default=1, verbose_name="N° Punto")
+    titolo = models.CharField(max_length=255, verbose_name="Passaggio / Punto")
+    descrizione = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Dettagli / Note Operative",
+    )
+    obbligatorio = models.BooleanField(default=True, verbose_name="Obbligatorio")
+
+    class Meta:
+        verbose_name = "Punto del Modello Procedura"
+        verbose_name_plural = "Punti del Modello Procedura"
+        ordering = ['ordine', 'id']
+
+    def __str__(self):
+        return f"{self.ordine}) {self.titolo}"
+
+
+class ProceduraAvviata(models.Model):
+    STATO_CHOICES = [
+        ('IN_CORSO', '⏳ In Corso'),
+        ('COMPLETATA', '✅ Completata'),
+        ('ANNULLATA', '❌ Annullata'),
+    ]
+
+    modello = models.ForeignKey(
+        ModelloProcedura,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='procedure_avviate',
+        verbose_name="Procedura",
+    )
+    titolo = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Titolo / Riferimento Pratica",
+        help_text="Se lasciato vuoto viene generato automaticamente dal nome della procedura e dal cliente/dipendente.",
+    )
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='procedure',
+        verbose_name="Cliente",
+    )
+    dipendente = models.ForeignKey(
+        Dipendente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='procedure',
+        verbose_name="Dipendente (opzionale)",
+    )
+    stato = models.CharField(
+        max_length=20,
+        choices=STATO_CHOICES,
+        default='IN_CORSO',
+        verbose_name="Stato",
+    )
+    data_avvio = models.DateField(verbose_name="Data Avvio")
+    data_scadenza = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Data Scadenza / Termine Previsto",
+    )
+    data_completamento = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Completata il",
+    )
+    note = models.TextField(blank=True, verbose_name="Note Pratica")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Procedura Avviata"
+        verbose_name_plural = "Procedure Avviate (Pratiche)"
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+        if not self.data_avvio:
+            self.data_avvio = timezone.now().date()
+        if not self.titolo or not self.titolo.strip():
+            base = self.modello.nome if self.modello else "Procedura Operativa"
+            target = ""
+            if self.cliente:
+                target = f" — {self.cliente.ragione_sociale}"
+            elif self.dipendente:
+                target = f" — {self.dipendente.cognome} {self.dipendente.nome}"
+            self.titolo = f"{base}{target}"
+        super().save(*args, **kwargs)
+
+    @property
+    def totale_passaggi(self):
+        return self.passaggi.count()
+
+    @property
+    def passaggi_completati(self):
+        return self.passaggi.filter(completato=True).count()
+
+    @property
+    def percentuale_completamento(self):
+        tot = self.totale_passaggi
+        if tot == 0:
+            return 100 if self.stato == 'COMPLETATA' else 0
+        return int(round((self.passaggi_completati / tot) * 100))
+
+    def copia_passaggi_da_modello(self):
+        """Copia i passaggi dal modello associato se la pratica non ha ancora passaggi."""
+        if not self.pk or not self.modello_id:
+            return 0
+        if self.passaggi.exists():
+            return 0
+        passi_modello = list(self.modello.passaggi.order_by('ordine', 'id'))
+        nuovi = [
+            PassoProceduraAvviata(
+                procedura=self,
+                ordine= idx,
+                titolo=pm.titolo,
+                descrizione=pm.descrizione,
+                completato=False,
+            )
+            for idx, pm in enumerate(passi_modello, start=1)
+        ]
+        if nuovi:
+            PassoProceduraAvviata.objects.bulk_create(nuovi)
+        return len(nuovi)
+
+    def riordina_passaggi(self):
+        """Rinumera in modo progressivo (1, 2, 3...) i punti della pratica."""
+        for idx, passo in enumerate(self.passaggi.order_by('ordine', 'id'), start=1):
+            if passo.ordine != idx:
+                PassoProceduraAvviata.objects.filter(pk=passo.pk).update(ordine=idx)
+
+    def ricalcola_stato(self):
+        """Aggiorna automaticamente lo stato in base ai punti completati."""
+        from django.utils import timezone
+        if self.stato == 'ANNULLATA':
+            return
+        tot = self.totale_passaggi
+        comp = self.passaggi_completati
+        if tot > 0 and comp == tot:
+            if self.stato != 'COMPLETATA':
+                self.stato = 'COMPLETATA'
+                self.data_completamento = timezone.now()
+                ProceduraAvviata.objects.filter(pk=self.pk).update(
+                    stato='COMPLETATA',
+                    data_completamento=self.data_completamento,
+                )
+        else:
+            if self.stato == 'COMPLETATA':
+                self.stato = 'IN_CORSO'
+                self.data_completamento = None
+                ProceduraAvviata.objects.filter(pk=self.pk).update(
+                    stato='IN_CORSO',
+                    data_completamento=None,
+                )
+
+    def __str__(self):
+        return f"{self.titolo} ({self.passaggi_completati}/{self.totale_passaggi})"
+
+
+class PassoProceduraAvviata(models.Model):
+    procedura = models.ForeignKey(
+        ProceduraAvviata,
+        on_delete=models.CASCADE,
+        related_name='passaggi',
+        verbose_name="Procedura",
+    )
+    ordine = models.PositiveIntegerField(default=1, verbose_name="N° Punto")
+    titolo = models.CharField(max_length=255, verbose_name="Passaggio / Punto")
+    descrizione = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Dettagli / Istruzioni",
+    )
+    completato = models.BooleanField(default=False, verbose_name="Completato")
+    data_completamento = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Completato il",
+    )
+    note_esecuzione = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Note / Esito",
+    )
+
+    class Meta:
+        verbose_name = "Punto della Procedura"
+        verbose_name_plural = "Checklist Passaggi della Procedura"
+        ordering = ['ordine', 'id']
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+        if self.completato and not self.data_completamento:
+            self.data_completamento = timezone.now()
+        elif not self.completato:
+            self.data_completamento = None
+        super().save(*args, **kwargs)
+        if self.procedura_id:
+            self.procedura.ricalcola_stato()
+
+    def __str__(self):
+        check = "✅" if self.completato else "⬜"
+        return f"{check} {self.ordine}) {self.titolo}"
+
+
+def ensure_default_procedure():
+    """
+    Assicura che le procedure predefinite (es. 'Disdetta di un contratto' coi suoi 6 passaggi)
+    siano presenti nel database. Non sovrascrive eventuali modifiche/aggiunte/rimozioni
+    apportate dall'utente se il modello esiste già.
+    """
+    try:
+        for p_def in DEFAULT_PROCEDURE:
+            modello, created = ModelloProcedura.objects.get_or_create(
+                nome=p_def['nome'],
+                defaults={
+                    'categoria': p_def.get('categoria', 'CONTRATTO_CLIENTE'),
+                    'descrizione': p_def.get('descrizione', ''),
+                    'ordine': p_def.get('ordine', 1),
+                    'attivo': True,
+                }
+            )
+            if created:
+                passi = [
+                    PassoModelloProcedura(
+                        modello=modello,
+                        ordine=ordine,
+                        titolo=titolo,
+                        descrizione=desc,
+                        obbligatorio=True,
+                    )
+                    for ordine, titolo, desc in p_def.get('passaggi', [])
+                ]
+                if passi:
+                    PassoModelloProcedura.objects.bulk_create(passi)
+    except Exception:
+        pass
+
+
+
 
 
 # --- Geocoding Signals ---

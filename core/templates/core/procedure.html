@@ -1,0 +1,1756 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    :root {
+        --proc-primary: #0284c7;
+        --proc-primary-dark: #0369a1;
+        --proc-indigo: #4f46e5;
+        --proc-emerald: #10b981;
+        --proc-amber: #f59e0b;
+        --proc-rose: #e11d48;
+        --proc-slate: #0f172a;
+    }
+
+    .proc-wrapper {
+        max-width: 1420px;
+        margin: 18px auto 50px;
+        padding: 0 20px;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #1e293b;
+    }
+
+    /* Hero Header */
+    .proc-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0284c7 100%);
+        color: #fff;
+        border-radius: 18px;
+        padding: 26px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.18);
+        margin-bottom: 22px;
+    }
+
+    .proc-hero-left h1 {
+        margin: 0 0 6px 0;
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        letter-spacing: -0.3px;
+    }
+
+    .proc-hero-left p {
+        margin: 0;
+        color: #cbd5e1;
+        font-size: 0.95rem;
+        max-width: 760px;
+        line-height: 1.45;
+    }
+
+    .proc-hero-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .proc-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: none;
+        text-decoration: none !important;
+        transition: all 0.18s ease;
+        line-height: 1.2;
+    }
+
+    .proc-btn-primary {
+        background: #38bdf8;
+        color: #0f172a !important;
+        box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
+    }
+    .proc-btn-primary:hover {
+        background: #7dd3fc;
+        transform: translateY(-1px);
+    }
+
+    .proc-btn-emerald {
+        background: #10b981;
+        color: #fff !important;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28);
+    }
+    .proc-btn-emerald:hover {
+        background: #059669;
+        transform: translateY(-1px);
+    }
+
+    .proc-btn-indigo {
+        background: #4f46e5;
+        color: #fff !important;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    }
+    .proc-btn-indigo:hover {
+        background: #4338ca;
+        transform: translateY(-1px);
+    }
+
+    .proc-btn-glass {
+        background: rgba(255, 255, 255, 0.14);
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+    .proc-btn-glass:hover {
+        background: rgba(255, 255, 255, 0.24);
+    }
+
+    .proc-btn-outline {
+        background: #fff;
+        color: #334155 !important;
+        border: 1px solid #cbd5e1;
+    }
+    .proc-btn-outline:hover {
+        background: #f8fafc;
+        border-color: #94a3b8;
+    }
+
+    .proc-btn-danger-soft {
+        background: #fff1f2;
+        color: #e11d48 !important;
+        border: 1px solid #fecdd3;
+    }
+    .proc-btn-danger-soft:hover {
+        background: #ffe4e6;
+    }
+
+    .proc-btn-sm {
+        padding: 6px 11px;
+        font-size: 0.78rem;
+        border-radius: 8px;
+    }
+
+    /* KPI Strip */
+    .proc-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        margin-bottom: 22px;
+    }
+
+    .proc-kpi-card {
+        background: #fff;
+        border-radius: 14px;
+        padding: 16px 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .proc-kpi-info span {
+        display: block;
+        font-size: 0.76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .proc-kpi-info strong {
+        font-size: 1.65rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .proc-kpi-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+    }
+
+    /* Main Navigation Tabs */
+    .proc-tabs-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        background: #fff;
+        padding: 10px 14px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    }
+
+    .proc-tabs-left {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .proc-tab-btn {
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        border: none;
+        background: transparent;
+        color: #475569;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.15s;
+    }
+
+    .proc-tab-btn:hover {
+        background: #f1f5f9;
+        color: #0f172a;
+    }
+
+    .proc-tab-btn.active {
+        background: #0284c7;
+        color: #fff;
+        box-shadow: 0 3px 10px rgba(2, 132, 199, 0.25);
+    }
+
+    .proc-tab-badge {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 800;
+        background: rgba(15, 23, 42, 0.12);
+    }
+    .proc-tab-btn.active .proc-tab-badge {
+        background: rgba(255, 255, 255, 0.24);
+        color: #fff;
+    }
+
+    /* Filter Bar */
+    .proc-filter-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .proc-input, .proc-select {
+        padding: 8px 12px;
+        border-radius: 9px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.86rem;
+        color: #0f172a;
+        background: #fff;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .proc-input:focus, .proc-select:focus {
+        border-color: #0284c7;
+        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.14);
+    }
+
+    /* Procedure Cards Grid */
+    .proc-cards-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .proc-card {
+        background: #fff;
+        border-radius: 16px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+        overflow: hidden;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .proc-card.focused-card {
+        border: 2px solid #0284c7;
+        box-shadow: 0 8px 26px rgba(2, 132, 199, 0.18);
+    }
+
+    .proc-card-header {
+        padding: 18px 22px;
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .proc-card-title-wrap {
+        flex: 1;
+        min-width: 260px;
+    }
+
+    .proc-card-title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+    }
+
+    .proc-card-title {
+        margin: 0;
+        font-size: 1.18rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .proc-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+    .proc-status-IN_CORSO {
+        background: #fef3c7;
+        color: #b45309;
+        border: 1px solid #fde68a;
+    }
+    .proc-status-COMPLETATA {
+        background: #d1fae5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+    }
+    .proc-status-ANNULLATA {
+        background: #f1f5f9;
+        color: #64748b;
+        border: 1px solid #cbd5e1;
+    }
+
+    .proc-meta-row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 0.83rem;
+        color: #475569;
+        align-items: center;
+    }
+
+    .proc-meta-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background: #f1f5f9;
+        padding: 3px 9px;
+        border-radius: 7px;
+        font-weight: 600;
+        color: #334155;
+    }
+
+    /* Progress Block */
+    .proc-progress-box {
+        min-width: 230px;
+        text-align: right;
+    }
+
+    .proc-progress-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 5px;
+    }
+
+    .proc-progress-track {
+        height: 10px;
+        background: #e2e8f0;
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .proc-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #0284c7, #10b981);
+        border-radius: 999px;
+        transition: width 0.3s ease;
+    }
+
+    /* Steps Checklist */
+    .proc-steps-container {
+        padding: 16px 22px;
+    }
+
+    .proc-step-item {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        background: #fff;
+        margin-bottom: 10px;
+        transition: all 0.16s ease;
+    }
+
+    .proc-step-item:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .proc-step-item.step-done {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+
+    .proc-step-left {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        flex: 1;
+    }
+
+    .proc-step-checkbox {
+        width: 22px;
+        height: 22px;
+        margin-top: 2px;
+        accent-color: #10b981;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+
+    .proc-step-num {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-weight: 800;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .proc-step-item.step-done .proc-step-num {
+        background: #10b981;
+        color: #fff;
+    }
+
+    .proc-step-body {
+        flex: 1;
+    }
+
+    .proc-step-title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #0f172a;
+        line-height: 1.35;
+    }
+
+    .proc-step-item.step-done .proc-step-title {
+        text-decoration: line-through;
+        color: #047857;
+    }
+
+    .proc-step-desc {
+        font-size: 0.82rem;
+        color: #64748b;
+        margin-top: 3px;
+    }
+
+    .proc-step-note-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 6px;
+        padding: 4px 9px;
+        background: #fef9c3;
+        border: 1px solid #fde047;
+        color: #854d0e;
+        border-radius: 7px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    .proc-step-done-time {
+        font-size: 0.75rem;
+        color: #059669;
+        font-weight: 600;
+        margin-top: 4px;
+    }
+
+    .proc-step-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-shrink: 0;
+    }
+
+    .proc-icon-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 7px;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        color: #475569;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.82rem;
+        transition: all 0.14s;
+    }
+    .proc-icon-btn:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+    .proc-icon-btn.danger:hover {
+        background: #ffe4e6;
+        border-color: #fecdd3;
+        color: #e11d48;
+    }
+
+    /* Inline edit form inside a step */
+    .proc-step-edit-box {
+        display: none;
+        margin-top: 10px;
+        padding: 12px;
+        background: #f8fafc;
+        border: 1px dashed #94a3b8;
+        border-radius: 10px;
+    }
+
+    /* Add Step Bar inside Card */
+    .proc-add-step-bar {
+        margin-top: 12px;
+        padding: 12px 14px;
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        border-radius: 12px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .proc-card-footer {
+        padding: 12px 22px;
+        background: #f8fafc;
+        border-top: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-size: 0.82rem;
+        color: #64748b;
+    }
+
+    /* Modal Styles */
+    .proc-modal-backdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.58);
+        backdrop-filter: blur(3px);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .proc-modal-backdrop.open {
+        display: flex;
+    }
+
+    .proc-modal {
+        background: #fff;
+        border-radius: 18px;
+        width: 100%;
+        max-width: 620px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+        border: 1px solid #e2e8f0;
+    }
+
+    .proc-modal-header {
+        padding: 18px 24px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8fafc;
+    }
+
+    .proc-modal-header h3 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+
+    .proc-modal-body {
+        padding: 20px 24px;
+    }
+
+    .proc-form-group {
+        margin-bottom: 14px;
+    }
+
+    .proc-form-group label {
+        display: block;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #334155;
+        margin-bottom: 5px;
+    }
+
+    .proc-form-group input,
+    .proc-form-group select,
+    .proc-form-group textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 9px 12px;
+        border-radius: 9px;
+        border: 1px solid #cbd5e1;
+        font-size: 0.9rem;
+        color: #0f172a;
+        background: #fff;
+    }
+
+    .proc-modal-footer {
+        padding: 14px 24px;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    /* Toast notification */
+    #proc-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #0f172a;
+        color: #fff;
+        padding: 12px 18px;
+        border-radius: 12px;
+        font-size: 0.88rem;
+        font-weight: 700;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.25);
+        z-index: 10000;
+        display: none;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .proc-empty-state {
+        text-align: center;
+        padding: 42px 24px;
+        background: #fff;
+        border-radius: 16px;
+        border: 1px dashed #cbd5e1;
+        color: #64748b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="proc-wrapper">
+
+    <!-- HERO HEADER -->
+    <div class="proc-hero">
+        <div class="proc-hero-left">
+            <h1>📋 Gestione Procedure Operative</h1>
+            <p>
+                Gestisci le procedure aziendali passo-passo (come la <strong>Disdetta di un contratto</strong>),
+                spunta le attività svolte per ciascun cliente e personalizza liberamente i passaggi
+                <strong>aggiungendo nuovi punti o togliendoli</strong> in qualsiasi momento.
+            </p>
+        </div>
+        <div class="proc-hero-actions">
+            <button type="button" class="proc-btn proc-btn-primary" onclick="apriModalAvviaProcedura()">
+                ➕ Avvia Procedura per Cliente
+            </button>
+            <button type="button" class="proc-btn proc-btn-emerald" onclick="apriModalNuovoModello()">
+                ✨ Crea Nuova Procedura
+            </button>
+            <button type="button" class="proc-btn proc-btn-glass" onclick="inviaBriefingProcedureTelegram()"
+                    title="Invia subito su Telegram il Briefing con lo stato di avanzamento delle procedure aperte">
+                📲 Invia Briefing su Telegram
+            </button>
+            <button type="button" class="proc-btn proc-btn-glass" onclick="cambiaTab('modelli')">
+                ⚙️ Modifica Punti Procedure ({{ totale_modelli }})
+            </button>
+            <a href="/admin/" class="proc-btn proc-btn-glass">
+                🏠 Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI STRIP -->
+    <div class="proc-kpi-grid">
+        <div class="proc-kpi-card">
+            <div class="proc-kpi-info">
+                <span>Procedure in Corso</span>
+                <strong id="kpi-in-corso" style="color: #d97706;">{{ pratiche_in_corso }}</strong>
+            </div>
+            <div class="proc-kpi-icon" style="background: #fef3c7; color: #d97706;">⏳</div>
+        </div>
+        <div class="proc-kpi-card">
+            <div class="proc-kpi-info">
+                <span>Procedure Completate</span>
+                <strong id="kpi-completate" style="color: #059669;">{{ pratiche_completate }}</strong>
+            </div>
+            <div class="proc-kpi-icon" style="background: #d1fae5; color: #059669;">✅</div>
+        </div>
+        <div class="proc-kpi-card">
+            <div class="proc-kpi-info">
+                <span>Totale Pratiche</span>
+                <strong id="kpi-totale">{{ totale_pratiche }}</strong>
+            </div>
+            <div class="proc-kpi-icon" style="background: #e0f2fe; color: #0284c7;">📂</div>
+        </div>
+        <div class="proc-kpi-card">
+            <div class="proc-kpi-info">
+                <span>Modelli Configurati</span>
+                <strong id="kpi-modelli" style="color: #4f46e5;">{{ totale_modelli }}</strong>
+            </div>
+            <div class="proc-kpi-icon" style="background: #e0e7ff; color: #4f46e5;">📑</div>
+        </div>
+    </div>
+
+    <!-- NAVIGATION TABS & FILTERS -->
+    <div class="proc-tabs-bar">
+        <div class="proc-tabs-left">
+            <button type="button" id="tab-btn-pratiche"
+                    class="proc-tab-btn {% if tab_attivo == 'pratiche' %}active{% endif %}"
+                    onclick="cambiaTab('pratiche')">
+                🚀 Procedure Avviate / Pratiche Clienti
+                <span class="proc-tab-badge">{{ pratiche|length }}</span>
+            </button>
+            <button type="button" id="tab-btn-modelli"
+                    class="proc-tab-btn {% if tab_attivo == 'modelli' %}active{% endif %}"
+                    onclick="cambiaTab('modelli')">
+                ⚙️ Catalogo Procedure &amp; Configurazione Punti
+                <span class="proc-tab-badge">{{ modelli|length }}</span>
+            </button>
+        </div>
+
+        <form method="get" id="proc-filter-form" class="proc-filter-bar"
+              style="{% if tab_attivo != 'pratiche' %}display:none;{% endif %}">
+            <input type="hidden" name="tab" value="pratiche">
+            <input type="text" name="q" value="{{ q }}" class="proc-input"
+                   placeholder="🔍 Cerca cliente o procedura..." style="min-width: 210px;">
+            <select name="stato" class="proc-select" onchange="this.form.submit()">
+                <option value="TUTTE" {% if stato_filter == 'TUTTE' %}selected{% endif %}>Tutti gli stati</option>
+                <option value="IN_CORSO" {% if stato_filter == 'IN_CORSO' %}selected{% endif %}>⏳ Solo In Corso</option>
+                <option value="COMPLETATA" {% if stato_filter == 'COMPLETATA' %}selected{% endif %}>✅ Solo Completate</option>
+                <option value="ANNULLATA" {% if stato_filter == 'ANNULLATA' %}selected{% endif %}>🚫 Annullate</option>
+            </select>
+            <button type="submit" class="proc-btn proc-btn-outline proc-btn-sm">Filtra</button>
+            {% if q or stato_filter != 'TUTTE' or cliente_filter %}
+            <a href="{% url 'gestione_procedure' %}" class="proc-btn proc-btn-outline proc-btn-sm">Reset</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- SEZIONE 1: PRATICHE / PROCEDURE AVVIATE                            -->
+    <!-- ================================================================== -->
+    <div id="panel-pratiche" style="{% if tab_attivo != 'pratiche' %}display:none;{% endif %}">
+
+        <!-- Banner rapido per avviare subito la Disdetta di un contratto -->
+        {% if modelli %}
+        <div style="background: linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bae6fd; border-radius: 14px; padding: 14px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <div>
+                <div style="font-weight: 800; color: #0369a1; font-size: 0.96rem;">
+                    ⚡ Avvio Rapido Procedura — Disdetta di un contratto (o altre procedure)
+                </div>
+                <div style="font-size: 0.83rem; color: #475569; margin-top: 2px;">
+                    Passaggi predefiniti: <strong>1)</strong> Invio disdetta &bull; <strong>2)</strong> Avviso degli operatori addetti &bull; <strong>3)</strong> Recupero oggetti presso il cliente &bull; <strong>4)</strong> Consegna chiavi o telecomandi &bull; <strong>5)</strong> Invio ultima fattura &bull; <strong>6)</strong> Aggiornare il database.
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm" onclick="apriModalAvviaProcedura()">
+                    🚀 Avvia Disdetta / Procedura
+                </button>
+                <button type="button" class="proc-btn proc-btn-outline proc-btn-sm" onclick="cambiaTab('modelli')">
+                    ✏️ Aggiungi o Togli Punti Standard
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="proc-cards-list" id="pratiche-list">
+            {% for pratica in pratiche %}
+            <div class="proc-card {% if pratica_focus_id == pratica.id %}focused-card{% endif %}"
+                 id="pratica-card-{{ pratica.id }}" data-pratica-id="{{ pratica.id }}">
+
+                <!-- HEADER PRATICA -->
+                <div class="proc-card-header">
+                    <div class="proc-card-title-wrap">
+                        <div class="proc-card-title-row">
+                            <h2 class="proc-card-title" id="pratica-title-{{ pratica.id }}">{{ pratica.titolo }}</h2>
+                            <span class="proc-status-pill proc-status-{{ pratica.stato }}" id="pratica-status-pill-{{ pratica.id }}">
+                                {% if pratica.stato == 'IN_CORSO' %}⏳ In Corso
+                                {% elif pratica.stato == 'COMPLETATA' %}✅ Completata
+                                {% else %}🚫 Annullata{% endif %}
+                            </span>
+                        </div>
+                        <div class="proc-meta-row">
+                            {% if pratica.cliente %}
+                            <span class="proc-meta-chip">🏢 Cliente: <strong>{{ pratica.cliente.ragione_sociale }}</strong></span>
+                            {% endif %}
+                            {% if pratica.modello %}
+                            <span class="proc-meta-chip">📑 Procedura: {{ pratica.modello.nome }}</span>
+                            {% endif %}
+                            {% if pratica.dipendente %}
+                            <span class="proc-meta-chip">👤 Incaricato: {{ pratica.dipendente.cognome }} {{ pratica.dipendente.nome }}</span>
+                            {% endif %}
+                            <span class="proc-meta-chip">📅 Avviata: {{ pratica.data_avvio|date:"d/m/Y" }}</span>
+                            {% if pratica.data_scadenza %}
+                            <span class="proc-meta-chip" style="background:#fef2f2; color:#b91c1c;">⏰ Scadenza: {{ pratica.data_scadenza|date:"d/m/Y" }}</span>
+                            {% endif %}
+                        </div>
+                        {% if pratica.note %}
+                        <div style="margin-top: 8px; font-size: 0.83rem; color: #475569; background: #f8fafc; padding: 6px 10px; border-radius: 8px; border-left: 3px solid #0284c7;">
+                            📝 <strong>Note pratica:</strong> {{ pratica.note }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="proc-progress-box">
+                        <div class="proc-progress-label">
+                            <span>Avanzamento passaggi</span>
+                            <span id="pratica-progress-text-{{ pratica.id }}">
+                                {{ pratica.passaggi_completati }}/{{ pratica.totale_passaggi }} ({{ pratica.percentuale_completamento }}%)
+                            </span>
+                        </div>
+                        <div class="proc-progress-track">
+                            <div class="proc-progress-fill" id="pratica-progress-bar-{{ pratica.id }}"
+                                 style="width: {{ pratica.percentuale_completamento }}%;"></div>
+                        </div>
+                        <div style="margin-top: 8px; display: flex; justify-content: flex-end; gap: 6px;">
+                            <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                    onclick="focusAddStepPratica({{ pratica.id }})"
+                                    title="Aggiungi un nuovo punto a questa pratica">
+                                ➕ Aggiungi Punto
+                            </button>
+                            <button type="button" class="proc-btn proc-btn-danger-soft proc-btn-sm"
+                                    onclick="eliminaPratica({{ pratica.id }})"
+                                    title="Elimina questa pratica">
+                                🗑️ Elimina
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHECKLIST PASSAGGI DELLA PRATICA -->
+                <div class="proc-steps-container">
+                    <div id="pratica-steps-list-{{ pratica.id }}">
+                        {% for passo in pratica.passaggi.all %}
+                        <div class="proc-step-item {% if passo.completato %}step-done{% endif %}"
+                             id="pratica-step-{{ passo.id }}" data-passo-id="{{ passo.id }}">
+                            <div class="proc-step-left">
+                                <input type="checkbox" class="proc-step-checkbox"
+                                       {% if passo.completato %}checked{% endif %}
+                                       onchange="togglePassoPratica({{ passo.id }}, this.checked)"
+                                       title="Spunta per segnare come completato">
+                                <span class="proc-step-num">{{ passo.ordine }}</span>
+                                <div class="proc-step-body">
+                                    <div class="proc-step-title">{{ passo.titolo }}</div>
+                                    {% if passo.descrizione %}
+                                    <div class="proc-step-desc">{{ passo.descrizione }}</div>
+                                    {% endif %}
+                                    {% if passo.note_esecuzione %}
+                                    <div class="proc-step-note-badge">
+                                        📌 Nota: {{ passo.note_esecuzione }}
+                                    </div>
+                                    {% endif %}
+                                    {% if passo.completato and passo.data_completamento %}
+                                    <div class="proc-step-done-time">
+                                        ✓ Completato il {{ passo.data_completamento|date:"d/m/Y H:i" }}
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Box modifica inline punto pratica -->
+                                    <div class="proc-step-edit-box" id="edit-box-pratica-step-{{ passo.id }}">
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                                            <div>
+                                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Titolo del punto</label>
+                                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                                       id="edit-pratica-step-titolo-{{ passo.id }}" value="{{ passo.titolo }}">
+                                            </div>
+                                            <div>
+                                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Note operative / Esecuzione</label>
+                                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                                       id="edit-pratica-step-nota-{{ passo.id }}" value="{{ passo.note_esecuzione }}"
+                                                       placeholder="Es. Raccomandata inviata il...">
+                                            </div>
+                                        </div>
+                                        <div style="margin-bottom: 8px;">
+                                            <label style="font-size:0.75rem; font-weight:700; color:#475569;">Descrizione / Istruzioni</label>
+                                            <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                                   id="edit-pratica-step-desc-{{ passo.id }}" value="{{ passo.descrizione }}">
+                                        </div>
+                                        <div style="display:flex; gap:6px; justify-content:flex-end;">
+                                            <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                                    onclick="toggleEditPassoPratica({{ passo.id }})">Annulla</button>
+                                            <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                                    onclick="salvaModificaPassoPratica({{ passo.id }})">💾 Salva Punto</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="proc-step-actions">
+                                <button type="button" class="proc-icon-btn" title="Sposta su"
+                                        onclick="spostaPassoPratica({{ passo.id }}, 'up')">⬆️</button>
+                                <button type="button" class="proc-icon-btn" title="Sposta giù"
+                                        onclick="spostaPassoPratica({{ passo.id }}, 'down')">⬇️</button>
+                                <button type="button" class="proc-icon-btn" title="Modifica punto o aggiungi nota"
+                                        onclick="toggleEditPassoPratica({{ passo.id }})">✏️</button>
+                                <button type="button" class="proc-icon-btn danger" title="Togli questo punto dalla procedura"
+                                        onclick="eliminaPassoPratica({{ passo.id }})">🗑️</button>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div style="padding: 14px; color: #64748b; font-size: 0.86rem; text-align: center;">
+                            Nessun punto presente in questa pratica. Aggiungine uno qui sotto.
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- FORM RAPIDO PER AGGIUNGERE UN NUOVO PUNTO ALLA PRATICA -->
+                    <div class="proc-add-step-bar">
+                        <span style="font-weight: 800; font-size: 0.84rem; color: #0369a1;">➕ Nuovo punto:</span>
+                        <input type="text" class="proc-input" id="new-step-titolo-pratica-{{ pratica.id }}"
+                               placeholder="Titolo del nuovo passaggio (es. Ritiro badge / Disattivazione allarme)..."
+                               style="flex: 1.4; min-width: 220px;"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault(); aggiungiPassoPratica({{ pratica.id }});}">
+                        <input type="text" class="proc-input" id="new-step-desc-pratica-{{ pratica.id }}"
+                               placeholder="Descrizione opzionale..."
+                               style="flex: 1; min-width: 180px;"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault(); aggiungiPassoPratica({{ pratica.id }});}">
+                        {% if pratica.modello %}
+                        <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: #475569; cursor: pointer;">
+                            <input type="checkbox" id="new-step-save-model-{{ pratica.id }}">
+                            Salva anche nel modello "{{ pratica.modello.nome }}"
+                        </label>
+                        {% endif %}
+                        <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                onclick="aggiungiPassoPratica({{ pratica.id }})">
+                            ➕ Aggiungi Punto
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="proc-empty-state">
+                <div style="font-size: 2.6rem; margin-bottom: 10px;">📋</div>
+                <h3 style="margin: 0 0 8px 0; color: #0f172a; font-size: 1.15rem;">Nessuna procedura avviata al momento</h3>
+                <p style="margin: 0 auto 18px; max-width: 540px; font-size: 0.9rem;">
+                    Puoi avviare subito la procedura <strong>"Disdetta di un contratto"</strong> per un cliente
+                    oppure configurare i passaggi standard nel catalogo procedure.
+                </p>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button type="button" class="proc-btn proc-btn-indigo" onclick="apriModalAvviaProcedura()">
+                        🚀 Avvia "Disdetta di un contratto" per un Cliente
+                    </button>
+                    <button type="button" class="proc-btn proc-btn-outline" onclick="cambiaTab('modelli')">
+                        ⚙️ Vedi / Modifica i 6 Punti della Procedura
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- SEZIONE 2: CATALOGO MODELLI DI PROCEDURA (AGGIUNGI / TOGLI PUNTI)  -->
+    <!-- ================================================================== -->
+    <div id="panel-modelli" style="{% if tab_attivo != 'modelli' %}display:none;{% endif %}">
+        <div class="proc-cards-list" id="modelli-list">
+            {% for modello in modelli %}
+            <div class="proc-card" id="modello-card-{{ modello.id }}" data-modello-id="{{ modello.id }}">
+                <div class="proc-card-header">
+                    <div class="proc-card-title-wrap">
+                        <div class="proc-card-title-row">
+                            <h2 class="proc-card-title" id="modello-nome-{{ modello.id }}">📑 {{ modello.nome }}</h2>
+                            <span class="proc-meta-chip" style="background:#e0e7ff; color:#4338ca;">
+                                {{ modello.categoria }}
+                            </span>
+                            <span class="proc-meta-chip" id="modello-count-badge-{{ modello.id }}">
+                                {{ modello.passaggi.count }} passaggi
+                            </span>
+                        </div>
+                        {% if modello.descrizione %}
+                        <div style="font-size: 0.86rem; color: #475569; margin-top: 4px;" id="modello-desc-{{ modello.id }}">
+                            {{ modello.descrizione }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                        <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                onclick="apriModalAvviaProcedura({{ modello.id }})">
+                            🚀 Avvia questa Procedura
+                        </button>
+                        {% if 'disdetta' in modello.nome|lower %}
+                        <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                onclick="ripristinaDefaultDisdetta()"
+                                title="Ripristina i 6 passaggi originali della Disdetta Contratto">
+                            ↺ Ripristina 6 punti base
+                        </button>
+                        {% endif %}
+                        <button type="button" class="proc-btn proc-btn-danger-soft proc-btn-sm"
+                                onclick="eliminaModello({{ modello.id }})">
+                            🗑️ Elimina Modello
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ELENCO PASSAGGI DEL MODELLO -->
+                <div class="proc-steps-container">
+                    <div style="font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px;">
+                        Passaggi Standard della Procedura (puoi modificare, riordinare, aggiungere o togliere punti):
+                    </div>
+
+                    <div id="modello-steps-list-{{ modello.id }}">
+                        {% for passo in modello.passaggi.all %}
+                        <div class="proc-step-item" id="modello-step-{{ passo.id }}" data-passo-id="{{ passo.id }}">
+                            <div class="proc-step-left">
+                                <span class="proc-step-num">{{ passo.ordine }}</span>
+                                <div class="proc-step-body">
+                                    <div class="proc-step-title">{{ passo.titolo }}</div>
+                                    {% if passo.descrizione %}
+                                    <div class="proc-step-desc">{{ passo.descrizione }}</div>
+                                    {% endif %}
+
+                                    <!-- Box modifica inline punto modello -->
+                                    <div class="proc-step-edit-box" id="edit-box-modello-step-{{ passo.id }}">
+                                        <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-bottom: 8px;">
+                                            <div>
+                                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Titolo del passaggio</label>
+                                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                                       id="edit-modello-step-titolo-{{ passo.id }}" value="{{ passo.titolo }}">
+                                            </div>
+                                            <div>
+                                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Descrizione operativa</label>
+                                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                                       id="edit-modello-step-desc-{{ passo.id }}" value="{{ passo.descrizione }}">
+                                            </div>
+                                        </div>
+                                        <div style="display:flex; gap:6px; justify-content:flex-end;">
+                                            <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                                    onclick="toggleEditPassoModello({{ passo.id }})">Annulla</button>
+                                            <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                                    onclick="salvaModificaPassoModello({{ passo.id }})">💾 Salva Modifica</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="proc-step-actions">
+                                <button type="button" class="proc-icon-btn" title="Sposta su"
+                                        onclick="spostaPassoModello({{ passo.id }}, 'up')">⬆️</button>
+                                <button type="button" class="proc-icon-btn" title="Sposta giù"
+                                        onclick="spostaPassoModello({{ passo.id }}, 'down')">⬇️</button>
+                                <button type="button" class="proc-icon-btn" title="Modifica punto"
+                                        onclick="toggleEditPassoModello({{ passo.id }})">✏️</button>
+                                <button type="button" class="proc-icon-btn danger" title="Togli questo punto dalla procedura"
+                                        onclick="eliminaPassoModello({{ passo.id }})">🗑️</button>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div style="padding: 12px; color: #64748b; font-size: 0.86rem;">
+                            Nessun passaggio configurato per questo modello. Aggiungi il primo punto qui sotto.
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- FORM RAPIDO AGGIUNTA PUNTO AL MODELLO -->
+                    <div class="proc-add-step-bar">
+                        <span style="font-weight: 800; font-size: 0.84rem; color: #0369a1;">➕ Aggiungi punto al modello:</span>
+                        <input type="text" class="proc-input" id="new-step-titolo-modello-{{ modello.id }}"
+                               placeholder="Titolo del nuovo punto (es. Ritiro chiavi / Invio comunicazione)..."
+                               style="flex: 1.3; min-width: 220px;"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault(); aggiungiPassoModello({{ modello.id }});}">
+                        <input type="text" class="proc-input" id="new-step-desc-modello-{{ modello.id }}"
+                               placeholder="Descrizione o istruzioni opzionali..."
+                               style="flex: 1; min-width: 180px;"
+                               onkeydown="if(event.key==='Enter'){event.preventDefault(); aggiungiPassoModello({{ modello.id }});}">
+                        <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: #475569; cursor: pointer;">
+                            <input type="checkbox" id="new-step-propaga-modello-{{ modello.id }}" checked>
+                            Aggiorna anche pratiche in corso
+                        </label>
+                        <button type="button" class="proc-btn proc-btn-emerald proc-btn-sm"
+                                onclick="aggiungiPassoModello({{ modello.id }})">
+                            ➕ Aggiungi Punto
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- ====================================================================== -->
+<!-- MODAL 1: AVVIA NUOVA PROCEDURA PER UN CLIENTE                          -->
+<!-- ====================================================================== -->
+<div class="proc-modal-backdrop" id="modal-avvia-procedura">
+    <div class="proc-modal">
+        <div class="proc-modal-header">
+            <h3>🚀 Avvia Procedura Operativa</h3>
+            <button type="button" class="proc-icon-btn" onclick="chiudiModal('modal-avvia-procedura')">✕</button>
+        </div>
+        <div class="proc-modal-body">
+            <div class="proc-form-group">
+                <label>Modello di Procedura *</label>
+                <select id="avvia-modello-id" onchange="aggiornaTitoloAutomatico()">
+                    {% for m in modelli %}
+                    <option value="{{ m.id }}" data-nome="{{ m.nome }}"
+                            {% if avvia_modello_id == m.id %}selected{% endif %}>
+                        {{ m.nome }} ({{ m.passaggi.count }} passaggi)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="proc-form-group">
+                <label>Cliente Associato (consigliato)</label>
+                <select id="avvia-cliente-id" onchange="aggiornaTitoloAutomatico()">
+                    <option value="">— Seleziona Cliente (opzionale) —</option>
+                    {% for c in clienti %}
+                    <option value="{{ c.id }}" data-nome="{{ c.ragione_sociale }}"
+                            {% if avvia_cliente_id == c.id %}selected{% endif %}>
+                        {{ c.ragione_sociale }}{% if c.indirizzo_sede %} ({{ c.indirizzo_sede }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="proc-form-group">
+                <label>Titolo Pratica</label>
+                <input type="text" id="avvia-titolo"
+                       placeholder="Verrà compilato automaticamente (es. Disdetta di un contratto - Condominio Alfa)">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div class="proc-form-group">
+                    <label>Operatore / Responsabile</label>
+                    <select id="avvia-dipendente-id">
+                        <option value="">— Nessuno specifico —</option>
+                        {% for d in dipendenti %}
+                        <option value="{{ d.id }}">{{ d.cognome }} {{ d.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="proc-form-group">
+                    <label>Data Avvio</label>
+                    <input type="date" id="avvia-data-avvio" value="{{ oggi_iso }}">
+                </div>
+                <div class="proc-form-group">
+                    <label>Data Scadenza (opz.)</label>
+                    <input type="date" id="avvia-data-scadenza">
+                </div>
+            </div>
+            <div class="proc-form-group">
+                <label>Note Generali Pratica (opz.)</label>
+                <textarea id="avvia-note" rows="2" placeholder="Eventuali dettagli contrattuali, riferimenti o contatti..."></textarea>
+            </div>
+        </div>
+        <div class="proc-modal-footer">
+            <button type="button" class="proc-btn proc-btn-outline" onclick="chiudiModal('modal-avvia-procedura')">Annulla</button>
+            <button type="button" class="proc-btn proc-btn-indigo" onclick="confermaAvviaProcedura()">
+                🚀 Avvia Procedura e Crea Checklist
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================================== -->
+<!-- MODAL 2: CREA NUOVO MODELLO DI PROCEDURA                               -->
+<!-- ====================================================================== -->
+<div class="proc-modal-backdrop" id="modal-nuovo-modello">
+    <div class="proc-modal">
+        <div class="proc-modal-header">
+            <h3>✨ Crea Nuova Procedura Standard</h3>
+            <button type="button" class="proc-icon-btn" onclick="chiudiModal('modal-nuovo-modello')">✕</button>
+        </div>
+        <div class="proc-modal-body">
+            <div class="proc-form-group">
+                <label>Nome della Procedura *</label>
+                <input type="text" id="nuovo-modello-nome" placeholder="Es. Attivazione nuovo cantiere / Sopralluogo iniziale">
+            </div>
+            <div class="proc-form-group">
+                <label>Categoria</label>
+                <input type="text" id="nuovo-modello-categoria" value="Operativa / Contrattuale">
+            </div>
+            <div class="proc-form-group">
+                <label>Descrizione</label>
+                <input type="text" id="nuovo-modello-descrizione" placeholder="Breve descrizione dello scopo della procedura...">
+            </div>
+            <div class="proc-form-group">
+                <label>Passaggi Iniziali (scrivi un punto per riga — potrai aggiungerne o toglierne altri anche dopo)</label>
+                <textarea id="nuovo-modello-passaggi" rows="6"
+                          placeholder="1) Primo passaggio&#10;2) Secondo passaggio&#10;3) Terzo passaggio"></textarea>
+            </div>
+        </div>
+        <div class="proc-modal-footer">
+            <button type="button" class="proc-btn proc-btn-outline" onclick="chiudiModal('modal-nuovo-modello')">Annulla</button>
+            <button type="button" class="proc-btn proc-btn-emerald" onclick="confermaNuovoModello()">
+                💾 Crea Procedura
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="proc-toast"></div>
+
+<script>
+const PROC_API_URL = "{% url 'gestione_procedure_api' %}";
+
+function mostraToast(msg, isError = false) {
+    const t = document.getElementById('proc-toast');
+    t.style.background = isError ? '#be123c' : '#0f172a';
+    t.textContent = msg;
+    t.style.display = 'inline-flex';
+    clearTimeout(window._procToastTimer);
+    window._procToastTimer = setTimeout(() => {
+        t.style.display = 'none';
+    }, 3200);
+}
+
+async function callProcApi(payload) {
+    const resp = await fetch(PROC_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    return await resp.json();
+}
+
+function escapeHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function cambiaTab(tab) {
+    const isPratiche = (tab === 'pratiche');
+    document.getElementById('panel-pratiche').style.display = isPratiche ? '' : 'none';
+    document.getElementById('panel-modelli').style.display = isPratiche ? 'none' : '';
+    document.getElementById('tab-btn-pratiche').classList.toggle('active', isPratiche);
+    document.getElementById('tab-btn-modelli').classList.toggle('active', !isPratiche);
+    const filterForm = document.getElementById('proc-filter-form');
+    if (filterForm) filterForm.style.display = isPratiche ? 'flex' : 'none';
+}
+
+/* ---------------- MODALS ---------------- */
+function apriModalAvviaProcedura(modelloId = null) {
+    if (modelloId) {
+        const sel = document.getElementById('avvia-modello-id');
+        if (sel) sel.value = String(modelloId);
+    }
+    aggiornaTitoloAutomatico();
+    document.getElementById('modal-avvia-procedura').classList.add('open');
+}
+
+function apriModalNuovoModello() {
+    document.getElementById('modal-nuovo-modello').classList.add('open');
+}
+
+function chiudiModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+function aggiornaTitoloAutomatico() {
+    const modSel = document.getElementById('avvia-modello-id');
+    const cliSel = document.getElementById('avvia-cliente-id');
+    const titInput = document.getElementById('avvia-titolo');
+    if (!modSel || !titInput) return;
+
+    const modNome = modSel.options[modSel.selectedIndex]?.dataset?.nome || '';
+    const cliNome = cliSel?.options[cliSel.selectedIndex]?.dataset?.nome || '';
+    if (modNome && cliNome) {
+        titInput.value = `${modNome} - ${cliNome}`;
+    } else if (modNome) {
+        titInput.value = modNome;
+    }
+}
+
+async function confermaAvviaProcedura() {
+    const payload = {
+        action: 'avvia_procedura',
+        modello_id: document.getElementById('avvia-modello-id').value,
+        cliente_id: document.getElementById('avvia-cliente-id').value,
+        dipendente_id: document.getElementById('avvia-dipendente-id').value,
+        titolo: document.getElementById('avvia-titolo').value,
+        data_avvio: document.getElementById('avvia-data-avvio').value,
+        data_scadenza: document.getElementById('avvia-data-scadenza').value,
+        note: document.getElementById('avvia-note').value,
+    };
+    const res = await callProcApi(payload);
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore avvio procedura', true);
+        return;
+    }
+    mostraToast(res.message);
+    window.location.href = "{% url 'gestione_procedure' %}?tab=pratiche&pratica=" + res.pratica.id;
+}
+
+async function confermaNuovoModello() {
+    const nome = document.getElementById('nuovo-modello-nome').value.trim();
+    const categoria = document.getElementById('nuovo-modello-categoria').value.trim();
+    const descrizione = document.getElementById('nuovo-modello-descrizione').value.trim();
+    const rawLines = document.getElementById('nuovo-modello-passaggi').value
+        .split('\n')
+        .map(l => l.replace(/^\s*\d+[\)\.\-\s]+/, '').trim())
+        .filter(Boolean);
+
+    const res = await callProcApi({
+        action: 'crea_modello',
+        nome,
+        categoria,
+        descrizione,
+        passaggi: rawLines,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore creazione procedura', true);
+        return;
+    }
+    mostraToast(res.message);
+    window.location.href = "{% url 'gestione_procedure' %}?tab=modelli";
+}
+
+/* ---------------- RENDER DINAMICO PRATICA ---------------- */
+function renderPraticaSteps(pratica) {
+    const container = document.getElementById(`pratica-steps-list-${pratica.id}`);
+    if (!container) return;
+
+    const progressText = document.getElementById(`pratica-progress-text-${pratica.id}`);
+    if (progressText) {
+        progressText.textContent = `${pratica.passaggi_completati}/${pratica.totale_passaggi} (${pratica.percentuale}%)`;
+    }
+    const progressBar = document.getElementById(`pratica-progress-bar-${pratica.id}`);
+    if (progressBar) {
+        progressBar.style.width = `${pratica.percentuale}%`;
+    }
+    const statusPill = document.getElementById(`pratica-status-pill-${pratica.id}`);
+    if (statusPill) {
+        statusPill.className = `proc-status-pill proc-status-${pratica.stato}`;
+        statusPill.textContent = pratica.stato === 'COMPLETATA'
+            ? '✅ Completata'
+            : (pratica.stato === 'IN_CORSO' ? '⏳ In Corso' : '🚫 Annullata');
+    }
+
+    if (!pratica.passaggi || pratica.passaggi.length === 0) {
+        container.innerHTML = `<div style="padding: 14px; color: #64748b; font-size: 0.86rem; text-align: center;">Nessun punto presente in questa pratica. Aggiungine uno qui sotto.</div>`;
+        return;
+    }
+
+    container.innerHTML = pratica.passaggi.map(p => `
+        <div class="proc-step-item ${p.completato ? 'step-done' : ''}" id="pratica-step-${p.id}" data-passo-id="${p.id}">
+            <div class="proc-step-left">
+                <input type="checkbox" class="proc-step-checkbox" ${p.completato ? 'checked' : ''}
+                       onchange="togglePassoPratica(${p.id}, this.checked)"
+                       title="Spunta per segnare come completato">
+                <span class="proc-step-num">${p.ordine}</span>
+                <div class="proc-step-body">
+                    <div class="proc-step-title">${escapeHtml(p.titolo)}</div>
+                    ${p.descrizione ? `<div class="proc-step-desc">${escapeHtml(p.descrizione)}</div>` : ''}
+                    ${p.note_esecuzione ? `<div class="proc-step-note-badge">📌 Nota: ${escapeHtml(p.note_esecuzione)}</div>` : ''}
+                    ${p.completato && p.data_completamento_fmt ? `<div class="proc-step-done-time">✓ Completato il ${escapeHtml(p.data_completamento_fmt)}</div>` : ''}
+
+                    <div class="proc-step-edit-box" id="edit-box-pratica-step-${p.id}">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Titolo del punto</label>
+                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                       id="edit-pratica-step-titolo-${p.id}" value="${escapeHtml(p.titolo)}">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Note operative / Esecuzione</label>
+                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                       id="edit-pratica-step-nota-${p.id}" value="${escapeHtml(p.note_esecuzione)}"
+                                       placeholder="Es. Raccomandata inviata il...">
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <label style="font-size:0.75rem; font-weight:700; color:#475569;">Descrizione / Istruzioni</label>
+                            <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                   id="edit-pratica-step-desc-${p.id}" value="${escapeHtml(p.descrizione)}">
+                        </div>
+                        <div style="display:flex; gap:6px; justify-content:flex-end;">
+                            <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                    onclick="toggleEditPassoPratica(${p.id})">Annulla</button>
+                            <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                    onclick="salvaModificaPassoPratica(${p.id})">💾 Salva Punto</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="proc-step-actions">
+                <button type="button" class="proc-icon-btn" title="Sposta su" onclick="spostaPassoPratica(${p.id}, 'up')">⬆️</button>
+                <button type="button" class="proc-icon-btn" title="Sposta giù" onclick="spostaPassoPratica(${p.id}, 'down')">⬇️</button>
+                <button type="button" class="proc-icon-btn" title="Modifica punto o aggiungi nota" onclick="toggleEditPassoPratica(${p.id})">✏️</button>
+                <button type="button" class="proc-icon-btn danger" title="Togli questo punto dalla procedura" onclick="eliminaPassoPratica(${p.id})">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function togglePassoPratica(passoId, completato) {
+    const res = await callProcApi({
+        action: 'toggle_passo_pratica',
+        passo_id: passoId,
+        completato: completato,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore aggiornamento passaggio', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+    mostraToast(res.message);
+}
+
+function focusAddStepPratica(praticaId) {
+    const inp = document.getElementById(`new-step-titolo-pratica-${praticaId}`);
+    if (inp) {
+        inp.focus();
+        inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+async function aggiungiPassoPratica(praticaId) {
+    const titEl = document.getElementById(`new-step-titolo-pratica-${praticaId}`);
+    const descEl = document.getElementById(`new-step-desc-pratica-${praticaId}`);
+    const saveModEl = document.getElementById(`new-step-save-model-${praticaId}`);
+
+    const titolo = (titEl?.value || '').trim();
+    const descrizione = (descEl?.value || '').trim();
+    if (!titolo) {
+        mostraToast('Inserisci il titolo del nuovo punto da aggiungere.', true);
+        titEl?.focus();
+        return;
+    }
+
+    const res = await callProcApi({
+        action: 'aggiungi_passo_pratica',
+        pratica_id: praticaId,
+        titolo,
+        descrizione,
+        salva_anche_nel_modello: saveModEl ? saveModEl.checked : false,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore aggiunta punto', true);
+        return;
+    }
+    titEl.value = '';
+    if (descEl) descEl.value = '';
+    if (saveModEl) saveModEl.checked = false;
+
+    renderPraticaSteps(res.pratica);
+    if (res.modello) {
+        renderModelloSteps(res.modello);
+    }
+    mostraToast(res.message);
+}
+
+function toggleEditPassoPratica(passoId) {
+    const box = document.getElementById(`edit-box-pratica-step-${passoId}`);
+    if (!box) return;
+    box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+}
+
+async function salvaModificaPassoPratica(passoId) {
+    const titolo = document.getElementById(`edit-pratica-step-titolo-${passoId}`)?.value || '';
+    const descrizione = document.getElementById(`edit-pratica-step-desc-${passoId}`)?.value || '';
+    const note_esecuzione = document.getElementById(`edit-pratica-step-nota-${passoId}`)?.value || '';
+
+    const res = await callProcApi({
+        action: 'modifica_passo_pratica',
+        passo_id: passoId,
+        titolo,
+        descrizione,
+        note_esecuzione,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore salvataggio', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+    mostraToast(res.message);
+}
+
+async function eliminaPassoPratica(passoId) {
+    if (!confirm('Vuoi davvero togliere questo punto dalla procedura?')) return;
+    const res = await callProcApi({
+        action: 'elimina_passo_pratica',
+        passo_id: passoId,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore rimozione punto', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+    mostraToast(res.message);
+}
+
+async function spostaPassoPratica(passoId, direzione) {
+    const res = await callProcApi({
+        action: 'sposta_passo_pratica',
+        passo_id: passoId,
+        direzione,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore riordino', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+}
+
+async function eliminaPratica(praticaId) {
+    if (!confirm('Vuoi eliminare definitivamente questa pratica?')) return;
+    const res = await callProcApi({
+        action: 'elimina_pratica',
+        pratica_id: praticaId,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore eliminazione pratica', true);
+        return;
+    }
+    const card = document.getElementById(`pratica-card-${praticaId}`);
+    if (card) card.remove();
+    mostraToast(res.message);
+}
+
+/* ---------------- RENDER DINAMICO MODELLO ---------------- */
+function renderModelloSteps(modello) {
+    const container = document.getElementById(`modello-steps-list-${modello.id}`);
+    if (!container) return;
+
+    const badge = document.getElementById(`modello-count-badge-${modello.id}`);
+    if (badge) {
+        badge.textContent = `${modello.totale_passaggi} passaggi`;
+    }
+
+    if (!modello.passaggi || modello.passaggi.length === 0) {
+        container.innerHTML = `<div style="padding: 12px; color: #64748b; font-size: 0.86rem;">Nessun passaggio configurato per questo modello. Aggiungi il primo punto qui sotto.</div>`;
+        return;
+    }
+
+    container.innerHTML = modello.passaggi.map(p => `
+        <div class="proc-step-item" id="modello-step-${p.id}" data-passo-id="${p.id}">
+            <div class="proc-step-left">
+                <span class="proc-step-num">${p.ordine}</span>
+                <div class="proc-step-body">
+                    <div class="proc-step-title">${escapeHtml(p.titolo)}</div>
+                    ${p.descrizione ? `<div class="proc-step-desc">${escapeHtml(p.descrizione)}</div>` : ''}
+
+                    <div class="proc-step-edit-box" id="edit-box-modello-step-${p.id}">
+                        <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-bottom: 8px;">
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Titolo del passaggio</label>
+                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                       id="edit-modello-step-titolo-${p.id}" value="${escapeHtml(p.titolo)}">
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Descrizione operativa</label>
+                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                       id="edit-modello-step-desc-${p.id}" value="${escapeHtml(p.descrizione)}">
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:6px; justify-content:flex-end;">
+                            <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                    onclick="toggleEditPassoModello(${p.id})">Annulla</button>
+                            <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                    onclick="salvaModificaPassoModello(${p.id})">💾 Salva Modifica</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="proc-step-actions">
+                <button type="button" class="proc-icon-btn" title="Sposta su" onclick="spostaPassoModello(${p.id}, 'up')">⬆️</button>
+                <button type="button" class="proc-icon-btn" title="Sposta giù" onclick="spostaPassoModello(${p.id}, 'down')">⬇️</button>
+                <button type="button" class="proc-icon-btn" title="Modifica punto" onclick="toggleEditPassoModello(${p.id})">✏️</button>
+                <button type="button" class="proc-icon-btn danger" title="Togli questo punto dalla procedura" onclick="eliminaPassoModello(${p.id})">🗑️</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function aggiungiPassoModello(modelloId) {
+    const titEl = document.getElementById(`new-step-titolo-modello-${modelloId}`);
+    const descEl = document.getElementById(`new-step-desc-modello-${modelloId}`);
+    const propEl = document.getElementById(`new-step-propaga-modello-${modelloId}`);
+
+    const titolo = (titEl?.value || '').trim();
+    const descrizione = (descEl?.value || '').trim();
+    if (!titolo) {
+        mostraToast('Inserisci il titolo del punto da aggiungere.', true);
+        titEl?.focus();
+        return;
+    }
+
+    const res = await callProcApi({
+        action: 'aggiungi_passo_modello',
+        modello_id: modelloId,
+        titolo,
+        descrizione,
+        propaga_in_corso: propEl ? propEl.checked : true,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore aggiunta punto al modello', true);
+        return;
+    }
+    titEl.value = '';
+    if (descEl) descEl.value = '';
+
+    renderModelloSteps(res.modello);
+    if (res.pratiche_aggiornate) {
+        res.pratiche_aggiornate.forEach(p => renderPraticaSteps(p));
+    }
+    mostraToast(res.message);
+}
+
+function toggleEditPassoModello(passoId) {
+    const box = document.getElementById(`edit-box-modello-step-${passoId}`);
+    if (!box) return;
+    box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+}
+
+async function salvaModificaPassoModello(passoId) {
+    const titolo = document.getElementById(`edit-modello-step-titolo-${passoId}`)?.value || '';
+    const descrizione = document.getElementById(`edit-modello-step-desc-${passoId}`)?.value || '';
+
+    const res = await callProcApi({
+        action: 'modifica_passo_modello',
+        passo_id: passoId,
+        titolo,
+        descrizione,
+        propaga_in_corso: true,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore modifica punto', true);
+        return;
+    }
+    renderModelloSteps(res.modello);
+    if (res.pratiche_aggiornate) {
+        res.pratiche_aggiornate.forEach(p => renderPraticaSteps(p));
+    }
+    mostraToast(res.message);
+}
+
+async function eliminaPassoModello(passoId) {
+    if (!confirm('Vuoi togliere questo punto dal modello di procedura?')) return;
+    const res = await callProcApi({
+        action: 'elimina_passo_modello',
+        passo_id: passoId,
+        propaga_in_corso: true,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore rimozione punto', true);
+        return;
+    }
+    renderModelloSteps(res.modello);
+    if (res.pratiche_aggiornate) {
+        res.pratiche_aggiornate.forEach(p => renderPraticaSteps(p));
+    }
+    mostraToast(res.message);
+}
+
+async function spostaPassoModello(passoId, direzione) {
+    const res = await callProcApi({
+        action: 'sposta_passo_modello',
+        passo_id: passoId,
+        direzione,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore riordino punti', true);
+        return;
+    }
+    renderModelloSteps(res.modello);
+}
+
+async function ripristinaDefaultDisdetta() {
+    if (!confirm('Vuoi ripristinare i 6 punti predefiniti della procedura "Disdetta di un contratto"?')) return;
+    const res = await callProcApi({ action: 'ripristina_default_disdetta' });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore ripristino', true);
+        return;
+    }
+    renderModelloSteps(res.modello);
+    mostraToast(res.message);
+}
+
+async function eliminaModello(modelloId) {
+    if (!confirm('Vuoi eliminare questo modello di procedura?')) return;
+    const res = await callProcApi({
+        action: 'elimina_modello',
+        modello_id: modelloId,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore eliminazione modello', true);
+        return;
+    }
+    const card = document.getElementById(`modello-card-${modelloId}`);
+    if (card) card.remove();
+    mostraToast(res.message);
+}
+
+async function inviaBriefingProcedureTelegram() {
+    try {
+        const resp = await fetch("{% url 'ia_invia_briefing_api' %}", { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            mostraToast(data.message);
+        } else {
+            mostraToast(data.error || 'Errore durante l\'invio del briefing', true);
+        }
+    } catch (e) {
+        mostraToast('Errore di rete durante l\'invio del briefing', true);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    {% if avvia_cliente_id or request.GET.avvia_modello %}
+    apriModalAvviaProcedura({{ avvia_modello_id|default:"null" }});
+    {% endif %}
+    {% if pratica_focus_id %}
+    const fCard = document.getElementById('pratica-card-{{ pratica_focus_id }}');
+    if (fCard) fCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    {% endif %}
+});
+</script>
+{% endblock %}

@@ -1271,6 +1271,7 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None, confo
     """
     Compone il Briefing Direzionale IA giornaliero/settimanale per Titolari e Responsabili Area:
     - Turni di oggi e richieste di sostituzione aperte/in attesa
+    - Avanzamento delle Procedure Operative aperte (es. Disdetta contratto: punti fatti e punti mancanti)
     - Assenze in attesa di avvallo amministrazione
     - Segnalazioni critiche aperte (con Triage IA)
     - Allarmi di conformità (Mezzi, Permessi Città Alta, Visite Mediche, Corsi)
@@ -1278,7 +1279,7 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None, confo
     Se invia_telegram=True, invia il riepilogo su Telegram ai Titolari attivi.
     """
     from .models import (
-        AssegnazioneTurno, RichiestaSostituzione, Assenza, Segnalazione, Mezzo
+        AssegnazioneTurno, RichiestaSostituzione, Assenza, Segnalazione, Mezzo, ProceduraAvviata
     )
     from .services import notifica_titolari
 
@@ -1301,6 +1302,13 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None, confo
         Segnalazione.objects.filter(risolto=False).select_related('dipendente').order_by('-data_inserimento')[:10]
     )
 
+    procedure_aperte_qs = list(
+        ProceduraAvviata.objects.filter(stato='IN_CORSO')
+        .select_related('modello', 'cliente', 'dipendente')
+        .prefetch_related('passaggi')
+        .order_by('data_scadenza', '-data_avvio', '-id')
+    )
+
     if conformita is None:
         conformita = verifica_conformita_turni(data_inizio=today, data_fine=today + timedelta(days=7))
     if budget is None:
@@ -1319,6 +1327,59 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None, confo
             lines.append(f"  • {d_str} — {s.assegnazione_originale.cliente.ragione_sociale} (Assente: {s.dipendente_assente})")
     else:
         lines.append("✅ <b>Sostituzioni:</b> Nessun turno scoperto")
+
+    # SEZIONE AVANZAMENTO PROCEDURE OPERATIVE APERTE
+    procedure_riepilogo = []
+    if procedure_aperte_qs:
+        lines.append(f"\n📋 <b>Procedure Operative in Corso ({len(procedure_aperte_qs)}):</b>")
+        for proc in procedure_aperte_qs[:8]:
+            passaggi = list(proc.passaggi.all().order_by('ordine', 'id'))
+            tot_p = len(passaggi)
+            fatti_p = [p for p in passaggi if p.completato]
+            mancanti_p = [p for p in passaggi if not p.completato]
+            comp_p = len(fatti_p)
+            perc_p = int(round((comp_p / tot_p) * 100)) if tot_p > 0 else 0
+
+            filled_blocks = int(round((perc_p / 100) * 6))
+            bar_str = "🟩" * filled_blocks + "⬜" * (6 - filled_blocks)
+
+            meta_extra = []
+            if proc.cliente and proc.cliente.ragione_sociale.lower() not in (proc.titolo or '').lower():
+                meta_extra.append(f"Cliente: {proc.cliente.ragione_sociale}")
+            if proc.dipendente:
+                meta_extra.append(f"Incaricato: {proc.dipendente.cognome} {proc.dipendente.nome}")
+            if proc.data_scadenza:
+                scad_prefix = "⚠️ Scad." if proc.data_scadenza <= today else "Scad."
+                meta_extra.append(f"{scad_prefix} {proc.data_scadenza.strftime('%d/%m/%Y')}")
+            meta_str = f" ({' | '.join(meta_extra)})" if meta_extra else ""
+
+            lines.append(
+                f"  • <b>{proc.titolo}</b>{meta_str}\n"
+                f"    {bar_str} <b>{comp_p}/{tot_p} punti ({perc_p}%)</b>"
+            )
+            if fatti_p:
+                fatti_str = ", ".join(f"{p.ordine}) {p.titolo}" for p in fatti_p)
+                lines.append(f"    ✅ Completati: {fatti_str}")
+            if mancanti_p:
+                prossimo = mancanti_p[0]
+                altri_mancanti = ", ".join(f"{p.ordine}) {p.titolo}" for p in mancanti_p[1:4])
+                if altri_mancanti:
+                    lines.append(f"    👉 Prossimo: <b>{prossimo.ordine}) {prossimo.titolo}</b> (poi: {altri_mancanti})")
+                else:
+                    lines.append(f"    👉 Da completare: <b>{prossimo.ordine}) {prossimo.titolo}</b>")
+
+            procedure_riepilogo.append({
+                'id': proc.id,
+                'titolo': proc.titolo,
+                'cliente': proc.cliente.ragione_sociale if proc.cliente else '',
+                'dipendente': f"{proc.dipendente.cognome} {proc.dipendente.nome}" if proc.dipendente else '',
+                'completati': comp_p,
+                'totale': tot_p,
+                'percentuale': perc_p,
+                'prossimo_passo': f"{mancanti_p[0].ordine}) {mancanti_p[0].titolo}" if mancanti_p else 'Tutti i punti completati',
+            })
+    else:
+        lines.append("\n📋 <b>Procedure Operative:</b> Nessuna procedura aperta in corso")
 
     if assenze_da_avvallare:
         lines.append(f"\n⏳ <b>Assenze in attesa di avvallo ({len(assenze_da_avvallare)}):</b>")
@@ -1355,6 +1416,8 @@ def genera_briefing_mattutino(invia_telegram=False, data_riferimento=None, confo
         'testo_telegram': testo_plain,
         'turni_oggi_count': turni_oggi_count,
         'sostituzioni_stallo_count': len(sost_in_stallo),
+        'procedure_aperte_count': len(procedure_aperte_qs),
+        'procedure_aperte': procedure_riepilogo,
         'assenze_da_avvallare_count': len(assenze_da_avvallare),
         'alert_conformita_count': conformita['num_alert'],
         'cantieri_sforamento_count': budget['num_sforamento'],

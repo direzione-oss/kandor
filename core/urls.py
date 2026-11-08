@@ -17,6 +17,7 @@ from .views import (
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup, dev_tools_publish_code,
     installa_locale_view, installa_locale_download, debug_db_view,
     ia_hub_view, ia_auto_valida_ore_api, ia_invia_briefing_api, ia_mezzo_manutenzione_api, ia_analizza_documento_api,
+    gestione_procedure_view, gestione_procedure_api,
 )
 from .views_webapp import (
     dipendente_app_view,
@@ -118,4 +119,8 @@ urlpatterns = [
     path('api/ia/invia-briefing/', ia_invia_briefing_api, name='ia_invia_briefing_api'),
     path('api/ia/mezzo-manutenzione/', ia_mezzo_manutenzione_api, name='ia_mezzo_manutenzione_api'),
     path('api/ia/analizza-documento/', ia_analizza_documento_api, name='ia_analizza_documento_api'),
+
+    # Gestione Procedure Operative (es. Disdetta Contratto, Checklist personalizzabili)
+    path('procedure/', gestione_procedure_view, name='gestione_procedure'),
+    path('api/procedure/action/', gestione_procedure_api, name='gestione_procedure_api'),
 ]

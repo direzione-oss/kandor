@@ -42,7 +42,7 @@ class Command(BaseCommand):
             'core.richiestastraordinaria', 'core.turno', 'core.assegnazioneturno',
             'core.assenza', 'core.timetracking', 'core.responsabilearea',
             'core.richiestasostituzione', 'core.messaggiochat',
-            'core.segnalazione', 'core.proximitylog', 'core.messaggioprogrammato',
+            'core.segnalazione', 'core.proximitylog', 'core.messaggioprogrammato', 'core.modelloprocedura', 'core.passomodelloprocedura', 'core.proceduraavviata', 'core.passoproceduraavviata',
         ]
 
         def _fk_m2m(MC):

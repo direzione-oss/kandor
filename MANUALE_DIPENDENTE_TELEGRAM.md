@@ -1,9 +1,9 @@
 # 📱 Guida Operativa Completa per il Dipendente — Web App Mobile, Assistente IA & Bot Telegram Kandor
 
-> **Versione**: 3.0  
-> **Data Aggiornamento**: Ottobre 2026  
+> **Versione**: 3.1  
+> **Data Aggiornamento**: 30 Ottobre 2026  
 > **Destinatari**: Lavoratori, Operatori di Cantiere, Capisquadra e Sostituti (Jolly)  
-> **Indirizzo Web App Mobile**: [https://kandor.onrender.com/app/](https://kandor.onrender.com/app/)  
+> **Indirizzo Web App Mobile**: [https://kandor.187.126.30.207.sslip.io/app/](https://kandor.187.126.30.207.sslip.io/app/)  
 > **Bot Ufficiale Telegram**: `@kandor_gestionale_bot`
 
 ---
@@ -34,7 +34,7 @@ Con entrambi gli strumenti puoi svolgere in pochi secondi tutte le operazioni qu
 
 1. Apri il browser internet del tuo cellulare (**Chrome** su Android oppure **Safari** su iPhone).
 2. Vai all'indirizzo ufficiale:
-   👉 **[https://kandor.onrender.com/app/](https://kandor.onrender.com/app/)**
+   👉 **[https://kandor.187.126.30.207.sslip.io/app/](https://kandor.187.126.30.207.sslip.io/app/)**
 3. Ti apparirà la schermata di accesso **Kandor App Dipendenti**:
    - Nel primo campo inserisci il tuo **Codice Fiscale** completo (16 caratteri, non importa se maiuscolo o minuscolo).
    - Nel secondo campo inserisci il tuo **PIN personale di 4 cifre** (che ti è stato comunicato dall'ufficio).
@@ -50,12 +50,12 @@ Con entrambi gli strumenti puoi svolgere in pochi secondi tutte le operazioni qu
 Puoi aggiungere l'icona di **Kandor** direttamente sulla schermata principale del tuo smartphone, proprio come una normale applicazione scaricata dallo store:
 
 - **Su Smartphone Android (Google Chrome)**:
-  1. Apri `https://kandor.onrender.com/app/` su Chrome.
+  1. Apri `https://kandor.187.126.30.207.sslip.io/app/` su Chrome.
   2. Tocca il banner in basso **"📲 Installa Kandor sul tuo telefono"** (oppure tocca i **tre puntini `⋮`** in alto a destra e seleziona **"Aggiungi a schermata Home"** / **"Installa app"**).
   3. Conferma toccando **Aggiungi**. L'icona blu **Kandor** comparirà tra le tue app!
 
 - **Su iPhone / iPad (Apple Safari)**:
-  1. Apri `https://kandor.onrender.com/app/` usando **Safari**.
+  1. Apri `https://kandor.187.126.30.207.sslip.io/app/` usando **Safari**.
   2. Tocca l'icona **Condividi** in basso al centro (il quadrato con la freccia rivolta verso l'alto `⬆️`).
   3. Scorri il menu verso il basso e tocca **"Aggiungi alla schermata Home"**.
   4. Tocca **"Aggiungi"** in alto a destra.
@@ -73,6 +73,8 @@ Una volta effettuato l'accesso, in basso sullo schermo trovi la **barra di navig
 | **Assenze** | 🏥 | Inviare richieste di Malattia, Ferie, Permesso Orario o Legge 104 e controllare se sono state approvate. |
 | **Ufficio** | 💬 | Chattare con l'amministrazione (con foto e allegati) oppure inviare una Segnalazione tecnica dal cantiere. |
 | **Profilo** | 👤 | Cambiare la tua foto profilo, vedere i tuoi dati, le qualifiche e le scadenze di Visita Medica e Corsi. |
+
+![Schermate Principali della Web App Mobile Dipendenti Kandor (/app/)](screenshots/08_webapp_dipendente.png)
 
 ---
 
@@ -98,11 +100,12 @@ Oltre all'Assistente Rapido IA, nella schermata **⏱ Oggi & Ore** trovi:
 2. **I Tuoi Turni di Oggi**: Per ogni cantiere programmato oggi vedi il nome del cliente, l'orario previsto, l'indirizzo con il bottone **📍 Apri Mappa**, la squadra, il mezzo assegnato e le eventuali istruzioni di cantiere (es. codici allarme o chiavi).
 3. **Come registrare le ore manualmente a fine turno**:
    - Tocca il pulsante **`⏱ Inserisci Ore`** sul turno (oppure vai direttamente al riquadro di inserimento ore del turno).
-   - Nel campo **"Ore lavorate"** (già precompilato con la durata prevista del turno, ma modificabile) inserisci le ore effettivamente svolte (es. `4`, `7.5`, `2.5`) ed eventuali note (es. se hai svolto un **lavoro extra** richiesto dal cliente).
+   - Nel campo **"Ore lavorate"** (già precompilato con la durata prevista del turno, ma modificabile anche con i comodi pulsanti rapidi **`- 0.5h`** e **`+ 0.5h`**) inserisci le ore effettivamente svolte (es. `4`, `7.5`, `2.5`) ed eventuali note (es. se hai svolto un **lavoro extra** richiesto dal cliente).
    - **Conferma Presenza Compagni di Squadra**: Se lavori in squadra e sei il primo a registrare le ore di quel turno, sotto al campo ore vedrai l'elenco dei tuoi **compagni di squadra previsti oggi** con una spunta verde.
      - Lascia la spunta sui colleghi regolarmente presenti: il sistema **registrerà automaticamente le stesse ore anche per loro**, senza che debbano reinserirle!
      - Se un collega previsto non si è presentato, **togli la spunta** dal suo nome: il sistema avviserà automaticamente l'ufficio dell'assenza.
    - Tocca il pulsante verde **"✅ Salva Ore"**.
+   - *(Nota: qualora non avessi avuto modo di inserire le ore in tempo, l'ufficio amministrazione può comunque inserirle e validarle direttamente per tutta la squadra dal calendario aziendale).*
 4. **📋 Turni da Compilare (Ultimi 7 Giorni)**:
    - Se nei giorni scorsi hai dimenticato di inserire le ore di un turno, lo troverai elencato nel riquadro giallo **"Turni da compilare (ultimi 7 giorni)"**.
    - Tocca **`⏱ Inserisci Ore`**, inserisci le ore svolte, verifica i compagni presenti e premi **"Salva"** per regolarizzare subito il turno.
@@ -237,7 +240,7 @@ Il **Bot IA di Kandor** capirà automaticamente la tua frase e ti mostrerà un *
 ## ❓ Domande Frequenti (FAQ) per il Dipendente
 
 ### 1. Posso usare sia la Web App Mobile sia Telegram?
-**Sì!** I due strumenti sono completamente sincronizzati tra loro. Se registri le ore o invii un messaggio dalla Web App Mobile (`https://kandor.onrender.com/app/`), i dati risultano immediatamente registrati anche su Telegram e nel gestionale dell'ufficio.
+**Sì!** I due strumenti sono completamente sincronizzati tra loro. Se registri le ore o invii un messaggio dalla Web App Mobile (`https://kandor.187.126.30.207.sslip.io/app/`), i dati risultano immediatamente registrati anche su Telegram e nel gestionale dell'ufficio.
 
 ### 2. Come funziona il microfono dell'Assistente IA nella Web App?
 Nella scheda **⏱ Oggi & Ore**, tocca il pulsante **`🎙️`** dentro al riquadro **🤖 Assistente Rapido IA**, consenti l'uso del microfono se il browser te lo chiede, e pronuncia una frase come *"Oggi 4 ore"*. Il testo comparirà automaticamente nella casella e ti basterà premere **Invia**.
@@ -254,4 +257,4 @@ Scrivi una parola qualsiasi in chat (ad esempio *"Menu"*) e invia il messaggio, 
 ---
 
 > **KANDOR ERP** — Sistema Gestionale Operativo con Assistente IA  
-> *Guida per il Personale Operativo (Web App Mobile & Bot Telegram) — Versione 3.0 — © 2026 Studio Serra*
+> *Guida per il Personale Operativo (Web App Mobile & Bot Telegram) — Versione 3.1 (30/10/2026) — © 2026 Studio Serra*
