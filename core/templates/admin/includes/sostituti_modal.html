@@ -6,7 +6,7 @@
     <div style="background:#0F172A; color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center;">
       <div>
         <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#F8FAFC; display:flex; align-items:center; gap:8px;">
-          <span>👥</span> Gestione Sostituzione Turno (Liberi e Pronti a Sostituire)
+          <span>👥</span> Gestione Sostituzione Turno (Tutti i Sostituti &amp; Anagrafica — Anche Impegnati o Senza Telegram)
         </h3>
         <div id="sost-modal-subtitle" style="font-size:12px; color:#CBD5E1; margin-top:4px;">Caricamento informazioni turno...</div>
       </div>
@@ -33,9 +33,9 @@
     <!-- Instructions / Info Box -->
     <div style="padding:12px 24px 0 24px;">
       <div style="background:#EFF6FF; border-left:4px solid #2563EB; padding:10px 14px; border-radius:6px; font-size:12.5px; color:#1E40AF; line-height:1.45;">
-        <strong>💡 Due modalità operative per l'Amministrazione:</strong><br>
-        1️⃣ <strong>🏢 Conferma dall'Ufficio (Immediata):</strong> Clicca su <strong>"🏢 Conferma dall'Ufficio"</strong> accanto al candidato scelto (o sul sostituto già contattato che non riesce a usare Telegram) per assegnarlo subito al turno.<br>
-        2️⃣ <strong>🚀 Coda Notifiche Telegram:</strong> Spunta uno o più candidati in ordine di preferenza (1°, 2°, 3°...) e clicca su <strong>"Invia Notifiche ai Selezionati"</strong>.
+        <strong>💡 Due modalità operative per l'Amministrazione (include anche sostituti impegnati in altri orari o senza Telegram):</strong><br>
+        1️⃣ <strong>🏢 Conferma dall'Ufficio (Immediata — Consigliata anche per chi non ha Telegram o fa il lavoro in altro orario):</strong> Clicca su <strong>"🏢 Conferma dall'Ufficio"</strong> accanto al candidato scelto (es. Ratti) per collegarlo subito alla sostituzione malattia.<br>
+        2️⃣ <strong>🚀 Selezione multipla / Coda Telegram:</strong> Spunta uno o più candidati e clicca in basso (se il 1° selezionato non ha Telegram viene confermato automaticamente dall'Ufficio!).
       </div>
     </div>
 
@@ -43,7 +43,7 @@
     <div style="padding:14px 24px; overflow-y:auto; flex:1;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #E2E8F0; flex-wrap:wrap; gap:8px;">
         <span style="font-size:13px; font-weight:700; color:#334155;">
-          Candidati Sostituti Liberi (<span id="sost-candidati-count">0</span>)
+          Candidati Sostituti e Dipendenti Attivi (<span id="sost-candidati-count">0</span>)
         </span>
         <div style="display:flex; gap:8px; align-items:center;">
           <input type="text" id="sost-search-input" placeholder="🔍 Filtra per nome o qualifica..." oninput="renderSostitutiList()" style="font-size:12px; padding:5px 10px; border:1px solid #CBD5E1; border-radius:6px; width:210px;">
@@ -531,9 +531,23 @@ function renderSostitutiList() {
     }
 
     var tgSpan = document.createElement('span');
-    tgSpan.style.cssText = 'font-size:10.5px; color:' + (item.ha_telegram ? '#0284C7' : '#94A3B8') + '; font-weight:600; margin-left:4px;';
-    tgSpan.textContent = item.ha_telegram ? '📱 Telegram OK' : '📵 No Telegram';
+    tgSpan.style.cssText = 'font-size:10.5px; color:' + (item.ha_telegram ? '#0284C7' : '#D97706') + '; font-weight:700; margin-left:4px;';
+    tgSpan.textContent = item.ha_telegram ? '📱 Telegram OK' : '📵 No Telegram (Conferma Ufficio OK)';
     skillsDiv.appendChild(tgSpan);
+
+    if (item.is_sostituto_anagrafica === false) {
+      var anagSpan = document.createElement('span');
+      anagSpan.style.cssText = 'font-size:10px; background:#F1F5F9; color:#475569; padding:1px 6px; border-radius:4px; border:1px solid #CBD5E1; margin-left:4px;';
+      anagSpan.textContent = '👤 Da Anagrafica';
+      skillsDiv.appendChild(anagSpan);
+    }
+
+    if (item.occupato_fascia && item.impegni_concomitanti && item.impegni_concomitanti.length) {
+      var occSpan = document.createElement('span');
+      occSpan.style.cssText = 'font-size:10.5px; background:#FFFBEB; color:#B45309; padding:2px 7px; border-radius:4px; font-weight:700; border:1px solid #FDE68A; margin-left:4px;';
+      occSpan.textContent = '🕒 Impegnato: ' + item.impegni_concomitanti.join(', ') + ' (gestibile in altro orario)';
+      skillsDiv.appendChild(occSpan);
+    }
 
     infoDiv.appendChild(skillsDiv);
     leftDiv.appendChild(infoDiv);

@@ -512,6 +512,7 @@ try {
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
+  if(document.getElementById('edit-ore-note-input')) document.getElementById('edit-ore-note-input').value='';
   
   var calcShiftHours = _calcHoursFromTimes(oraInizio, oraFine);
   var hasOreInviate = (oreDichiarate && parseFloat(oreDichiarate) > 0);
@@ -707,14 +708,44 @@ try {
           };
           lbl.appendChild(valAssBtn);
         }
-      } else if (c.ore_dichiarate !== null && c.ore_dichiarate !== undefined) {
-        if (maxOreDichiarate === null || c.ore_dichiarate > maxOreDichiarate) {
-          maxOreDichiarate = c.ore_dichiarate;
+      } else {
+        var defaultCompOre = (c.ore_dichiarate !== null && c.ore_dichiarate !== undefined) ? c.ore_dichiarate : ((_op && _op > 0) ? _op : '');
+        if (c.ore_dichiarate !== null && c.ore_dichiarate !== undefined) {
+          if (maxOreDichiarate === null || c.ore_dichiarate > maxOreDichiarate) {
+            maxOreDichiarate = c.ore_dichiarate;
+          }
         }
+        var oreWrap = document.createElement('span');
+        oreWrap.style.cssText = 'display:inline-flex;align-items:center;gap:4px;margin-left:6px;';
+        oreWrap.onclick = function(ev){ ev.stopPropagation(); };
+
+        var oreInp = document.createElement('input');
+        oreInp.type = 'number';
+        oreInp.step = '0.5';
+        oreInp.min = '0';
+        oreInp.className = 'comp-ore-input';
+        oreInp.dataset.dipId = c.id;
+        oreInp.value = defaultCompOre;
+        oreInp.title = 'Ore individuali per ' + c.nome;
+        oreInp.style.cssText = 'width:54px;padding:1px 4px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid ' + (c.is_validated ? '#10b981' : '#cbd5e1') + ';background:#fff;text-align:center;';
+        oreWrap.appendChild(oreInp);
+
         var oreSpan = document.createElement('span');
-        oreSpan.style.cssText = 'background:' + (c.is_validated ? '#d1fae5' : '#fef3c7') + ';color:' + (c.is_validated ? '#047857' : '#92400e') + ';padding:2px 7px;border-radius:10px;font-weight:bold;margin-left:4px;font-size:10px;border:1px solid ' + (c.is_validated ? '#a7f3d0' : '#fde68a');
-        oreSpan.textContent = (c.is_validated ? '✅ ' : '⏳ ') + c.ore_dichiarate + 'h';
-        lbl.appendChild(oreSpan);
+        oreSpan.style.cssText = 'background:' + (c.is_validated ? '#d1fae5' : '#fef3c7') + ';color:' + (c.is_validated ? '#047857' : '#92400e') + ';padding:2px 6px;border-radius:10px;font-weight:bold;font-size:10px;border:1px solid ' + (c.is_validated ? '#a7f3d0' : '#fde68a');
+        oreSpan.textContent = (c.is_validated ? '✅ Valid.' : '⏳ Da val.');
+        oreWrap.appendChild(oreSpan);
+
+        var btnValSingolo = document.createElement('button');
+        btnValSingolo.type = 'button';
+        btnValSingolo.style.cssText = 'background:#059669;color:#fff;border:none;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;';
+        btnValSingolo.textContent = '✓ Valida';
+        btnValSingolo.title = 'Salva e valida solo le ore di ' + c.nome;
+        btnValSingolo.onclick = function(ev){
+          ev.preventDefault(); ev.stopPropagation();
+          submitOreSingoloDipendente(c.id, oreInp.value);
+        };
+        oreWrap.appendChild(btnValSingolo);
+        lbl.appendChild(oreWrap);
 
         if (c.note) {
           var noteSpan = document.createElement('span');
@@ -722,8 +753,6 @@ try {
           noteSpan.textContent = '📝 ' + c.note;
           noteSpan.title = c.note;
           lbl.appendChild(noteSpan);
-          var noteInp = document.getElementById('edit-ore-note-input');
-          if (noteInp && !noteInp.value) noteInp.value = c.note;
         }
       }
       
@@ -755,14 +784,35 @@ function closeEditTurno(skipReload){
   }
 }
 
+function submitOreSingoloDipendente(dipId, oreValRaw){
+  if(!_editId)return;
+  var ore=parseFloat(oreValRaw);
+  if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido per il dipendente');return;}
+  var noteVal=(document.getElementById('edit-ore-note-input') ? document.getElementById('edit-ore-note-input').value : '').trim();
+  var oreMap={};
+  oreMap[String(dipId)]=ore;
+  fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
+    body:JSON.stringify({ore:ore,dipendente_id:dipId,ore_per_dipendente:oreMap,note:noteVal,validate:true})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'impossibile validare'))}
+  }).catch(function(){alert('Errore di connessione')});
+}
+
 function submitOreManual(validate){
   if(!_editId)return;
   var ore=parseFloat(document.getElementById('edit-ore-input').value);
   var noteVal=(document.getElementById('edit-ore-note-input') ? document.getElementById('edit-ore-note-input').value : '').trim();
   if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido');return;}
   var collected=_collectEsclusiAndSostituti();
+  var orePerDip={};
+  document.querySelectorAll('#edit-componenti-list .comp-ore-input').forEach(function(inp){
+    var v=parseFloat(inp.value);
+    if(inp.dataset.dipId && !isNaN(v) && v>0){
+      orePerDip[String(inp.dataset.dipId)]=v;
+    }
+  });
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({ore:ore,note:noteVal,validate:validate,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
+    body:JSON.stringify({ore:ore,ore_per_dipendente:orePerDip,note:noteVal,validate:validate,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
   }).then(function(r){return r.json()}).then(function(d){
     if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
   }).catch(function(){alert('Errore di connessione')})
@@ -771,8 +821,15 @@ function submitOreManual(validate){
 function submitValidaOre(action){
   if(!_editId)return;
   var collected=_collectEsclusiAndSostituti();
+  var orePerDip={};
+  document.querySelectorAll('#edit-componenti-list .comp-ore-input').forEach(function(inp){
+    var v=parseFloat(inp.value);
+    if(inp.dataset.dipId && !isNaN(v) && v>0){
+      orePerDip[String(inp.dataset.dipId)]=v;
+    }
+  });
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({action:action,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
+    body:JSON.stringify({action:action,ore_per_dipendente:orePerDip,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
   }).then(function(r){return r.json()}).then(function(d){
     if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'nessuna ora registrata'))}
   }).catch(function(){alert('Errore di connessione')})

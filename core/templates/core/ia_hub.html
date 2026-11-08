@@ -392,6 +392,15 @@
                 <input type="date" name="data_inizio" value="{{ data_inizio }}" class="input-ctrl">
                 <span>→</span>
                 <input type="date" name="data_fine" value="{{ data_fine }}" class="input-ctrl">
+            </div>
+            <div class="filter-group">
+                <label>Dipendente:</label>
+                <select name="dipendente_id" class="input-ctrl" style="min-width:190px;">
+                    <option value="">Tutti i Dipendenti</option>
+                    {% for dip in dipendenti_attivi %}
+                    <option value="{{ dip.id }}" {% if dipendente_id == dip.id %}selected{% endif %}>{{ dip.cognome }} {{ dip.nome }}</option>
+                    {% endfor %}
+                </select>
                 <button type="submit" class="btn btn-primary">🔍 Aggiorna Analisi IA</button>
             </div>
         </form>
@@ -456,12 +465,71 @@
                             Confronta automaticamente ore dichiarate vs contratto, timbrature GPS (ProximityLog), doppi inserimenti e tetti Part-Time.
                         </div>
                     </div>
-                    <div>
-                        <button type="button" class="btn btn-emerald" onclick="eseguiAutoValidazioneOre()">
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        {% if audit_ore.auto_validabili_items %}
+                        <button type="button" class="btn btn-primary" onclick="validaSelezionateIa()">
+                            ☑️ Valida Selezionate
+                        </button>
+                        {% endif %}
+                        {% if dipendente_id %}
+                        <button type="button" class="btn btn-emerald" onclick="eseguiAutoValidazioneOre(true)">
+                            ✅ Valida Tutte le Ore di questo Dipendente
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-emerald" onclick="eseguiAutoValidazioneOre(false)">
                             ✅ Auto-Valida {{ audit_ore.riepilogo.auto_validabili_count }} Ore Regolari con 1 Click
                         </button>
                     </div>
                 </div>
+
+                {% if audit_ore.auto_validabili_items %}
+                <div style="padding:14px 20px; background:#F0FDF4; border-bottom:1px solid #BBF7D0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+                        <div style="font-weight:800; color:#065F46; font-size:13.5px;">
+                            🟢 Ore Regolari Pronte per la Validazione (Selezionabili singolarmente per dipendente)
+                        </div>
+                        <label style="font-size:12px; font-weight:700; color:#065F46; cursor:pointer; display:flex; align-items:center; gap:5px;">
+                            <input type="checkbox" id="chkAllAutoVal" checked onchange="document.querySelectorAll('.chk-autoval-item').forEach(c => c.checked = this.checked)">
+                            Seleziona / Deseleziona tutte
+                        </label>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:36px;">Sel.</th>
+                                <th>Data</th>
+                                <th>Dipendente</th>
+                                <th>Cliente / Cantiere</th>
+                                <th>Ore da Validare</th>
+                                <th>Note</th>
+                                <th>Azione Singola</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reg in audit_ore.auto_validabili_items %}
+                            <tr id="row-tt-{{ reg.timetracking_id }}">
+                                <td>
+                                    <input type="checkbox" class="chk-autoval-item" value="{{ reg.timetracking_id }}" checked>
+                                </td>
+                                <td><strong>{{ reg.data|date:"d/m/Y" }}</strong></td>
+                                <td><strong>{{ reg.dipendente_nome }}</strong></td>
+                                <td>{{ reg.cliente_nome }}</td>
+                                <td>
+                                    <input type="number" step="0.5" min="0.5" id="inp-tt-{{ reg.timetracking_id }}" value="{{ reg.ore_dichiarate|stringformat:'g' }}" style="width:65px; padding:4px 6px; border:1px solid #CBD5E1; border-radius:6px; font-weight:700;">
+                                    <span style="font-size:12px; color:#64748B;">/ {{ reg.ore_previste }}h prev.</span>
+                                </td>
+                                <td style="font-size:12px; color:#475569;">{{ reg.note|default:"—" }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-emerald" style="padding:5px 10px; font-size:12px;" onclick="validaSingolaRigaIa({{ reg.timetracking_id }}, null, null)">
+                                        ✅ Valida Ora
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
 
                 {% if audit_ore.anomalie %}
                 <table>
@@ -473,7 +541,7 @@
                             <th>Cliente / Cantiere</th>
                             <th>Dichiarate vs Previste</th>
                             <th>Anomalie Rilevate dall'IA</th>
-                            <th>Suggerimento Operativo</th>
+                            <th>Rettifica &amp; Validazione Rapida</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -487,20 +555,42 @@
                                 {% endif %}
                             </td>
                             <td><strong>{{ item.data|date:"d/m/Y" }}</strong></td>
-                            <td>{{ item.dipendente_nome }}</td>
+                            <td><strong>{{ item.dipendente_nome }}</strong></td>
                             <td>{{ item.cliente_nome }}</td>
                             <td>
                                 <strong>{{ item.ore_dichiarate }}h</strong> / {{ item.ore_previste }}h
                                 {% if item.is_validated %}
                                 <span class="badge badge-green">Validata</span>
+                                {% else %}
+                                <span class="badge badge-amber">In attesa</span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% for m in item.motivi %}
                                 <div style="margin-bottom:3px;">• {{ m }}</div>
                                 {% endfor %}
+                                <div style="font-size:11.5px; color:#4338CA; margin-top:3px;">💡 {{ item.suggerimento }}</div>
                             </td>
-                            <td style="color:#4338CA; font-weight:600;">💡 {{ item.suggerimento }}</td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                                    {% if item.timetracking_id %}
+                                    <input type="number" step="0.5" min="0.5" id="inp-anom-tt-{{ item.timetracking_id }}" value="{% if item.ore_dichiarate > 0 %}{{ item.ore_dichiarate|stringformat:'g' }}{% else %}{{ item.ore_previste|stringformat:'g' }}{% endif %}" style="width:62px; padding:4px 6px; border:1px solid #CBD5E1; border-radius:6px; font-weight:700;" title="Ore da confermare per {{ item.dipendente_nome }}">
+                                    <button type="button" class="btn btn-emerald" style="padding:5px 10px; font-size:11.5px;" onclick="validaSingolaRigaIa({{ item.timetracking_id }}, null, document.getElementById('inp-anom-tt-{{ item.timetracking_id }}').value)">
+                                        ✅ Salva &amp; Valida
+                                    </button>
+                                    {% if item.ore_previste > 0 and item.ore_dichiarate != item.ore_previste %}
+                                    <button type="button" class="btn btn-primary" style="padding:5px 9px; font-size:11px;" onclick="validaSingolaRigaIa({{ item.timetracking_id }}, null, '{{ item.ore_previste|stringformat:'g' }}')">
+                                        🎯 Allinea a {{ item.ore_previste }}h
+                                    </button>
+                                    {% endif %}
+                                    {% elif item.assegnazione_id %}
+                                    <input type="number" step="0.5" min="0.5" id="inp-anom-as-{{ item.assegnazione_id }}" value="{{ item.ore_previste|stringformat:'g' }}" style="width:62px; padding:4px 6px; border:1px solid #CBD5E1; border-radius:6px; font-weight:700;">
+                                    <button type="button" class="btn btn-emerald" style="padding:5px 10px; font-size:11.5px;" onclick="validaSingolaRigaIa(null, {{ item.assegnazione_id }}, document.getElementById('inp-anom-as-{{ item.assegnazione_id }}').value, '{{ item.dipendente_id|default:'' }}')">
+                                        ✅ Compila &amp; Valida
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -825,21 +915,70 @@
             btnEl.classList.add('active');
         }
 
-        async function eseguiAutoValidazioneOre() {
+        async function eseguiAutoValidazioneOre(forzaTutteDipendente) {
             const res = await fetch('/api/ia/auto-valida-ore/', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     data_inizio: '{{ data_inizio }}',
-                    data_fine: '{{ data_fine }}'
+                    data_fine: '{{ data_fine }}',
+                    dipendente_id: '{{ dipendente_id|default:"" }}',
+                    forza_tutte_dipendente: Boolean(forzaTutteDipendente)
                 })
             });
             const data = await res.json();
             if (data.ok) {
                 showIaToast(data.message);
-                document.getElementById('kpiAutoValCount').textContent = '0';
+                setTimeout(() => window.location.reload(), 900);
             } else {
                 alert(data.error || 'Errore durante l\'auto-validazione.');
+            }
+        }
+
+        async function validaSelezionateIa() {
+            const ids = [];
+            document.querySelectorAll('.chk-autoval-item:checked').forEach(c => ids.push(parseInt(c.value)));
+            if (!ids.length) {
+                alert('Seleziona almeno una riga da validare.');
+                return;
+            }
+            const res = await fetch('/api/ia/auto-valida-ore/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ timetracking_ids: ids })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showIaToast(data.message);
+                setTimeout(() => window.location.reload(), 800);
+            } else {
+                alert(data.error || 'Errore durante la validazione.');
+            }
+        }
+
+        async function validaSingolaRigaIa(ttId, assignId, oreVal, dipId) {
+            let ore = oreVal;
+            if (!ore && ttId) {
+                const inp = document.getElementById('inp-tt-' + ttId);
+                if (inp) ore = inp.value;
+            }
+            const payload = {};
+            if (ttId) payload.timetracking_id = ttId;
+            if (assignId) payload.assegnazione_id = assignId;
+            if (ore) payload.ore_dichiarate = ore;
+            if (dipId) payload.dipendente_id = dipId;
+
+            const res = await fetch('/api/ia/auto-valida-ore/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.ok) {
+                showIaToast(data.message);
+                setTimeout(() => window.location.reload(), 700);
+            } else {
+                alert(data.error || 'Errore durante la validazione della riga.');
             }
         }
 

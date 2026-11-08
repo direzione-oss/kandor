@@ -782,9 +782,11 @@ def validate_ore_ajax(request, assign_id):
                 'count': 0,
             })
 
-        # Determina il valore delle ore da applicare
+        # Determina il valore delle ore da applicare (globale o individuale per singolo dipendente)
+        ore_per_dip_raw = data.get('ore_per_dipendente') or {}
+        single_dip_id = data.get('dipendente_id')
         ore_val = None
-        if ore_param is not None:
+        if ore_param is not None and str(ore_param).strip() != '':
             ore_val = Decimal(str(float(str(ore_param).replace(',', '.'))))
             if ore_val <= 0:
                 return JsonResponse({
@@ -805,29 +807,51 @@ def validate_ore_ajax(request, assign_id):
                     minuti += 24 * 60
                 ore_val = Decimal(str(round(minuti / 60.0, 2)))
 
-        # Applica a TUTTI i componenti attivi (inclusi i sostituti confermati)
+        target_dips = active_dips
+        if single_dip_id:
+            try:
+                sd_int = int(single_dip_id)
+                target_dips = [d for d in active_dips if d.pk == sd_int]
+                if not target_dips:
+                    dip_extra = Dipendente.objects.filter(pk=sd_int).first()
+                    if dip_extra and dip_extra.pk not in assenti_ids and dip_extra.pk not in esclusi_ids:
+                        target_dips = [dip_extra]
+            except (ValueError, TypeError):
+                pass
+
+        # Applica ai componenti attivi selezionati (con supporto ad ore individuali per dipendente)
         updated_count = 0
         if action == 'unvalidate':
-            for tt in TimeTracking.objects.filter(assegnazione=assign, dipendente__in=active_dips):
+            for tt in TimeTracking.objects.filter(assegnazione=assign, dipendente__in=target_dips):
                 tt.is_validated = False
                 tt.save()
                 updated_count += 1
         else:
-            for dip in active_dips:
-                default_note = note_param if note_param else f"Ore valide per la squadra ({sq_nome})"
+            for dip in target_dips:
+                dip_ore = ore_val
+                raw_ind = ore_per_dip_raw.get(str(dip.pk)) if isinstance(ore_per_dip_raw, dict) else None
+                if raw_ind is not None and str(raw_ind).strip() != '':
+                    try:
+                        val_ind = Decimal(str(float(str(raw_ind).replace(',', '.'))))
+                        if val_ind > 0:
+                            dip_ore = val_ind
+                    except (ValueError, TypeError):
+                        pass
+
+                default_note = note_param if note_param else f"Ore valide ({dip.cognome} {dip.nome} - {sq_nome})"
                 tt, created = TimeTracking.objects.get_or_create(
                     dipendente=dip,
                     assegnazione=assign,
                     defaults={
-                        'ore_dichiarate': ore_val,
+                        'ore_dichiarate': dip_ore,
                         'is_validated': validate_flag,
                         'source': 'ADMIN',
                         'note': default_note,
                     }
                 )
                 if not created:
-                    if ore_val is not None:
-                        tt.ore_dichiarate = ore_val
+                    if dip_ore is not None:
+                        tt.ore_dichiarate = dip_ore
                     if note_param is not None and note_param != '':
                         tt.note = note_param
                     if validate_flag:
@@ -838,7 +862,7 @@ def validate_ore_ajax(request, assign_id):
         status_msg = "Ore validate" if (validate_flag and action != 'unvalidate') else ("Validazione rimossa" if action == 'unvalidate' else "Ore salvate")
         return JsonResponse({
             'status': 'ok',
-            'message': f"{status_msg} per {updated_count} dipendenti della squadra {sq_nome}",
+            'message': f"{status_msg} per {updated_count} dipendente/i ({sq_nome})",
             'validated': validate_flag and action != 'unvalidate',
             'count': updated_count,
         })
@@ -2170,7 +2194,8 @@ def trova_sostituti_api(request):
         ora_inizio=assegnazione.orario_inizio_previsto,
         ora_fine=assegnazione.orario_fine_previsto,
         escludi_dipendenti_ids=componenti_ids,
-        qualifica_richiesta=qualifica
+        qualifica_richiesta=qualifica,
+        includi_tutti_attivi=True,
     )
     
     sostituti_list = []
@@ -2183,11 +2208,15 @@ def trova_sostituti_api(request):
             'distanza_km': dist,
             'qualifiche': r['skills'],
             'telefono': dip.telefono or '',
+            'ha_telegram': bool(getattr(dip, 'telegram_chat_id', None)),
             'ai_score': r.get('ai_score', 50),
             'ai_motivi': r.get('ai_motivi', []),
             'presenze_cliente': r.get('presenze_cliente', 0),
             'ore_settimana': r.get('ore_settimana', 0.0),
             'conformita_ok': r.get('conformita_ok', True),
+            'occupato_fascia': r.get('occupato_fascia', False),
+            'impegni_concomitanti': r.get('impegni_concomitanti', []),
+            'is_sostituto_anagrafica': r.get('is_sostituto_anagrafica', True),
         })
     
     return JsonResponse({'ok': True, 'sostituti': sostituti_list})
@@ -2199,6 +2228,7 @@ def get_sostituti_richiesta_api(request, richiesta_id):
     Ritorna l'elenco di tutti i sostituti compatibili/disponibili per una richiesta di sostituzione,
     evidenziando quali sono stati precedentemente selezionati, l'ordine di selezione,
     l'eventuale sostituto attualmente contattato/assegnato e gli altri turni collegati alla stessa assenza.
+    Include anche i dipendenti già impegnati in altri turni (con indicazione dell'orario) e quelli senza Telegram.
     """
     from .models import RichiestaSostituzione, Dipendente, Assenza
     from .services import trova_sostituti, get_richieste_sostituzione_per_assenza
@@ -2237,7 +2267,9 @@ def get_sostituti_richiesta_api(request, richiesta_id):
         ora_inizio=assegnazione.orario_inizio_previsto,
         ora_fine=assegnazione.orario_fine_previsto,
         escludi_dipendenti_ids=componenti_ids,
-        qualifica_richiesta=qualifica
+        qualifica_richiesta=qualifica,
+        escludi_richiesta_id=richiesta.id,
+        includi_tutti_attivi=True,
     )
 
     salvati_ids = richiesta.sostituti_candidati or []
@@ -2266,6 +2298,9 @@ def get_sostituti_richiesta_api(request, richiesta_id):
             'presenze_cliente': r.get('presenze_cliente', 0),
             'ore_settimana': r.get('ore_settimana', 0.0),
             'conformita_ok': r.get('conformita_ok', True),
+            'occupato_fascia': r.get('occupato_fascia', False),
+            'impegni_concomitanti': r.get('impegni_concomitanti', []),
+            'is_sostituto_anagrafica': r.get('is_sostituto_anagrafica', True),
         })
 
     trovati_ids = {item['id'] for item in list_data}
@@ -2289,7 +2324,10 @@ def get_sostituti_richiesta_api(request, richiesta_id):
                     'categoria_protetta': getattr(dip, 'categoria_protetta', False),
                     'selezionato': selezionato,
                     'ordine': (salvati_ids.index(sid) + 1) if selezionato else None,
-                    'is_sostituto_corrente': (richiesta.sostituto_id == dip.id)
+                    'is_sostituto_corrente': (richiesta.sostituto_id == dip.id),
+                    'occupato_fascia': False,
+                    'impegni_concomitanti': [],
+                    'is_sostituto_anagrafica': bool(dip.is_sostituto),
                 })
                 trovati_ids.add(dip.id)
             except Dipendente.DoesNotExist:
@@ -2341,7 +2379,8 @@ def invia_notifiche_sostituti_api(request):
     """
     Riceve l'elenco dei sostituti selezionati e il loro ordine di preferenza,
     aggiorna la RichiestaSostituzione e invia la notifica al primo sostituto in lista.
-    Se applica_a_periodo=True, imposta la stessa coda e invia anche agli altri turni scoperti dell'assenza.
+    Se il primo sostituto NON ha Telegram, lo conferma automaticamente dall'Ufficio!
+    Se applica_a_periodo=True, imposta la stessa coda e invia/conferma anche sugli altri turni dell'assenza.
     """
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
@@ -2359,10 +2398,10 @@ def invia_notifiche_sostituti_api(request):
         return JsonResponse({'ok': False, 'error': 'richiesta_id obbligatorio'}, status=400)
 
     if not isinstance(sostituti_ids, list) or len(sostituti_ids) == 0:
-        return JsonResponse({'ok': False, 'error': 'Seleziona almeno un sostituto a cui inviare la notifica'}, status=400)
+        return JsonResponse({'ok': False, 'error': 'Seleziona almeno un sostituto'}, status=400)
 
     from .models import RichiestaSostituzione, Dipendente, Assenza
-    from .services import approva_e_invia_sostituto, get_richieste_sostituzione_per_assenza
+    from .services import approva_e_invia_sostituto, assegna_sostituto_da_ufficio, get_richieste_sostituzione_per_assenza, avvia_sostituzione_per_assenza
 
     try:
         richiesta = RichiestaSostituzione.objects.select_related('assegnazione_originale__turno', 'dipendente_assente').get(pk=richiesta_id)
@@ -2381,6 +2420,27 @@ def invia_notifiche_sostituti_api(request):
     if not valid_ids:
         return JsonResponse({'ok': False, 'error': 'Nessun sostituto valido selezionato'}, status=400)
 
+    primo_dip = Dipendente.objects.filter(pk=valid_ids[0]).first()
+    # Se il 1° sostituto selezionato NON ha Telegram (es. Ratti Claudio), l'Amministrazione lo conferma subito dall'Ufficio!
+    if primo_dip and not getattr(primo_dip, 'telegram_chat_id', None):
+        res_uff = assegna_sostituto_da_ufficio(
+            richiesta_id=richiesta.pk,
+            sostituto_id=primo_dip.pk,
+            applica_a_periodo=applica_a_periodo,
+        )
+        if not res_uff.get('ok'):
+            return JsonResponse({'ok': False, 'error': res_uff.get('error', 'Errore durante la conferma')}, status=400)
+        primo_dip_nome = res_uff.get('sostituto_nome', str(primo_dip))
+        turni_cnt = res_uff.get('turni_aggiornati', 1)
+        extra_msg = f" su {turni_cnt} turni dell'assenza" if turni_cnt > 1 else ""
+        return JsonResponse({
+            'ok': True,
+            'message': f"Il sostituto {primo_dip_nome} non utilizza Telegram: è stato CONFERMATO direttamente dall'Ufficio{extra_msg}!",
+            'sostituto_corrente': primo_dip_nome,
+            'totale_selezionati': len(valid_ids),
+            'turni_aggiornati': turni_cnt,
+        })
+
     richieste_target = [richiesta]
     if applica_a_periodo:
         data_turno = richiesta.assegnazione_originale.turno.data
@@ -2390,6 +2450,8 @@ def invia_notifiche_sostituti_api(request):
             data_fine__gte=data_turno
         ).order_by('-id').first()
         if assenza:
+            if assenza.stato_approvazione == 'APPROVATA':
+                avvia_sostituzione_per_assenza(assenza)
             collegate = list(get_richieste_sostituzione_per_assenza(assenza).exclude(stato__in=['ACCETTATA', 'COMPLETATA']))
             if collegate:
                 richieste_target = collegate
@@ -2451,7 +2513,7 @@ def conferma_sostituto_ufficio_api(request):
     per una RichiestaSostituzione, sia scegliendo un candidato libero dalla lista,
     sia confermando per conto del dipendente a cui era già stata inviata la richiesta Telegram
     (se non riesce a rispondere dal cellulare).
-    Supporta anche l'azione 'passa_successivo' per passare manualmente al candidato successivo in coda.
+    Supporta anche l'azione 'passa_successivo' e 'non_sostituire'.
     """
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
@@ -2462,18 +2524,20 @@ def conferma_sostituto_ufficio_api(request):
         return JsonResponse({'ok': False, 'error': 'Dati JSON non validi'}, status=400)
 
     richiesta_id = data.get('richiesta_id')
-    azione = data.get('azione', 'conferma')  # 'conferma' oppure 'passa_successivo'
+    azione = data.get('azione', 'conferma')  # 'conferma', 'passa_successivo', 'non_sostituire'
 
     if not richiesta_id:
         return JsonResponse({'ok': False, 'error': 'richiesta_id obbligatorio'}, status=400)
 
     if azione == 'passa_successivo':
         from .services import gestisci_risposta_sostituto
-        richiesta = gestisci_risposta_sostituto(richiesta_id, accetta=False)
+        richiesta = gestisci_risposta_sostituto(richiesta_id, accettato=False)
         if not richiesta:
             return JsonResponse({'ok': False, 'error': 'Impossibile passare al sostituto successivo'}, status=400)
         if richiesta.stato == 'INVIATA' and richiesta.sostituto:
             msg = f"Passato al candidato successivo: notifica inviata a {richiesta.sostituto.cognome} {richiesta.sostituto.nome}."
+        elif richiesta.stato == 'COMPLETATA' and richiesta.sostituto:
+            msg = f"Passato al candidato successivo ({richiesta.sostituto.cognome} {richiesta.sostituto.nome}) e confermato dall'Ufficio."
         else:
             msg = f"Lista candidati esaurita (stato: {richiesta.get_stato_display()}). Puoi confermare un sostituto direttamente dall'ufficio."
         return JsonResponse({
@@ -2482,6 +2546,39 @@ def conferma_sostituto_ufficio_api(request):
             'stato': richiesta.stato,
             'sostituto_corrente_id': richiesta.sostituto_id,
             'sostituto_corrente_nome': f"{richiesta.sostituto.cognome} {richiesta.sostituto.nome}" if richiesta.sostituto else None
+        })
+
+    if azione == 'non_sostituire':
+        from .models import RichiestaSostituzione, Assenza, TimeTracking
+        applica_a_periodo = bool(data.get('applica_a_periodo', False))
+        try:
+            richiesta = RichiestaSostituzione.objects.select_related('assegnazione_originale__turno', 'dipendente_assente').get(pk=richiesta_id)
+        except RichiestaSostituzione.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Richiesta non trovata'}, status=404)
+        targets = [richiesta]
+        if applica_a_periodo:
+            dt = richiesta.assegnazione_originale.turno.data
+            ass = Assenza.objects.filter(dipendente=richiesta.dipendente_assente, data_inizio__lte=dt, data_fine__gte=dt).exclude(stato_approvazione='RIFIUTATA').order_by('-id').first()
+            if ass:
+                altre = RichiestaSostituzione.objects.filter(
+                    dipendente_assente=richiesta.dipendente_assente,
+                    assegnazione_originale__turno__data__gte=ass.data_inizio,
+                    assegnazione_originale__turno__data__lte=ass.data_fine,
+                ).exclude(pk=richiesta.pk).select_related('assegnazione_originale__turno')
+                targets.extend(list(altre))
+        for rq in targets:
+            old_sost = rq.sostituto_id
+            rq.sostituto = None
+            rq.stato = 'NON_SOSTITUITO'
+            rq.save(update_fields=['sostituto', 'stato'])
+            if rq.dipendente_assente_id:
+                TimeTracking.objects.filter(assegnazione=rq.assegnazione_originale, dipendente_id=rq.dipendente_assente_id).delete()
+            if old_sost:
+                TimeTracking.objects.filter(assegnazione=rq.assegnazione_originale, dipendente_id=old_sost).delete()
+        return JsonResponse({
+            'ok': True,
+            'message': f"Turno segnato come Non Sostituito su {len(targets)} turno/i.",
+            'turni_aggiornati': len(targets),
         })
 
     sostituto_id = data.get('sostituto_id')
@@ -4867,8 +4964,11 @@ def ia_hub_view(request):
         data_inizio = date(anno, mese, 1)
         data_fine = date(anno, mese, calendar.monthrange(anno, mese)[1])
 
-    # 1. Audit Ore & Paghe
-    audit_ore = analizza_anomalie_ore(data_inizio, data_fine)
+    dipendente_id_raw = request.GET.get('dipendente_id', '').strip()
+    dipendente_id = int(dipendente_id_raw) if dipendente_id_raw.isdigit() else None
+
+    # 1. Audit Ore & Paghe (filtrabile per singolo dipendente, es. Ratti Claudio)
+    audit_ore = analizza_anomalie_ore(data_inizio, data_fine, dipendente_id=dipendente_id)
 
     # 2. Segnalazioni recenti con Triage IA (pre-caricando i mezzi in 1 sola query)
     from .models import Mezzo
@@ -4926,6 +5026,7 @@ def ia_hub_view(request):
         'marginalita': marginalita,
         'gemini_attivo': is_gemini_configured(),
         'dipendenti_attivi': Dipendente.objects.filter(stato='ATTIVO').order_by('cognome', 'nome'),
+        'dipendente_id': dipendente_id or '',
     }
     return render(request, 'core/ia_hub.html', context)
 
@@ -4933,8 +5034,13 @@ def ia_hub_view(request):
 @csrf_exempt
 def ia_auto_valida_ore_api(request):
     """
-    Auto-valida con 1 click tutte le registrazioni TimeTracking prive di anomalie
-    nel periodo selezionato (Modulo 1 - AI Revisore Ore).
+    Auto-valida le registrazioni TimeTracking nel periodo selezionato (Modulo 1 - AI Revisore Ore).
+    Supporta:
+    - Validazione / rettifica singola riga (timetracking_id + eventuale ore_dichiarate)
+    - Creazione e validazione ore mancanti (assegnazione_id + dipendente_id + ore_dichiarate)
+    - Validazione multipla selettiva (timetracking_ids)
+    - Auto-validazione per singolo dipendente (dipendente_id, anche con forza_tutte_dipendente=True)
+    - Auto-validazione globale delle ore regolari
     """
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': 'Metodo non consentito'}, status=405)
@@ -4942,7 +5048,8 @@ def ia_auto_valida_ore_api(request):
         return JsonResponse({'ok': False, 'error': 'Non autorizzato'}, status=403)
 
     from datetime import date
-    from .models import TimeTracking
+    from decimal import Decimal
+    from .models import TimeTracking, AssegnazioneTurno, Dipendente
     from .ai_engine import analizza_anomalie_ore
 
     try:
@@ -4950,13 +5057,110 @@ def ia_auto_valida_ore_api(request):
     except Exception:
         body = request.POST
 
+    # 1. Validazione o rettifica di un singolo TimeTracking (anche dalla tabella Anomalie)
+    single_tt_id = body.get('timetracking_id')
+    if single_tt_id and str(single_tt_id).isdigit():
+        tt = TimeTracking.objects.select_related('dipendente', 'assegnazione__cliente').filter(pk=int(single_tt_id)).first()
+        if not tt:
+            return JsonResponse({'ok': False, 'error': 'Registrazione ore non trovata'}, status=404)
+        ore_override = body.get('ore_dichiarate')
+        if ore_override is not None and str(ore_override).strip() != '':
+            try:
+                val = Decimal(str(float(str(ore_override).replace(',', '.'))))
+                if val > 0:
+                    tt.ore_dichiarate = val
+            except Exception:
+                pass
+        tt.is_validated = True
+        tt.save()
+        dip_str = f"{tt.dipendente.cognome} {tt.dipendente.nome}" if tt.dipendente else "Dipendente"
+        return JsonResponse({
+            'ok': True,
+            'validate_count': 1,
+            'message': f'✅ Validate {tt.ore_dichiarate}h per {dip_str}!',
+        })
+
+    # 2. Compilazione e validazione rapida di un turno non compilato (ORE_MANCANTI)
+    assign_id = body.get('assegnazione_id')
+    if assign_id and str(assign_id).isdigit() and not body.get('data_inizio'):
+        assign = AssegnazioneTurno.objects.filter(pk=int(assign_id)).first()
+        if not assign:
+            return JsonResponse({'ok': False, 'error': 'Turno non trovato'}, status=404)
+        ore_override = body.get('ore_dichiarate')
+        try:
+            ore_val = Decimal(str(float(str(ore_override or assign.ore_previste_contratto or 3.0).replace(',', '.'))))
+        except Exception:
+            ore_val = Decimal('3.0')
+        dip_id_param = body.get('dipendente_id')
+        dips_target = []
+        if dip_id_param and str(dip_id_param).isdigit():
+            d_obj = Dipendente.objects.filter(pk=int(dip_id_param)).first()
+            if d_obj:
+                dips_target = [d_obj]
+        if not dips_target:
+            dips_target = list(assign.dipendenti_presenti)
+        cnt = 0
+        for d_obj in dips_target:
+            tt, created = TimeTracking.objects.get_or_create(
+                dipendente=d_obj,
+                assegnazione=assign,
+                defaults={
+                    'ore_dichiarate': ore_val,
+                    'is_validated': True,
+                    'source': 'ADMIN',
+                    'note': 'Validato da Revisore Ore IA',
+                }
+            )
+            if not created:
+                tt.ore_dichiarate = ore_val
+                tt.is_validated = True
+                tt.save()
+            cnt += 1
+        return JsonResponse({
+            'ok': True,
+            'validate_count': cnt,
+            'message': f'✅ Registrate e validate {ore_val}h per {cnt} dipendente/i!',
+        })
+
+    # 3. Validazione di una selezione specifica di ID TimeTracking (checkboxes)
+    selected_ids = body.get('timetracking_ids')
+    if isinstance(selected_ids, list) and len(selected_ids) > 0:
+        clean_ids = [int(x) for x in selected_ids if str(x).isdigit()]
+        if clean_ids:
+            updated = TimeTracking.objects.filter(id__in=clean_ids).update(is_validated=True)
+            return JsonResponse({
+                'ok': True,
+                'validate_count': updated,
+                'message': f'✅ Validate con successo {updated} registrazioni ore selezionate!',
+            })
+
     try:
         data_inizio = date.fromisoformat(body.get('data_inizio'))
         data_fine = date.fromisoformat(body.get('data_fine'))
     except Exception:
         return JsonResponse({'ok': False, 'error': 'Date non valide'}, status=400)
 
-    audit = analizza_anomalie_ore(data_inizio, data_fine)
+    dipendente_id = body.get('dipendente_id')
+    dip_id_int = int(dipendente_id) if (dipendente_id and str(dipendente_id).isdigit()) else None
+    forza_tutte_dip = bool(body.get('forza_tutte_dipendente', False))
+
+    # Se richiesto per un singolo dipendente dal Report Paghe o con forza_tutte_dipendente=True,
+    # valida direttamente tutte le sue ore in attesa nel periodo
+    if dip_id_int and forza_tutte_dip:
+        updated = TimeTracking.objects.filter(
+            dipendente_id=dip_id_int,
+            assegnazione__turno__data__gte=data_inizio,
+            assegnazione__turno__data__lte=data_fine,
+            is_validated=False,
+            ore_dichiarate__gt=0,
+        ).update(is_validated=True)
+        return JsonResponse({
+            'ok': True,
+            'validate_count': updated,
+            'message': f'✅ Validate tutte le {updated} registrazioni ore in attesa del dipendente selezionato!',
+        })
+
+    audit = analizza_anomalie_ore(data_inizio, data_fine, dipendente_id=dip_id_int)
     ids = audit.get('auto_validabili_ids', [])
     if not ids:
         return JsonResponse({

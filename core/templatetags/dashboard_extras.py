@@ -549,7 +549,7 @@ def weekly_schedule_widget(context):
                     except (TypeError, ValueError):
                         return '—'
 
-                durata_tot = sum(float(t.durata_ore) for t in tt_list if t.durata_ore) if tt_list else (float(tt.durata_ore) if tt and tt.durata_ore else 0)
+                durata_tot = max((float(t.durata_ore) for t in tt_list if t.durata_ore), default=0) if tt_list else (float(tt.durata_ore) if tt and tt.durata_ore else 0)
                 is_all_val = all(t.is_validated for t in tt_list) if tt_list else (tt.is_validated if tt else False)
                 has_hours = bool(tt_list and any(t.ore_dichiarate or t.check_out for t in tt_list)) or bool(durata_tot > 0)
 

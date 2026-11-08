@@ -89,22 +89,27 @@ def _calcola_ore_previste_assegnazione(assign):
     return 0.0
 
 
-def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
+def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False, dipendente_id=None):
     """
-    Analizza tutti i record di TimeTracking e AssegnazioneTurno nel periodo:
+    Analizza tutti i record di TimeTracking e AssegnazioneTurno nel periodo (filtrabile per singolo dipendente):
     - Confronta ore dichiarate con ore previste da contratto/turno
     - Verifica passaggi GPS in ProximityLog
     - Controlla superamento tetto settimanale Part-Time
     - Segnala turni passati privi di compilazione ore
+    - Restituisce l'elenco individuale delle ore in attesa di validazione (auto_validabili_items)
     - Se auto_valida=True, valida automaticamente (is_validated=True) i turni regolari privi di anomalie.
     """
-    from .models import AssegnazioneTurno, TimeTracking, ProximityLog, Assenza
+    from .models import AssegnazioneTurno, TimeTracking, ProximityLog, Assenza, RichiestaSostituzione
 
     today = timezone.now().date()
     if not data_fine:
         data_fine = today
     if not data_inizio:
         data_inizio = data_fine - timedelta(days=30)
+
+    filter_dip_id = None
+    if dipendente_id and str(dipendente_id).isdigit():
+        filter_dip_id = int(dipendente_id)
 
     assegnazioni = list(
         AssegnazioneTurno.objects.filter(
@@ -115,6 +120,15 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
         .prefetch_related('timetracks__dipendente', 'dipendenti_esclusi', 'turno__squadra__componenti')
         .order_by('-turno__data', 'orario_inizio_previsto')
     )
+
+    # Pre-carica sostituzioni nel periodo per associare correttamente il sostituto confermato ai turni
+    sost_by_assign = {}
+    for rs in RichiestaSostituzione.objects.filter(
+        assegnazione_originale__turno__data__gte=data_inizio,
+        assegnazione_originale__turno__data__lte=data_fine,
+        stato__in=['APERTA', 'APPROVATA_RA', 'INVIATA', 'ACCETTATA', 'COMPLETATA', 'NON_SOSTITUITO']
+    ).select_related('sostituto', 'dipendente_assente'):
+        sost_by_assign.setdefault(rs.assegnazione_originale_id, []).append(rs)
 
     # Pre-carica log GPS nel periodo per controllo incrociato (1 query)
     prox_map = {}
@@ -149,29 +163,58 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
     anomalie = []
     turni_regolari_ids = []
     timetracks_auto_validabili_ids = []
+    auto_validabili_items = []
     totale_turni_analizzati = 0
     totale_ore_dichiarate = 0.0
     totale_ore_previste = 0.0
 
     for assign in assegnazioni:
-        totale_turni_analizzati += 1
         data_turno = assign.turno.data
         ore_prev_unitarie = _calcola_ore_previste_assegnazione(assign)
         presenti = assign.dipendenti_presenti
-        n_pres = max(len(presenti), 1)
+        sost_list = sost_by_assign.get(assign.id, [])
+        sost_confermati_ids = {r.sostituto_id for r in sost_list if r.stato in ('ACCETTATA', 'COMPLETATA') and r.sostituto_id}
+
+        tts_all = list(assign.timetracks.all())
+        if filter_dip_id:
+            presenti_ids = {d.id for d in presenti} | sost_confermati_ids | {t.dipendente_id for t in tts_all}
+            if filter_dip_id not in presenti_ids:
+                continue
+            tts = [t for t in tts_all if t.dipendente_id == filter_dip_id]
+            n_pres = 1
+        else:
+            tts = tts_all
+            n_pres = max(len(presenti), 1)
+
+        totale_turni_analizzati += 1
         totale_ore_previste += ore_prev_unitarie * n_pres
 
-        tts = list(assign.timetracks.all())
         if not tts:
+            # Se tutti i componenti del turno sono in assenza e il turno è NON_SOSTITUITO, non è un'anomalia di ore mancanti
+            if sost_list and all(r.stato == 'NON_SOSTITUITO' for r in sost_list):
+                continue
+            # Se stiamo filtrando per un dipendente che in quel giorno è in assenza approvata, salta
+            if filter_dip_id and any(a.data_inizio <= data_turno <= a.data_fine for a in assenze_per_dip.get(filter_dip_id, ())):
+                continue
             if data_turno < today:
                 ora_ini_s = assign.orario_inizio_previsto.strftime('%H:%M') if assign.orario_inizio_previsto else 'N/D'
                 ora_fin_s = assign.orario_fine_previsto.strftime('%H:%M') if assign.orario_fine_previsto else 'N/D'
                 nome_sq = assign.turno.squadra.nome if (assign.turno and assign.turno.squadra) else 'Squadra Storica'
+                sost_attivi = [r for r in sost_list if r.stato in ('ACCETTATA', 'COMPLETATA') and r.sostituto]
+                if sost_attivi:
+                    dip_manc_lbl = f"{sost_attivi[0].sostituto.cognome} {sost_attivi[0].sostituto.nome} (Sostituto)"
+                    dip_manc_id = sost_attivi[0].sostituto_id
+                elif len(presenti) == 1:
+                    dip_manc_lbl = f"{presenti[0].cognome} {presenti[0].nome}"
+                    dip_manc_id = presenti[0].id
+                else:
+                    dip_manc_lbl = f"Squadra {nome_sq}"
+                    dip_manc_id = filter_dip_id
                 mot_manc = (
                     f"Turno del {data_turno.strftime('%d/%m/%Y')} ({ora_ini_s}-"
-                    f"{ora_fin_s}) non ancora compilato da nessun componente."
+                    f"{ora_fin_s}) non ancora compilato."
                 )
-                sug_manc = "Sollecita il dipendente/caposquadra a inviare le ore tramite App o Telegram (la validazione è consentita solo dopo l'invio)."
+                sug_manc = "Registra e valida le ore direttamente col pulsante qui a fianco oppure dal Calendario."
                 anomalie.append({
                     'tipo': 'ORE_MANCANTI',
                     'severita': 'ATTENZIONE',
@@ -180,12 +223,15 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
                     'data': data_turno,
                     'cliente': assign.cliente.ragione_sociale if assign.cliente else 'N/D',
                     'cliente_nome': assign.cliente.ragione_sociale if assign.cliente else 'N/D',
-                    'dipendente': f"Squadra {nome_sq}",
-                    'dipendente_nome': f"Squadra {nome_sq}",
+                    'dipendente': dip_manc_lbl,
+                    'dipendente_nome': dip_manc_lbl,
+                    'dipendente_id': dip_manc_id,
                     'assegnazione_id': assign.id,
+                    'timetracking_id': None,
                     'ore_previste': ore_prev_unitarie,
                     'ore_dichiarate': 0.0,
                     'scostamento': -ore_prev_unitarie,
+                    'is_validated': False,
                     'motivo': mot_manc,
                     'motivi': [mot_manc],
                     'azione_consigliata': sug_manc,
@@ -289,6 +335,19 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
             else:
                 if not tt.is_validated and ore_dich > 0:
                     timetracks_auto_validabili_ids.append(tt.id)
+                    dip_lbl = f"{dip.cognome} {dip.nome}" if dip else 'N/D'
+                    cli_lbl = assign.cliente.ragione_sociale if assign.cliente else 'N/D'
+                    auto_validabili_items.append({
+                        'timetracking_id': tt.id,
+                        'assegnazione_id': assign.id,
+                        'data': data_turno,
+                        'dipendente_id': dip.id if dip else None,
+                        'dipendente_nome': dip_lbl,
+                        'cliente_nome': cli_lbl,
+                        'ore_dichiarate': ore_dich,
+                        'ore_previste': ore_prev_unitarie,
+                        'note': tt.note or '',
+                    })
 
         if not assign_has_anomaly:
             turni_regolari_ids.append(assign.id)
@@ -318,6 +377,7 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False):
         'num_attenzione': num_attenzione,
         'num_auto_validabili': len(timetracks_auto_validabili_ids),
         'auto_validabili_ids': timetracks_auto_validabili_ids,
+        'auto_validabili_items': auto_validabili_items,
         'auto_validati_count': auto_validati_count,
         'anomalie': anomalie,
         'riepilogo': {

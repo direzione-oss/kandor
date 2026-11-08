@@ -377,7 +377,7 @@
             <p>Riepilogo ore lavorate, convalidate ed assenze per l'elaborazione delle buste paga dal <b>{{ data_inizio_formatted }}</b> al <b>{{ data_fine_formatted }}</b></p>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-            <a href="{% url 'ia_hub' %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}" class="btn-paghe-pdf" style="background:#4F46E5; color:#FFF;">
+            <a href="{% url 'ia_hub' %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}&dipendente_id={{ dipendente_id }}" class="btn-paghe-pdf" style="background:#4F46E5; color:#FFF;">
                 🤖 Revisore Ore IA & Auto-Valida
             </a>
             <a href="{% url 'pdf_report_paghe' %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}&dipendente_id={{ dipendente_id }}" target="_blank" class="btn-paghe-pdf">
@@ -493,6 +493,7 @@
                             {% endif %}
                             {% if item.ore_non_validate > 0 %}
                             <br><span class="badge-non-val" title="Ore non ancora validate">{{ item.ore_non_validate }} h in attesa</span>
+                            <button type="button" onclick="validaOreDipendenteReport('{{ item.dip_id }}', '{{ item.cognome_nome|escapejs }}')" style="margin-top:3px; background:#059669; color:#fff; border:none; border-radius:8px; padding:2px 8px; font-size:0.72rem; font-weight:700; cursor:pointer;" title="Valida tutte le ore in attesa di {{ item.cognome_nome }}">✅ Valida ora</button>
                             {% endif %}
                         </td>
                         <td style="text-align: center;">
@@ -701,6 +702,35 @@
             } else {
                 row.style.display = 'none';
             }
+        }
+
+        function validaOreDipendenteReport(dipId, dipNome) {
+            if (!confirm('Vuoi convalidare subito tutte le ore in attesa di ' + dipNome + ' nel periodo selezionato?')) return;
+            fetch('/api/ia/auto-valida-ore/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    data_inizio: '{{ data_inizio }}',
+                    data_fine: '{{ data_fine }}',
+                    dipendente_id: dipId,
+                    forza_tutte_dipendente: true
+                })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert('Errore: ' + (data.error || 'Impossibile validare le ore.'));
+                }
+            })
+            .catch(function() {
+                alert('Errore di connessione.');
+            });
         }
 
     function apriModalModifica(dipId, dipNome, glOrig, oreLavOrig, oreValOrig, ferieOrig, permOrig, malOrig, l104Orig, glOv, oreLavOv, oreValOv, ferieOv, permOv, malOv, l104Ov, note, isRett) {
