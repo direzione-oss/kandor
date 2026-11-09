@@ -244,6 +244,12 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False, d
             dip = tt.dipendente
             ore_dich = round(float(tt.durata_ore or 0), 2)
             totale_ore_dichiarate += ore_dich
+
+            # Se la registrazione è GIÀ stata convalidata dall'Amministrazione, non mostrarla
+            # più tra le anomalie / ore da validare nel Centro Automazioni Smart!
+            if tt.is_validated:
+                continue
+
             diff = round(ore_dich - ore_prev_unitarie, 2)
             motivi_tt = []
             severita_tt = 'INFO'

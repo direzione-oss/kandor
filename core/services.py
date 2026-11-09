@@ -894,20 +894,24 @@ def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_peri
                     ore_prev = Decimal(str(round(minuti / 60.0, 2)))
             if ore_prev and ore_prev > 0:
                 assente_lbl = f"{req.dipendente_assente.cognome} {req.dipendente_assente.nome}" if req.dipendente_assente else "Assente"
-                tt_sost, created = TimeTracking.objects.get_or_create(
-                    dipendente=sostituto,
-                    assegnazione=assegn,
-                    defaults={
-                        'ore_dichiarate': ore_prev,
-                        'is_validated': True,
-                        'source': 'ADMIN',
-                        'note': f"Sostituzione di {assente_lbl} ({req.motivo_assenza})",
-                    }
-                )
-                if not created and not tt_sost.ore_dichiarate:
-                    tt_sost.ore_dichiarate = ore_prev
+                existing_tts = list(TimeTracking.objects.filter(dipendente=sostituto, assegnazione=assegn).order_by('id'))
+                if existing_tts:
+                    tt_sost = existing_tts[0]
+                    if len(existing_tts) > 1:
+                        TimeTracking.objects.filter(id__in=[t.id for t in existing_tts[1:]]).delete()
+                    if not tt_sost.ore_dichiarate:
+                        tt_sost.ore_dichiarate = ore_prev
                     tt_sost.is_validated = True
                     tt_sost.save()
+                else:
+                    TimeTracking.objects.create(
+                        dipendente=sostituto,
+                        assegnazione=assegn,
+                        ore_dichiarate=ore_prev,
+                        is_validated=True,
+                        source='ADMIN',
+                        note=f"Sostituzione di {assente_lbl} ({req.motivo_assenza})",
+                    )
 
         # Invia promemoria su Telegram al sostituto (se ha Telegram) e notifica completamento
         if bot_token and sostituto.telegram_chat_id:

@@ -275,6 +275,9 @@
   <div id="edit-ore-no-submit-msg" style="display:none;margin-top:8px;font-size:11.5px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:6px 10px">
     ℹ️ Il lavoratore non ha ancora inviato le ore: puoi inserirle e validarle direttamente qui dall'amministrazione.
   </div>
+  <div id="edit-ore-already-val-msg" style="display:none;margin-top:8px;font-size:11.5px;color:#065f46;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:4px;padding:6px 10px;font-weight:600">
+    ✅ Le ore di questo turno sono GIÀ CONVALIDATE. Eventuali clic su "Salva e valida ore" aggiornano il valore del turno senza MAI sommare né duplicare le ore.
+  </div>
 </div>
 <!-- SEZIONE COPIA / SPOSTA SU ALTRO GIORNO -->
 <div style="margin-top:12px;padding:10px 12px;background:#e8f4fd;border-radius:6px;border-left:4px solid #0277bd">
@@ -569,10 +572,16 @@ try {
     if(!d.componenti||!d.componenti.length){listEl.innerHTML='<span style="font-size:11px;color:#999">Nessun componente</span>';return;}
     
     var maxOreDichiarate = null;
+    var activeCompCount = 0;
+    var validatedCompCount = 0;
     var sostDisponibili = d.sostituti_disponibili || [];
     d.componenti.forEach(function(c){
       var isAssente = c.in_assenza;
       var isSostituto = c.is_sostituto_turno;
+      if (!isAssente && !c.escluso) {
+        activeCompCount++;
+        if (c.is_validated) validatedCompCount++;
+      }
       var bgCol = isAssente ? '#f3e8ff' : (isSostituto ? '#ecfdf5' : (c.escluso ? '#ffeaea' : '#f0fff4'));
       var brdCol = isAssente ? '#d8b4fe' : (isSostituto ? '#10b981' : (c.escluso ? '#f5c6cb' : '#c3e6cb'));
       
@@ -759,15 +768,27 @@ try {
       listEl.appendChild(lbl);
     });
 
+    var alreadyValMsg = document.getElementById('edit-ore-already-val-msg');
+    var allVal = (activeCompCount > 0 && validatedCompCount === activeCompCount);
     if (maxOreDichiarate !== null && maxOreDichiarate > 0) {
-      badge.textContent = 'Segnalate: ' + maxOreDichiarate + 'h';
-      badge.style.background = '#e2e8f0';
-      badge.style.color = '#334155';
-      badge.style.border = '1px solid #cbd5e1';
+      if (allVal) {
+        badge.textContent = '✅ Già Validate: ' + maxOreDichiarate + 'h';
+        badge.style.background = '#d1fae5';
+        badge.style.color = '#065f46';
+        badge.style.border = '1px solid #10b981';
+        if (alreadyValMsg) alreadyValMsg.style.display = 'block';
+      } else {
+        badge.textContent = 'Segnalate: ' + maxOreDichiarate + 'h';
+        badge.style.background = '#e2e8f0';
+        badge.style.color = '#334155';
+        badge.style.border = '1px solid #cbd5e1';
+        if (alreadyValMsg) alreadyValMsg.style.display = 'none';
+      }
       document.getElementById('edit-ore-input').value = maxOreDichiarate;
       document.getElementById('edit-ore-controls').style.display = 'flex';
       document.getElementById('edit-ore-no-submit-msg').style.display = 'none';
     } else {
+      if (alreadyValMsg) alreadyValMsg.style.display = 'none';
       document.getElementById('edit-ore-controls').style.display = 'flex';
       document.getElementById('edit-ore-no-submit-msg').style.display = 'block';
     }

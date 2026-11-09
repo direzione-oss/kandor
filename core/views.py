@@ -839,17 +839,11 @@ def validate_ore_ajax(request, assign_id):
                         pass
 
                 default_note = note_param if note_param else f"Ore valide ({dip.cognome} {dip.nome} - {sq_nome})"
-                tt, created = TimeTracking.objects.get_or_create(
-                    dipendente=dip,
-                    assegnazione=assign,
-                    defaults={
-                        'ore_dichiarate': dip_ore,
-                        'is_validated': validate_flag,
-                        'source': 'ADMIN',
-                        'note': default_note,
-                    }
-                )
-                if not created:
+                existing_tts = list(TimeTracking.objects.filter(dipendente=dip, assegnazione=assign).order_by('id'))
+                if existing_tts:
+                    tt = existing_tts[0]
+                    if len(existing_tts) > 1:
+                        TimeTracking.objects.filter(id__in=[t.id for t in existing_tts[1:]]).delete()
                     if dip_ore is not None:
                         tt.ore_dichiarate = dip_ore
                     if note_param is not None and note_param != '':
@@ -857,6 +851,15 @@ def validate_ore_ajax(request, assign_id):
                     if validate_flag:
                         tt.is_validated = True
                     tt.save()
+                else:
+                    TimeTracking.objects.create(
+                        dipendente=dip,
+                        assegnazione=assign,
+                        ore_dichiarate=dip_ore,
+                        is_validated=validate_flag,
+                        source='ADMIN',
+                        note=default_note,
+                    )
                 updated_count += 1
 
         status_msg = "Ore validate" if (validate_flag and action != 'unvalidate') else ("Validazione rimossa" if action == 'unvalidate' else "Ore salvate")
