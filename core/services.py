@@ -770,13 +770,13 @@ def avvia_sostituzione_per_assenza(assenza):
     return totale_create
 
 
-def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_periodo=False):
+def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_periodo=False, richieste_ids=None):
     """
     Permette all'Amministrazione di confermare direttamente dall'ufficio il sostituto
     (sia scegliendo un candidato dalla lista — anche se impegnato in altro turno o senza Telegram —
     sia confermando il sostituto già in attesa se il dipendente non riesce a rispondere su Telegram).
-    Se applica_a_periodo=True, assegna lo stesso sostituto anche agli altri turni
-    della stessa assenza e allinea automaticamente le ore (TimeTracking) per i turni passati/odierni.
+    Supporta la selezione puntuale dei giorni tramite richieste_ids (es. solo 11/11, 12/11, 13/11)
+    oppure applica_a_periodo=True per l'intero periodo dell'assenza.
     """
     from .models import RichiestaSostituzione, Dipendente, Assenza, TimeTracking
     from decimal import Decimal
@@ -803,9 +803,23 @@ def assegna_sostituto_da_ufficio(richiesta_id, sostituto_id=None, applica_a_peri
     else:
         return {'ok': False, 'error': 'Seleziona il sostituto da confermare'}
 
-    # Elenco delle richieste da completare
+    # Elenco delle richieste da completare (giorni selezionati puntualmente o intero periodo)
     richieste_target = [richiesta]
-    if applica_a_periodo:
+    clean_req_ids = []
+    if isinstance(richieste_ids, list):
+        clean_req_ids = [int(x) for x in richieste_ids if str(x).isdigit()]
+    if clean_req_ids:
+        qs_sel = RichiestaSostituzione.objects.filter(
+            pk__in=clean_req_ids,
+            dipendente_assente=richiesta.dipendente_assente,
+        ).select_related(
+            'assegnazione_originale__cliente',
+            'assegnazione_originale__turno__squadra',
+            'dipendente_assente'
+        ).order_by('assegnazione_originale__turno__data')
+        if qs_sel.exists():
+            richieste_target = list(qs_sel)
+    elif applica_a_periodo:
         data_turno = richiesta.assegnazione_originale.turno.data
         assenza_collegata = Assenza.objects.filter(
             dipendente=richiesta.dipendente_assente,

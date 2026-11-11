@@ -2396,6 +2396,7 @@ def invia_notifiche_sostituti_api(request):
     richiesta_id = data.get('richiesta_id')
     sostituti_ids = data.get('sostituti_ids', [])
     applica_a_periodo = bool(data.get('applica_a_periodo', False))
+    richieste_ids_param = data.get('richieste_ids')
 
     if not richiesta_id:
         return JsonResponse({'ok': False, 'error': 'richiesta_id obbligatorio'}, status=400)
@@ -2430,12 +2431,13 @@ def invia_notifiche_sostituti_api(request):
             richiesta_id=richiesta.pk,
             sostituto_id=primo_dip.pk,
             applica_a_periodo=applica_a_periodo,
+            richieste_ids=richieste_ids_param,
         )
         if not res_uff.get('ok'):
             return JsonResponse({'ok': False, 'error': res_uff.get('error', 'Errore durante la conferma')}, status=400)
         primo_dip_nome = res_uff.get('sostituto_nome', str(primo_dip))
         turni_cnt = res_uff.get('turni_aggiornati', 1)
-        extra_msg = f" su {turni_cnt} turni dell'assenza" if turni_cnt > 1 else ""
+        extra_msg = f" su {turni_cnt} turni selezionati" if turni_cnt > 1 else ""
         return JsonResponse({
             'ok': True,
             'message': f"Il sostituto {primo_dip_nome} non utilizza Telegram: è stato CONFERMATO direttamente dall'Ufficio{extra_msg}!",
@@ -2445,7 +2447,15 @@ def invia_notifiche_sostituti_api(request):
         })
 
     richieste_target = [richiesta]
-    if applica_a_periodo:
+    clean_req_ids = [int(x) for x in richieste_ids_param if str(x).isdigit()] if isinstance(richieste_ids_param, list) else []
+    if clean_req_ids:
+        qs_sel = RichiestaSostituzione.objects.filter(
+            pk__in=clean_req_ids,
+            dipendente_assente=richiesta.dipendente_assente,
+        ).order_by('assegnazione_originale__turno__data')
+        if qs_sel.exists():
+            richieste_target = list(qs_sel)
+    elif applica_a_periodo:
         data_turno = richiesta.assegnazione_originale.turno.data
         assenza = Assenza.objects.filter(
             dipendente=richiesta.dipendente_assente,
@@ -2586,12 +2596,14 @@ def conferma_sostituto_ufficio_api(request):
 
     sostituto_id = data.get('sostituto_id')
     applica_a_periodo = bool(data.get('applica_a_periodo', False))
+    richieste_ids_param = data.get('richieste_ids')
 
     from .services import assegna_sostituto_da_ufficio
     res = assegna_sostituto_da_ufficio(
         richiesta_id=richiesta_id,
         sostituto_id=sostituto_id,
-        applica_a_periodo=applica_a_periodo
+        applica_a_periodo=applica_a_periodo,
+        richieste_ids=richieste_ids_param,
     )
     if not res.get('ok'):
         return JsonResponse({'ok': False, 'error': res.get('error', 'Errore durante la conferma')}, status=400)

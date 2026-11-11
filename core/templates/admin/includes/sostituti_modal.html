@@ -20,11 +20,12 @@
     <div id="sost-period-bar" style="display:none; padding:12px 24px 0 24px;">
       <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:8px; padding:10px 14px;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-          <span style="font-size:12px; font-weight:700; color:#334155;">📅 Turni del periodo di assenza:</span>
-          <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#0F172A; cursor:pointer; background:#E0F2FE; padding:4px 10px; border-radius:6px; border:1px solid #7DD3FC;">
-            <input type="checkbox" id="sost-applica-periodo-chk" checked style="transform:scale(1.1); cursor:pointer;">
-            🔁 Applica la scelta a tutti i turni scoperti di questa assenza
-          </label>
+          <span style="font-size:12px; font-weight:700; color:#334155;">📅 Spunta i giorni a cui applicare il sostituto scelto:</span>
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <button type="button" onclick="selezionaGiorniAssenza('corrente')" style="font-size:11px; padding:3px 8px; background:#EFF6FF; color:#1D4ED8; border:1px solid #93C5FD; border-radius:5px; font-weight:700; cursor:pointer;">☑️ Solo questo giorno</button>
+            <button type="button" onclick="selezionaGiorniAssenza('da_qui_in_poi')" style="font-size:11px; padding:3px 8px; background:#ECFDF5; color:#047857; border:1px solid #6EE7B7; border-radius:5px; font-weight:700; cursor:pointer;">⏩ Da questo giorno in poi (es. 11, 12, 13)</button>
+            <button type="button" onclick="selezionaGiorniAssenza('tutti')" style="font-size:11px; padding:3px 8px; background:#F1F5F9; color:#334155; border:1px solid #CBD5E1; border-radius:5px; font-weight:700; cursor:pointer;">📅 Tutti i giorni</button>
+          </div>
         </div>
         <div id="sost-turni-tabs" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
       </div>
@@ -168,16 +169,7 @@ function apriModalSelezionaSostituti(richiestaId) {
       _sostitutiData.sort(function(a, b) {
         if (a.is_sostituto_corrente && !b.is_sostituto_corrente) return -1;
         if (!a.is_sostituto_corrente && b.is_sostituto_corrente) return 1;
-        if (a.selezionato && b.selezionato) return (a.ordine || 999) - (b.ordine || 999);
-        if (a.selezionato) return -1;
-        if (b.selezionato) return 1;
         return 0;
-      });
-
-      _sostitutiData.forEach(function(item) {
-        if (item.selezionato) {
-          _selezionatiOrder.push(item.id);
-        }
       });
 
       renderSostitutiList();
@@ -253,21 +245,78 @@ function renderPeriodTabs(data) {
     return;
   }
   bar.style.display = 'block';
-  collegate.forEach(function(rc) {
+  var currentIndex = -1;
+  collegate.forEach(function(rc, idx) {
+    if (rc.id === data.richiesta_id) currentIndex = idx;
+  });
+
+  collegate.forEach(function(rc, idx) {
     var isCurrent = (rc.id === data.richiesta_id);
     var isCovered = (rc.stato === 'COMPLETATA' || rc.stato === 'ACCETTATA');
     var isNotReplaced = (rc.stato === 'NON_SOSTITUITO');
     var isWaiting = (rc.stato === 'INVIATA');
     var icon = isCovered ? '✅' : (isNotReplaced ? '🚫' : (isWaiting ? '⏳' : '🔴'));
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.style.cssText = 'padding:5px 10px; border-radius:6px; font-size:11.5px; font-weight:' + (isCurrent ? '800' : '600') + '; cursor:pointer; border:' + (isCurrent ? '2px solid #0F172A' : '1px solid #CBD5E1') + '; background:' + (isCurrent ? '#0F172A' : (isCovered ? '#DCFCE7' : (isNotReplaced ? '#FEE2E2' : '#FFFFFF'))) + '; color:' + (isCurrent ? '#FFFFFF' : '#1E293B') + ';';
-    btn.textContent = icon + ' ' + rc.data + ' (' + rc.orario + ')' + (rc.sostituto_nome ? ' → ' + rc.sostituto_nome : (isNotReplaced ? ' (Salto Turno)' : ''));
-    btn.onclick = function() {
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:' + (isCurrent ? '800' : '600') + '; border:' + (isCurrent ? '2px solid #2563EB' : '1px solid #CBD5E1') + '; background:' + (isCurrent ? '#EFF6FF' : (isCovered ? '#DCFCE7' : (isNotReplaced ? '#FEE2E2' : '#FFFFFF'))) + '; color:#1E293B;';
+
+    var chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.className = 'sost-giorno-chk';
+    chk.value = rc.id;
+    chk.dataset.idx = idx;
+    // Di default spunta dal giorno cliccato in avanti se i precedenti sono già coperti, oppure tutti se scoperti
+    chk.checked = (currentIndex >= 0) ? (idx >= currentIndex) : true;
+    chk.style.cssText = 'cursor:pointer; transform:scale(1.15); margin:0;';
+    chk.title = 'Spunta per applicare il sostituto anche a questo giorno (' + rc.data + ')';
+    wrap.appendChild(chk);
+
+    var lblBtn = document.createElement('span');
+    lblBtn.style.cssText = 'cursor:pointer;';
+    lblBtn.textContent = icon + ' ' + rc.data + ' (' + rc.orario + ')' + (rc.sostituto_nome ? ' → ' + rc.sostituto_nome : (isNotReplaced ? ' (Salto Turno)' : ''));
+    lblBtn.title = 'Clicca per visualizzare i dettagli di questo giorno';
+    lblBtn.onclick = function() {
       if (!isCurrent) apriModalSelezionaSostituti(rc.id);
     };
-    tabs.appendChild(btn);
+    wrap.appendChild(lblBtn);
+
+    tabs.appendChild(wrap);
   });
+}
+
+function selezionaGiorniAssenza(modo) {
+  var chks = document.querySelectorAll('.sost-giorno-chk');
+  var currIdx = 0;
+  chks.forEach(function(c, i) {
+    if (parseInt(c.value, 10) === parseInt(_currentRichiestaId, 10)) {
+      currIdx = i;
+    }
+  });
+  chks.forEach(function(c, i) {
+    if (modo === 'corrente') {
+      c.checked = (parseInt(c.value, 10) === parseInt(_currentRichiestaId, 10));
+    } else if (modo === 'da_qui_in_poi') {
+      c.checked = (i >= currIdx);
+    } else {
+      c.checked = true;
+    }
+  });
+}
+
+function _getSelectedRichiesteIds() {
+  var bar = document.getElementById('sost-period-bar');
+  if (!bar || bar.style.display === 'none') {
+    return _currentRichiestaId ? [parseInt(_currentRichiestaId, 10)] : [];
+  }
+  var ids = [];
+  document.querySelectorAll('.sost-giorno-chk:checked').forEach(function(c) {
+    var v = parseInt(c.value, 10);
+    if (!isNaN(v)) ids.push(v);
+  });
+  if (ids.length === 0 && _currentRichiestaId) {
+    ids.push(parseInt(_currentRichiestaId, 10));
+  }
+  return ids;
 }
 
 function chiudiModalSostituti() {
@@ -309,11 +358,8 @@ function _isApplicaPeriodoChecked() {
 
 function confermaSostitutoUfficio(sostitutoId, nomeSostituto) {
   if (!_currentRichiestaId) return;
-  var applicaPeriodo = _isApplicaPeriodoChecked();
-  var msgConfirm = 'Vuoi confermare dall\'Ufficio il sostituto ' + nomeSostituto + ' per questo turno?';
-  if (applicaPeriodo) {
-    msgConfirm += '\n\n(Verrà assegnato anche agli altri turni scoperti di questa assenza in cui è disponibile).';
-  }
+  var reqIds = _getSelectedRichiesteIds();
+  var msgConfirm = 'Vuoi confermare dall\'Ufficio il sostituto ' + nomeSostituto + ' su ' + reqIds.length + ' giorno/i selezionato/i?';
   if (!confirm(msgConfirm)) return;
 
   fetch('/api/conferma-sostituto-ufficio/', {
@@ -325,7 +371,8 @@ function confermaSostitutoUfficio(sostitutoId, nomeSostituto) {
     body: JSON.stringify({
       richiesta_id: _currentRichiestaId,
       sostituto_id: sostitutoId,
-      applica_a_periodo: applicaPeriodo,
+      richieste_ids: reqIds,
+      applica_a_periodo: (reqIds.length > 1),
       azione: 'conferma'
     })
   })
@@ -597,7 +644,7 @@ function inviaNotificheSostitutiSelezionati() {
     return;
   }
 
-  var applicaPeriodo = _isApplicaPeriodoChecked();
+  var reqIds = _getSelectedRichiesteIds();
   var btn = document.getElementById('btn-invia-notifiche-sost');
   if (btn) {
     btn.disabled = true;
@@ -613,7 +660,8 @@ function inviaNotificheSostitutiSelezionati() {
     body: JSON.stringify({
       richiesta_id: _currentRichiestaId,
       sostituti_ids: _selezionatiOrder,
-      applica_a_periodo: applicaPeriodo
+      richieste_ids: reqIds,
+      applica_a_periodo: (reqIds.length > 1)
     })
   })
   .then(function(r) { return r.json(); })
