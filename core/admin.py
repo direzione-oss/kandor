@@ -369,7 +369,8 @@ class CorsoDipendenteInline(admin.TabularInline):
             else:
                 return format_html(
                     '<span style="background:#DCFCE7;color:#166534;border:1px solid #BBF7D0;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;">'
-                    '🟢 Valido</span>'
+                    '🟢 Valido (fino al {})</span>',
+                    obj.data_scadenza.strftime('%d/%m/%Y')
                 )
         if obj.stato == 'DA_FARE':
             return mark_safe(
