@@ -420,6 +420,10 @@ def dipendente_app_action_view(request):
         except ValueError:
             return JsonResponse({'ok': False, 'error': 'Formato ore non valido.'})
 
+        ore_prev = _calcola_ore_previste(assign)
+        if abs(ore_val - ore_prev) < 0.01:
+            note = ''
+
         ore_dec = Decimal(str(round(ore_val, 1)))
         tt, _ = TimeTracking.objects.get_or_create(
             dipendente=dip,

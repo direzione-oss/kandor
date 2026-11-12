@@ -1243,13 +1243,17 @@ class AssegnazioneTurnoAdmin(KandorBaseAdmin):
 
 @admin.register(TimeTracking)
 class TimeTrackingAdmin(KandorBaseAdmin):
-    list_display = ('dipendente', 'get_cliente', 'get_data', 'ore_dichiarate', 'source', 'is_validated')
+    list_display = ('dipendente', 'get_cliente', 'get_data', 'ore_dichiarate', 'get_note', 'source', 'is_validated')
     list_filter = ('is_validated', 'source', 'assegnazione__turno__data')
-    search_fields = ('dipendente__cognome', 'dipendente__nome', 'assegnazione__cliente__ragione_sociale')
+    search_fields = ('dipendente__cognome', 'dipendente__nome', 'assegnazione__cliente__ragione_sociale', 'note')
     list_editable = ('is_validated',)
     list_per_page = 50
     ordering = ('-assegnazione__turno__data',)
     actions = ['valida_ore']
+
+    def get_note(self, obj):
+        return obj.note or '—'
+    get_note.short_description = 'Motivazione / Note'
 
     def get_cliente(self, obj):
         return obj.assegnazione.cliente.ragione_sociale

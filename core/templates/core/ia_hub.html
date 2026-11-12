@@ -570,6 +570,11 @@
                                 {% for m in item.motivi %}
                                 <div style="margin-bottom:3px;">• {{ m }}</div>
                                 {% endfor %}
+                                {% if item.note_dipendente %}
+                                <div style="font-size:12px; color:#92400E; background:#FEF3C7; border-left:3px solid #F59E0B; padding:4px 8px; border-radius:4px; margin:4px 0;">
+                                    📝 <strong>Motivazione dipendente:</strong> {{ item.note_dipendente }}
+                                </div>
+                                {% endif %}
                                 <div style="font-size:11.5px; color:#4338CA; margin-top:3px;">💡 {{ item.suggerimento }}</div>
                             </td>
                             <td>

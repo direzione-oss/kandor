@@ -637,6 +637,7 @@
                                 data-cliente="{{ t.cliente_nome }}"
                                 data-datastr="{{ t.data_str }}"
                                 data-ore="{{ t.ore_dichiarate_str }}"
+                                data-ore-previste="{{ t.ore_previste_str }}"
                                 data-note="{{ t.note_dichiarate }}"
                                 data-compagni="{{ t.compagni_json }}"
                                 onclick="apriModalOreFromBtn(this)">
@@ -649,6 +650,7 @@
                                 data-cliente="{{ t.cliente_nome }}"
                                 data-datastr="{{ t.data_str }}"
                                 data-ore="{{ t.ore_previste_str }}"
+                                data-ore-previste="{{ t.ore_previste_str }}"
                                 data-note=""
                                 data-compagni="{{ t.compagni_json }}"
                                 onclick="apriModalOreFromBtn(this)">
@@ -693,6 +695,7 @@
                             data-cliente="{{ t.cliente_nome }}"
                             data-datastr="{{ t.data_str }}"
                             data-ore="{{ t.ore_previste_str }}"
+                            data-ore-previste="{{ t.ore_previste_str }}"
                             data-note=""
                             data-compagni="{{ t.compagni_json }}"
                             onclick="apriModalOreFromBtn(this)">
@@ -726,6 +729,9 @@
                     <div class="shift-actions" style="margin-top:8px; padding-top:8px;">
                         <div>
                             <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h inserite</span>
+                            {% if t.note_dichiarate %}
+                            <div style="font-size:11.5px; color:#64748B; margin-top:3px;">📝 {{ t.note_dichiarate }}</div>
+                            {% endif %}
                             {% if t.compilato_da_collega %}
                             <div style="font-size:11px; color:#64748B; margin-top:3px;">da {{ t.compilato_da }}</div>
                             {% endif %}
@@ -735,7 +741,8 @@
                             data-cliente="{{ t.cliente_nome }}"
                             data-datastr="{{ t.data_str }}"
                             data-ore="{{ t.ore_dichiarate_str }}"
-                            data-note="{{ t.note|default:'' }}"
+                            data-ore-previste="{{ t.ore_previste_str }}"
+                            data-note="{{ t.note_dichiarate }}"
                             data-compagni="{{ t.compagni_json }}"
                             onclick="apriModalOreFromBtn(this)">
                             ✏️ Modifica
@@ -804,12 +811,18 @@
                     {% endif %}
                     <div class="shift-actions">
                         {% if t.is_compilato %}
-                            <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h registrate</span>
+                            <div>
+                                <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h registrate</span>
+                                {% if t.note_dichiarate %}
+                                <div style="font-size:11.5px; color:#64748B; margin-top:3px;">📝 {{ t.note_dichiarate }}</div>
+                                {% endif %}
+                            </div>
                             <button type="button" class="btn btn-outline"
                                 data-assign-id="{{ t.id }}"
                                 data-cliente="{{ t.cliente_nome }}"
                                 data-datastr="{{ t.data_str }}"
                                 data-ore="{{ t.ore_dichiarate_str }}"
+                                data-ore-previste="{{ t.ore_previste_str }}"
                                 data-note="{{ t.note_dichiarate }}"
                                 data-compagni="{{ t.compagni_json }}"
                                 onclick="apriModalOreFromBtn(this)">
@@ -822,6 +835,7 @@
                                 data-cliente="{{ t.cliente_nome }}"
                                 data-datastr="{{ t.data_str }}"
                                 data-ore="{{ t.ore_previste_str }}"
+                                data-ore-previste="{{ t.ore_previste_str }}"
                                 data-note=""
                                 data-compagni="{{ t.compagni_json }}"
                                 onclick="apriModalOreFromBtn(this)">
@@ -1140,13 +1154,23 @@
 
             <form onsubmit="salvaOreTurno(event)">
                 <input type="hidden" id="modal_assign_id">
+                <input type="hidden" id="modal_ore_previste">
                 <div class="form-group">
                     <label class="form-label">Ore Svolte (es. 4 oppure 3.5)</label>
                     <div style="display:flex; gap:8px;">
-                        <button type="button" class="btn btn-outline" onclick="var el=document.getElementById('modal_ore_val'); el.value=Math.max(0.5, parseFloat(el.value||0)-0.5);">➖ 0.5h</button>
-                        <input type="number" id="modal_ore_val" step="0.5" min="0.5" max="24" class="form-control" style="text-align:center; font-size:20px; font-weight:800;" required>
-                        <button type="button" class="btn btn-outline" onclick="var el=document.getElementById('modal_ore_val'); el.value=Math.min(24, parseFloat(el.value||0)+0.5);">➕ 0.5h</button>
+                        <button type="button" class="btn btn-outline" onclick="cambiaOreModal(-0.5)">➖ 0.5h</button>
+                        <input type="number" id="modal_ore_val" step="0.5" min="0.5" max="24" class="form-control" style="text-align:center; font-size:20px; font-weight:800;" required oninput="aggiornaVisibilitaMotivoOre()" onchange="aggiornaVisibilitaMotivoOre()">
+                        <button type="button" class="btn btn-outline" onclick="cambiaOreModal(0.5)">➕ 0.5h</button>
                     </div>
+                </div>
+
+                <!-- Campo Motivazione: compare SOLO se le ore inserite sono diverse da quelle previste (non obbligatorio) -->
+                <div id="modalMotivoVariazioneBox" class="form-group" style="display:none; background:#FFFBEB; border:1.5px solid #F59E0B; border-radius:12px; padding:12px;">
+                    <div id="modalMotivoVariazioneHeader" style="font-size:12.5px; font-weight:800; color:#B45309; margin-bottom:6px;">
+                        ⚠️ Ore diverse da quelle previste
+                    </div>
+                    <label class="form-label" for="modal_note_val" style="color:#92400E;">Motivo della variazione di orario (opzionale)</label>
+                    <textarea id="modal_note_val" rows="2" class="form-control" style="background:#FFFFFF;" placeholder="Descrivi il motivo delle ore diverse da quelle previste (non obbligatorio)..."></textarea>
                 </div>
 
                 <!-- Sezione compagni di squadra -->
@@ -1156,11 +1180,6 @@
                         Togli la spunta se un collega NON era presente oggi in questo turno:
                     </div>
                     <div id="modalSquadraList"></div>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label">Note sul Turno (opzionale)</label>
-                    <input type="text" id="modal_note_val" class="form-control" placeholder="Eventuali note o lavori extra...">
                 </div>
 
                 <button type="submit" class="btn btn-primary btn-block" style="padding:14px; font-size:16px;">
@@ -1234,6 +1253,7 @@
             const clienteNome = btn.getAttribute('data-cliente') || '';
             const dataStr = btn.getAttribute('data-datastr') || '';
             const oreDefault = (btn.getAttribute('data-ore') || '4').replace(',', '.');
+            const orePreviste = (btn.getAttribute('data-ore-previste') || oreDefault).replace(',', '.');
             const noteDefault = btn.getAttribute('data-note') || '';
             let compagni = [];
             try {
@@ -1241,15 +1261,45 @@
             } catch (err) {
                 compagni = [];
             }
-            apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni);
+            apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni, orePreviste);
         }
 
-        function apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni) {
+        function cambiaOreModal(delta) {
+            const el = document.getElementById('modal_ore_val');
+            const cur = parseFloat(String(el.value || 0).replace(',', '.')) || 0;
+            const next = Math.min(24, Math.max(0.5, Math.round((cur + delta) * 10) / 10));
+            el.value = next;
+            aggiornaVisibilitaMotivoOre();
+        }
+
+        function aggiornaVisibilitaMotivoOre() {
+            const oreVal = parseFloat(String(document.getElementById('modal_ore_val').value || '').replace(',', '.'));
+            const orePrev = parseFloat(String(document.getElementById('modal_ore_previste').value || '').replace(',', '.'));
+            const box = document.getElementById('modalMotivoVariazioneBox');
+            const hdr = document.getElementById('modalMotivoVariazioneHeader');
+            if (!box) return;
+
+            if (!isNaN(oreVal) && !isNaN(orePrev) && Math.abs(oreVal - orePrev) >= 0.01) {
+                box.style.display = 'block';
+                if (hdr) {
+                    const diff = Math.round((oreVal - orePrev) * 10) / 10;
+                    const diffStr = diff > 0 ? `+${diff}h` : `${diff}h`;
+                    hdr.textContent = `⚠️ Ore diverse da quelle previste (${oreVal}h invece di ${orePrev}h, ${diffStr})`;
+                }
+            } else {
+                box.style.display = 'none';
+            }
+        }
+
+        function apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni, orePreviste) {
+            const prevClean = String(orePreviste !== undefined ? orePreviste : (oreDefault || 4)).replace(',', '.');
             document.getElementById('modal_assign_id').value = assignId;
+            document.getElementById('modal_ore_previste').value = prevClean;
             document.getElementById('modalOreTitolo').textContent = '⏱ ' + clienteNome;
-            document.getElementById('modalOreSub').textContent = '📅 Turno di ' + dataStr;
+            document.getElementById('modalOreSub').textContent = '📅 Turno di ' + dataStr + ' • Ore previste: ' + prevClean + 'h';
             document.getElementById('modal_ore_val').value = String(oreDefault || 4).replace(',', '.');
             document.getElementById('modal_note_val').value = noteDefault || '';
+            aggiornaVisibilitaMotivoOre();
 
             const sqBox = document.getElementById('modalSquadraBox');
             const sqList = document.getElementById('modalSquadraList');
@@ -1289,11 +1339,16 @@
 
         async function salvaOreTurno(e) {
             e.preventDefault();
+            const oreStr = document.getElementById('modal_ore_val').value;
+            const oreVal = parseFloat(String(oreStr || '').replace(',', '.'));
+            const orePrev = parseFloat(String(document.getElementById('modal_ore_previste').value || '').replace(',', '.'));
+            const isDiverso = (!isNaN(oreVal) && !isNaN(orePrev) && Math.abs(oreVal - orePrev) >= 0.01);
+
             const fd = new FormData();
             fd.append('action', 'salva_ore');
             fd.append('assign_id', document.getElementById('modal_assign_id').value);
-            fd.append('ore', document.getElementById('modal_ore_val').value);
-            fd.append('note', document.getElementById('modal_note_val').value);
+            fd.append('ore', oreStr);
+            fd.append('note', isDiverso ? document.getElementById('modal_note_val').value : '');
 
             const chks = document.querySelectorAll('.chk-compagno');
             if (chks.length > 0) {

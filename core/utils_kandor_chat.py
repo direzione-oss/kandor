@@ -281,6 +281,27 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     state = _TELEGRAM_STATE.get(telegram_chat_id)
     if state:
         action = state.get('action')
+
+        # Attesa motivazione opzionale per ore diverse da quelle previste
+        if action == 'attesa_motivo_ore':
+            assegnazione_id = state.get('assegnazione_id')
+            del _TELEGRAM_STATE[telegram_chat_id]
+            _cmd_keywords = {
+                'menu', 'start', '/start', 'turni', 'inserisci ore', 'ore',
+                'malattia', 'ferie', 'permesso', 'segnalazione', 'chat', 'buste paga'
+            }
+            if clean_text in ('salta', 'no', '-', 'nessuno', 'ok'):
+                return {"text": "👍 Perfetto, ore confermate senza motivazione aggiuntiva.", "reply_markup": get_main_menu(dipendente)}
+            if clean_text not in _cmd_keywords and not any(clean_text.startswith(k) for k in ('📅', '⏱', '🤒', '🌴', '🕐', '🚨', '💬', '📄')):
+                motivo_str = text.strip()
+                base_note = f"Registrato da {dipendente.nome} {dipendente.cognome}"
+                TimeTracking.objects.filter(assegnazione_id=assegnazione_id, dipendente=dipendente).update(
+                    note=f"{motivo_str} ({base_note})"
+                )
+                TimeTracking.objects.filter(assegnazione_id=assegnazione_id).exclude(dipendente=dipendente).update(
+                    note=f"{motivo_str} (Registrato dal collega {dipendente.nome} {dipendente.cognome})"
+                )
+                return {"text": f"📝 Motivazione registrata: \"{motivo_str}\"", "reply_markup": get_main_menu(dipendente)}
         
         # Attesa ore per un turno specifico
         if action == 'attesa_ore':
@@ -313,7 +334,33 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             except Exception:
                 return {"text": "Errore nel recupero del turno.", "reply_markup": get_main_menu()}
             
-            return _salva_ore_turno(dipendente, assegnazione, hours, text, note_extra=note_extra)
+            res = _salva_ore_turno(dipendente, assegnazione, hours, text, note_extra=note_extra)
+
+            # Se le ore inserite sono diverse da quelle previste e non è già stato indicato un motivo, richiedilo (non obbligatorio)
+            _ore_prev = None
+            if assegnazione.ore_previste_contratto and assegnazione.ore_previste_contratto > 0:
+                _ore_prev = round(float(assegnazione.ore_previste_contratto), 1)
+            elif assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto:
+                try:
+                    _dt_s = datetime.combine(date.today(), assegnazione.orario_inizio_previsto)
+                    _dt_e = datetime.combine(date.today(), assegnazione.orario_fine_previsto)
+                    if _dt_e < _dt_s:
+                        _dt_e += timedelta(days=1)
+                    _ore_prev = round((_dt_e - _dt_s).total_seconds() / 3600.0, 1)
+                except Exception:
+                    pass
+
+            if _ore_prev and abs(hours - _ore_prev) >= 0.01 and not note_extra and isinstance(res, dict):
+                _TELEGRAM_STATE[telegram_chat_id] = {
+                    'action': 'attesa_motivo_ore',
+                    'assegnazione_id': assegnazione.pk,
+                }
+                res['text'] = (
+                    res.get('text', '')
+                    + f"\n\n⚠️ Hai inserito {hours:g}h invece delle {_ore_prev:g}h previste.\n"
+                    + "📝 Vuoi indicare il motivo della variazione? Scrivilo qui sotto (non obbligatorio, oppure scrivi 'salta'):"
+                )
+            return res
         
         # Attesa testo segnalazione
         
