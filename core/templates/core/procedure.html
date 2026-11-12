@@ -545,6 +545,103 @@
         border-radius: 10px;
     }
 
+    /* Avvallo / Incarico Colleghi Box */
+    .proc-step-item.step-locked {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+        opacity: 0.9;
+    }
+
+    .proc-step-item.step-waiting-avvallo {
+        background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+        border: 1.5px solid #f59e0b;
+        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.12);
+    }
+
+    .proc-lock-banner {
+        margin-top: 6px;
+        padding: 7px 11px;
+        border-radius: 8px;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        color: #475569;
+        font-size: 0.78rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .proc-avvallo-active-box {
+        margin-top: 10px;
+        padding: 11px 14px;
+        border-radius: 11px;
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+    }
+    .proc-avvallo-active-box.all-approved {
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+    }
+
+    .proc-avvallo-list {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+
+    .proc-avvallo-colleague-card {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 9px;
+        background: #ffffff;
+        border: 1px solid #fcd34d;
+        font-size: 0.8rem;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+    }
+    .proc-avvallo-colleague-card.approved {
+        background: #f0fdf4;
+        border-color: #86efac;
+    }
+
+    .proc-avvallo-selector-box {
+        display: none;
+        margin-top: 10px;
+        padding: 14px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+        border: 1.5px solid #93c5fd;
+    }
+
+    .proc-colleague-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #334155;
+        font-size: 0.79rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.14s ease;
+    }
+    .proc-colleague-chip:hover {
+        border-color: #0284c7;
+        background: #f0f9ff;
+    }
+    .proc-colleague-chip.selected {
+        background: #4f46e5;
+        border-color: #4338ca;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
+    }
+
     /* Add Step Bar inside Card */
     .proc-add-step-bar {
         margin-top: 12px;
@@ -746,6 +843,40 @@
         </div>
     </div>
 
+    <!-- BARRA OPERATORE PORTALE + VISIBILITÀ DASHBOARD VS FINESTRA PROCEDURE -->
+    <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 14px; padding: 12px 18px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 0.78rem; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.4px;">
+                👤 Operatore attivo:
+            </span>
+            {% for op in operatori_rapidi %}
+            <button type="button"
+                    onclick="cambiaOperatorePortale({{ op.id }})"
+                    style="padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; cursor: pointer; border: 1px solid {% if operatore_attivo and operatore_attivo.id == op.id %}#0284c7{% else %}#cbd5e1{% endif %}; background: {% if operatore_attivo and operatore_attivo.id == op.id %}#0284c7{% else %}#f8fafc{% endif %}; color: {% if operatore_attivo and operatore_attivo.id == op.id %}#ffffff{% else %}#334155{% endif %};">
+                {% if operatore_attivo and operatore_attivo.id == op.id %}● {% endif %}{{ op.nome }} {{ op.cognome }}
+            </button>
+            {% endfor %}
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <a href="{% url 'gestione_procedure' %}?vista=TUTTE"
+               class="proc-btn proc-btn-sm {% if vista_filter == 'TUTTE' %}proc-btn-indigo{% else %}proc-btn-outline{% endif %}">
+                🌐 Tutte le procedure aperte ({{ totale_pratiche }})
+            </a>
+            {% if operatore_attivo %}
+            <a href="{% url 'gestione_procedure' %}?vista=MIE"
+               class="proc-btn proc-btn-sm {% if vista_filter == 'MIE' %}proc-btn-indigo{% else %}proc-btn-outline{% endif %}"
+               title="Procedure di cui {{ operatore_attivo.nome }} è Responsabile (in evidenza nella sua Dashboard)">
+                👤 Mie procedure ({{ mie_pratiche_in_corso }})
+            </a>
+            <a href="{% url 'gestione_procedure' %}?vista=DA_AVVALLARE"
+               class="proc-btn proc-btn-sm {% if vista_filter == 'DA_AVVALLARE' %}proc-btn-indigo{% else %}proc-btn-outline{% endif %}"
+               style="{% if miei_avvalli_pendenti > 0 and vista_filter != 'DA_AVVALLARE' %}background:#fffbeb; border-color:#f59e0b; color:#b45309 !important;{% endif %}">
+                🔔 Da avvallare per me ({{ miei_avvalli_pendenti }})
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- NAVIGATION TABS & FILTERS -->
     <div class="proc-tabs-bar">
         <div class="proc-tabs-left">
@@ -766,6 +897,7 @@
         <form method="get" id="proc-filter-form" class="proc-filter-bar"
               style="{% if tab_attivo != 'pratiche' %}display:none;{% endif %}">
             <input type="hidden" name="tab" value="pratiche">
+            <input type="hidden" name="vista" value="{{ vista_filter }}">
             <input type="text" name="q" value="{{ q }}" class="proc-input"
                    placeholder="🔍 Cerca cliente o procedura..." style="min-width: 210px;">
             <select name="stato" class="proc-select" onchange="this.form.submit()">
@@ -775,7 +907,7 @@
                 <option value="ANNULLATA" {% if stato_filter == 'ANNULLATA' %}selected{% endif %}>🚫 Annullate</option>
             </select>
             <button type="submit" class="proc-btn proc-btn-outline proc-btn-sm">Filtra</button>
-            {% if q or stato_filter != 'TUTTE' or cliente_filter %}
+            {% if q or stato_filter != 'TUTTE' or vista_filter != 'TUTTE' or cliente_filter %}
             <a href="{% url 'gestione_procedure' %}" class="proc-btn proc-btn-outline proc-btn-sm">Reset</a>
             {% endif %}
         </form>
@@ -786,32 +918,32 @@
     <!-- ================================================================== -->
     <div id="panel-pratiche" style="{% if tab_attivo != 'pratiche' %}display:none;{% endif %}">
 
-        <!-- Banner rapido per avviare subito la Disdetta di un contratto -->
-        {% if modelli %}
-        <div style="background: linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%); border: 1px solid #bae6fd; border-radius: 14px; padding: 14px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
+        <!-- Banner informativo su Responsabile Dashboard e Avvallo Colleghi -->
+        <div style="background: linear-gradient(90deg, #eff6ff 0%, #fffbeb 55%, #f0fdf4 100%); border: 1px solid #bae6fd; border-radius: 14px; padding: 14px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;">
             <div>
-                <div style="font-weight: 800; color: #0369a1; font-size: 0.96rem;">
-                    ⚡ Avvio Rapido Procedura — Disdetta di un contratto (o altre procedure)
+                <div style="font-weight: 800; color: #0369a1; font-size: 0.94rem;">
+                    💡 Visibilità Procedure &amp; Avvallo Passaggi con Notifica Automatica
                 </div>
-                <div style="font-size: 0.83rem; color: #475569; margin-top: 2px;">
-                    Passaggi predefiniti: <strong>1)</strong> Invio disdetta &bull; <strong>2)</strong> Avviso degli operatori addetti &bull; <strong>3)</strong> Recupero oggetti presso il cliente &bull; <strong>4)</strong> Consegna chiavi o telecomandi &bull; <strong>5)</strong> Invio ultima fattura &bull; <strong>6)</strong> Aggiornare il database.
+                <div style="font-size: 0.82rem; color: #334155; margin-top: 3px; line-height: 1.45;">
+                    • Ogni procedura è <strong>in evidenza nella Dashboard solo per il suo Responsabile</strong> (es. Simone vede <code>1</code> nel riquadro Procedure), mentre tutti possono seguire le procedure aperte in questa finestra.<br>
+                    • Su qualsiasi passaggio puoi cliccare <strong>👥 Avvallo / Seleziona Colleghi</strong> (es. <em>Roberta</em> e <em>Giorgio</em>) per inviare in automatico la richiesta via <strong>Telegram + Dashboard</strong>; una volta dato l'OK da tutti, il punto si spunta e il responsabile può proseguire.
                 </div>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm" onclick="apriModalAvviaProcedura()">
-                    🚀 Avvia Disdetta / Procedura
+                    🚀 Avvia Nuova Procedura
                 </button>
                 <button type="button" class="proc-btn proc-btn-outline proc-btn-sm" onclick="cambiaTab('modelli')">
-                    ✏️ Aggiungi o Togli Punti Standard
+                    ✏️ Configura Modelli Procedure
                 </button>
             </div>
         </div>
-        {% endif %}
 
         <div class="proc-cards-list" id="pratiche-list">
             {% for pratica in pratiche %}
             <div class="proc-card {% if pratica_focus_id == pratica.id %}focused-card{% endif %}"
                  id="pratica-card-{{ pratica.id }}" data-pratica-id="{{ pratica.id }}">
+                <script type="application/json" id="pratica-json-{{ pratica.id }}">{{ pratica.serialized_json|safe }}</script>
 
                 <!-- HEADER PRATICA -->
                 <div class="proc-card-header">
@@ -823,6 +955,12 @@
                                 {% elif pratica.stato == 'COMPLETATA' %}✅ Completata
                                 {% else %}🚫 Annullata{% endif %}
                             </span>
+                            {% if pratica.dipendente %}
+                            <span id="pratica-dash-badge-{{ pratica.id }}"
+                                  style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-size: 0.73rem; font-weight: 800; padding: 3px 9px; border-radius: 999px;">
+                                📌 In evidenza Dashboard: {{ pratica.dipendente.nome }} {{ pratica.dipendente.cognome }}
+                            </span>
+                            {% endif %}
                         </div>
                         <div class="proc-meta-row">
                             {% if pratica.cliente %}
@@ -831,9 +969,18 @@
                             {% if pratica.modello %}
                             <span class="proc-meta-chip">📑 Procedura: {{ pratica.modello.nome }}</span>
                             {% endif %}
-                            {% if pratica.dipendente %}
-                            <span class="proc-meta-chip">👤 Incaricato: {{ pratica.dipendente.cognome }} {{ pratica.dipendente.nome }}</span>
-                            {% endif %}
+                            <span class="proc-meta-chip" style="background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe;">
+                                👤 Responsabile:
+                                <select onchange="cambiaResponsabilePratica({{ pratica.id }}, this.value)"
+                                        style="border: none; background: transparent; font-weight: 800; color: #312e81; font-size: 0.81rem; cursor: pointer; outline: none;">
+                                    <option value="">— Non assegnato —</option>
+                                    {% for d in dipendenti %}
+                                    <option value="{{ d.id }}" {% if pratica.dipendente_id == d.id %}selected{% endif %}>
+                                        {{ d.nome }} {{ d.cognome }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </span>
                             <span class="proc-meta-chip">📅 Avviata: {{ pratica.data_avvio|date:"d/m/Y" }}</span>
                             {% if pratica.data_scadenza %}
                             <span class="proc-meta-chip" style="background:#fef2f2; color:#b91c1c;">⏰ Scadenza: {{ pratica.data_scadenza|date:"d/m/Y" }}</span>
@@ -876,7 +1023,7 @@
                 <div class="proc-steps-container">
                     <div id="pratica-steps-list-{{ pratica.id }}">
                         {% for passo in pratica.passaggi.all %}
-                        <div class="proc-step-item {% if passo.completato %}step-done{% endif %}"
+                        <div class="proc-step-item {% if passo.completato %}step-done{% elif passo.ha_avvalli_pendenti %}step-waiting-avvallo{% elif passo.bloccato_da_precedente %}step-locked{% endif %}"
                              id="pratica-step-{{ passo.id }}" data-passo-id="{{ passo.id }}">
                             <div class="proc-step-left">
                                 <input type="checkbox" class="proc-step-checkbox"
@@ -885,7 +1032,14 @@
                                        title="Spunta per segnare come completato">
                                 <span class="proc-step-num">{{ passo.ordine }}</span>
                                 <div class="proc-step-body">
-                                    <div class="proc-step-title">{{ passo.titolo }}</div>
+                                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                                        <div class="proc-step-title">{{ passo.titolo }}</div>
+                                        <button type="button"
+                                                onclick="toggleAvvalloBoxPasso({{ passo.id }})"
+                                                style="padding: 3px 9px; border-radius: 7px; font-size: 0.74rem; font-weight: 800; cursor: pointer; border: 1px solid {% if passo.avvalli_list %}#f59e0b{% else %}#c7d2fe{% endif %}; background: {% if passo.avvalli_list %}#fef3c7{% else %}#eef2ff{% endif %}; color: {% if passo.avvalli_list %}#b45309{% else %}#4338ca{% endif %};">
+                                            👥 {% if passo.avvalli_list %}Avvallo Colleghi ({{ passo.avvalli_list|length }}){% else %}Avvallo / Seleziona Colleghi{% endif %}
+                                        </button>
+                                    </div>
                                     {% if passo.descrizione %}
                                     <div class="proc-step-desc">{{ passo.descrizione }}</div>
                                     {% endif %}
@@ -899,46 +1053,7 @@
                                         ✓ Completato il {{ passo.data_completamento|date:"d/m/Y H:i" }}
                                     </div>
                                     {% endif %}
-
-                                    <!-- Box modifica inline punto pratica -->
-                                    <div class="proc-step-edit-box" id="edit-box-pratica-step-{{ passo.id }}">
-                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
-                                            <div>
-                                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Titolo del punto</label>
-                                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
-                                                       id="edit-pratica-step-titolo-{{ passo.id }}" value="{{ passo.titolo }}">
-                                            </div>
-                                            <div>
-                                                <label style="font-size:0.75rem; font-weight:700; color:#475569;">Note operative / Esecuzione</label>
-                                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
-                                                       id="edit-pratica-step-nota-{{ passo.id }}" value="{{ passo.note_esecuzione }}"
-                                                       placeholder="Es. Raccomandata inviata il...">
-                                            </div>
-                                        </div>
-                                        <div style="margin-bottom: 8px;">
-                                            <label style="font-size:0.75rem; font-weight:700; color:#475569;">Descrizione / Istruzioni</label>
-                                            <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
-                                                   id="edit-pratica-step-desc-{{ passo.id }}" value="{{ passo.descrizione }}">
-                                        </div>
-                                        <div style="display:flex; gap:6px; justify-content:flex-end;">
-                                            <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
-                                                    onclick="toggleEditPassoPratica({{ passo.id }})">Annulla</button>
-                                            <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
-                                                    onclick="salvaModificaPassoPratica({{ passo.id }})">💾 Salva Punto</button>
-                                        </div>
-                                    </div>
                                 </div>
-                            </div>
-
-                            <div class="proc-step-actions">
-                                <button type="button" class="proc-icon-btn" title="Sposta su"
-                                        onclick="spostaPassoPratica({{ passo.id }}, 'up')">⬆️</button>
-                                <button type="button" class="proc-icon-btn" title="Sposta giù"
-                                        onclick="spostaPassoPratica({{ passo.id }}, 'down')">⬇️</button>
-                                <button type="button" class="proc-icon-btn" title="Modifica punto o aggiungi nota"
-                                        onclick="toggleEditPassoPratica({{ passo.id }})">✏️</button>
-                                <button type="button" class="proc-icon-btn danger" title="Togli questo punto dalla procedura"
-                                        onclick="eliminaPassoPratica({{ passo.id }})">🗑️</button>
                             </div>
                         </div>
                         {% empty %}
@@ -1236,6 +1351,12 @@
 
 <script>
 const PROC_API_URL = "{% url 'gestione_procedure_api' %}";
+const DIPENDENTI_LIST = {{ dipendenti_json|default:"[]"|safe }};
+const OPERATORI_RAPIDI_LIST = {{ operatori_rapidi_json|default:"[]"|safe }};
+const OPERATORE_ATTIVO_ID = {{ operatore_attivo.id|default:"null" }};
+
+// Mappa selezioni temporanee colleghi per ogni step: { [passoId]: Set<number> }
+window._stepAvvalloSelections = {};
 
 function mostraToast(msg, isError = false) {
     const t = document.getElementById('proc-toast');
@@ -1245,7 +1366,7 @@ function mostraToast(msg, isError = false) {
     clearTimeout(window._procToastTimer);
     window._procToastTimer = setTimeout(() => {
         t.style.display = 'none';
-    }, 3200);
+    }, 3600);
 }
 
 async function callProcApi(payload) {
@@ -1255,6 +1376,30 @@ async function callProcApi(payload) {
         body: JSON.stringify(payload),
     });
     return await resp.json();
+}
+
+async function cambiaOperatorePortale(dipId) {
+    const res = await callProcApi({
+        action: 'set_operatore_portale',
+        dipendente_id: dipId,
+    });
+    if (res.ok) {
+        window.location.reload();
+    }
+}
+
+async function cambiaResponsabilePratica(praticaId, dipId) {
+    const res = await callProcApi({
+        action: 'modifica_pratica',
+        pratica_id: praticaId,
+        dipendente_id: dipId,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore cambio responsabile', true);
+        return;
+    }
+    mostraToast(res.message || 'Responsabile procedura aggiornato.');
+    setTimeout(() => window.location.reload(), 500);
 }
 
 function escapeHtml(str) {
@@ -1353,7 +1498,7 @@ async function confermaNuovoModello() {
     window.location.href = "{% url 'gestione_procedure' %}?tab=modelli";
 }
 
-/* ---------------- RENDER DINAMICO PRATICA ---------------- */
+/* ---------------- RENDER DINAMICO PRATICA CON AVVALLI ---------------- */
 function renderPraticaSteps(pratica) {
     const container = document.getElementById(`pratica-steps-list-${pratica.id}`);
     if (!container) return;
@@ -1379,18 +1524,197 @@ function renderPraticaSteps(pratica) {
         return;
     }
 
-    container.innerHTML = pratica.passaggi.map(p => `
-        <div class="proc-step-item ${p.completato ? 'step-done' : ''}" id="pratica-step-${p.id}" data-passo-id="${p.id}">
+    container.innerHTML = pratica.passaggi.map(p => {
+        const avvalli = p.avvalli || [];
+        const selectedIds = avvalli.map(a => Number(a.dipendente_id));
+        window._stepAvvalloSelections[p.id] = new Set(selectedIds);
+
+        const hasAvvalli = avvalli.length > 0;
+        const pendentiCount = p.avvalli_in_attesa || 0;
+        const approvatiCount = p.avvalli_approvati || 0;
+        const allApproved = hasAvvalli && pendentiCount === 0;
+        const isAvvalloSuggested = /avvallo|approvaz|conferma|preventivo/i.test(p.titolo || '') && !hasAvvalli && !p.completato;
+
+        let stepClass = 'proc-step-item';
+        if (p.completato) stepClass += ' step-done';
+        else if (hasAvvalli && pendentiCount > 0) stepClass += ' step-waiting-avvallo';
+        else if (p.bloccato_da_precedente) stepClass += ' step-locked';
+
+        // Costruisci chips rapidi + altri dipendenti già selezionati
+        const quickIds = new Set(OPERATORI_RAPIDI_LIST.map(o => Number(o.id)));
+        const extraSelected = DIPENDENTI_LIST.filter(d => selectedIds.includes(Number(d.id)) && !quickIds.has(Number(d.id)));
+        const chipCandidates = [...OPERATORI_RAPIDI_LIST, ...extraSelected];
+
+        const chipsHtml = chipCandidates.map(op => {
+            const isSel = selectedIds.includes(Number(op.id));
+            return `
+                <button type="button"
+                        id="chip-avvallo-${p.id}-${op.id}"
+                        class="proc-colleague-chip ${isSel ? 'selected' : ''}"
+                        onclick="toggleChipCollegaAvvallo(${p.id}, ${op.id})">
+                    <span class="chip-check">${isSel ? '✓' : '+'}</span>
+                    ${escapeHtml(op.nome)}
+                    ${op.has_telegram ? '<span title="Notifica Telegram attiva" style="font-size:0.72rem;">📲</span>' : ''}
+                </button>
+            `;
+        }).join('');
+
+        const otherOptionsHtml = DIPENDENTI_LIST
+            .filter(d => !quickIds.has(Number(d.id)))
+            .map(d => `<option value="${d.id}">${escapeHtml(d.cognome_nome || d.nome)}${d.has_telegram ? ' 📲' : ''}</option>`)
+            .join('');
+
+        // Box avvalli attivi sul passaggio
+        let activeAvvalloBoxHtml = '';
+        if (hasAvvalli) {
+            const cardsHtml = avvalli.map(a => {
+                const isOk = a.stato === 'APPROVATO';
+                return `
+                    <div class="proc-avvallo-colleague-card ${isOk ? 'approved' : ''}">
+                        <span style="font-weight: 800; color: #0f172a;">
+                            👤 ${escapeHtml(a.dipendente_nome)}
+                            ${a.has_telegram ? '<span title="Telegram collegato">📲</span>' : ''}
+                        </span>
+                        ${isOk
+                            ? `<span style="background:#d1fae5; color:#047857; font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:999px;">
+                                   ✅ OK dato${a.data_risposta_fmt ? ' il ' + escapeHtml(a.data_risposta_fmt) : ''}
+                               </span>`
+                            : `<span style="background:#fef3c7; color:#b45309; font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:999px;">
+                                   ⏳ In attesa di OK
+                               </span>
+                               <button type="button"
+                                       onclick="confermaAvvalloPasso(${a.id}, ${p.id}, ${a.dipendente_id})"
+                                       style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 7px; padding: 4px 10px; font-size: 0.74rem; font-weight: 800; cursor: pointer; box-shadow: 0 2px 6px rgba(16,185,129,0.28);">
+                                   ✅ Dai l'OK
+                               </button>`
+                        }
+                        <button type="button"
+                                onclick="rimuoviSingoloAvvallo(${p.id}, ${a.dipendente_id})"
+                                title="Rimuovi ${escapeHtml(a.dipendente_nome)} da questo avvallo"
+                                style="border:none; background:transparent; color:#94a3b8; cursor:pointer; font-size:0.78rem; padding:0 3px;">
+                            ✕
+                        </button>
+                    </div>
+                `;
+            }).join('');
+
+            activeAvvalloBoxHtml = `
+                <div class="proc-avvallo-active-box ${allApproved ? 'all-approved' : ''}">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div style="font-size:0.8rem; font-weight:800; color:${allApproved ? '#047857' : '#b45309'}; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            ${allApproved
+                                ? `✅ Avvallo completato (${approvatiCount}/${avvalli.length} OK ricevuti) — La procedura può proseguire!`
+                                : `🔔 Richiesta di Avvallo / Incarico (${approvatiCount}/${avvalli.length} OK ricevuti — in attesa di ${pendentiCount})`}
+                        </div>
+                        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                            ${!allApproved ? `
+                            <button type="button"
+                                    onclick="sollecitaAvvalloTelegram(${p.id})"
+                                    style="background:#fff; border:1px solid #f59e0b; color:#b45309; border-radius:7px; padding:3px 9px; font-size:0.73rem; font-weight:800; cursor:pointer;">
+                                📲 Reinvia Notifica Telegram
+                            </button>` : ''}
+                            <button type="button"
+                                    onclick="toggleAvvalloBoxPasso(${p.id})"
+                                    style="background:#fff; border:1px solid #cbd5e1; color:#334155; border-radius:7px; padding:3px 9px; font-size:0.73rem; font-weight:700; cursor:pointer;">
+                                ✏️ Modifica Colleghi
+                            </button>
+                        </div>
+                    </div>
+                    ${p.nota_richiesta_avvallo ? `<div style="font-size:0.77rem; color:#475569; margin-top:4px;">💬 <strong>Nota incarico:</strong> ${escapeHtml(p.nota_richiesta_avvallo)}</div>` : ''}
+                    <div class="proc-avvallo-list">
+                        ${cardsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Banner se il passaggio è bloccato da un avvallo precedente
+        const lockBannerHtml = (!p.completato && p.bloccato_da_precedente) ? `
+            <div class="proc-lock-banner">
+                <span>⏸️ <strong>Passaggio in attesa:</strong> richiede prima l'OK sul punto <strong>#${p.bloccato_da_ordine} (${escapeHtml(p.bloccato_da_titolo)})</strong> da parte di <strong>${escapeHtml(p.bloccato_da_nomi)}</strong>.</span>
+            </div>
+        ` : '';
+
+        return `
+        <div class="${stepClass}" id="pratica-step-${p.id}" data-passo-id="${p.id}">
             <div class="proc-step-left">
                 <input type="checkbox" class="proc-step-checkbox" ${p.completato ? 'checked' : ''}
                        onchange="togglePassoPratica(${p.id}, this.checked)"
-                       title="Spunta per segnare come completato">
+                       title="${p.bloccato_da_precedente ? 'In attesa di avvallo sul passaggio precedente' : 'Spunta per segnare come completato'}">
                 <span class="proc-step-num">${p.ordine}</span>
                 <div class="proc-step-body">
-                    <div class="proc-step-title">${escapeHtml(p.titolo)}</div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <div class="proc-step-title">${escapeHtml(p.titolo)}</div>
+                        <button type="button"
+                                onclick="toggleAvvalloBoxPasso(${p.id})"
+                                style="padding: 3px 10px; border-radius: 999px; font-size: 0.74rem; font-weight: 800; cursor: pointer; border: 1px solid ${hasAvvalli ? '#f59e0b' : (isAvvalloSuggested ? '#4f46e5' : '#cbd5e1')}; background: ${hasAvvalli ? '#fef3c7' : (isAvvalloSuggested ? '#eef2ff' : '#f8fafc')}; color: ${hasAvvalli ? '#b45309' : (isAvvalloSuggested ? '#4338ca' : '#475569')};">
+                            👥 ${hasAvvalli ? `Colleghi per Avvallo (${approvatiCount}/${avvalli.length} OK)` : (isAvvalloSuggested ? '👉 Seleziona Colleghi per Avvallo (es. Roberta, Giorgio)' : 'Richiedi Avvallo / Incarica Colleghi')}
+                        </button>
+                    </div>
                     ${p.descrizione ? `<div class="proc-step-desc">${escapeHtml(p.descrizione)}</div>` : ''}
                     ${p.note_esecuzione ? `<div class="proc-step-note-badge">📌 Nota: ${escapeHtml(p.note_esecuzione)}</div>` : ''}
                     ${p.completato && p.data_completamento_fmt ? `<div class="proc-step-done-time">✓ Completato il ${escapeHtml(p.data_completamento_fmt)}</div>` : ''}
+
+                    ${lockBannerHtml}
+                    ${activeAvvalloBoxHtml}
+
+                    <!-- PANNELLO SELEZIONE COLLEGHI PER AVVALLO / INCARICO DI QUESTO PASSAGGIO -->
+                    <div class="proc-avvallo-selector-box" id="avvallo-box-step-${p.id}" style="${isAvvalloSuggested ? 'display:block;' : ''}">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                            <div style="font-size:0.83rem; font-weight:800; color:#1e3a8a;">
+                                👥 Seleziona uno o più colleghi per l'avvallo / incarico del punto #${p.ordine} ("${escapeHtml(p.titolo)}")
+                            </div>
+                            <span style="font-size:0.73rem; color:#475569; font-weight:600;">
+                                Invio automatico su 📲 Telegram + 🔔 Dashboard
+                            </span>
+                        </div>
+
+                        <div style="font-size:0.75rem; font-weight:700; color:#475569; margin-bottom:6px;">
+                            Scelta rapida colleghi (clicca per selezionare/deselezionare):
+                        </div>
+                        <div id="avvallo-chips-wrap-${p.id}" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+                            ${chipsHtml}
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1.3fr; gap:8px; margin-bottom:10px;">
+                            <div>
+                                <label style="font-size:0.74rem; font-weight:700; color:#475569; display:block; margin-bottom:3px;">
+                                    + Aggiungi altro dipendente dall'elenco
+                                </label>
+                                <select class="proc-select" style="width:100%; box-sizing:border-box;"
+                                        onchange="aggiungiAltroCollegaAvvallo(${p.id}, this)">
+                                    <option value="">— Seleziona collega da aggiungere —</option>
+                                    ${otherOptionsHtml}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.74rem; font-weight:700; color:#475569; display:block; margin-bottom:3px;">
+                                    Messaggio / Nota per i colleghi (opzionale)
+                                </label>
+                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                       id="avvallo-nota-step-${p.id}"
+                                       value="${escapeHtml(p.nota_richiesta_avvallo || '')}"
+                                       placeholder="Es. Richiesta di avvallo del preventivo prima dell'invio al cliente">
+                            </div>
+                        </div>
+
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <label style="display:inline-flex; align-items:center; gap:6px; font-size:0.77rem; font-weight:600; color:#334155; cursor:pointer;">
+                                <input type="checkbox" id="avvallo-bloccante-step-${p.id}" ${p.bloccante !== false ? 'checked' : ''}>
+                                ⏸️ Attendi l'OK di tutti i colleghi selezionati prima di proseguire con i punti successivi
+                            </label>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <button type="button" class="proc-btn proc-btn-outline proc-btn-sm"
+                                        onclick="toggleAvvalloBoxPasso(${p.id})">
+                                    Chiudi
+                                </button>
+                                <button type="button" class="proc-btn proc-btn-indigo proc-btn-sm"
+                                        onclick="salvaRichiestaAvvalloPasso(${p.id}, false)">
+                                    📲 Invia Richiesta di Avvallo (Telegram + Dashboard)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="proc-step-edit-box" id="edit-box-pratica-step-${p.id}">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
@@ -1421,13 +1745,132 @@ function renderPraticaSteps(pratica) {
                 </div>
             </div>
             <div class="proc-step-actions">
+                <button type="button" class="proc-icon-btn" title="Richiedi Avvallo / Seleziona Colleghi"
+                        onclick="toggleAvvalloBoxPasso(${p.id})"
+                        style="${hasAvvalli ? 'background:#fef3c7; border-color:#f59e0b; color:#b45309;' : ''}">👥</button>
                 <button type="button" class="proc-icon-btn" title="Sposta su" onclick="spostaPassoPratica(${p.id}, 'up')">⬆️</button>
                 <button type="button" class="proc-icon-btn" title="Sposta giù" onclick="spostaPassoPratica(${p.id}, 'down')">⬇️</button>
                 <button type="button" class="proc-icon-btn" title="Modifica punto o aggiungi nota" onclick="toggleEditPassoPratica(${p.id})">✏️</button>
                 <button type="button" class="proc-icon-btn danger" title="Togli questo punto dalla procedura" onclick="eliminaPassoPratica(${p.id})">🗑️</button>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+function toggleAvvalloBoxPasso(passoId) {
+    const box = document.getElementById(`avvallo-box-step-${passoId}`);
+    if (!box) return;
+    box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+}
+
+function toggleChipCollegaAvvallo(passoId, dipId) {
+    dipId = Number(dipId);
+    if (!window._stepAvvalloSelections[passoId]) {
+        window._stepAvvalloSelections[passoId] = new Set();
+    }
+    const selSet = window._stepAvvalloSelections[passoId];
+    const chip = document.getElementById(`chip-avvallo-${passoId}-${dipId}`);
+    if (selSet.has(dipId)) {
+        selSet.delete(dipId);
+        if (chip) {
+            chip.classList.remove('selected');
+            const chk = chip.querySelector('.chip-check');
+            if (chk) chk.textContent = '+';
+        }
+    } else {
+        selSet.add(dipId);
+        if (chip) {
+            chip.classList.add('selected');
+            const chk = chip.querySelector('.chip-check');
+            if (chk) chk.textContent = '✓';
+        }
+    }
+}
+
+function aggiungiAltroCollegaAvvallo(passoId, selectEl) {
+    const val = Number(selectEl.value);
+    if (!val) return;
+    selectEl.value = '';
+    if (!window._stepAvvalloSelections[passoId]) {
+        window._stepAvvalloSelections[passoId] = new Set();
+    }
+    const selSet = window._stepAvvalloSelections[passoId];
+    selSet.add(val);
+
+    let chip = document.getElementById(`chip-avvallo-${passoId}-${val}`);
+    if (!chip) {
+        const dipObj = DIPENDENTI_LIST.find(d => Number(d.id) === val);
+        const wrap = document.getElementById(`avvallo-chips-wrap-${passoId}`);
+        if (dipObj && wrap) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = `chip-avvallo-${passoId}-${val}`;
+            btn.className = 'proc-colleague-chip selected';
+            btn.onclick = () => toggleChipCollegaAvvallo(passoId, val);
+            btn.innerHTML = `<span class="chip-check">✓</span> ${escapeHtml(dipObj.nome)} ${dipObj.has_telegram ? '<span style="font-size:0.72rem;">📲</span>' : ''}`;
+            wrap.appendChild(btn);
+        }
+    } else {
+        chip.classList.add('selected');
+        const chk = chip.querySelector('.chip-check');
+        if (chk) chk.textContent = '✓';
+    }
+}
+
+async function salvaRichiestaAvvalloPasso(passoId, reinvia = false) {
+    const selSet = window._stepAvvalloSelections[passoId] || new Set();
+    const dipendenti_ids = Array.from(selSet);
+    const nota_richiesta = document.getElementById(`avvallo-nota-step-${passoId}`)?.value || '';
+    const bloccante = document.getElementById(`avvallo-bloccante-step-${passoId}`)?.checked ?? true;
+
+    const res = await callProcApi({
+        action: 'richiedi_avvallo_passo',
+        passo_id: passoId,
+        dipendenti_ids,
+        nota_richiesta,
+        bloccante,
+        reinvia_notifica: reinvia,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore salvataggio avvallo', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+    mostraToast(res.message);
+}
+
+async function sollecitaAvvalloTelegram(passoId) {
+    await salvaRichiestaAvvalloPasso(passoId, true);
+}
+
+async function confermaAvvalloPasso(avvalloId, passoId, dipendenteId) {
+    const res = await callProcApi({
+        action: 'conferma_avvallo_passo',
+        avvallo_id: avvalloId,
+        passo_id: passoId,
+        dipendente_id: dipendenteId,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore conferma avvallo', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+    mostraToast(res.message);
+}
+
+async function rimuoviSingoloAvvallo(passoId, dipendenteId) {
+    const res = await callProcApi({
+        action: 'rimuovi_singolo_avvallo_passo',
+        passo_id: passoId,
+        dipendente_id: dipendenteId,
+    });
+    if (!res.ok) {
+        mostraToast(res.error || 'Errore rimozione collega', true);
+        return;
+    }
+    renderPraticaSteps(res.pratica);
+    mostraToast(res.message);
 }
 
 async function togglePassoPratica(passoId, completato) {
@@ -1436,11 +1879,13 @@ async function togglePassoPratica(passoId, completato) {
         passo_id: passoId,
         completato: completato,
     });
+    if (res.pratica) {
+        renderPraticaSteps(res.pratica);
+    }
     if (!res.ok) {
         mostraToast(res.error || 'Errore aggiornamento passaggio', true);
         return;
     }
-    renderPraticaSteps(res.pratica);
     mostraToast(res.message);
 }
 
@@ -1744,6 +2189,23 @@ async function inviaBriefingProcedureTelegram() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Idrata tutti i passaggi delle pratiche con i box di avvallo e selezione colleghi
+    document.querySelectorAll('script[id^="pratica-json-"]').forEach(el => {
+        try {
+            const pData = JSON.parse(el.textContent);
+            renderPraticaSteps(pData);
+        } catch (err) {
+            console.error('Errore parsing pratica JSON:', err);
+        }
+    });
+
+    if (OPERATORE_ATTIVO_ID) {
+        const selDip = document.getElementById('avvia-dipendente-id');
+        if (selDip && !selDip.value) {
+            selDip.value = String(OPERATORE_ATTIVO_ID);
+        }
+    }
+
     {% if avvia_cliente_id or request.GET.avvia_modello %}
     apriModalAvviaProcedura({{ avvia_modello_id|default:"null" }});
     {% endif %}

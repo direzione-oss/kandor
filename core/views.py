@@ -5303,11 +5303,72 @@ def ia_analizza_documento_api(request):
 # ==============================================================================
 
 def _serialize_pratica(pratica):
-    """Serializza una ProceduraAvviata con i suoi passaggi per risposte JSON."""
-    passaggi = list(pratica.passaggi.all().order_by('ordine', 'id'))
+    """Serializza una ProceduraAvviata con i suoi passaggi e relativi avvalli per risposte JSON."""
+    passaggi = list(
+        pratica.passaggi.prefetch_related('avvalli__dipendente', 'avvalli__richiesto_da')
+        .all()
+        .order_by('ordine', 'id')
+    )
     totale = len(passaggi)
     completati = sum(1 for p in passaggi if p.completato)
     percentuale = int(round((completati / totale) * 100)) if totale else 0
+
+    # Calcola eventuale primo passaggio bloccante con avvallo ancora in attesa
+    primo_blocco = None
+    primo_blocco_nomi = []
+    for p in passaggi:
+        avvs = list(p.avvalli.all())
+        if avvs and p.bloccante:
+            in_attesa = [a for a in avvs if a.stato != 'APPROVATO']
+            if in_attesa or not p.completato:
+                primo_blocco = p
+                primo_blocco_nomi = [f"{a.dipendente.nome} {a.dipendente.cognome}" for a in (in_attesa or avvs)]
+                break
+
+    passaggi_serialized = []
+    for p in passaggi:
+        avvs = list(p.avvalli.all())
+        in_attesa_list = [a for a in avvs if a.stato != 'APPROVATO']
+        approvati_list = [a for a in avvs if a.stato == 'APPROVATO']
+        is_bloccato_prec = bool(primo_blocco and p.ordine > primo_blocco.ordine)
+        nota_rich = next((a.nota_richiesta for a in avvs if a.nota_richiesta), '')
+
+        passaggi_serialized.append({
+            'id': p.id,
+            'ordine': p.ordine,
+            'titolo': p.titolo,
+            'descrizione': p.descrizione or '',
+            'completato': p.completato,
+            'data_completamento_fmt': p.data_completamento.strftime('%d/%m/%Y %H:%M') if p.data_completamento else '',
+            'note_esecuzione': p.note_esecuzione or '',
+            'richiede_avvallo': p.richiede_avvallo or bool(avvs),
+            'bloccante': p.bloccante,
+            'nota_richiesta_avvallo': nota_rich,
+            'avvalli_totale': len(avvs),
+            'avvalli_approvati': len(approvati_list),
+            'avvalli_in_attesa': len(in_attesa_list),
+            'bloccato_da_precedente': is_bloccato_prec,
+            'bloccato_da_ordine': primo_blocco.ordine if is_bloccato_prec else None,
+            'bloccato_da_titolo': primo_blocco.titolo if is_bloccato_prec else '',
+            'bloccato_da_nomi': ", ".join(primo_blocco_nomi) if is_bloccato_prec else '',
+            'avvalli': [
+                {
+                    'id': a.id,
+                    'dipendente_id': a.dipendente_id,
+                    'dipendente_nome': f"{a.dipendente.nome} {a.dipendente.cognome}",
+                    'dipendente_cognome_nome': f"{a.dipendente.cognome} {a.dipendente.nome}",
+                    'has_telegram': bool(a.dipendente.telegram_chat_id),
+                    'stato': a.stato,
+                    'stato_label': a.get_stato_display(),
+                    'nota_richiesta': a.nota_richiesta or '',
+                    'nota_risposta': a.nota_risposta or '',
+                    'data_richiesta_fmt': a.data_richiesta.strftime('%d/%m/%Y %H:%M') if a.data_richiesta else '',
+                    'data_risposta_fmt': a.data_risposta.strftime('%d/%m/%Y %H:%M') if a.data_risposta else '',
+                }
+                for a in avvs
+            ],
+        })
+
     return {
         'id': pratica.id,
         'modello_id': pratica.modello_id,
@@ -5316,7 +5377,7 @@ def _serialize_pratica(pratica):
         'cliente_id': pratica.cliente_id,
         'cliente_nome': str(pratica.cliente) if pratica.cliente else '',
         'dipendente_id': pratica.dipendente_id,
-        'dipendente_nome': str(pratica.dipendente) if pratica.dipendente else '',
+        'dipendente_nome': f"{pratica.dipendente.nome} {pratica.dipendente.cognome}" if pratica.dipendente else '',
         'stato': pratica.stato,
         'stato_label': pratica.get_stato_display(),
         'data_avvio': pratica.data_avvio.strftime('%Y-%m-%d') if pratica.data_avvio else '',
@@ -5328,24 +5389,13 @@ def _serialize_pratica(pratica):
         'totale_passaggi': totale,
         'passaggi_completati': completati,
         'percentuale': percentuale,
-        'passaggi': [
-            {
-                'id': p.id,
-                'ordine': p.ordine,
-                'titolo': p.titolo,
-                'descrizione': p.descrizione or '',
-                'completato': p.completato,
-                'data_completamento_fmt': p.data_completamento.strftime('%d/%m/%Y %H:%M') if p.data_completamento else '',
-                'note_esecuzione': p.note_esecuzione or '',
-            }
-            for p in passaggi
-        ],
+        'passaggi': passaggi_serialized,
     }
 
 
 def _serialize_modello(modello):
     """Serializza un ModelloProcedura con i suoi passaggi per risposte JSON."""
-    passaggi = list(modello.passaggi.all().order_by('ordine', 'id'))
+    passaggi = list(modello.passaggi.prefetch_related('incaricati_default').all().order_by('ordine', 'id'))
     return {
         'id': modello.id,
         'nome': modello.nome,
@@ -5361,6 +5411,13 @@ def _serialize_modello(modello):
                 'titolo': p.titolo,
                 'descrizione': p.descrizione or '',
                 'obbligatorio': p.obbligatorio,
+                'incaricati_default': [
+                    {
+                        'id': d.id,
+                        'nome': f"{d.nome} {d.cognome}",
+                    }
+                    for d in p.incaricati_default.all()
+                ],
             }
             for p in passaggi
         ],
@@ -5370,7 +5427,8 @@ def _serialize_modello(modello):
 def gestione_procedure_view(request):
     """
     Dashboard completa per la gestione delle Procedure aziendali:
-    - Pratiche avviate per i clienti (es. Disdetta di un contratto) con checklist interattiva
+    - Pratiche avviate per i clienti (es. Disdetta di un contratto, Nuovo Cliente) con checklist interattiva,
+      gestione avvalli per singolo passaggio (notifica automatica Telegram + evidenza in Dashboard)
       e possibilità di aggiungere/modificare/rimuovere/riordinare i punti sulla singola pratica.
     - Catalogo Modelli di Procedura con possibilità di modificare i passaggi standard
       (aggiungere o togliere punti) e creare nuove procedure.
@@ -5382,11 +5440,15 @@ def gestione_procedure_view(request):
     from django.contrib import admin
     from .models import (
         ModelloProcedura, PassoModelloProcedura,
-        ProceduraAvviata, PassoProceduraAvviata,
+        ProceduraAvviata, PassoProceduraAvviata, AvvalloPassoProcedura,
         Cliente, Dipendente, ensure_default_procedure,
     )
+    from .services import get_operatore_portale, get_operatori_rapidi_portale
 
     ensure_default_procedure()
+
+    operatore_attivo = get_operatore_portale(request)
+    operatori_rapidi = get_operatori_rapidi_portale()
 
     tab_attivo = request.GET.get('tab', 'pratiche').strip()
     if tab_attivo not in ('pratiche', 'modelli'):
@@ -5396,6 +5458,10 @@ def gestione_procedure_view(request):
     if stato_filter not in ('TUTTE', 'IN_CORSO', 'COMPLETATA', 'ANNULLATA'):
         stato_filter = 'TUTTE'
 
+    vista_filter = request.GET.get('vista', 'TUTTE').strip().upper()
+    if vista_filter not in ('TUTTE', 'MIE', 'DA_AVVALLARE'):
+        vista_filter = 'TUTTE'
+
     q = request.GET.get('q', '').strip()
     cliente_filter = request.GET.get('cliente', '').strip()
     modello_filter = request.GET.get('modello', '').strip()
@@ -5404,19 +5470,35 @@ def gestione_procedure_view(request):
     pratica_focus_id = request.GET.get('pratica', '').strip()
 
     modelli = list(
-        ModelloProcedura.objects.prefetch_related('passaggi', 'procedure_avviate').order_by('ordine', 'nome')
+        ModelloProcedura.objects.prefetch_related('passaggi__incaricati_default', 'procedure_avviate').order_by('ordine', 'nome')
     )
 
     pratiche_qs = ProceduraAvviata.objects.select_related(
         'modello', 'cliente', 'dipendente'
-    ).prefetch_related('passaggi').order_by('-data_avvio', '-id')
+    ).prefetch_related(
+        'passaggi__avvalli__dipendente',
+        'passaggi__avvalli__richiesto_da',
+    ).order_by('-data_avvio', '-id')
 
     totale_pratiche = pratiche_qs.count()
     pratiche_in_corso = pratiche_qs.filter(stato='IN_CORSO').count()
     pratiche_completate = pratiche_qs.filter(stato='COMPLETATA').count()
+    mie_pratiche_in_corso = pratiche_qs.filter(stato='IN_CORSO', dipendente=operatore_attivo).count() if operatore_attivo else 0
+    miei_avvalli_pendenti = (
+        AvvalloPassoProcedura.objects.filter(
+            dipendente=operatore_attivo,
+            stato='IN_ATTESA',
+            passo__procedura__stato='IN_CORSO',
+        ).count()
+        if operatore_attivo else 0
+    )
 
     if stato_filter != 'TUTTE':
         pratiche_qs = pratiche_qs.filter(stato=stato_filter)
+    if vista_filter == 'MIE' and operatore_attivo:
+        pratiche_qs = pratiche_qs.filter(dipendente=operatore_attivo)
+    elif vista_filter == 'DA_AVVALLARE' and operatore_attivo:
+        pratiche_qs = pratiche_qs.filter(passaggi__avvalli__dipendente=operatore_attivo, passaggi__avvalli__stato='IN_ATTESA').distinct()
     if cliente_filter.isdigit():
         pratiche_qs = pratiche_qs.filter(cliente_id=int(cliente_filter))
     if modello_filter.isdigit():
@@ -5428,11 +5510,57 @@ def gestione_procedure_view(request):
             | Q(cliente__ragione_sociale__icontains=q)
             | Q(modello__nome__icontains=q)
             | Q(note__icontains=q)
+            | Q(dipendente__nome__icontains=q)
+            | Q(dipendente__cognome__icontains=q)
         )
 
     pratiche = list(pratiche_qs)
+    # Arricchisci ogni pratica e i suoi passaggi con le info di blocco/avvallo
+    for pr in pratiche:
+        pr.serialized_json = json.dumps(_serialize_pratica(pr))
+        passi_pr = list(pr.passaggi.all())
+        primo_blocco = None
+        primo_blocco_nomi = []
+        for p in passi_pr:
+            avvs = list(p.avvalli.all())
+            if avvs and p.bloccante:
+                in_att = [a for a in avvs if a.stato != 'APPROVATO']
+                if in_att or not p.completato:
+                    primo_blocco = p
+                    primo_blocco_nomi = [f"{a.dipendente.nome} {a.dipendente.cognome}" for a in (in_att or avvs)]
+                    break
+        for p in passi_pr:
+            avvs = list(p.avvalli.all())
+            p.avvalli_list = avvs
+            p.avvalli_ids = [a.dipendente_id for a in avvs]
+            p.nota_richiesta_avvallo = next((a.nota_richiesta for a in avvs if a.nota_richiesta), '')
+            p.ha_avvalli_pendenti = any(a.stato != 'APPROVATO' for a in avvs)
+            p.bloccato_da_precedente = bool(primo_blocco and p.ordine > primo_blocco.ordine)
+            p.bloccato_da_ordine = primo_blocco.ordine if p.bloccato_da_precedente else None
+            p.bloccato_da_titolo = primo_blocco.titolo if p.bloccato_da_precedente else ''
+            p.bloccato_da_nomi = ", ".join(primo_blocco_nomi) if p.bloccato_da_precedente else ''
+
     clienti = Cliente.objects.all().order_by('ragione_sociale')
-    dipendenti = Dipendente.objects.all().order_by('cognome', 'nome')
+    dipendenti = list(Dipendente.objects.exclude(stato='INATTIVO').order_by('cognome', 'nome'))
+
+    dipendenti_js = [
+        {
+            'id': d.id,
+            'nome': f"{d.nome} {d.cognome}",
+            'cognome_nome': f"{d.cognome} {d.nome}",
+            'has_telegram': bool(d.telegram_chat_id),
+            'is_rapido': any(r.id == d.id for r in operatori_rapidi),
+        }
+        for d in dipendenti
+    ]
+    operatori_rapidi_js = [
+        {
+            'id': r.id,
+            'nome': f"{r.nome} {r.cognome}",
+            'has_telegram': bool(r.telegram_chat_id),
+        }
+        for r in operatori_rapidi
+    ]
 
     modello_disdetta = next((m for m in modelli if 'disdetta' in m.nome.lower()), modelli[0] if modelli else None)
 
@@ -5441,6 +5569,7 @@ def gestione_procedure_view(request):
         'title': 'Gestione Procedure Operative',
         'tab_attivo': tab_attivo,
         'stato_filter': stato_filter,
+        'vista_filter': vista_filter,
         'q': q,
         'cliente_filter': int(cliente_filter) if cliente_filter.isdigit() else None,
         'modello_filter': int(modello_filter) if modello_filter.isdigit() else None,
@@ -5451,9 +5580,15 @@ def gestione_procedure_view(request):
         'pratiche': pratiche,
         'clienti': clienti,
         'dipendenti': dipendenti,
+        'operatore_attivo': operatore_attivo,
+        'operatori_rapidi': operatori_rapidi,
+        'dipendenti_json': json.dumps(dipendenti_js),
+        'operatori_rapidi_json': json.dumps(operatori_rapidi_js),
         'totale_pratiche': totale_pratiche,
         'pratiche_in_corso': pratiche_in_corso,
         'pratiche_completate': pratiche_completate,
+        'mie_pratiche_in_corso': mie_pratiche_in_corso,
+        'miei_avvalli_pendenti': miei_avvalli_pendenti,
         'totale_modelli': len(modelli),
         'oggi_iso': timezone.localdate().strftime('%Y-%m-%d'),
     }
@@ -5475,8 +5610,14 @@ def gestione_procedure_api(request):
 
     from .models import (
         ModelloProcedura, PassoModelloProcedura,
-        ProceduraAvviata, PassoProceduraAvviata,
+        ProceduraAvviata, PassoProceduraAvviata, AvvalloPassoProcedura,
         Cliente, Dipendente, DEFAULT_PROCEDURE, ensure_default_procedure,
+    )
+    from .services import (
+        get_operatore_portale,
+        passo_bloccato_da_avvallo_precedente,
+        richiedi_avvallo_passo_procedura,
+        conferma_avvallo_passo_procedura,
     )
     from datetime import datetime
 
@@ -5489,9 +5630,28 @@ def gestione_procedure_api(request):
 
     try:
         # ------------------------------------------------------------------
+        # 0. IMPOSTA OPERATORE ATTIVO SUL PORTALE (SESSIONE)
+        # ------------------------------------------------------------------
+        if action == 'set_operatore_portale':
+            dip_id = data.get('dipendente_id')
+            if not dip_id or str(dip_id) in ('0', 'NONE', 'none'):
+                request.session['operatore_portale_id'] = 'NONE'
+                return JsonResponse({'ok': True, 'operatore_id': None, 'message': 'Vista operatore resettata.'})
+            dip_sel = Dipendente.objects.filter(pk=int(dip_id)).first()
+            if not dip_sel:
+                return JsonResponse({'ok': False, 'error': 'Operatore non trovato.'}, status=404)
+            request.session['operatore_portale_id'] = dip_sel.id
+            return JsonResponse({
+                'ok': True,
+                'operatore_id': dip_sel.id,
+                'operatore_nome': f"{dip_sel.nome} {dip_sel.cognome}",
+                'message': f'Operatore attivo impostato su {dip_sel.nome} {dip_sel.cognome}.',
+            })
+
+        # ------------------------------------------------------------------
         # 1. AVVIA UNA NUOVA PROCEDURA (PRATICA)
         # ------------------------------------------------------------------
-        if action == 'avvia_procedura':
+        elif action == 'avvia_procedura':
             modello_id = data.get('modello_id')
             cliente_id = data.get('cliente_id')
             dipendente_id = data.get('dipendente_id')
@@ -5503,6 +5663,8 @@ def gestione_procedure_api(request):
             modello = ModelloProcedura.objects.filter(pk=modello_id).first() if modello_id else None
             cliente = Cliente.objects.filter(pk=cliente_id).first() if cliente_id else None
             dipendente = Dipendente.objects.filter(pk=dipendente_id).first() if dipendente_id else None
+            if not dipendente:
+                dipendente = get_operatore_portale(request)
 
             if not modello and not titolo:
                 return JsonResponse({'ok': False, 'error': 'Seleziona una procedura o inserisci un titolo.'}, status=400)
@@ -5537,8 +5699,23 @@ def gestione_procedure_api(request):
                 data_scadenza=data_scadenza,
                 note=note,
             )
+            if dipendente and not request.session.get('operatore_portale_id'):
+                request.session['operatore_portale_id'] = dipendente.id
+
             if modello:
                 pratica.copia_passaggi_da_modello()
+                # Se qualche passaggio aveva incaricati di default nel modello, invia la notifica Telegram
+                for passo_avv in pratica.passaggi.prefetch_related('avvalli__dipendente').all():
+                    inc_ids = [a.dipendente_id for a in passo_avv.avvalli.all()]
+                    if inc_ids:
+                        richiedi_avvallo_passo_procedura(
+                            passo=passo_avv,
+                            dipendenti_ids=inc_ids,
+                            richiesto_da=dipendente,
+                            nota_richiesta='',
+                            bloccante=True,
+                            reinvia_notifica=True,
+                        )
 
             # Eventuali passaggi extra passati direttamente in creazione
             passaggi_extra = data.get('passaggi_extra') or []
@@ -5566,15 +5743,45 @@ def gestione_procedure_api(request):
         # ------------------------------------------------------------------
         elif action == 'toggle_passo_pratica':
             passo_id = data.get('passo_id')
-            passo = PassoProceduraAvviata.objects.select_related('procedura').filter(pk=passo_id).first()
+            passo = PassoProceduraAvviata.objects.select_related('procedura').prefetch_related('avvalli__dipendente').filter(pk=passo_id).first()
             if not passo:
                 return JsonResponse({'ok': False, 'error': 'Passaggio non trovato.'}, status=404)
 
             if 'completato' in data and data.get('completato') is not None:
-                passo.completato = bool(data.get('completato'))
+                target_completato = bool(data.get('completato'))
             else:
-                passo.completato = not passo.completato
+                target_completato = not passo.completato
 
+            if target_completato:
+                # 1. Controlla se esiste un passaggio precedente bloccante in attesa di avvallo
+                passo_blocco, nomi_blocco = passo_bloccato_da_avvallo_precedente(passo)
+                if passo_blocco:
+                    return JsonResponse({
+                        'ok': False,
+                        'error': f"⏸️ Il punto #{passo.ordine} è in attesa dell'avvallo del punto #{passo_blocco.ordine} ({passo_blocco.titolo}) da parte di: {', '.join(nomi_blocco)}.",
+                        'pratica': _serialize_pratica(passo.procedura),
+                    }, status=400)
+
+                # 2. Controlla se QUESTO passaggio ha avvalli ancora in attesa
+                avvalli_pendenti = [a for a in passo.avvalli.all() if a.stato != 'APPROVATO']
+                if avvalli_pendenti:
+                    operatore_curr = get_operatore_portale(request)
+                    mio_avv = next((a for a in avvalli_pendenti if operatore_curr and a.dipendente_id == operatore_curr.id), None)
+                    if mio_avv:
+                        res_avv = conferma_avvallo_passo_procedura(avvallo_id=mio_avv.id, source='PORTALE')
+                        return JsonResponse({
+                            'ok': res_avv.get('ok', False),
+                            'message': res_avv.get('message', ''),
+                            'pratica': _serialize_pratica(passo.procedura),
+                        })
+                    nomi_mancanti = ", ".join(f"{a.dipendente.nome} {a.dipendente.cognome}" for a in avvalli_pendenti)
+                    return JsonResponse({
+                        'ok': False,
+                        'error': f"⏳ Questo passaggio richiede prima l'OK di avvallo da: {nomi_mancanti}. Usa il pulsante '✅ Dai l'OK' del collega.",
+                        'pratica': _serialize_pratica(passo.procedura),
+                    }, status=400)
+
+            passo.completato = target_completato
             passo.data_completamento = timezone.now() if passo.completato else None
             passo.save(update_fields=['completato', 'data_completamento'])
 
@@ -5586,6 +5793,115 @@ def gestione_procedure_api(request):
                 'message': f'Punto #{passo.ordine} {"completato ✅" if passo.completato else "riaperto"}.',
                 'pratica': _serialize_pratica(pratica),
             })
+
+        # ------------------------------------------------------------------
+        # 2B. RICHIEDI AVVALLO / INCARICA COLLEGHI SU UN PASSAGGIO
+        # ------------------------------------------------------------------
+        elif action == 'richiedi_avvallo_passo':
+            passo_id = data.get('passo_id')
+            dipendenti_ids = data.get('dipendenti_ids') or []
+            nota_richiesta = (data.get('nota_richiesta') or '').strip()
+            bloccante = bool(data.get('bloccante', True))
+            reinvia_notifica = bool(data.get('reinvia_notifica', False))
+            salva_nel_modello = bool(data.get('salva_nel_modello', False))
+
+            passo = PassoProceduraAvviata.objects.select_related('procedura__dipendente', 'procedura__cliente', 'procedura__modello').filter(pk=passo_id).first()
+            if not passo:
+                return JsonResponse({'ok': False, 'error': 'Passaggio non trovato.'}, status=404)
+
+            operatore_curr = get_operatore_portale(request) or passo.procedura.dipendente
+            res_avv = richiedi_avvallo_passo_procedura(
+                passo=passo,
+                dipendenti_ids=dipendenti_ids,
+                richiesto_da=operatore_curr,
+                nota_richiesta=nota_richiesta,
+                bloccante=bloccante,
+                reinvia_notifica=reinvia_notifica,
+            )
+
+            if salva_nel_modello and passo.procedura.modello_id:
+                pm = PassoModelloProcedura.objects.filter(
+                    modello_id=passo.procedura.modello_id,
+                    titolo__iexact=passo.titolo,
+                ).first()
+                if pm:
+                    clean_ids = [int(x) for x in dipendenti_ids if str(x).isdigit()]
+                    pm.incaricati_default.set(clean_ids)
+
+            return JsonResponse({
+                'ok': True,
+                'message': res_avv.get('message', 'Richiesta di avvallo aggiornata.'),
+                'notificati_telegram': res_avv.get('notificati_telegram', 0),
+                'pratica': _serialize_pratica(passo.procedura),
+            })
+
+        # ------------------------------------------------------------------
+        # 2C. CONFERMA AVVALLO (DAI L'OK) SU UN PASSAGGIO
+        # ------------------------------------------------------------------
+        elif action == 'conferma_avvallo_passo':
+            avvallo_id = data.get('avvallo_id')
+            passo_id = data.get('passo_id')
+            dipendente_id = data.get('dipendente_id')
+            nota_risposta = (data.get('nota_risposta') or '').strip()
+
+            if not avvallo_id and not dipendente_id:
+                op_curr = get_operatore_portale(request)
+                if op_curr:
+                    dipendente_id = op_curr.id
+
+            res = conferma_avvallo_passo_procedura(
+                avvallo_id=avvallo_id,
+                passo_id=passo_id,
+                dipendente_id=dipendente_id,
+                nota_risposta=nota_risposta,
+                source='PORTALE',
+            )
+            if not res.get('ok'):
+                return JsonResponse({'ok': False, 'error': res.get('error', 'Errore avvallo')}, status=400)
+
+            pratica = res.get('pratica')
+            return JsonResponse({
+                'ok': True,
+                'tutti_approvati': res.get('tutti_approvati', False),
+                'message': res.get('message', 'OK registrato!'),
+                'pratica': _serialize_pratica(pratica) if pratica else None,
+            })
+
+        # ------------------------------------------------------------------
+        # 2D. RIMUOVI UN SINGOLO COLLEGA DALL'AVVALLO DI UN PASSAGGIO
+        # ------------------------------------------------------------------
+        elif action == 'rimuovi_singolo_avvallo_passo':
+            avvallo_id = data.get('avvallo_id')
+            avv = AvvalloPassoProcedura.objects.select_related('passo__procedura', 'dipendente').filter(pk=avvallo_id).first()
+            if not avv:
+                return JsonResponse({'ok': False, 'error': 'Avvallo non trovato.'}, status=404)
+            passo = avv.passo
+            pratica = passo.procedura
+            nome_rimosso = f"{avv.dipendente.nome} {avv.dipendente.cognome}"
+            avv.delete()
+
+            restanti = list(passo.avvalli.all())
+            passo.richiede_avvallo = bool(restanti)
+            if restanti and all(a.stato == 'APPROVATO' for a in restanti) and not passo.completato:
+                passo.completato = True
+                passo.data_completamento = timezone.now()
+            passo.save()
+            pratica.ricalcola_stato()
+
+            return JsonResponse({
+                'ok': True,
+                'message': f'{nome_rimosso} rimosso dall\'avvallo del punto #{passo.ordine}.',
+                'pratica': _serialize_pratica(pratica),
+            })
+
+        # ------------------------------------------------------------------
+        # 2E. SEGNA ESITO AVVALLO COME LETTO DAL RESPONSABILE
+        # ------------------------------------------------------------------
+        elif action == 'segna_avvallo_letto':
+            passo_id = data.get('passo_id')
+            if passo_id:
+                AvvalloPassoProcedura.objects.filter(passo_id=passo_id).update(letto_da_responsabile=True)
+            return JsonResponse({'ok': True})
 
         # ------------------------------------------------------------------
         # 3. AGGIUNGI UN NUOVO PUNTO A UNA PRATICA IN CORSO
