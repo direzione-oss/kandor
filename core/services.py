@@ -1231,41 +1231,53 @@ def rifiuta_assenza_da_amministrazione(assenza_id, note_admin=''):
 
 def get_operatore_portale(request):
     """
-    Determina il Dipendente / Responsabile attualmente attivo sul Portale:
-    1. Da parametro GET ?set_operatore_id=... (salvato in sessione)
-    2. Da sessione 'operatore_portale_id'
-    3. Da sessione WebApp 'dipendente_app_id'
-    4. Da utente Django loggato (Titolare, email, nome/cognome, username)
-    5. Fallback su admin: responsabile dell'ultima procedura attiva (es. Simone)
+    Determina il Dipendente / Responsabile attualmente autenticato sul Portale
+    ESCLUSIVAMENTE in base alle credenziali personali di accesso (senza selettore / tendina operatore):
+    1. Da utente Django loggato (Titolare collegato, email, nome+cognome, username)
+    2. Da sessione WebApp personale 'dipendente_app_id' (autenticata con CF + PIN)
     """
-    from .models import Dipendente, Titolare, ProceduraAvviata
+    from .models import Dipendente, Titolare
     from django.db.models import Q
 
     if not request:
         return None
 
+    # Rimuovi eventuale vecchia chiave di cambio operatore manuale in sessione
     try:
-        if hasattr(request, 'GET') and 'set_operatore_id' in request.GET:
-            raw_set = (request.GET.get('set_operatore_id') or '').strip()
-            if raw_set in ('0', 'NONE', 'none', ''):
-                request.session['operatore_portale_id'] = 'NONE'
-            elif raw_set.isdigit():
-                dip_sel = Dipendente.objects.filter(pk=int(raw_set)).first()
-                if dip_sel:
-                    request.session['operatore_portale_id'] = dip_sel.pk
+        if hasattr(request, 'session') and 'operatore_portale_id' in request.session:
+            request.session.pop('operatore_portale_id', None)
     except Exception:
         pass
 
-    try:
-        sess_op = request.session.get('operatore_portale_id')
-        if sess_op == 'NONE':
-            return None
-        if sess_op and str(sess_op).isdigit():
-            dip = Dipendente.objects.filter(pk=int(sess_op)).first()
+    user = getattr(request, 'user', None)
+    if user and getattr(user, 'is_authenticated', False):
+        uname = (user.username or '').strip().lower()
+        try:
+            tit = Titolare.objects.filter(user=user).select_related('dipendente').first()
+            if tit and tit.dipendente:
+                return tit.dipendente
+        except Exception:
+            pass
+
+        if user.first_name and user.last_name:
+            dip = Dipendente.objects.filter(
+                nome__iexact=user.first_name.strip(),
+                cognome__iexact=user.last_name.strip(),
+            ).first()
             if dip:
                 return dip
-    except Exception:
-        pass
+
+        if user.email:
+            dip = Dipendente.objects.filter(email__iexact=user.email.strip()).first()
+            if dip:
+                return dip
+
+        if uname and uname != 'admin':
+            dip = Dipendente.objects.filter(
+                Q(nome__iexact=uname) | Q(cognome__iexact=uname)
+            ).first()
+            if dip:
+                return dip
 
     try:
         webapp_id = request.session.get('dipendente_app_id')
@@ -1275,49 +1287,6 @@ def get_operatore_portale(request):
                 return dip
     except Exception:
         pass
-
-    user = getattr(request, 'user', None)
-    if user and getattr(user, 'is_authenticated', False):
-        uname = (user.username or '').strip().lower()
-        if uname != 'admin':
-            try:
-                tit = Titolare.objects.filter(user=user).select_related('dipendente').first()
-                if tit and tit.dipendente:
-                    return tit.dipendente
-            except Exception:
-                pass
-
-            if user.email:
-                dip = Dipendente.objects.filter(email__iexact=user.email.strip()).first()
-                if dip:
-                    return dip
-
-            if user.first_name and user.last_name:
-                dip = Dipendente.objects.filter(
-                    nome__iexact=user.first_name.strip(),
-                    cognome__iexact=user.last_name.strip(),
-                ).first()
-                if dip:
-                    return dip
-
-            if uname:
-                dip = Dipendente.objects.filter(
-                    Q(nome__iexact=uname) | Q(cognome__iexact=uname)
-                ).first()
-                if dip:
-                    return dip
-        else:
-            # Utente condiviso 'admin' senza scelta esplicita in sessione:
-            # se esiste una procedura IN_CORSO con responsabile (es. Simone su PROVA 1),
-            # imposta di default quel responsabile finché l'operatore non cambia dal selettore rapido.
-            proc_attiva = (
-                ProceduraAvviata.objects.filter(stato='IN_CORSO', dipendente__isnull=False)
-                .select_related('dipendente')
-                .order_by('-id')
-                .first()
-            )
-            if proc_attiva and proc_attiva.dipendente:
-                return proc_attiva.dipendente
 
     return None
 

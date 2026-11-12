@@ -80,25 +80,13 @@
             ✨ &ldquo;<span id="kandor-daily-quote-text">{{ daily_quote_text }}</span>&rdquo;
         </span>
     </div>
-    {% if operatori_rapidi_portale %}
-    <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 999px; padding: 4px 12px;" title="Seleziona chi sta utilizzando il portale (per vedere in evidenza le proprie procedure e richieste di avvallo)">
+    {% if operatore_portale %}
+    <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 999px; padding: 5px 14px;" title="Operatore autenticato con il proprio accesso personale">
         <span style="font-size: 0.76rem; font-weight: 700; color: #38BDF8; white-space: nowrap;">👤 Operatore:</span>
-        <select onchange="cambiaOperatorePortaleGlobal(this.value)" style="background: transparent; color: #F8FAFC; border: none; font-size: 0.8rem; font-weight: 700; cursor: pointer; outline: none; padding-right: 4px;">
-            <option value="0" style="color:#0F172A;" {% if not operatore_portale %}selected{% endif %}>— Nessuno specifico —</option>
-            {% for op in operatori_rapidi_portale %}
-            <option value="{{ op.id }}" style="color:#0F172A;" {% if operatore_portale and operatore_portale.id == op.id %}selected{% endif %}>
-                {{ op.nome }} {{ op.cognome }}
-            </option>
-            {% endfor %}
-        </select>
+        <span style="color: #F8FAFC; font-size: 0.8rem; font-weight: 700; white-space: nowrap;">
+            {{ operatore_portale.nome }} {{ operatore_portale.cognome }}
+        </span>
     </div>
-    <script>
-    function cambiaOperatorePortaleGlobal(opId) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('set_operatore_id', opId);
-        window.location.href = url.toString();
-    }
-    </script>
     {% endif %}
 </div>
 

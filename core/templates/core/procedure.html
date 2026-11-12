@@ -843,19 +843,21 @@
         </div>
     </div>
 
-    <!-- BARRA OPERATORE PORTALE + VISIBILITÀ DASHBOARD VS FINESTRA PROCEDURE -->
+    <!-- BARRA OPERATORE PORTALE (IDENTIFICATO DALL'ACCESSO PERSONALE) + FILTRI VISTA -->
     <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 14px; padding: 12px 18px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span style="font-size: 0.78rem; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.4px;">
-                👤 Operatore attivo:
+                👤 Operatore autenticato:
             </span>
-            {% for op in operatori_rapidi %}
-            <button type="button"
-                    onclick="cambiaOperatorePortale({{ op.id }})"
-                    style="padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; cursor: pointer; border: 1px solid {% if operatore_attivo and operatore_attivo.id == op.id %}#0284c7{% else %}#cbd5e1{% endif %}; background: {% if operatore_attivo and operatore_attivo.id == op.id %}#0284c7{% else %}#f8fafc{% endif %}; color: {% if operatore_attivo and operatore_attivo.id == op.id %}#ffffff{% else %}#334155{% endif %};">
-                {% if operatore_attivo and operatore_attivo.id == op.id %}● {% endif %}{{ op.nome }} {{ op.cognome }}
-            </button>
-            {% endfor %}
+            {% if operatore_attivo %}
+            <span style="padding: 5px 14px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; border: 1px solid #0284c7; background: #0284c7; color: #ffffff;">
+                ● {{ operatore_attivo.nome }} {{ operatore_attivo.cognome }}
+            </span>
+            {% else %}
+            <span style="padding: 5px 14px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; border: 1px solid #cbd5e1; background: #f8fafc; color: #334155;">
+                {{ request.user.get_full_name|default:request.user.username }}
+            </span>
+            {% endif %}
         </div>
         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <a href="{% url 'gestione_procedure' %}?vista=TUTTE"
@@ -1582,11 +1584,13 @@ function renderPraticaSteps(pratica) {
                             : `<span style="background:#fef3c7; color:#b45309; font-weight:800; font-size:0.72rem; padding:2px 8px; border-radius:999px;">
                                    ⏳ In attesa di OK
                                </span>
-                               <button type="button"
-                                       onclick="confermaAvvalloPasso(${a.id}, ${p.id}, ${a.dipendente_id})"
-                                       style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 7px; padding: 4px 10px; font-size: 0.74rem; font-weight: 800; cursor: pointer; box-shadow: 0 2px 6px rgba(16,185,129,0.28);">
-                                   ✅ Dai l'OK
-                               </button>`
+                               ${(OPERATORE_ATTIVO_ID && Number(a.dipendente_id) === Number(OPERATORE_ATTIVO_ID))
+                                   ? `<button type="button"
+                                              onclick="confermaAvvalloPasso(${a.id}, ${p.id}, ${a.dipendente_id})"
+                                              style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 7px; padding: 4px 10px; font-size: 0.74rem; font-weight: 800; cursor: pointer; box-shadow: 0 2px 6px rgba(16,185,129,0.28);">
+                                          ✅ Dai il tuo OK
+                                      </button>`
+                                   : ''}`
                         }
                         <button type="button"
                                 onclick="rimuoviSingoloAvvallo(${p.id}, ${a.dipendente_id})"

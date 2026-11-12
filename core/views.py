@@ -5697,23 +5697,13 @@ def gestione_procedure_api(request):
 
     try:
         # ------------------------------------------------------------------
-        # 0. IMPOSTA OPERATORE ATTIVO SUL PORTALE (SESSIONE)
+        # 0. CAMBIO OPERATORE DISABILITATO (OGNI OPERATORE ENTRA COL SUO ACCESSO)
         # ------------------------------------------------------------------
         if action == 'set_operatore_portale':
-            dip_id = data.get('dipendente_id')
-            if not dip_id or str(dip_id) in ('0', 'NONE', 'none'):
-                request.session['operatore_portale_id'] = 'NONE'
-                return JsonResponse({'ok': True, 'operatore_id': None, 'message': 'Vista operatore resettata.'})
-            dip_sel = Dipendente.objects.filter(pk=int(dip_id)).first()
-            if not dip_sel:
-                return JsonResponse({'ok': False, 'error': 'Operatore non trovato.'}, status=404)
-            request.session['operatore_portale_id'] = dip_sel.id
             return JsonResponse({
-                'ok': True,
-                'operatore_id': dip_sel.id,
-                'operatore_nome': f"{dip_sel.nome} {dip_sel.cognome}",
-                'message': f'Operatore attivo impostato su {dip_sel.nome} {dip_sel.cognome}.',
-            })
+                'ok': False,
+                'error': 'Il cambio operatore da tendina è disabilitato: ogni operatore deve accedere con le proprie credenziali personali.',
+            }, status=403)
 
         # ------------------------------------------------------------------
         # 1. AVVIA UNA NUOVA PROCEDURA (PRATICA)
@@ -5766,8 +5756,6 @@ def gestione_procedure_api(request):
                 data_scadenza=data_scadenza,
                 note=note,
             )
-            if dipendente and not request.session.get('operatore_portale_id'):
-                request.session['operatore_portale_id'] = dipendente.id
 
             if modello:
                 pratica.copia_passaggi_da_modello()
@@ -5911,10 +5899,22 @@ def gestione_procedure_api(request):
             dipendente_id = data.get('dipendente_id')
             nota_risposta = (data.get('nota_risposta') or '').strip()
 
-            if not avvallo_id and not dipendente_id:
-                op_curr = get_operatore_portale(request)
-                if op_curr:
-                    dipendente_id = op_curr.id
+            op_curr = get_operatore_portale(request)
+            if not op_curr:
+                return JsonResponse({
+                    'ok': False,
+                    'error': 'Per dare l\'OK di avvallo devi accedere al portale con il tuo account operatore personale (oppure confermare dal tuo Telegram personale).',
+                }, status=403)
+
+            if avvallo_id:
+                avv_target = AvvalloPassoProcedura.objects.select_related('dipendente').filter(pk=avvallo_id).first()
+                if avv_target and avv_target.dipendente_id != op_curr.id:
+                    return JsonResponse({
+                        'ok': False,
+                        'error': f"⛔ Solo {avv_target.dipendente.nome} {avv_target.dipendente.cognome} (accedendo col proprio account o da Telegram) può dare l'OK per questo avvallo.",
+                    }, status=403)
+
+            dipendente_id = op_curr.id
 
             res = conferma_avvallo_passo_procedura(
                 avvallo_id=avvallo_id,

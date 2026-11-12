@@ -1,25 +1,16 @@
 <div style="margin-bottom: 22px;">
-    <!-- Barra Selettore Rapido Operatore per Vista Dashboard Procedure -->
-    {% if operatori_rapidi %}
+    {% if operatore %}
     <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span style="font-size: 0.78rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.04em;">
-                👤 Vista Dashboard Operatore:
+                👤 Accesso Operatore:
             </span>
-            {% for op in operatori_rapidi %}
-            <a href="?set_operatore_id={{ op.id }}"
-               style="text-decoration: none; padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; transition: all 0.15s;
-                      {% if operatore and operatore.id == op.id %}background: #0F172A; color: #FFFFFF !important; box-shadow: 0 2px 6px rgba(15,23,42,0.25);{% else %}background: #FFFFFF; color: #334155 !important; border: 1px solid #CBD5E1;{% endif %}">
-                {% if operatore and operatore.id == op.id %}● {% endif %}{{ op.nome }} {{ op.cognome }}
-            </a>
-            {% endfor %}
+            <span style="padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; background: #0F172A; color: #FFFFFF !important; box-shadow: 0 2px 6px rgba(15,23,42,0.25);">
+                ● {{ operatore.nome }} {{ operatore.cognome }}
+            </span>
         </div>
         <div style="font-size: 0.76rem; color: #64748B;">
-            {% if operatore %}
-                Procedure in evidenza per <strong>{{ operatore.nome }} {{ operatore.cognome }}</strong>: <strong>{{ mie_procedure_attive|length }}</strong>
-            {% else %}
-                Seleziona il tuo nome per vedere in evidenza le tue procedure e richieste di avvallo
-            {% endif %}
+            Procedure in evidenza per <strong>{{ operatore.nome }} {{ operatore.cognome }}</strong>: <strong>{{ mie_procedure_attive|length }}</strong>
         </div>
     </div>
     {% endif %}
@@ -72,11 +63,13 @@
                         {% else %}
                         <span style="background: #FFFFFF; color: #92400E; border: 1px solid #F59E0B; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
                             ⏳ {{ avv.dipendente.nome }} {{ avv.dipendente.cognome }}
+                            {% if operatore and avv.dipendente.id == operatore.id %}
                             <button type="button"
                                     onclick="confermaAvvalloDashboard({{ avv.id }}, '{{ avv.dipendente.nome|escapejs }} {{ avv.dipendente.cognome|escapejs }}')"
                                     style="background: #10B981; color: #FFFFFF; border: none; border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; font-weight: 800; cursor: pointer;">
                                 ✅ Dai l'OK
                             </button>
+                            {% endif %}
                         </span>
                         {% endif %}
                     {% endfor %}
