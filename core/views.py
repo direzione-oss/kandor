@@ -290,14 +290,16 @@ def chat_simulator_view(request):
                 # Invio a TUTTI i dipendenti attivi (sia Telegram che Web App)
                 dipendenti = Dipendente.objects.filter(stato='ATTIVO')
                 sent = 0
+                prefix = "[Tutti] "
+                all_text = (prefix + msg) if msg else "[Tutti]"
                 for dip in dipendenti:
                     try:
-                        if send_and_record_telegram_to_employee(dip, text=msg, attachments=attachments):
+                        if send_and_record_telegram_to_employee(dip, text=all_text, attachments=attachments):
                             sent += 1
                     except Exception:
                         pass
                 broadcast_result = f"Inviato a {sent} dipendenti"
-                return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}')
+                return HttpResponseRedirect(f'/chat-simulator/?broadcast=all&broadcast_ok={sent}')
 
             elif broadcast_target == 'responsabili':
                 # Invio SOLO ai Responsabili abilitati (RIC.NOT. = True)
@@ -311,14 +313,16 @@ def chat_simulator_view(request):
                             sent += 1
                     except Exception:
                         pass
-                return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}&sq=Responsabili')
+                return HttpResponseRedirect(f'/chat-simulator/?broadcast=responsabili&broadcast_ok={sent}&sq=Responsabili')
 
             elif broadcast_target.startswith('squadra_'):
                 # Invio a una SQUADRA
                 sq_id = broadcast_target.replace('squadra_', '')
                 try:
                     sq = Squadra.objects.get(pk=sq_id)
-                    dipendenti = sq.componenti.filter(stato='ATTIVO')
+                    dipendenti = list(sq.componenti.filter(stato='ATTIVO'))
+                    if sq.caposquadra and sq.caposquadra.stato == 'ATTIVO' and sq.caposquadra not in dipendenti:
+                        dipendenti.insert(0, sq.caposquadra)
                     sent = 0
                     prefix = f"[{sq.nome}] "
                     sq_text = (prefix + msg) if msg else f"[{sq.nome}]"
@@ -328,7 +332,7 @@ def chat_simulator_view(request):
                                 sent += 1
                         except Exception:
                             pass
-                    return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}&sq={sq.nome}')
+                    return HttpResponseRedirect(f'/chat-simulator/?broadcast=squadra_{sq.id}&broadcast_ok={sent}&sq={sq.nome}')
                 except Squadra.DoesNotExist:
                     pass
                     
@@ -367,16 +371,63 @@ def chat_simulator_view(request):
     # Modalita broadcast (quando si seleziona dal pannello)
     broadcast_mode = request.GET.get('broadcast', '')
     broadcast_label = ''
+    broadcast_prefix = ''
     if broadcast_mode == 'all':
         broadcast_label = 'Tutti i dipendenti'
+        broadcast_prefix = '[Tutti]'
     elif broadcast_mode == 'responsabili':
         broadcast_label = '🔔 Solo i Responsabili'
+        broadcast_prefix = '[Responsabili]'
     elif broadcast_mode.startswith('squadra_'):
         try:
             bsq = Squadra.objects.get(pk=broadcast_mode.replace('squadra_', ''))
             broadcast_label = f'Squadra {bsq.nome}'
+            broadcast_prefix = f'[{bsq.nome}]'
         except Squadra.DoesNotExist:
             broadcast_mode = ''
+
+    # Carica storico dei messaggi inviati al gruppo (Responsabili / Squadra / Tutti)
+    if broadcast_mode and not selected_employee_id and broadcast_prefix:
+        raw_bcast_msgs = list(
+            MessaggioChat.objects.filter(
+                direzione='OUT',
+                testo__startswith=broadcast_prefix,
+            )
+            .select_related('dipendente')
+            .order_by('-timestamp', '-id')[:400]
+        )
+        raw_bcast_msgs.reverse()
+        grouped_bcast = []
+        for rm in raw_bcast_msgs:
+            dip_name = f"{rm.dipendente.nome} {rm.dipendente.cognome}" if rm.dipendente else ''
+            if grouped_bcast:
+                prev = grouped_bcast[-1]
+                same_content = (
+                    prev['testo'] == rm.testo
+                    and prev['foto_url'] == (rm.foto_url or '')
+                    and prev['allegato_url'] == (rm.allegato_url or '')
+                    and prev['allegato_nome'] == (rm.allegato_nome or '')
+                )
+                time_diff = abs((rm.timestamp - prev['timestamp']).total_seconds()) if (rm.timestamp and prev['timestamp']) else 999
+                if same_content and time_diff <= 30:
+                    if dip_name and dip_name not in prev['destinatari_list']:
+                        prev['destinatari_list'].append(dip_name)
+                        prev['destinatari_count'] = len(prev['destinatari_list'])
+                        prev['destinatari_elenco'] = ", ".join(prev['destinatari_list'])
+                    continue
+            grouped_bcast.append({
+                'id': rm.id,
+                'direzione': 'OUT',
+                'testo': rm.testo,
+                'foto_url': rm.foto_url or '',
+                'allegato_url': rm.allegato_url or '',
+                'allegato_nome': rm.allegato_nome or '',
+                'timestamp': rm.timestamp,
+                'destinatari_list': [dip_name] if dip_name else [],
+                'destinatari_count': 1 if dip_name else 0,
+                'destinatari_elenco': dip_name,
+            })
+        chat_messages = grouped_bcast
 
     from django.db.models import Count, Q
     employees = Dipendente.objects.filter(stato='ATTIVO').annotate(
