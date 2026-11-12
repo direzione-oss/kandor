@@ -1,0 +1,237 @@
+================================================================================
+PODCAST UFFICIALE KANDOR ERP — GUIDA OPERATIVA PER I DIPENDENTI
+Titolo: "Lavorare Semplice con Kandor: Web App Mobile, Assistente IA e Bot Telegram"
+Basato su: Manuale Operativo Dipendenti Kandor (Versione 3.1)
+Destinatari: Lavoratori, Operatori di Cantiere, Capisquadra e Sostituti (Jolly)
+Formato: Script completo pronto per registrazione vocale, sintesi IA (ElevenLabs,
+         NotebookLM, OpenAI Audio) o lettura speaker.
+================================================================================
+
+NOTE DI PRODUZIONE E REGIA AUDIO:
+- Voci consigliate:
+  * MARCO (Conduttore): Tono cordiale, dinamico, chiaro, vicino al lavoratore.
+  * ELENA (Esperta Operativa Kandor): Tono rassicurante, pratico, scandito, spiega
+    ogni passaggio in modo semplice e concreto.
+- Ritmo: Naturale e conversazionale (circa 140-150 parole al minuto).
+- Durata stimata: 12-15 minuti.
+
+================================================================================
+PARTE 1 — INTRODUZIONE: BENVENUTI IN KANDOR E I DUE STRUMENTI PER IL LAVORATORE
+================================================================================
+
+[SIGLA INIZIALE — Musica strumentale moderna, positiva e leggera, sfuma in sottofondo]
+
+MARCO:
+Ciao a tutti e benvenuti al podcast ufficiale di Kandor! Quante volte, a fine turno in cantiere, vi siete chiesti: "Come faccio a segnare velocemente le ore di oggi per me e per la mia squadra?", oppure "Come invio subito all'ufficio il certificato di malattia, una richiesta di ferie o la foto di un macchinario guasto?".
+Oggi siamo qui per raccontarvi passo dopo passo, in modo semplice e pratico, come funziona il programma Kandor per tutti i lavoratori, gli operatori di cantiere, i capisquadra e i sostituti Jolly. Con me c'è Elena, che ci guiderà attraverso il Manuale Operativo per i Dipendenti. Ciao Elena!
+
+ELENA:
+Ciao Marco e un saluto a tutte le colleghe e a tutti i colleghi! L'obiettivo di Kandor è proprio questo: eliminare la carta, le telefonate perse e le complicazioni. Con Kandor avete tutto direttamente sul vostro smartphone e bastano letteralmente pochi secondi a fine turno.
+Inoltre, ogni mattina, nella barra superiore dell'applicazione trovate sempre la data aggiornata del calendario accompagnata da un pensiero positivo del giorno per iniziare il turno col piede giusto!
+
+MARCO:
+Bellissimo dettaglio! Ma partiamo subito dalla domanda fondamentale, Elena: cosa deve avere sul telefono un lavoratore per usare Kandor? Serve per forza Telegram?
+
+ELENA:
+Assolutamente no, ed è proprio questa la grande comodità di Kandor! Ogni dipendente può scegliere liberamente tra due strumenti ufficiali, che fanno esattamente le stesse cose e sono sincronizzati tra loro in tempo reale:
+Il primo strumento è la Web App Mobile Kandor: si apre da qualsiasi telefono Android o iPhone direttamente dal browser, senza bisogno di avere Telegram.
+Il secondo strumento è il Bot Telegram ufficiale, cercando su Telegram "kandor_gestionale_bot".
+Potete usare la Web App, oppure il Bot Telegram, oppure tutti e due: se registrate le ore sulla Web App, risultano subito salvate anche su Telegram e nel computer dell'ufficio!
+
+================================================================================
+PARTE 2 — ACCESSO ALLA WEB APP MOBILE E INSTALLAZIONE SULLO SMARTPHONE
+================================================================================
+
+MARCO:
+Partiamo allora dalla Web App Mobile, che è perfetta per chiunque abbia uno smartphone. Come si entra per la prima volta?
+
+ELENA:
+È semplicissimo, bastano quattro passaggi:
+Primo: aprite il browser internet del vostro cellulare, quindi Google Chrome se avete un telefono Android, oppure Safari se avete un iPhone.
+Secondo: collegatevi all'indirizzo ufficiale della Web App aziendale, che termina con "/app/".
+Terzo: vi apparirà la schermata "Kandor App Dipendenti". Qui dovete inserire solo due dati:
+- Nel primo campo, il vostro Codice Fiscale completo di 16 caratteri, senza preoccuparvi di maiuscole o minuscole.
+- Nel secondo campo, il vostro PIN personale di 4 cifre, che vi viene consegnato dall'ufficio.
+Quarto: toccate il pulsante "Accedi all'App" e siete subito dentro!
+
+MARCO:
+E se un lavoratore non ricorda più il suo PIN di 4 cifre?
+
+ELENA:
+Nessun problema! Basta chiederlo all'ufficio amministrazione: dal gestionale possono leggere il vostro PIN istantaneamente nella scheda dipendente oppure generarvene uno nuovo con un solo clic.
+
+MARCO:
+Una volta entrati, per non dover digitare ogni volta l'indirizzo internet, possiamo avere l'icona di Kandor direttamente sullo schermo del telefono come tutte le altre app?
+
+ELENA:
+Certo! Si può installare sulla schermata Home in pochi secondi:
+- Se avete uno smartphone Android con Chrome, appena aprite la pagina potete toccare il banner in basso "Installa Kandor sul tuo telefono", oppure toccare i tre puntini in alto a destra e scegliere "Aggiungi a schermata Home" o "Installa app".
+- Se invece avete un iPhone con Safari, toccate l'icona "Condividi" in basso al centro — quella col quadrato e la freccia verso l'alto — scorrete il menu e toccate "Aggiungi alla schermata Home", poi confermate su "Aggiungi".
+Da quel momento avrete l'icona blu di Kandor sempre pronta sul telefono!
+
+================================================================================
+PARTE 3 — LE 5 SCHEDE DELLA WEB APP E L'ASSISTENTE RAPIDO CON INTELLIGENZA ARTIFICIALE
+================================================================================
+
+MARCO:
+Perfetto! Adesso apriamo l'app. Come è organizzata la schermata per il dipendente?
+
+ELENA:
+È pensata per essere immediata anche con una sola mano. In basso sullo schermo trovate una barra di navigazione con 5 schede:
+1. La prima scheda è "Oggi e Ore", con l'icona del cronometro: è la schermata principale per vedere i turni del giorno, usare l'Assistente IA, registrare le ore e recuperare eventuali turni dimenticati.
+2. La seconda scheda è "Calendario": mostra tutti i turni programmati della settimana con orari, mezzi e navigatore Google Maps.
+3. La terza scheda è "Assenze": serve per comunicare malattia, ferie, permessi o Legge 104.
+4. La quarta scheda è "Ufficio": contiene la chat diretta con l'amministrazione e il modulo per segnalare guasti dai cantieri.
+5. La quinta scheda è "Profilo": per aggiornare la propria foto e controllare le scadenze della visita medica e dei corsi di sicurezza.
+
+MARCO:
+Nella prima scheda, "Oggi e Ore", c'è una novità straordinaria: l'Assistente Rapido con Intelligenza Artificiale, che funziona anche con la voce! Ci spieghi come si usa?
+
+ELENA:
+Sì, è la funzione più amata perché fa risparmiare tantissimo tempo! Appena aprite la scheda "Oggi e Ore", proprio in alto trovate il riquadro viola "Assistente Rapido IA, Testo o Voce".
+Potete usarlo in due modi:
+- Col microfono: toccate l'icona del microfono accanto alla casella di testo, parlate normalmente al telefono e poi premete "Invia".
+- Oppure scrivendo una frase normale nella casella.
+
+Ecco tre esempi concreti di cosa potete dire o scrivere:
+- Primo esempio, per le ore: dite "Oggi 4 ore da Condominio Rossi" oppure "Fatto 3 ore e mezza oggi". L'Intelligenza Artificiale riconosce subito il vostro turno del giorno e registra le ore!
+- Secondo esempio, per le assenze: dite "Domani sono in malattia" oppure "Ferie dal 10 novembre al 15 novembre". L'IA prepara subito la vostra comunicazione di assenza!
+- Terzo esempio, per i problemi in cantiere: dite "È finita la candeggina in cantiere" oppure "Si è rotta la lavasciuga". L'IA invia immediatamente la segnalazione all'ufficio e ne calcola in automatico il livello di urgenza!
+
+================================================================================
+PARTE 4 — REGISTRARE LE ORE, CONFERMARE LA SQUADRA E RECUPERARE I TURNI PASSATI
+================================================================================
+
+MARCO:
+Davvero comodissimo! E se invece preferisco inserire le ore con i pulsanti classici, cosa trovo nella scheda "Oggi e Ore"?
+
+ELENA:
+Subito sotto l'Assistente IA trovate tre riquadri che vi mostrano il riepilogo del mese in corso aggiornato in tempo reale: le Ore Validate con la spunta verde, le Ore in Attesa con la clessidra e il Totale Ore del mese.
+Più sotto vedete l'elenco "I Tuoi Turni di Oggi": per ogni cantiere vedete il nome del cliente, l'orario previsto, l'indirizzo con il bottone "Apri Mappa", la squadra, il mezzo aziendale assegnato ed eventuali note operative, come codici allarme o indicazioni per le chiavi.
+
+MARCO:
+Come funziona esattamente la registrazione manuale delle ore e la conferma dei compagni di squadra?
+
+ELENA:
+Toccate il pulsante "Inserisci Ore" sul turno. Il campo "Ore lavorate" è già precompilato con la durata prevista del turno, ma potete cambiarlo liberamente oppure usare i comodi pulsanti rapidi "meno mezz'ora" (-0.5h) e "più mezz'ora" (+0.5h), aggiungendo anche una nota se ad esempio avete svolto un lavoro extra richiesto dal cliente.
+E attenzione a questa funzione importantissima per chi lavora in squadra:
+Se siete i primi a registrare le ore di quel turno, sotto al campo delle ore vedrete l'elenco dei vostri compagni di squadra previsti oggi, già selezionati con una spunta verde.
+- Se i colleghi erano regolarmente presenti con voi, lasciate la spunta verde: quando premete "Salva Ore", il sistema registrerà automaticamente le stesse ore anche per loro, così i vostri compagni non dovranno reinserirle!
+- Se invece un collega previsto non era presente, vi basta togliere la spunta dal suo nome e il sistema avviserà l'ufficio.
+
+MARCO:
+E cosa succede se un giorno, per fretta o stanchezza, mi dimentico di inserire le ore a fine turno?
+
+ELENA:
+Kandor pensa anche a questo! Nella stessa schermata trovate il riquadro giallo "Turni da compilare (ultimi 7 giorni)". Lì compaiono tutti i turni della settimana passata rimasti senza ore: basta toccare "Inserisci Ore", indicare le ore svolte e salvare. E in ogni caso, se non avete avuto modo di farlo, anche l'amministrazione può inserire e validare le ore direttamente dal calendario centrale dell'ufficio.
+
+================================================================================
+PARTE 5 — CALENDARIO SETTIMANALE, GOOGLE MAPS E GESTIONE ASSENZE
+================================================================================
+
+MARCO:
+Passiamo alla seconda e alla terza scheda: "Calendario" e "Assenze". Come aiutano il lavoratore ad organizzare la settimana?
+
+ELENA:
+Toccando la scheda "Calendario", potete navigare tra i giorni con i tasti "Precedente", "Oggi" e "Successivo", oppure scorrere la panoramica completa dei "Prossimi 7 Giorni". Così sapete sempre in anticipo in quali cantieri, con quale squadra, con quale mezzo aziendale e in quali orari lavorerete. Inoltre, toccando l'indirizzo del cantiere, si apre direttamente il navigatore Google Maps sul telefono per portarvi a destinazione!
+
+MARCO:
+E quando invece un dipendente deve comunicare una malattia, chiedere ferie o un permesso?
+
+ELENA:
+Basta toccare la terza scheda, "Assenze". Qui si fa tutto in quattro tocchi:
+1. Scegliete il tipo di assenza: Malattia, Ferie, Permesso Orario o Giornaliero, oppure Permesso Legge 104.
+2. Impostate la Data di Inizio e la Data di Fine. Se si tratta di un Permesso o della Legge 104, potete anche spuntare la casella "Permesso ad ore" per indicare l'ora esatta di inizio e di fine, ad esempio dalle 9:00 alle 11:00.
+3. Nel campo Note potete scrivere una comunicazione per l'ufficio o inserire il numero di protocollo del certificato medico.
+4. Infine toccate "Invia Comunicazione Assenza".
+Subito sotto, nello "Storico delle tue Assenze", potete controllare in qualsiasi momento se la richiesta è "In attesa di avvallo", "Approvata" con spunta verde, oppure "Rifiutata".
+
+================================================================================
+PARTE 6 — CHAT UFFICIO, SEGNALAZIONI CANTIERE, SOSTITUZIONI JOLLY E PROFILO
+================================================================================
+
+MARCO:
+Veniamo alla quarta scheda: "Ufficio". Qui il lavoratore ha un filo diretto con l'amministrazione, giusto?
+
+ELENA:
+Esatto! La scheda "Ufficio" è divisa in due parti molto pratiche:
+La prima è la "Chat Diretta con l'Ufficio": funziona proprio come WhatsApp. Potete scrivere messaggi all'amministrazione e, toccando l'icona della graffetta, potete scattare e allegare una fotografia o inviare un documento PDF, come un certificato o un modulo firmato. Allo stesso modo, quando l'ufficio vi invia un documento, una circolare o la busta paga, potete aprirlo e scaricarlo direttamente dalla chat.
+
+La seconda parte è "Invia Segnalazione o Guasto dal Cantiere": se trovate una macchina lavasciuga guasta, prodotti finiti, un problema con le chiavi o con l'allarme, scrivete il problema, allegate se volete una foto del guasto e premete "Invia Segnalazione".
+Qui entra in azione il Triage Intelligente dell'IA di Kandor: se il sistema rileva un'emergenza critica o alta — come un guasto bloccante, un allagamento o un accesso impossibile — avvisa istantaneamente con priorità massima i Titolari e il Responsabile Area! E sotto al modulo vedrete sempre se la vostra segnalazione è "In lavorazione" o "Risolta", con la risposta dell'ufficio.
+
+MARCO:
+Parliamo ora dei sostituti, i cosiddetti "Jolly", e dei colleghi disponibili a coprire un turno scoperto. Come ricevono le proposte di sostituzione?
+
+ELENA:
+Quando c'è un turno da coprire per un'assenza, appena il lavoratore apre la Web App compare in alto un banner giallo e arancione ben visibile con tutti i dettagli: il nome del Cliente e del cantiere, l'indirizzo completo, la data e l'orario del servizio, e due pulsanti chiari: "Accetta Sostituzione" e "Rifiuta".
+Toccando "Accetta Sostituzione", il turno viene assegnato immediatamente al lavoratore e compare subito nella sua scheda "Oggi e Ore" e nel suo "Calendario"!
+
+MARCO:
+E nella quinta scheda, "Profilo", c'è anche il grande aggiornamento dedicato ai Cedolini delle Paghe e alle Buste Paga digitali, oltre alle scadenze personali! Ce lo spieghi nel dettaglio, Elena?
+
+ELENA:
+Sì, questo è un aggiornamento importantissimo per tutti i lavoratori!
+Prima di tutto, tutto ciò che registrate durante il mese nell'app — quindi le ore ordinarie, gli eventuali straordinari o lavori extra, le ferie, i permessi, la Legge 104 e le malattie — confluisce automaticamente nel prospetto "Cedolini Paghe" dell'ufficio per lo studio paghe, garantendo la massima precisione e zero errori di conteggio.
+Poi, una volta emesse le buste paga dal consulente del lavoro, l'ufficio carica il file unico nel sistema Kandor, che lo divide automaticamente per Codice Fiscale e invia a ciascun lavoratore esclusivamente il proprio cedolino personale!
+
+MARCO:
+Fantastico! E come fa il dipendente a vedere e scaricare il proprio cedolino della busta paga sul telefono?
+
+ELENA:
+Ogni lavoratore ha a disposizione ben tre canali comodissimi e sicuri:
+1. Il primo canale è l'Archivio Digitale sempre disponibile dentro la Web App Mobile: basta toccare la quinta scheda in basso, "Profilo". Subito sotto alla foto profilo trovate la sezione "Le Tue Buste Paga (PDF)". Lì vedete l'elenco di tutti i vostri cedolini mensili con il mese e l'anno di riferimento, l'importo Netto in busta, il numero di pagine e la data di pubblicazione. Toccando il pulsante "Apri PDF", potete aprire, salvare sul telefono o stampare la vostra busta paga in qualsiasi momento, anche a distanza di mesi!
+2. Il secondo canale è l'invio automatico su Telegram: chi ha collegato il Bot Telegram di Kandor riceve direttamente nella chat un messaggio automatico con il periodo, il netto del mese e il file PDF della busta paga allegato, pronto da aprire con un tocco.
+3. Il terzo canale è WhatsApp: per chi non utilizza Telegram, l'amministrazione può inviare il cedolino direttamente su WhatsApp tramite un link personale protetto da codice crittografico riservato. Basta toccare il link nel messaggio WhatsApp per aprire e scaricare subito il PDF della propria busta paga, e il sistema conferma automaticamente all'ufficio che avete ricevuto e scaricato il documento!
+
+MARCO:
+Quindi niente più buste paga cartacee smarrite o attese per ritirare il foglio in ufficio: arriva tutto in automatico su Telegram, su WhatsApp e resta sempre archiviato nella scheda "Profilo" della Web App! E cos'altro troviamo nella scheda "Profilo"?
+
+ELENA:
+Sempre nella scheda "Profilo", subito sotto alle Buste Paga, ogni lavoratore può:
+- Scattare o cambiare la propria Foto Profilo toccando "Scatta o Cambia Foto Profilo".
+- Controllare la data di scadenza della propria Visita Medica periodica d'idoneità e vedere quanti giorni mancano.
+- Verificare l'elenco completo dei propri Corsi di Formazione — come Sicurezza, Antincendio, Primo Soccorso, Lavori in Quota, PLE o HACCP — con tutte le date di scadenza sempre sotto controllo.
+
+================================================================================
+PARTE 7 — IL BOT TELEGRAM (@kandor_gestionale_bot) E DOMANDE FREQUENTI (FAQ)
+================================================================================
+
+MARCO:
+Prima abbiamo detto che, oltre alla Web App, chi usa Telegram può fare tutto anche dal Bot ufficiale. Ricordiamo brevemente come funziona?
+
+ELENA:
+Certamente! Su Telegram basta cercare "kandor_gestionale_bot" e premere "Avvia". La prima volta, se il telefono non è ancora associato, il Bot mostra un codice numerico chiamato ID Telegram: basta comunicarlo all'ufficio per attivare subito il proprio profilo.
+Dentro la chat di Telegram avete sempre i 6 bottoni del menu principale:
+- "Registra Ore"
+- "Turni Non Compilati"
+- "I Miei Turni"
+- "Malattia / Ferie / Permesso"
+- "Segnalazione"
+- e "Guida", che apre direttamente il manuale sul telefono.
+E anche su Telegram potete scrivere una frase libera come "Oggi ho fatto 4 ore al Condominio Rossi": il Bot IA capisce la frase e vi mostra un bottone verde di conferma rapida in un solo clic!
+
+MARCO:
+Chiudiamo il nostro episodio rispondendo alle due domande più frequenti dei lavoratori:
+Prima domanda: "Ho inserito un numero di ore sbagliato per errore. Come faccio a correggerlo?"
+
+ELENA:
+Se usate la Web App Mobile e le ore sono ancora nello stato "In attesa di validazione" con la clessidra gialla, potete correggerle e risalvarle direttamente dalla scheda "Oggi e Ore". Se invece sono già state validate dall'ufficio con la spunta verde, oppure se usate Telegram, vi basta scrivere un messaggio nella Chat Ufficio indicando il cantiere e l'orario corretto: l'amministrazione aggiornerà subito il dato.
+
+MARCO:
+Seconda domanda: "Su Telegram non vedo più i bottoni del menu in basso. Come li faccio tornare?"
+
+ELENA:
+Basta scrivere la parola "Menu" (o qualsiasi saluto) nella chat di Telegram e inviare il messaggio, oppure toccare l'icona con i quattro quadratini accanto alla casella di testo: i bottoni riappariranno immediatamente!
+
+MARCO:
+Grazie davvero Elena! Abbiamo visto come con la Web App Mobile e il Bot Telegram di Kandor ogni operazione — dalle ore con l'Assistente vocale IA fino al calendario, alle assenze e alle segnalazioni — diventi semplice, veloce e trasparente per tutta la squadra.
+Grazie a tutte le lavoratrici e a tutti i lavoratori per l'ascolto e buon lavoro con Kandor!
+
+ELENA:
+Grazie a te Marco e buon lavoro a tutti!
+
+[SIGLA FINALE — Musica strumentale positiva che sale e sfuma in chiusura]
+================================================================================
+FINE DELLO SCRIPT PODCAST — KANDOR ERP (STUDIO SERRA)
+================================================================================

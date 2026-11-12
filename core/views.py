@@ -1370,13 +1370,23 @@ def toggle_telegram_status(request, model_name, item_id):
         return HttpResponse(f'Error: {str(e)}', status=500)
 
 def manuale_pdf_view(request):
-    """Restituisce il file PDF completo di 41 pagine con screenshot del Manuale Utente Kandor (v3.0)."""
+    """Restituisce il file PDF completo con screenshot del Manuale Utente Kandor (v3.2)."""
     import os
     from django.http import FileResponse, Http404
     pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE_KANDOR.pdf')
     if os.path.exists(pdf_path):
         return FileResponse(open(pdf_path, 'rb'), content_type='application/pdf', filename='MANUALE_UTENTE_KANDOR.pdf')
     raise Http404("File PDF del manuale non trovato.")
+
+
+def manuale_dipendente_pdf_view(request):
+    """Restituisce il file PDF della Guida Operativa Dipendente Kandor (v3.2)."""
+    import os
+    from django.http import FileResponse, Http404
+    pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_DIPENDENTE_KANDOR.pdf')
+    if os.path.exists(pdf_path):
+        return FileResponse(open(pdf_path, 'rb'), content_type='application/pdf', filename='MANUALE_DIPENDENTE_KANDOR.pdf')
+    raise Http404("File PDF del manuale dipendente non trovato.")
 
 
 def manuale_screenshot_view(request, filename):
@@ -1739,7 +1749,10 @@ def manuale_dipendente_view(request):
 </head>
 <body>
 {body_html}
-<button class="print-btn" onclick="window.print()">🖨️ Stampa / PDF</button>
+<div style="position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px;" class="print-btn">
+    <a href="/manuale-dipendente/pdf/" target="_blank" style="background: #10b981; color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">⬇️ Scarica PDF Dipendente</a>
+    <button onclick="window.print()" style="background: #ff6f00; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">🖨️ Stampa</button>
+</div>
 </body>
 </html>"""
     
