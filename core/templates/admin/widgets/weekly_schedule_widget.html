@@ -5,7 +5,11 @@
 .schedule-hour {font-size:11px;color:#64748B;border-right:1px solid #E2E8F0;border-bottom:1px solid #F1F5F9;padding:2px 6px;text-align:right;height:80px;line-height:80px;font-weight:600}
 .schedule-cell {border-right:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9;position:relative;min-height:80px}
 .schedule-cell.today-col {background:#ECFDF5}
-.schedule-event {position:absolute;left:2px;right:2px;background:#fff;border:1px solid #E2E8F0;border-left:4px solid #3B82F6;border-radius:6px;padding:4px 6px;font-size:11px;overflow:hidden;z-index:2;box-shadow:var(--shadow-sm);cursor:grab;user-select:none;transition:var(--transition)}
+.schedule-event {position:absolute;left:2px;right:2px;background:#fff;border:1px solid #E2E8F0;border-left:4px solid #3B82F6;border-radius:6px;padding:4px 6px;font-size:11px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#94A3B8 transparent;z-index:2;box-shadow:var(--shadow-sm);cursor:grab;user-select:none;transition:var(--transition)}
+.schedule-event::-webkit-scrollbar {width:5px}
+.schedule-event::-webkit-scrollbar-track {background:transparent}
+.schedule-event::-webkit-scrollbar-thumb {background:#CBD5E1;border-radius:4px}
+.schedule-event::-webkit-scrollbar-thumb:hover {background:#64748B}
 .schedule-event:hover {box-shadow:var(--shadow-md);transform:translateY(-1px)}
 .schedule-event .ev-cliente {font-weight:700;color:#0F172A;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .schedule-event .ev-squadra {font-size:10px;color:#1D4ED8;background:#EFF6FF;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px;font-weight:600}
@@ -19,9 +23,13 @@
 .validate-ev-btn.ore-green {background:#059669;opacity:.3}
 .validate-ev-btn.ore-red {background:#DC2626;opacity:.8}
 .validate-ev-btn.ore-yellow {background:#d97706;color:#fff;opacity:1;box-shadow:0 0 0 2px #fde68a;font-weight:bold;width:20px;height:20px;line-height:20px;font-size:11px}
-.turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:99999;justify-content:center;align-items:center}
+.turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;padding:20px;box-sizing:border-box;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:99999;justify-content:center;align-items:center}
 .turno-modal-overlay.active {display:flex!important}
-.turno-modal {background:#fff;border-radius:12px;padding:28px;width:440px;max-width:92%;box-shadow:var(--shadow-xl);border:1px solid var(--border-color)}
+.turno-modal {background:#fff;border-radius:12px;padding:24px 26px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#64748B #F1F5F9;box-shadow:var(--shadow-xl);border:1px solid var(--border-color)}
+.turno-modal::-webkit-scrollbar, #edit-componenti-list::-webkit-scrollbar {width:10px}
+.turno-modal::-webkit-scrollbar-track, #edit-componenti-list::-webkit-scrollbar-track {background:#F1F5F9;border-radius:8px}
+.turno-modal::-webkit-scrollbar-thumb, #edit-componenti-list::-webkit-scrollbar-thumb {background:#94A3B8;border-radius:8px;border:2px solid #F1F5F9}
+.turno-modal::-webkit-scrollbar-thumb:hover, #edit-componenti-list::-webkit-scrollbar-thumb:hover {background:#475569}
 .turno-modal h3 {margin:0 0 16px;color:#0F172A;font-size:1.1rem;font-weight:700}
 .turno-modal label {display:block;font-size:12px;color:#64748B;margin:12px 0 4px;font-weight:700}
 .turno-modal select,.turno-modal input {width:100%;padding:10px 12px;border:1px solid #CBD5E1;border-radius:6px;font-size:14px;box-sizing:border-box;line-height:1.4;min-height:42px;background:#fff;color:#0F172A}
@@ -183,7 +191,10 @@
 <!-- Modal NUOVO Turno -->
 <div id="turno-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeAddTurno()">
 <div class="turno-modal">
-<h3>Nuovo Turno</h3>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <h3 style="margin:0">Nuovo Turno</h3>
+  <button type="button" onclick="closeAddTurno()" style="background:transparent;border:none;font-size:20px;color:#64748B;cursor:pointer;line-height:1" title="Chiudi">✕</button>
+</div>
 <div id="turno-modal-date" style="font-size:13px;color:#0277bd;font-weight:600;margin-bottom:10px"></div>
 <label>Squadra</label>
 <select id="turno-squadra"></select>
@@ -224,8 +235,11 @@
 
 <!-- Modal MODIFICA Turno -->
 <div id="edit-modal-overlay" class="turno-modal-overlay" onclick="if(event.target===this)closeEditTurno()">
-<div class="turno-modal" style="width:460px">
-<h3 style="color:#e65100">✏️ Modifica Turno</h3>
+<div class="turno-modal" style="width:540px;max-height:88vh;overflow-y:auto">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+  <h3 style="color:#e65100;margin:0">✏️ Modifica Turno</h3>
+  <button type="button" onclick="closeEditTurno()" style="background:transparent;border:none;font-size:20px;color:#64748B;cursor:pointer;line-height:1" title="Chiudi">✕</button>
+</div>
 <label>Squadra</label>
 <select id="edit-squadra" style="margin-bottom:10px"></select>
 <label>Cliente</label>
@@ -252,7 +266,7 @@
 <!-- SEZIONE DIPENDENTI PRESENTI -->
 <div style="margin-top:12px;padding:10px 12px;background:#fff8e1;border-radius:6px;border-left:4px solid #f39c12">
   <div style="font-size:12px;font-weight:600;color:#e67e22;margin-bottom:8px">👥 Dipendenti presenti in questo turno</div>
-  <div id="edit-componenti-list" style="display:flex;flex-wrap:wrap;gap:8px">
+  <div id="edit-componenti-list" style="display:flex;flex-wrap:wrap;gap:8px;max-height:220px;overflow-y:auto;padding-right:4px">
     <span style="font-size:11px;color:#999">Caricamento...</span>
   </div>
   <div style="font-size:10px;color:#999;margin-top:6px">✅ = presente nel turno &nbsp;|&nbsp; Deseleziona per escludere dal turno</div>

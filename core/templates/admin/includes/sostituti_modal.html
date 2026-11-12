@@ -1,9 +1,23 @@
 <!-- Modal Window per la Selezione, Invio Telegram e Conferma dall'Ufficio dei Sostituti -->
+<style>
+  .sost-modal-scroll-body {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: #64748B #F1F5F9;
+  }
+  .sost-modal-scroll-body::-webkit-scrollbar { width: 10px; }
+  .sost-modal-scroll-body::-webkit-scrollbar-track { background: #F1F5F9; border-radius: 8px; }
+  .sost-modal-scroll-body::-webkit-scrollbar-thumb { background: #94A3B8; border-radius: 8px; border: 2px solid #F1F5F9; }
+  .sost-modal-scroll-body::-webkit-scrollbar-thumb:hover { background: #475569; }
+</style>
 <div id="modal-seleziona-sostituti-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.72); backdrop-filter:blur(4px); z-index:999999; align-items:center; justify-content:center;" onclick="if(event.target===this)chiudiModalSostituti()">
   <div style="background:#fff; border-radius:12px; width:820px; max-width:96%; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); overflow:hidden; border:1px solid #CBD5E1;">
     
     <!-- Header -->
-    <div style="background:#0F172A; color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="background:#0F172A; color:#fff; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
       <div>
         <h3 style="margin:0; font-size:1.15rem; font-weight:700; color:#F8FAFC; display:flex; align-items:center; gap:8px;">
           <span>👥</span> Gestione Sostituzione Turno (Tutti i Sostituti &amp; Anagrafica — Anche Impegnati o Senza Telegram)
@@ -13,6 +27,7 @@
       <button onclick="chiudiModalSostituti()" style="background:transparent; border:none; color:#94A3B8; font-size:22px; cursor:pointer; font-weight:bold; line-height:1;">✕</button>
     </div>
 
+    <div class="sost-modal-scroll-body">
     <!-- Banner Stato Attuale / Conferma Rapida Ufficio per Sostituto in Attesa Telegram -->
     <div id="sost-status-banner" style="display:none; padding:12px 24px 0 24px;"></div>
 
@@ -41,7 +56,7 @@
     </div>
 
     <!-- Body / List -->
-    <div style="padding:14px 24px; overflow-y:auto; flex:1;">
+    <div style="padding:14px 24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #E2E8F0; flex-wrap:wrap; gap:8px;">
         <span style="font-size:13px; font-weight:700; color:#334155;">
           Candidati Sostituti e Dipendenti Attivi (<span id="sost-candidati-count">0</span>)
@@ -56,6 +71,7 @@
       <div id="sost-list-container" style="display:flex; flex-direction:column; gap:8px;">
         <div style="text-align:center; padding:30px; color:#94A3B8; font-size:13px;">Caricamento sostituti in corso...</div>
       </div>
+    </div>
     </div>
 
     <!-- Footer Actions -->
