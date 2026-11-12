@@ -209,6 +209,124 @@ def get_turni_non_compilati_keyboard(dipendente):
 _TELEGRAM_STATE = {}
 
 
+def _gestisci_accreditamento_telegram(telegram_chat_id, text, sender_name="Utente"):
+    """
+    Gestisce l'accreditamento sicuro di un nuovo account Telegram tramite Codice Fiscale + PIN a 4 cifre.
+    Impedisce:
+    - duplicazione di telegram_chat_id su più dipendenti
+    - sovrascrittura di un dipendente che ha GIÀ un altro telegram_chat_id collegato (blocco secondo telefono)
+    - tentativi ripetuti (rate-limit 5 tentativi / 15 min)
+    """
+    from django.core.cache import cache
+
+    chat_id_str = str(telegram_chat_id).strip()
+
+    # Se il chat_id appartiene a un dipendente INATTIVO, blocca subito
+    if Dipendente.objects.filter(telegram_chat_id=chat_id_str, stato='INATTIVO').exists():
+        return "⛔ Il tuo profilo dipendente risulta non attivo. Contatta l'Amministrazione."
+
+    fail_key = f"tg_auth_fail_{chat_id_str}"
+    pending_cf_key = f"tg_auth_cf_{chat_id_str}"
+    fail_count = cache.get(fail_key, 0)
+    if fail_count >= 5:
+        return (
+            f"⛔ Troppi tentativi errati di accreditamento. Per sicurezza riprova tra 15 minuti "
+            f"oppure comunica il tuo ID Telegram ({chat_id_str}) direttamente all'Amministrazione."
+        )
+
+    raw = (text or '').strip()
+    upper_raw = raw.upper()
+
+    # Cerca Codice Fiscale (16 caratteri alfanumerici) e/o PIN (4 cifre) nel messaggio
+    cf_match = re.search(r'\b([A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z])\b', upper_raw)
+    pin_match = re.search(r'\b(\d{4})\b', upper_raw)
+
+    st = _TELEGRAM_STATE.get(chat_id_str, {})
+    saved_cf = cache.get(pending_cf_key) or (st.get('auth_cf') if st.get('action') == 'attesa_pin_accreditamento' else None)
+
+    cf_val = cf_match.group(1) if cf_match else None
+    pin_val = pin_match.group(1) if pin_match else None
+
+    # Caso 1: L'utente ha inviato solo il Codice Fiscale -> chiedi il PIN di 4 cifre
+    if cf_val and not pin_val:
+        cache.set(pending_cf_key, cf_val, 600)
+        _TELEGRAM_STATE[chat_id_str] = {'action': 'attesa_pin_accreditamento', 'auth_cf': cf_val}
+        return (
+            f"🔐 Codice Fiscale ricevuto ({cf_val}).\n"
+            f"Ora rispondi scrivendo il tuo PIN personale di 4 cifre per completare l'accreditamento:"
+        )
+
+    # Caso 2: L'utente aveva già inviato il CF e ora invia il PIN di 4 cifre
+    if not cf_val and saved_cf and pin_val and len(raw.replace(' ', '')) == 4:
+        cf_val = saved_cf
+
+    # Caso 3: Abbiamo sia Codice Fiscale sia PIN -> verifica e accredita
+    if cf_val and pin_val:
+        cache.delete(pending_cf_key)
+        _TELEGRAM_STATE.pop(chat_id_str, None)
+
+        cand = Dipendente.objects.filter(codice_fiscale__iexact=cf_val).first()
+        cand_pin = (cand.pin_accesso or '').strip() if cand else ''
+
+        if not cand or not cand_pin or cand_pin != pin_val:
+            new_fails = fail_count + 1
+            cache.set(fail_key, new_fails, 900)
+            return (
+                f"❌ Codice Fiscale o PIN non corretti (tentativo {new_fails}/5).\n"
+                f"Verifica i dati e riprova (scrivendo CODICE FISCALE e PIN, es: RSSMRA80A01H501U 1234) "
+                f"oppure invia il tuo ID Telegram ({chat_id_str}) all'Amministrazione."
+            )
+
+        if cand.stato != 'ATTIVO':
+            return "⛔ Questo profilo dipendente risulta non attivo. Contatta l'Amministrazione."
+
+        existing_tg = (cand.telegram_chat_id or '').strip()
+        if existing_tg and existing_tg != chat_id_str:
+            # Blocco furto identità / secondo telefono non autorizzato
+            try:
+                send_telegram_message(
+                    existing_tg,
+                    f"⚠️ *Avviso di Sicurezza Kandor*\n"
+                    f"Un altro account Telegram ({sender_name}, ID `{chat_id_str}`) ha appena tentato di accreditarsi "
+                    f"usando il tuo Codice Fiscale e PIN. Il tentativo è stato *bloccato automaticamente*.",
+                )
+            except Exception:
+                pass
+            return (
+                f"⛔ Blocco di sicurezza: il profilo di {cand.cognome} {cand.nome} è GIÀ collegato a un account Telegram.\n"
+                f"Per impedire che qualcuno entri a nome di un collega, non è consentito collegare un secondo telefono in autonomia.\n"
+                f"Se hai cambiato telefono, contatta l'Amministrazione comunicando il tuo ID: {chat_id_str}"
+            )
+
+        # Verifica che questo chat_id non sia associato a nessun altro record
+        altro = Dipendente.objects.filter(telegram_chat_id=chat_id_str).exclude(pk=cand.pk).first()
+        if altro:
+            return (
+                f"⛔ Questo account Telegram (ID: {chat_id_str}) risulta già collegato a un altro dipendente. "
+                f"Contatta l'Amministrazione."
+            )
+
+        cand.telegram_chat_id = chat_id_str
+        cand.save(update_fields=['telegram_chat_id'])
+        cache.delete(fail_key)
+
+        return {
+            'text': (
+                f"✅ Accreditamento completato in sicurezza!\n"
+                f"Benvenuto/a {cand.nome} {cand.cognome}, il tuo account Telegram (ID: {chat_id_str}) "
+                f"è ora collegato in modo esclusivo al tuo profilo.\n\nCosa vuoi fare?"
+            ),
+            'reply_markup': get_main_menu(cand)
+        }
+
+    # Messaggio predefinito per utente non ancora accreditato
+    return (
+        f"Non ti conosco! Il tuo ID Telegram e': {chat_id_str}\n\n"
+        f"🔐 Per abilitarti subito in sicurezza, rispondi scrivendo il tuo CODICE FISCALE seguito dal tuo PIN di 4 cifre "
+        f"(esempio: RSSMRA80A01H501U 1234), oppure invia questo ID all'amministratore per farti abilitare."
+    )
+
+
 def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     """
     Logica principale con supporto comandi e menu interattivo.
@@ -217,7 +335,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     dipendenti = Dipendente.objects.filter(telegram_chat_id=telegram_chat_id, stato='ATTIVO')
     
     if not dipendenti.exists():
-        return f"Non ti conosco! Il tuo ID Telegram e': {telegram_chat_id}\nInvialo all'amministratore per farti abilitare."
+        return _gestisci_accreditamento_telegram(telegram_chat_id, text, sender_name=sender_name)
     
     dipendente = dipendenti.first()
     clean_text = normalize_text(text)

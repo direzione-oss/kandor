@@ -122,6 +122,22 @@ class Dipendente(models.Model):
             self.pin_accesso = self.pin_accesso.strip()
             if not (len(self.pin_accesso) == 4 and self.pin_accesso.isdigit()):
                 raise ValidationError({'pin_accesso': "Il PIN di accesso deve essere composto da esattamente 4 cifre numeriche (es. 1234)."})
+        if self.telegram_chat_id is not None:
+            self.telegram_chat_id = str(self.telegram_chat_id).strip()
+            if self.telegram_chat_id:
+                conflitto = Dipendente.objects.filter(
+                    telegram_chat_id=self.telegram_chat_id
+                ).exclude(pk=self.pk).first()
+                if conflitto:
+                    raise ValidationError({
+                        'telegram_chat_id': (
+                            f"⚠️ Attenzione: questo ID Telegram ({self.telegram_chat_id}) è già associato al dipendente "
+                            f"{conflitto.cognome} {conflitto.nome} (Stato: {conflitto.get_stato_display()}). "
+                            "Non è consentito associare lo stesso account Telegram a due dipendenti diversi."
+                        )
+                    })
+            else:
+                self.telegram_chat_id = None
 
     def save(self, *args, **kwargs):
         from django.utils import timezone
@@ -129,6 +145,8 @@ class Dipendente(models.Model):
         today = timezone.now().date()
         if self.codice_fiscale:
             self.codice_fiscale = self.codice_fiscale.strip().upper()
+        if self.telegram_chat_id is not None:
+            self.telegram_chat_id = str(self.telegram_chat_id).strip() or None
         if not self.pin_accesso or len(self.pin_accesso.strip()) != 4:
             self.pin_accesso = f"{random.randint(1000, 9999)}"
         else:

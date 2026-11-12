@@ -1321,7 +1321,10 @@ def telegram_webhook_view(request):
                     
                     try:
                         req.post(send_url, json=payload)
-                        # Salva risposta bot nello storico
+                        # Salva risposta bot nello storico (anche se il dipendente si è appena accreditato)
+                        if not dip:
+                            from .models import Dipendente
+                            dip = Dipendente.objects.filter(telegram_chat_id=chat_id).first()
                         if dip and testo_out:
                             from .models import MessaggioChat
                             MessaggioChat.objects.create(

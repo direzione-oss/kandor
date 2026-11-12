@@ -130,6 +130,17 @@ def import_from_excel(model_name, file_obj, mode='UPDATE'):
                 raw_stato = str(row.get('stato', 'ATTIVO')).upper().strip()
                 stato_val = stato_mapping.get(raw_stato, 'ATTIVO')
 
+                raw_tg = str(row.get('telegram_chat_id', '')).replace('.0', '').strip() if not pd.isna(row.get('telegram_chat_id')) else ''
+                if raw_tg:
+                    conflitto_tg = Dipendente.objects.filter(telegram_chat_id=raw_tg).exclude(codice_fiscale__iexact=cf).first()
+                    if conflitto_tg:
+                        errors.append(
+                            f"Riga {index + 2}: ID Telegram '{raw_tg}' ignorato perché già associato a {conflitto_tg.cognome} {conflitto_tg.nome}."
+                        )
+                        raw_tg = None
+                else:
+                    raw_tg = None
+
                 # Preparazione defaults
                 defaults = {
                     'nome': row['nome'],
@@ -139,7 +150,7 @@ def import_from_excel(model_name, file_obj, mode='UPDATE'):
                     'telefono': row.get('telefono', '') if not pd.isna(row.get('telefono')) else '',
                     'indirizzo_residenza': row.get('indirizzo_residenza', '') if not pd.isna(row.get('indirizzo_residenza')) else '',
                     'stato': stato_val,
-                    'telegram_chat_id': str(row.get('telegram_chat_id', '')).replace('.0', '') if not pd.isna(row.get('telegram_chat_id')) else ''
+                    'telegram_chat_id': raw_tg
                 }
                 
                 obj, created = Dipendente.objects.update_or_create(
