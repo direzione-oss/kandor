@@ -553,6 +553,20 @@ def weekly_schedule_widget(context):
                 is_all_val = all(t.is_validated for t in tt_list) if tt_list else (tt.is_validated if tt else False)
                 has_hours = bool(tt_list and any(t.ore_dichiarate or t.check_out for t in tt_list)) or bool(durata_tot > 0)
 
+                tt_notes_raw = []
+                tt_notes_dettaglio = []
+                for t in tt_list:
+                    n_txt = (t.note or '').strip()
+                    if n_txt:
+                        if n_txt not in tt_notes_raw:
+                            tt_notes_raw.append(n_txt)
+                        dip_lbl = f"{t.dipendente.cognome} {t.dipendente.nome[:1]}." if t.dipendente else ""
+                        det_str = f"{dip_lbl}: {n_txt}" if (dip_lbl and len(tt_list) > 1) else n_txt
+                        if det_str not in tt_notes_dettaglio:
+                            tt_notes_dettaglio.append(det_str)
+                note_dipendente_str = " | ".join(tt_notes_raw)
+                note_dipendente_dettaglio_str = " • ".join(tt_notes_dettaglio)
+
                 # Se TUTTI i componenti attivi sono in assenza e non c'è sostituto con ore lavorate
                 if comp_assenti and len(comp_assenti) >= len(active_squadra) and not (has_hours or has_sostituti):
                     ore_stato = 'purple'
@@ -617,6 +631,8 @@ def weekly_schedule_widget(context):
                     'ore_dichiarate': float(durata_tot) if durata_tot else '',
                     'ore_dichiarate_fmt': _fmt_ore(durata_tot) if durata_tot else '',
                     'note':         assign.mansione_svolta or '',
+                    'note_dipendente': note_dipendente_str,
+                    'note_dipendente_dettaglio': note_dipendente_dettaglio_str,
                     'ore_stato':    ore_stato,
                     'ore_label':    ore_label,
                     'ore_badge_html': ore_badge_html,

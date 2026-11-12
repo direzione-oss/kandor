@@ -528,7 +528,7 @@
                         <td style="font-size: 0.82rem; color: var(--text-main);">{{ item.clienti_str }}</td>
                         <td style="text-align: center;">
                             <div style="display: flex; gap: 4px; justify-content: center;">
-                                <button type="button" class="btn-calendario" onclick="toggleCalendario('{{ item.dip_id }}')" style="background: #334155; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 0.75rem; font-weight: 600; white-space: nowrap;">?? Calendario</button>
+                                <button type="button" class="btn-calendario" onclick="toggleCalendario('{{ item.dip_id }}')" style="background: #334155; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 0.75rem; font-weight: 600; white-space: nowrap;">📅 Calendario{% if item.note_calendario_count %} <span style="background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:8px;font-size:0.7rem;margin-left:3px;" title="Presenza di note/motivazioni orario nel mese">💬 {{ item.note_calendario_count }}</span>{% endif %}</button>
                                 <button type="button" class="btn-modifica-cedolino" onclick="apriModalModifica(
                                 '{{ item.dip_id }}',
                                 '{{ item.cognome_nome|escapejs }}',
@@ -573,10 +573,10 @@
                                     {% for week in item.calendario_weeks %}
                                     <tr>
                                         {% for day in week %}
-                                        <td style="border: 1px solid #CBD5E1; height: 80px; vertical-align: top; position: relative; padding: 0;">
+                                        <td style="border: 1px solid #CBD5E1; height: 86px; vertical-align: top; position: relative; padding: 0;">
                                             {% if day.date %}
                                                 <span style="position: absolute; top: 4px; right: 6px; font-size: 0.8rem; color: #94A3B8;">{{ day.day }}</span>
-                                                <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 10px;">
+                                                <div style="min-height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 14px 4px 6px 4px; box-sizing: border-box;">
                                                     {% if day.ore %}
                                                     <div style="font-size: 1.2rem; font-weight: bold; color: #0F172A;">{{ day.ore }}</div>
                                                     {% endif %}
@@ -586,9 +586,15 @@
                                                             {% if day.ore %}+ {% endif %}{{ day.assenze|join:" + " }}
                                                         </div>
                                                     {% endif %}
+
+                                                    {% if day.note %}
+                                                        <div style="font-size: 0.72rem; color: #1e40af; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 4px; padding: 2px 5px; margin-top: 4px; font-weight: 700; line-height: 1.25; word-break: break-word; max-width: 100%;" title="{{ day.note_dettaglio|default:day.note }}">
+                                                            💬 {{ day.note }}
+                                                        </div>
+                                                    {% endif %}
                                                 </div>
                                             {% else %}
-                                                <div style="background: #F1F5F9; height: 100%;"></div>
+                                                <div style="background: #F1F5F9; height: 100%; min-height: 86px;"></div>
                                             {% endif %}
                                         </td>
                                         {% endfor %}

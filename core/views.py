@@ -4188,6 +4188,8 @@ def report_paghe_view(request):
             'dettaglio_assenze': [],
             'ore_per_giorno': {},
             'assenze_per_giorno': {},
+            'note_per_giorno': {},
+            'note_dettaglio_per_giorno': {},
         }
 
     # Processa TimeTracking
@@ -4200,6 +4202,16 @@ def report_paghe_view(request):
         data_turno = tt.assegnazione.turno.data
         cliente = tt.assegnazione.cliente
         cl_nome = cliente.ragione_sociale if cliente else 'Senza Cliente'
+
+        nota_tt = (tt.note or '').strip()
+        if nota_tt:
+            note_day_list = report_data[dip_id]['note_per_giorno'].setdefault(data_turno, [])
+            if nota_tt not in note_day_list:
+                note_day_list.append(nota_tt)
+            det_str = f"{cl_nome}: {nota_tt}" if cl_nome and cl_nome != 'Senza Cliente' else nota_tt
+            det_day_list = report_data[dip_id]['note_dettaglio_per_giorno'].setdefault(data_turno, [])
+            if det_str not in det_day_list:
+                det_day_list.append(det_str)
 
         report_data[dip_id]['ore_lavorate'] += ore
         if tt.is_validated:
@@ -4329,22 +4341,27 @@ def report_paghe_view(request):
     for item in report_list:
         calendario_weeks = []
         curr_d = data_inizio
-        row = [{'date': None, 'day': '', 'ore': None, 'assenze': []} for _ in range(7)]
+        row = [{'date': None, 'day': '', 'ore': None, 'assenze': [], 'note': '', 'note_dettaglio': ''} for _ in range(7)]
         while curr_d <= data_fine:
             wd = curr_d.weekday()
             ore = item['ore_per_giorno'].get(curr_d, 0.0)
             assenze = item['assenze_per_giorno'].get(curr_d, [])
+            note_list = item['note_per_giorno'].get(curr_d, [])
+            note_det_list = item['note_dettaglio_per_giorno'].get(curr_d, [])
             row[wd] = {
                 'date': curr_d.isoformat(), 
                 'day': curr_d.day, 
                 'ore': round(ore, 1) if ore > 0 else None,
-                'assenze': assenze
+                'assenze': assenze,
+                'note': " | ".join(note_list),
+                'note_dettaglio': " • ".join(note_det_list),
             }
             if wd == 6 or curr_d == data_fine:
                 calendario_weeks.append(row)
-                row = [{'date': None, 'day': '', 'ore': None, 'assenze': []} for _ in range(7)]
+                row = [{'date': None, 'day': '', 'ore': None, 'assenze': [], 'note': '', 'note_dettaglio': ''} for _ in range(7)]
             curr_d += timedelta(days=1)
         item['calendario_weeks'] = calendario_weeks
+        item['note_calendario_count'] = sum(len(v) for v in item['note_per_giorno'].values())
 
     context = {
         'report_list': report_list,
@@ -4447,18 +4464,24 @@ def pdf_report_paghe(request):
             'clienti_dict': {},
             'ore_per_giorno': {},
             'assenze_per_giorno': {},
+            'note_per_giorno': {},
         }
 
     for tt in tt_qs:
         dip_id = tt.dipendente_id
         if dip_id not in report_data:
             continue
+        d_turno = tt.assegnazione.turno.data
+        nota_tt = (tt.note or '').strip()
+        if nota_tt:
+            n_list = report_data[dip_id]['note_per_giorno'].setdefault(d_turno, [])
+            if nota_tt not in n_list:
+                n_list.append(nota_tt)
         ore = float(tt.ore_dichiarate or 0)
         report_data[dip_id]['ore_lavorate'] += ore
         if tt.is_validated:
             report_data[dip_id]['ore_validate'] += ore
         if ore > 0:
-            d_turno = tt.assegnazione.turno.data
             report_data[dip_id]['giorni_set'].add(d_turno)
             cl = tt.assegnazione.cliente.ragione_sociale if tt.assegnazione.cliente else 'N/D'
             report_data[dip_id]['clienti_dict'][cl] = report_data[dip_id]['clienti_dict'].get(cl, 0.0) + ore
@@ -4659,6 +4682,7 @@ def pdf_report_paghe(request):
             
             ore = item['ore_per_giorno'].get(curr_d, 0.0)
             assenze = item['assenze_per_giorno'].get(curr_d, [])
+            note_giorno = item['note_per_giorno'].get(curr_d, [])
             
             middle = ""
             if ore > 0:
@@ -4667,6 +4691,12 @@ def pdf_report_paghe(request):
                 if middle:
                     middle += "<br/>"
                 middle += f"<font size=8>{'+'.join(assenze)}</font>"
+            if note_giorno:
+                from xml.sax.saxutils import escape as xml_escape
+                note_escaped = xml_escape(" | ".join(note_giorno))
+                if middle:
+                    middle += "<br/>"
+                middle += f"<font size=6.5 color='#1e40af'><i>{note_escaped}</i></font>"
                 
             if middle:
                 cell_flowables.append(Spacer(1, 8))

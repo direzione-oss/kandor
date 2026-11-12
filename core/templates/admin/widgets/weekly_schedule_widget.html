@@ -152,13 +152,15 @@
   data-inizio="{{ ev.ora_inizio }}"
   data-fine="{{ ev.ora_fine }}"
   data-note="{{ ev.note|escapejs }}"
+  data-note-dipendente="{{ ev.note_dipendente|escapejs }}"
+  data-note-dipendente-dettaglio="{{ ev.note_dipendente_dettaglio|escapejs }}"
   data-ore-previste="{{ ev.ore_previste }}"
   data-ore-dichiarate="{{ ev.ore_dichiarate }}"
   data-ore-dichiarate-fmt="{{ ev.ore_dichiarate_fmt }}"
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
   data-ricorrente="{{ ev.is_ricorrente|yesno:'1,0' }}"
-  title="Trascina per spostare • Clicca per modificare"
+  title="Trascina per spostare • Clicca per modificare{% if ev.note_dipendente_dettaglio %} • 💬 {{ ev.note_dipendente_dettaglio }}{% endif %}"
   onclick="clickEventEdit(this, event)">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
@@ -175,6 +177,11 @@
 {% elif ev.ore_stato == 'green' %}
   <div style="font-size:9px;font-weight:bold;color:#047857;background:#d1fae5;padding:1px 4px;border-radius:4px;margin-top:3px;display:inline-block">
     ✅ Validate: {{ ev.ore_dichiarate_fmt }}
+  </div>
+{% endif %}
+{% if ev.note_dipendente %}
+  <div style="font-size:9px;font-weight:700;color:#1e40af;background:#dbeafe;border:1px solid #93c5fd;padding:2px 5px;border-radius:4px;margin-top:2px;line-height:1.25;word-break:break-word" title="Nota/Motivazione dipendente: {{ ev.note_dipendente_dettaglio }}">
+    💬 {{ ev.note_dipendente }}
   </div>
 {% endif %}
 </div>
@@ -276,6 +283,7 @@
     <span style="font-size:12px;font-weight:600;color:#555">⏱ Ore lavorate / da validare</span>
     <span id="edit-ore-badge" style="font-size:12px;font-weight:bold;padding:2px 8px;border-radius:10px"></span>
   </div>
+  <div id="edit-ore-dip-note-banner" style="display:none;margin-bottom:8px;padding:7px 10px;background:#dbeafe;border:1px solid #93c5fd;border-left:4px solid #2563eb;border-radius:5px;font-size:12px;color:#1e3a8a;font-weight:600;line-height:1.35"></div>
   <div id="edit-ore-controls" style="display:flex;flex-direction:column;gap:8px">
     <div style="display:flex;gap:8px">
       <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 8)" style="width:120px;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
@@ -354,7 +362,9 @@ function clickEventEdit(el, e) {
     el.getAttribute('data-ore-label')||'—',
     el.getAttribute('data-ore-previste')||'',
     el.getAttribute('data-ore-dichiarate')||'',
-    el.getAttribute('data-ricorrente')||'1'
+    el.getAttribute('data-ricorrente')||'1',
+    el.getAttribute('data-note-dipendente')||'',
+    el.getAttribute('data-note-dipendente-dettaglio')||''
   );
 }
 
@@ -521,7 +531,7 @@ function _syncSostitutoTurnoAjax(assignId, dipId, sostitutoId, riattiva, statusE
   });
 }
 
-function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente){
+function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente,noteDipendente,noteDipendenteDettaglio){
 try {
 
   _editId=assignId;
@@ -529,7 +539,18 @@ try {
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
-  if(document.getElementById('edit-ore-note-input')) document.getElementById('edit-ore-note-input').value='';
+  if(document.getElementById('edit-ore-note-input')) document.getElementById('edit-ore-note-input').value=noteDipendente||'';
+  var dipNoteBanner = document.getElementById('edit-ore-dip-note-banner');
+  if (dipNoteBanner) {
+    var initNoteTxt = (noteDipendenteDettaglio || noteDipendente || '').trim();
+    if (initNoteTxt) {
+      dipNoteBanner.textContent = '💬 Motivazione ore dipendente: ' + initNoteTxt;
+      dipNoteBanner.style.display = 'block';
+    } else {
+      dipNoteBanner.textContent = '';
+      dipNoteBanner.style.display = 'none';
+    }
+  }
   
   var calcShiftHours = _calcHoursFromTimes(oraInizio, oraFine);
   var hasOreInviate = (oreDichiarate && parseFloat(oreDichiarate) > 0);
@@ -588,6 +609,8 @@ try {
     var maxOreDichiarate = null;
     var activeCompCount = 0;
     var validatedCompCount = 0;
+    var compNotesRaw = [];
+    var compNotesDetail = [];
     var sostDisponibili = d.sostituti_disponibili || [];
     d.componenti.forEach(function(c){
       var isAssente = c.in_assenza;
@@ -771,16 +794,33 @@ try {
         lbl.appendChild(oreWrap);
 
         if (c.note) {
+          var cleanN = String(c.note).trim();
+          if (cleanN) {
+            if (compNotesRaw.indexOf(cleanN) === -1) compNotesRaw.push(cleanN);
+            compNotesDetail.push((d.componenti.length > 1 ? (c.nome + ': ') : '') + cleanN);
+          }
           var noteSpan = document.createElement('span');
-          noteSpan.style.cssText = 'background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:10px;margin-left:4px;font-size:10px;border:1px solid #cbd5e1;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-          noteSpan.textContent = '📝 ' + c.note;
-          noteSpan.title = c.note;
+          noteSpan.style.cssText = 'background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:10px;margin-left:4px;font-size:10.5px;font-weight:700;border:1px solid #93c5fd;';
+          noteSpan.textContent = '💬 ' + c.note;
+          noteSpan.title = 'Motivazione dipendente: ' + c.note;
           lbl.appendChild(noteSpan);
         }
       }
       
       listEl.appendChild(lbl);
     });
+
+    if (compNotesDetail.length > 0) {
+      var bannerEl = document.getElementById('edit-ore-dip-note-banner');
+      if (bannerEl) {
+        bannerEl.textContent = '💬 Motivazione ore dipendente: ' + compNotesDetail.join(' • ');
+        bannerEl.style.display = 'block';
+      }
+      var oreNoteInp = document.getElementById('edit-ore-note-input');
+      if (oreNoteInp && !oreNoteInp.value.trim()) {
+        oreNoteInp.value = compNotesRaw.join(' | ');
+      }
+    }
 
     var alreadyValMsg = document.getElementById('edit-ore-already-val-msg');
     var allVal = (activeCompCount > 0 && validatedCompCount === activeCompCount);
