@@ -1285,6 +1285,157 @@ class SecurityHardeningTestCase(TestCase):
             self.assertIsNotNone(user_real)
 
 
+class PagheRefactoringAndDedupTestCase(TestCase):
+    """
+    Test del Miglioramento 2:
+    - Single Source of Truth in `core.paghe_service` per Report Paghe (Web, PDF, CSV)
+    - Fix `KeyError: 'ore_per_giorno'` in `export_paghe_csv`
+    - Fix conteggio L.104 e INFORTUNIO in `pdf_report_paghe` / `calcola_dataset_paghe`
+    - Allineamento ore lavorate (`ore_dichiarate` + `check_in`/`check_out`) in `analisi_contratti_view`,
+      `pdf_contratti_sotto_soglia`, `verifica_ore_view`, `pdf_verifica_ore` e `reconciliation_view`
+    """
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from decimal import Decimal
+        from core.models import Squadra, Turno, AssegnazioneTurno, TimeTracking, Assenza
+
+        self.admin_user = User.objects.create_superuser(
+            username='admin_paghe',
+            email='admin@kandor.it',
+            password='SecurePassword123!',
+        )
+        self.client.force_login(self.admin_user)
+
+        self.today = datetime.date(2026, 5, 15)
+        self.inizio_mese = datetime.date(2026, 5, 1)
+        self.fine_mese = datetime.date(2026, 5, 31)
+
+        self.dip = Dipendente.objects.create(
+            nome="Claudio",
+            cognome="Ratti",
+            codice_fiscale="RTTCLD80A01B157X",
+            indirizzo_residenza="Via Bergamo 10",
+            stato="ATTIVO",
+        )
+        self.squadra = Squadra.objects.create(nome="Squadra Alfa", caposquadra=self.dip)
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Condominio Verdi",
+            partita_iva="01234567890",
+            indirizzo_sede="Via Verdi 1, Bergamo",
+            ore_mensili_contratto=Decimal('20.00'),
+            importo_mensile_contratto=Decimal('240.00'),  # 12 EUR/h -> sotto soglia 15 EUR/h
+        )
+        self.turno = Turno.objects.create(
+            data=self.today,
+            squadra=self.squadra,
+        )
+        self.assign = AssegnazioneTurno.objects.create(
+            turno=self.turno,
+            cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0),
+        )
+        TimeTracking.objects.create(
+            dipendente=self.dip,
+            assegnazione=self.assign,
+            ore_dichiarate=Decimal('4.50'),
+            is_validated=True,
+            note="Pulizia vetri",
+        )
+        Assenza.objects.create(
+            dipendente=self.dip,
+            data_inizio=datetime.date(2026, 5, 18),
+            data_fine=datetime.date(2026, 5, 19),
+            tipo='104',
+            stato_approvazione='APPROVATA',
+        )
+        Assenza.objects.create(
+            dipendente=self.dip,
+            data_inizio=datetime.date(2026, 5, 20),
+            data_fine=datetime.date(2026, 5, 20),
+            tipo='FERIE',
+            stato_approvazione='APPROVATA',
+        )
+
+    def test_1_single_source_of_truth_html_pdf_csv_and_104_fix(self):
+        from core.paghe_service import calcola_dataset_paghe
+        from core.models import ModificaCedolino
+
+        qs = f"data_inizio={self.inizio_mese.isoformat()}&data_fine={self.fine_mese.isoformat()}"
+        dataset = calcola_dataset_paghe(self.inizio_mese.isoformat(), self.fine_mese.isoformat())
+        row = next(r for r in dataset['report_list'] if r['dip_id'] == self.dip.pk)
+
+        self.assertEqual(row['ore_lavorate'], 4.5)
+        self.assertEqual(row['ore_validate'], 4.5)
+        self.assertEqual(row['giorni_lavorati'], 1)
+        self.assertEqual(row['assenze_dict']['104'], 2)
+        self.assertEqual(row['assenze_dict']['FERIE'], 1)
+        self.assertEqual(row['altri_e_104'], 2)
+        self.assertEqual(dataset['totale_generale']['altri_e_104_totali'], 2)
+
+        # Verifica HTML
+        res_html = self.client.get(f"/report-paghe/?{qs}")
+        self.assertEqual(res_html.status_code, 200)
+
+        # Verifica CSV (prima andava in crash con KeyError: 'ore_per_giorno')
+        res_csv = self.client.get(f"/report-paghe/csv/?{qs}")
+        self.assertEqual(res_csv.status_code, 200)
+        csv_text = res_csv.content.decode('utf-8-sig')
+        self.assertIn("Ratti;Claudio;RTTCLD80A01B157X", csv_text)
+        self.assertIn("4,5", csv_text)
+
+        # Verifica PDF (prima ignorava i giorni L.104 nella colonna Altri/104)
+        res_pdf = self.client.get(f"/report-paghe/pdf/?{qs}")
+        self.assertEqual(res_pdf.status_code, 200)
+        self.assertEqual(res_pdf['Content-Type'], 'application/pdf')
+        self.assertTrue(res_pdf.content.startswith(b'%PDF'))
+
+        # Verifica override ModificaCedolino propagato identicamente a dataset, CSV e PDF
+        ModificaCedolino.objects.create(
+            dipendente=self.dip,
+            data_inizio=self.inizio_mese,
+            data_fine=self.fine_mese,
+            ore_lavorate_override=10.0,
+            ore_validate_override=10.0,
+            giorni_104_override=3,
+            note="Rettifica test",
+        )
+        dataset_mod = calcola_dataset_paghe(self.inizio_mese.isoformat(), self.fine_mese.isoformat())
+        row_mod = next(r for r in dataset_mod['report_list'] if r['dip_id'] == self.dip.pk)
+        self.assertTrue(row_mod['is_rettificato'])
+        self.assertEqual(row_mod['ore_lavorate'], 10.0)
+        self.assertEqual(row_mod['altri_e_104'], 3)
+        self.assertEqual(dataset_mod['totale_generale']['altri_e_104_totali'], 3)
+
+    def test_2_verifica_ore_analisi_contratti_e_reconciliation_unificati(self):
+        # 1. Verifica Ore (HTML + PDF)
+        res_vo = self.client.get('/verifica-ore/?mese=5&anno=2026')
+        self.assertEqual(res_vo.status_code, 200)
+        self.assertEqual(res_vo.context['totale_clienti']['ore_lavorate'], 4.5)
+
+        res_vo_pdf = self.client.get('/pdf-verifica-ore/?mese=5&anno=2026')
+        self.assertEqual(res_vo_pdf.status_code, 200)
+        self.assertTrue(res_vo_pdf.content.startswith(b'%PDF'))
+
+        # 2. Analisi Contratti (HTML + PDF) ora legge anche ore_dichiarate
+        res_ac = self.client.get('/analisi-contratti/?mese=5&anno=2026&soglia=15')
+        self.assertEqual(res_ac.status_code, 200)
+        row_ac = res_ac.context['analisi'][0]
+        self.assertEqual(row_ac['ore_lavorate'], '4.5h')
+        self.assertTrue(row_ac['sotto_soglia'])
+
+        res_ac_pdf = self.client.get('/analisi-contratti/pdf/?mese=5&anno=2026&soglia=15')
+        self.assertEqual(res_ac_pdf.status_code, 200)
+        self.assertTrue(res_ac_pdf.content.startswith(b'%PDF'))
+
+        # 3. Reconciliation view legge anche ore_dichiarate
+        res_rec = self.client.get('/reconciliation/?month=5&year=2026')
+        self.assertEqual(res_rec.status_code, 200)
+        rec_row = next(r for r in res_rec.context['report_data'] if r['cliente'].pk == self.cliente.pk)
+        self.assertEqual(rec_row['ore_reali'], 4.5)
+
+
+
 
 
 
