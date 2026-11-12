@@ -32,7 +32,7 @@ from .models import (
     CorsoFormazione, CorsoDipendente, calcola_data_scadenza_corso,
     ensure_default_corsi_formazione, ensure_corsi_per_dipendente,
     ModelloProcedura, PassoModelloProcedura, ProceduraAvviata, PassoProceduraAvviata,
-    ensure_default_procedure
+    ensure_default_procedure, LottoBustePaga, CedolinoDipendente
 )
 
 @admin.register(ModificaCedolino)
@@ -1487,5 +1487,27 @@ class ProceduraAvviataAdmin(KandorBaseAdmin):
             '<a href="/procedure/?pratica={}" style="background:#2563EB; color:#FFF; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">☑️ Apri Checklist &rarr;</a>',
             obj.pk,
         )
+
+
+@admin.register(LottoBustePaga)
+class LottoBustePagaAdmin(KandorBaseAdmin):
+    list_display = ('titolo', 'periodo', 'totale_pagine', 'totale_cedolini', 'apri_lotto_btn', 'created_at')
+    search_fields = ('titolo', 'periodo', 'note')
+
+    @admin.display(description="Gestione & Invio")
+    def apri_lotto_btn(self, obj):
+        return format_html(
+            '<a href="/buste-paga/?lotto_id={}" style="background:#059669; color:#FFF; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">📄 Apri &amp; Invia Buste Paga &rarr;</a>',
+            obj.pk,
+        )
+
+
+@admin.register(CedolinoDipendente)
+class CedolinoDipendenteAdmin(KandorBaseAdmin):
+    list_display = ('nominativo_pdf', 'codice_fiscale', 'dipendente', 'periodo', 'netto_mese', 'numero_pagine', 'inviato_telegram', 'inviato_whatsapp', 'scaricato_dipendente')
+    list_filter = ('periodo', 'inviato_telegram', 'inviato_whatsapp', 'scaricato_dipendente', 'lotto')
+    search_fields = ('nominativo_pdf', 'codice_fiscale', 'dipendente__cognome', 'dipendente__nome')
+    autocomplete_fields = ('dipendente',)
+
 
 

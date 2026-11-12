@@ -244,6 +244,9 @@
         </div>
     </div>
 
+    <!-- Alert Procedure & Richieste di Avvallo in Evidenza -->
+    {% procedure_dashboard_alerts_widget %}
+
     <!-- Sezione Operazioni Veloci -->
     <div class="section-title">Operazioni Frequenti</div>
     <div class="quick-ops-grid">
@@ -286,6 +289,20 @@
             </div>
             <div class="quick-card-actions">
                 <a href="{% url 'report_paghe' %}" class="quick-btn" style="background:#2563EB;">Elabora Paghe &rarr;</a>
+            </div>
+        </div>
+
+        <!-- Invio Automatico Buste Paga -->
+        <div class="quick-card" style="border: 1.5px solid #A7F3D0; background: linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #D1FAE5; color: #059669;">📄</div>
+                    <h3 style="color: #065F46;">Buste Paga</h3>
+                </div>
+                <p>Dividi il PDF unico del commercialista per C.F. e invia su Telegram/WhatsApp</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'buste_paga' %}" class="quick-btn" style="background:#059669;">Invia Buste Paga &rarr;</a>
             </div>
         </div>
 

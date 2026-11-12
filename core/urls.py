@@ -28,6 +28,11 @@ from .views_webapp import (
     dipendente_app_sw_view,
     dipendente_app_icon_view,
 )
+from .views_buste_paga import (
+    buste_paga_view,
+    buste_paga_api_view,
+    scarica_busta_paga_token_view,
+)
 from django.views.generic import RedirectView
 
 urlpatterns = [
@@ -123,4 +128,9 @@ urlpatterns = [
     # Gestione Procedure Operative (es. Disdetta Contratto, Checklist personalizzabili)
     path('procedure/', gestione_procedure_view, name='gestione_procedure'),
     path('api/procedure/action/', gestione_procedure_api, name='gestione_procedure_api'),
+
+    # Buste Paga Automatiche (Split PDF per Codice Fiscale + Invio Telegram / WhatsApp)
+    path('buste-paga/', buste_paga_view, name='buste_paga'),
+    path('api/buste-paga/action/', buste_paga_api_view, name='buste_paga_api'),
+    path('buste-paga/scarica/<str:token>/', scarica_busta_paga_token_view, name='scarica_busta_paga_token'),
 ]

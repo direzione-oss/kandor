@@ -1,0 +1,200 @@
+<div style="margin-bottom: 22px;">
+    <!-- Barra Selettore Rapido Operatore per Vista Dashboard Procedure -->
+    {% if operatori_rapidi %}
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 10px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-size: 0.78rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.04em;">
+                👤 Vista Dashboard Operatore:
+            </span>
+            {% for op in operatori_rapidi %}
+            <a href="?set_operatore_id={{ op.id }}"
+               style="text-decoration: none; padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; transition: all 0.15s;
+                      {% if operatore and operatore.id == op.id %}background: #0F172A; color: #FFFFFF !important; box-shadow: 0 2px 6px rgba(15,23,42,0.25);{% else %}background: #FFFFFF; color: #334155 !important; border: 1px solid #CBD5E1;{% endif %}">
+                {% if operatore and operatore.id == op.id %}● {% endif %}{{ op.nome }} {{ op.cognome }}
+            </a>
+            {% endfor %}
+        </div>
+        <div style="font-size: 0.76rem; color: #64748B;">
+            {% if operatore %}
+                Procedure in evidenza per <strong>{{ operatore.nome }} {{ operatore.cognome }}</strong>: <strong>{{ mie_procedure_attive|length }}</strong>
+            {% else %}
+                Seleziona il tuo nome per vedere in evidenza le tue procedure e richieste di avvallo
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 1. RICHIESTE DI AVVALLO / INCARICHI PASSAGGI IN EVIDENZA NELLA DASHBOARD -->
+    {% if passi_da_avvallare %}
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px;">
+        {% for item in passi_da_avvallare %}
+        {% if not operatore or item.is_for_current_operatore or item.responsabile.id == operatore.id %}
+        <div style="background: {% if item.is_for_current_operatore %}linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%){% else %}#FFFBEB{% endif %};
+                    border: 2px solid {% if item.is_for_current_operatore %}#F59E0B{% else %}#FCD34D{% endif %};
+                    border-left: 6px solid {% if item.is_for_current_operatore %}#DC2626{% else %}#D97706{% endif %};
+                    border-radius: 14px; padding: 16px 20px; box-shadow: 0 6px 18px rgba(217, 119, 6, 0.12);
+                    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div style="flex: 1; min-width: 280px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                    <span style="background: #DC2626; color: #FFFFFF; font-size: 0.72rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;">
+                        🔔 Richiesta di Avvallo Passaggio
+                    </span>
+                    <strong style="font-size: 1.05rem; color: #0F172A;">
+                        Procedura: {{ item.pratica.titolo }}
+                    </strong>
+                    {% if item.pratica.modello %}
+                    <span style="background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+                        {{ item.pratica.modello.nome }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div style="font-size: 0.88rem; color: #1E293B; margin-bottom: 8px;">
+                    🔢 <strong>Passaggio #{{ item.passo.ordine }}:</strong> <span style="font-weight: 800; color: #B45309;">{{ item.passo.titolo }}</span>
+                    {% if item.responsabile %}
+                    &bull; 👤 Richiesto dal responsabile: <strong>{{ item.responsabile.nome }} {{ item.responsabile.cognome }}</strong>
+                    {% endif %}
+                </div>
+
+                {% if item.nota_richiesta %}
+                <div style="font-size: 0.82rem; color: #78350F; background: rgba(255,255,255,0.75); padding: 6px 10px; border-radius: 8px; border: 1px solid #FDE68A; margin-bottom: 8px;">
+                    💬 <strong>Messaggio:</strong> {{ item.nota_richiesta }}
+                </div>
+                {% endif %}
+
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span style="font-size: 0.78rem; font-weight: 700; color: #475569;">Stato avvalli richiesti:</span>
+                    {% for avv in item.avvalli_tutti %}
+                        {% if avv.stato == 'APPROVATO' %}
+                        <span style="background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;">
+                            ✅ {{ avv.dipendente.nome }} {{ avv.dipendente.cognome }} (OK dato)
+                        </span>
+                        {% else %}
+                        <span style="background: #FFFFFF; color: #92400E; border: 1px solid #F59E0B; padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                            ⏳ {{ avv.dipendente.nome }} {{ avv.dipendente.cognome }}
+                            <button type="button"
+                                    onclick="confermaAvvalloDashboard({{ avv.id }}, '{{ avv.dipendente.nome|escapejs }} {{ avv.dipendente.cognome|escapejs }}')"
+                                    style="background: #10B981; color: #FFFFFF; border: none; border-radius: 999px; padding: 2px 9px; font-size: 0.74rem; font-weight: 800; cursor: pointer;">
+                                ✅ Dai l'OK
+                            </button>
+                        </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                {% if item.mio_avvallo and item.mio_avvallo.stato != 'APPROVATO' %}
+                <button type="button"
+                        onclick="confermaAvvalloDashboard({{ item.mio_avvallo.id }}, '{{ operatore.nome|escapejs }} {{ operatore.cognome|escapejs }}')"
+                        style="background: #10B981; color: #FFFFFF !important; border: none; padding: 10px 18px; border-radius: 10px; font-size: 0.88rem; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
+                    ✅ Dai il tuo OK al Passaggio #{{ item.passo.ordine }}
+                </button>
+                {% endif %}
+                <a href="{% url 'gestione_procedure' %}?pratica={{ item.pratica.id }}"
+                   style="background: #0F172A; color: #FFFFFF !important; text-decoration: none; padding: 9px 15px; border-radius: 10px; font-size: 0.82rem; font-weight: 700;">
+                    📋 Apri Procedura &rarr;
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 2. NOTIFICA DI AVVALLO COMPLETATO PER IL RESPONSABILE DELLA PROCEDURA (es. SIMONE) -->
+    {% if passi_avvallati_per_responsabile %}
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;">
+        {% for ok_item in passi_avvallati_per_responsabile %}
+        <div id="dash-avvallo-done-{{ ok_item.passo.id }}"
+             style="background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%); border: 2px solid #10B981; border-left: 6px solid #059669; border-radius: 14px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.14);">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                    <span style="background: #059669; color: #FFFFFF; font-size: 0.72rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase;">
+                        ✅ Avvallo Completato
+                    </span>
+                    <strong style="font-size: 1rem; color: #064E3B;">
+                        Procedura "{{ ok_item.pratica.titolo }}" — Punto #{{ ok_item.passo.ordine }} ({{ ok_item.passo.titolo }})
+                    </strong>
+                </div>
+                <div style="font-size: 0.85rem; color: #065F46;">
+                    👥 OK confermato da: <strong>{{ ok_item.nomi_approvatori }}</strong>. Il flag del passaggio #{{ ok_item.passo.ordine }} è stato attivato automaticamente: <strong>ora puoi continuare la procedura seguendo gli altri punti!</strong>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <a href="{% url 'gestione_procedure' %}?pratica={{ ok_item.pratica.id }}"
+                   onclick="segnaAvvalloVistoDashboard({{ ok_item.passo.id }})"
+                   style="background: #059669; color: #FFFFFF !important; text-decoration: none; padding: 9px 16px; border-radius: 10px; font-size: 0.84rem; font-weight: 800;">
+                    🚀 Continua Procedura &rarr;
+                </a>
+                <button type="button"
+                        onclick="segnaAvvalloVistoDashboard({{ ok_item.passo.id }}, true)"
+                        style="background: #FFFFFF; color: #065F46; border: 1px solid #A7F3D0; padding: 8px 12px; border-radius: 9px; font-size: 0.78rem; font-weight: 700; cursor: pointer;">
+                    ✓ Ho visto
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 3. RIEPILOGO IN EVIDENZA SOLO PER IL RESPONSABILE DELLE SUE PROCEDURE ATTIVE -->
+    {% if operatore and mie_procedure_attive %}
+    <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-left: 4px solid #D97706; border-radius: 12px; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="background: #D97706; color: #FFFFFF; font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 999px;">
+                📋 {{ mie_procedure_attive|length }} {% if mie_procedure_attive|length == 1 %}tua procedura attiva{% else %}tue procedure attive{% endif %}
+            </span>
+            {% for proc in mie_procedure_attive %}
+            <a href="{% url 'gestione_procedure' %}?pratica={{ proc.id }}"
+               style="text-decoration: none; background: #FFFFFF; border: 1px solid #FCD34D; color: #92400E !important; padding: 4px 12px; border-radius: 8px; font-size: 0.82rem; font-weight: 700;">
+                <strong>{{ proc.titolo }}</strong> ({{ proc.passaggi_completati }}/{{ proc.totale_passaggi }} punti — {{ proc.percentuale_completamento }}%)
+            </a>
+            {% endfor %}
+        </div>
+        <a href="{% url 'gestione_procedure' %}" style="font-size: 0.8rem; font-weight: 700; color: #B45309 !important; text-decoration: none;">
+            Apri Finestra Procedure &rarr;
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function confermaAvvalloDashboard(avvalloId, nomeCollega) {
+    try {
+        const resp = await fetch("{% url 'gestione_procedure_api' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'conferma_avvallo_passo',
+                avvallo_id: avvalloId,
+            }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Errore durante la conferma dell\'avvallo.');
+        }
+    } catch (e) {
+        alert('Errore di rete durante la conferma dell\'avvallo.');
+    }
+}
+
+async function segnaAvvalloVistoDashboard(passoId, hideCard = false) {
+    try {
+        await fetch("{% url 'gestione_procedure_api' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'segna_avvallo_letto',
+                passo_id: passoId,
+            }),
+        });
+        if (hideCard) {
+            const el = document.getElementById('dash-avvallo-done-' + passoId);
+            if (el) el.remove();
+        }
+    } catch (e) {}
+}
+</script>

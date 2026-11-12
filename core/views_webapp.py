@@ -19,6 +19,7 @@ from .models import (
     ResponsabileArea,
     CorsoDipendente,
     ensure_corsi_per_dipendente,
+    CedolinoDipendente,
 )
 
 
@@ -345,6 +346,13 @@ def dipendente_app_view(request):
         else:
             stato_visita_medica = 'VALIDA'
 
+    # 9. Buste Paga del dipendente
+    buste_paga = list(
+        CedolinoDipendente.objects.filter(
+            Q(dipendente=dip) | Q(codice_fiscale__iexact=dip.codice_fiscale)
+        ).select_related('lotto').order_by('-created_at')[:24]
+    )
+
     GIORNI_SETT_FULL = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 
     context = {
@@ -373,6 +381,7 @@ def dipendente_app_view(request):
         'corsi_dip': corsi_dip,
         'scadenza_visita_medica': scadenza_visita_medica,
         'stato_visita_medica': stato_visita_medica,
+        'buste_paga': buste_paga,
     }
     response = render(request, 'core/dipendente_app.html', context)
     response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'

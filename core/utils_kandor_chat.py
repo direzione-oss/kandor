@@ -129,7 +129,8 @@ def get_main_menu(dipendente=None):
                          {'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}])
     
     keyboard.extend([
-        [{'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}],
+        [{'text': '📄 Buste Paga', 'callback_data': 'menu_buste_paga'},
+         {'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}],
         [{'text': '📖 Guida', 'url': 'https://kandor.187.126.30.207.sslip.io/manuale-dipendente/'}],
     ])
     return {'inline_keyboard': keyboard}
@@ -761,6 +762,49 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
                 "Hai 5 minuti per inviarla."
             )
         }
+
+    # Buste Paga -> elenco cedolini disponibili per il dipendente
+    if callback_data == 'menu_buste_paga':
+        from .models import CedolinoDipendente
+        cedolini = list(
+            CedolinoDipendente.objects.filter(
+                Q(dipendente=dipendente) | Q(codice_fiscale__iexact=dipendente.codice_fiscale)
+            ).select_related('lotto').order_by('-created_at')[:12]
+        )
+        if not cedolini:
+            return {
+                'text': "📄 Non ci sono ancora buste paga pubblicate nel tuo archivio digitale.",
+                'reply_markup': get_main_menu(dipendente),
+            }
+        kb = []
+        for ced in cedolini:
+            per = ced.periodo or ced.lotto.periodo
+            netto_lbl = f" ({ced.netto_mese})" if ced.netto_mese else ""
+            kb.append([{
+                'text': f"📥 {per}{netto_lbl}",
+                'callback_data': f"scarica_bp_{ced.pk}",
+            }])
+        kb.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+        return {
+            'text': "📄 Seleziona la busta paga che desideri ricevere in PDF qui in chat:",
+            'reply_markup': {'inline_keyboard': kb},
+        }
+
+    if callback_data.startswith('scarica_bp_'):
+        from .models import CedolinoDipendente
+        from .buste_paga_service import invia_cedolino_telegram
+        bp_id = callback_data.replace('scarica_bp_', '')
+        ced = CedolinoDipendente.objects.filter(
+            pk=bp_id
+        ).filter(
+            Q(dipendente=dipendente) | Q(codice_fiscale__iexact=dipendente.codice_fiscale)
+        ).first()
+        if not ced:
+            return {'text': "Busta paga non trovata.", 'reply_markup': get_main_menu(dipendente)}
+        res = invia_cedolino_telegram(ced, force_resend=True)
+        if res.get('ok'):
+            return {'text': f"✅ Busta paga di {ced.periodo or ced.lotto.periodo} inviata qui sopra in PDF!", 'reply_markup': get_main_menu(dipendente)}
+        return {'text': f"⚠️ Errore nell'invio del PDF: {res.get('error', 'Riprova più tardi')}", 'reply_markup': get_main_menu(dipendente)}
     
     # Turno selezionato per ore
     if callback_data.startswith('ore_turno_'):
@@ -910,6 +954,42 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
             if res.get('ok'):
                 return {'text': "❌ Comunicazione di assenza RIFIUTATA dall'Amministrazione.\nIl dipendente è stato notificato."}
             return {'text': f"❌ Errore nel rifiuto: {res.get('error')}"}
+        except Exception as e:
+            return {'text': f"❌ Errore: {e}"}
+
+    # ===== GESTIONE AVVALLO PASSAGGI PROCEDURE =====
+    if callback_data.startswith('avvalla_passo_'):
+        avvallo_id_raw = callback_data.replace('avvalla_passo_', '').strip()
+        try:
+            from .services import conferma_avvallo_passo_procedura
+            res = conferma_avvallo_passo_procedura(
+                avvallo_id=int(avvallo_id_raw),
+                source='TELEGRAM',
+            )
+            if res.get('ok'):
+                pratica = res.get('pratica')
+                passo = res.get('passo')
+                if res.get('tutti_approvati'):
+                    return {
+                        'text': (
+                            f"✅ AVVALLO CONFERMATO!\n\n"
+                            f"📋 Procedura: {pratica.titolo}\n"
+                            f"🔢 Passaggio #{passo.ordine}: {passo.titolo}\n\n"
+                            f"Il flag del passaggio è stato spuntato automaticamente e il responsabile è stato notificato per procedere con gli altri punti! 👍"
+                        ),
+                        'reply_markup': get_main_menu(dipendente),
+                    }
+                else:
+                    return {
+                        'text': (
+                            f"✅ Il tuo OK è stato registrato!\n\n"
+                            f"📋 Procedura: {pratica.titolo}\n"
+                            f"🔢 Passaggio #{passo.ordine}: {passo.titolo}\n"
+                            f"⏳ Resta in attesa l'OK di: {res.get('nomi_mancanti', '')}"
+                        ),
+                        'reply_markup': get_main_menu(dipendente),
+                    }
+            return {'text': f"❌ Errore nell'avvallo del passaggio: {res.get('error')}"}
         except Exception as e:
             return {'text': f"❌ Errore: {e}"}
 

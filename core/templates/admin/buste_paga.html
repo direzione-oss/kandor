@@ -1,0 +1,1002 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+    #container { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+    #content { max-width: 1650px !important; width: 100% !important; padding: 22px 28px !important; margin: 0 auto; box-sizing: border-box; }
+
+    .bp-hero {
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        color: #FFF;
+        border-radius: 14px;
+        padding: 22px 28px;
+        margin-bottom: 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        border-left: 5px solid #10B981;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.14);
+    }
+    .bp-hero h1 { margin: 0; font-size: 1.45rem; font-weight: 800; color: #F8FAFC; }
+    .bp-hero p { margin: 5px 0 0 0; font-size: 0.9rem; color: #94A3B8; }
+
+    .bp-upload-card {
+        background: #FFFFFF;
+        border: 2px dashed #94A3B8;
+        border-radius: 14px;
+        padding: 22px 26px;
+        margin-bottom: 24px;
+        transition: all 0.2s;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    }
+    .bp-upload-card.dragover {
+        border-color: #2563EB;
+        background: #EFF6FF;
+    }
+
+    .bp-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+        margin-bottom: 22px;
+    }
+    .bp-kpi {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 16px 18px;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+    }
+    .bp-kpi-label { font-size: 0.76rem; font-weight: 700; text-transform: uppercase; color: #64748B; letter-spacing: 0.04em; }
+    .bp-kpi-val { font-size: 1.55rem; font-weight: 800; color: #0F172A; margin-top: 4px; }
+    .bp-kpi-sub { font-size: 0.78rem; color: #64748B; margin-top: 3px; }
+
+    .bp-actions-bar {
+        background: #F8FAFC;
+        border: 1px solid #CBD5E1;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .bp-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 16px;
+        border-radius: 8px;
+        font-size: 0.84rem;
+        font-weight: 700;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .bp-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .bp-btn-tg { background: #0284C7; color: #FFF !important; }
+    .bp-btn-tg:hover:not(:disabled) { background: #0369A1; }
+    .bp-btn-wa { background: #16A34A; color: #FFF !important; }
+    .bp-btn-wa:hover:not(:disabled) { background: #15803D; }
+    .bp-btn-dark { background: #0F172A; color: #FFF !important; }
+    .bp-btn-dark:hover:not(:disabled) { background: #1E293B; }
+    .bp-btn-amber { background: #D97706; color: #FFF !important; }
+    .bp-btn-amber:hover:not(:disabled) { background: #B45309; }
+    .bp-btn-outline { background: #FFF; color: #334155 !important; border: 1px solid #CBD5E1; }
+    .bp-btn-outline:hover:not(:disabled) { background: #F1F5F9; }
+    .bp-btn-sm { padding: 6px 11px; font-size: 0.78rem; border-radius: 6px; }
+
+    .bp-filter-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+    .bp-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .bp-tab {
+        padding: 7px 14px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        border: 1px solid #CBD5E1;
+        background: #FFF;
+        color: #475569;
+        cursor: pointer;
+    }
+    .bp-tab.active {
+        background: #0F172A;
+        color: #FFF;
+        border-color: #0F172A;
+    }
+
+    .bp-table-wrap {
+        background: #FFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        overflow-x: auto;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+    .bp-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .bp-table th {
+        background: #0F172A;
+        color: #FFF;
+        text-align: left;
+        padding: 12px 14px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+    }
+    .bp-table td {
+        padding: 11px 14px;
+        border-bottom: 1px solid #F1F5F9;
+        vertical-align: middle;
+    }
+    .bp-table tr:hover td { background: #F8FAFC; }
+
+    .cf-code {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        background: #F1F5F9;
+        color: #0F172A;
+        padding: 3px 7px;
+        border-radius: 5px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        border: 1px solid #CBD5E1;
+    }
+    .bp-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 700;
+    }
+    .bp-badge-ok { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .bp-badge-warn { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+    .bp-badge-err { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+    .bp-badge-info { background: #E0F2FE; color: #075985; border: 1px solid #BAE6FD; }
+    .bp-badge-gray { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
+
+    /* Modal coda WhatsApp */
+    .wa-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.65);
+        z-index: 99999;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .wa-modal-overlay.active { display: flex; }
+    .wa-modal {
+        background: #FFF;
+        border-radius: 16px;
+        max-width: 620px;
+        width: 100%;
+        padding: 24px 28px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+
+    <!-- Header -->
+    <div class="bp-hero">
+        <div>
+            <h1>📄 Buste Paga Automatiche — Split PDF &amp; Invio Telegram / WhatsApp</h1>
+            <p>Carica il file PDF unico del commercialista: il sistema divide le pagine per ogni Codice Fiscale e invia i cedolini ai dipendenti</p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{% url 'report_paghe' %}" class="bp-btn bp-btn-outline" style="background: rgba(255,255,255,0.1); color: #FFF !important; border-color: rgba(255,255,255,0.25);">
+                📋 Elaborazione Ore Paghe
+            </a>
+            <a href="/admin/" class="bp-btn bp-btn-outline" style="background: rgba(255,255,255,0.1); color: #FFF !important; border-color: rgba(255,255,255,0.25);">
+                &larr; Torna alla Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div style="margin-bottom: 18px;">
+        {% for message in messages %}
+        <div style="padding: 13px 18px; border-radius: 10px; margin-bottom: 8px; font-weight: 700; font-size: 0.9rem;
+            {% if message.tags == 'error' %}background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5;{% else %}background:#DCFCE7; color:#166534; border:1px solid #86EFAC;{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Box Upload PDF Unico Commercialista -->
+    <div class="bp-upload-card" id="dropZone">
+        <form method="post" enctype="multipart/form-data" id="uploadForm">
+            {% csrf_token %}
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 18px;">
+                <div style="flex: 2; min-width: 280px;">
+                    <div style="font-size: 1.05rem; font-weight: 800; color: #0F172A; margin-bottom: 6px;">
+                        📤 1. Carica il File PDF Unico del Commercialista (Libro Unico / Cedolini)
+                    </div>
+                    <p style="margin: 0 0 12px 0; font-size: 0.84rem; color: #475569;">
+                        Seleziona o trascina qui il PDF multipagina inviato dallo studio paghe. Il programma identificherà ogni <strong>Codice Fiscale</strong>, accorperà automaticamente le pagine multiple di ciascun dipendente (escludendo il Riepilogo Generale finale) e abbinerà ogni busta paga all'anagrafica.
+                    </p>
+                    <input type="file" name="pdf_file" id="pdfFileInput" accept="application/pdf,.pdf" required
+                        style="display: block; width: 100%; padding: 10px; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; font-weight: 600;">
+                </div>
+
+                <div style="flex: 1.3; min-width: 260px; display: flex; flex-direction: column; gap: 10px;">
+                    <div>
+                        <label style="display: block; font-size: 0.78rem; font-weight: 700; color: #334155; margin-bottom: 4px;">
+                            Periodo di Retribuzione (opzionale — rilevato in automatico dal PDF):
+                        </label>
+                        <input type="text" name="periodo" placeholder="Es. Settembre 2026 (lascia vuoto per auto-rilevamento)"
+                            style="width: 100%; padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 0.85rem;">
+                    </div>
+
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.83rem; font-weight: 600; color: #0F172A; cursor: pointer;">
+                        <input type="checkbox" name="auto_crea_mancanti" value="1" checked style="width: 16px; height: 16px;">
+                        <span>➕ Crea automaticamente in anagrafica eventuali nuovi dipendenti presenti nel PDF</span>
+                    </label>
+
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.83rem; font-weight: 700; color: #0369A1; cursor: pointer;">
+                        <input type="checkbox" name="auto_invia_telegram" value="1" style="width: 16px; height: 16px;">
+                        <span>✈️ Invia subito in automatico su Telegram a tutti i dipendenti dopo la suddivisione</span>
+                    </label>
+                </div>
+
+                <div style="display: flex; align-items: center;">
+                    <button type="submit" class="bp-btn bp-btn-dark" id="btnSubmitUpload" style="padding: 14px 22px; font-size: 0.92rem;">
+                        ⚡ Dividi PDF per Codice Fiscale &amp; Elabora
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {% if lotti %}
+    <!-- Barra Selezione Lotto Storico -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-weight: 800; font-size: 0.9rem; color: #0F172A;">🗂️ Lotto Mensile Selezionato:</span>
+            <select onchange="window.location.href='?lotto_id=' + this.value"
+                style="padding: 8px 14px; border-radius: 8px; border: 1px solid #94A3B8; font-weight: 700; font-size: 0.88rem; background: #FFF; color: #0F172A;">
+                {% for l in lotti %}
+                <option value="{{ l.pk }}" {% if lotto_attivo and l.pk == lotto_attivo.pk %}selected{% endif %}>
+                    {{ l.titolo }} — Caricato il {{ l.created_at|date:"d/m/Y H:i" }} ({{ l.totale_cedolini }} CF / {{ l.totale_pagine }} pag.)
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if lotto_attivo %}
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            {% if lotto_attivo.file_originale %}
+            <a href="{{ lotto_attivo.file_originale.url }}" target="_blank" class="bp-btn bp-btn-outline bp-btn-sm">
+                📄 PDF Unico Originale ({{ lotto_attivo.totale_pagine }} pag.)
+            </a>
+            {% endif %}
+            {% if lotto_attivo.file_riepilogo %}
+            <a href="{{ lotto_attivo.file_riepilogo.url }}" target="_blank" class="bp-btn bp-btn-outline bp-btn-sm" title="Pagine finali di Riepilogo Generale escluse dall'invio ai dipendenti">
+                📊 PDF Riepilogo Generale ({{ lotto_attivo.pagine_riepilogo }} pag.)
+            </a>
+            {% endif %}
+            <button type="button" onclick="eliminaLottoAttivo({{ lotto_attivo.pk }})" class="bp-btn bp-btn-outline bp-btn-sm" style="color:#DC2626 !important; border-color:#FCA5A5;">
+                🗑️ Elimina Lotto
+            </button>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if lotto_attivo %}
+    <!-- KPI Riepilogo Lotto -->
+    <div class="bp-kpi-grid">
+        <div class="bp-kpi">
+            <div class="bp-kpi-label">📄 Cedolini Estratti (CF)</div>
+            <div class="bp-kpi-val">{{ stats.totale }}</div>
+            <div class="bp-kpi-sub">Da {{ lotto_attivo.totale_pagine }} pagine totali ({{ lotto_attivo.periodo }})</div>
+        </div>
+        <div class="bp-kpi">
+            <div class="bp-kpi-label">👤 Associati Anagrafica</div>
+            <div class="bp-kpi-val" style="color: {% if stats.non_associati == 0 %}#16A34A{% else %}#D97706{% endif %};">
+                {{ stats.associati }} / {{ stats.totale }}
+            </div>
+            <div class="bp-kpi-sub">
+                {% if stats.non_associati > 0 %}{{ stats.non_associati }} da associare o creare{% else %}Tutti abbinati per Codice Fiscale{% endif %}
+            </div>
+        </div>
+        <div class="bp-kpi">
+            <div class="bp-kpi-label">✈️ Inviati su Telegram</div>
+            <div class="bp-kpi-val" style="color: #0284C7;" id="kpiInviatiTelegram">{{ stats.inviati_telegram }} / {{ stats.con_telegram }}</div>
+            <div class="bp-kpi-sub">{{ stats.con_telegram }} dipendenti con Bot Telegram attivo</div>
+        </div>
+        <div class="bp-kpi">
+            <div class="bp-kpi-label">💬 Inviati su WhatsApp</div>
+            <div class="bp-kpi-val" style="color: #16A34A;" id="kpiInviatiWhatsapp">{{ stats.inviati_whatsapp }} / {{ stats.con_whatsapp }}</div>
+            <div class="bp-kpi-sub">{{ stats.con_whatsapp }} dipendenti con telefono in scheda</div>
+        </div>
+        <div class="bp-kpi">
+            <div class="bp-kpi-label">✅ Ricevuti (Telegram o WA)</div>
+            <div class="bp-kpi-val" style="color: #059669;" id="kpiInviatiTotale">{{ stats.inviati_almeno_uno }} / {{ stats.totale }}</div>
+            <div class="bp-kpi-sub">Stato consegna complessivo del mese</div>
+        </div>
+        <div class="bp-kpi">
+            <div class="bp-kpi-label">📥 Aperti / Scaricati</div>
+            <div class="bp-kpi-val" style="color: #6366F1;">{{ stats.scaricati }}</div>
+            <div class="bp-kpi-sub">Scaricati tramite link WhatsApp / App</div>
+        </div>
+    </div>
+
+    <!-- Barra Azioni Automatiche Massive -->
+    <div class="bp-actions-bar">
+        <div>
+            <div style="font-weight: 800; font-size: 0.96rem; color: #0F172A;">
+                🚀 2. Invio Automatico Buste Paga ({{ lotto_attivo.periodo }})
+            </div>
+            <div style="font-size: 0.8rem; color: #475569; margin-top: 2px;">
+                Invia i singoli PDF divisi per Codice Fiscale direttamente su <strong>Telegram</strong> (allegato PDF diretto in chat) o tramite <strong>WhatsApp</strong> (link diretto al PDF + App Dipendenti).
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            {% if stats.non_associati > 0 %}
+            <button type="button" class="bp-btn bp-btn-amber" onclick="creaTuttiDipendentiMancanti({{ lotto_attivo.pk }})">
+                ➕ Crea {{ stats.non_associati }} Dipendenti Mancanti in Anagrafica
+            </button>
+            {% endif %}
+
+            <button type="button" class="bp-btn bp-btn-tg" id="btnMassivoTelegram" onclick="inviaMassivoTelegram({{ lotto_attivo.pk }}, false)">
+                ✈️ Invia Tutte su Telegram ({{ stats.da_inviare_telegram }} da inviare)
+            </button>
+
+            {% if stats.inviati_telegram > 0 %}
+            <button type="button" class="bp-btn bp-btn-outline bp-btn-sm" onclick="inviaMassivoTelegram({{ lotto_attivo.pk }}, true)" title="Reinvia anche a chi l'ha già ricevuta">
+                🔄 Reinvia Tutte su Telegram
+            </button>
+            {% endif %}
+
+            <button type="button" class="bp-btn bp-btn-wa" onclick="apriCodaWhatsapp()">
+                📲 Invio Sequenziale WhatsApp ({{ stats.con_whatsapp }})
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtri & Ricerca Rapida -->
+    <div class="bp-filter-bar">
+        <div class="bp-tabs">
+            <button type="button" class="bp-tab active" onclick="filtraTabella('all', this)">Tutti ({{ stats.totale }})</button>
+            <button type="button" class="bp-tab" onclick="filtraTabella('da_inviare', this)">⏳ Ancora da Inviare</button>
+            <button type="button" class="bp-tab" onclick="filtraTabella('con_tg', this)">✈️ Con Telegram ({{ stats.con_telegram }})</button>
+            <button type="button" class="bp-tab" onclick="filtraTabella('solo_wa', this)">💬 Senza Telegram / Usa WhatsApp</button>
+            {% if stats.non_associati > 0 %}
+            <button type="button" class="bp-tab" onclick="filtraTabella('non_associati', this)" style="border-color:#F59E0B; color:#B45309;">
+                ⚠️ Non Associati ({{ stats.non_associati }})
+            </button>
+            {% endif %}
+        </div>
+
+        <div style="min-width: 280px;">
+            <input type="text" id="searchCedolini" oninput="applicaRicercaEFiltro()"
+                placeholder="🔍 Cerca per Cognome, Nome o Codice Fiscale..."
+                style="width: 100%; padding: 8px 14px; border: 1px solid #CBD5E1; border-radius: 20px; font-size: 0.84rem;">
+        </div>
+    </div>
+
+    <!-- Tabella Cedolini Suddivisi -->
+    <div class="bp-table-wrap">
+        <table class="bp-table" id="tabellaCedolini">
+            <thead>
+                <tr>
+                    <th>Pag. PDF</th>
+                    <th>Nominativo &amp; Codice Fiscale (da PDF)</th>
+                    <th>Dipendente Associato &amp; Contatti</th>
+                    <th>Netto in Busta</th>
+                    <th>PDF Singolo</th>
+                    <th>Invio Telegram (PDF Diretto)</th>
+                    <th>Invio WhatsApp (Link PDF)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in cedolini_rows %}
+                {% with ced=row.cedolino dip=row.dipendente %}
+                <tr class="ced-row"
+                    id="row-ced-{{ ced.pk }}"
+                    data-ced-id="{{ ced.pk }}"
+                    data-nome="{{ ced.nominativo_pdf|lower }} {% if dip %}{{ dip.cognome|lower }} {{ dip.nome|lower }}{% endif %}"
+                    data-cf="{{ ced.codice_fiscale|lower }}"
+                    data-associato="{% if dip %}1{% else %}0{% endif %}"
+                    data-has-tg="{% if row.has_telegram %}1{% else %}0{% endif %}"
+                    data-has-wa="{% if row.has_whatsapp %}1{% else %}0{% endif %}"
+                    data-sent-tg="{% if ced.inviato_telegram %}1{% else %}0{% endif %}"
+                    data-sent-wa="{% if ced.inviato_whatsapp %}1{% else %}0{% endif %}"
+                    data-wa-url="{{ row.wa_url }}">
+
+                    <!-- Pagine -->
+                    <td style="white-space: nowrap;">
+                        <span class="bp-badge {% if ced.numero_pagine > 1 %}bp-badge-info{% else %}bp-badge-gray{% endif %}">
+                            Pag. {{ ced.pagine_pdf }}
+                        </span>
+                        {% if ced.numero_pagine > 1 %}
+                        <div style="font-size: 0.7rem; color: #0369A1; font-weight: 700; margin-top: 2px;">
+                            {{ ced.numero_pagine }} pagine unite
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Nominativo e Codice Fiscale rilevato dal PDF -->
+                    <td>
+                        <div style="font-weight: 800; color: #0F172A; font-size: 0.9rem;">
+                            {{ ced.nominativo_pdf|default:"—" }}
+                        </div>
+                        <div style="margin-top: 4px;">
+                            <span class="cf-code">{{ ced.codice_fiscale }}</span>
+                        </div>
+                    </td>
+
+                    <!-- Dipendente in Anagrafica e Telefono/Telegram -->
+                    <td>
+                        {% if dip %}
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <a href="/admin/core/dipendente/{{ dip.pk }}/change/" target="_blank"
+                                style="font-weight: 800; color: #1E40AF; text-decoration: none;">
+                                👤 {{ dip.cognome }} {{ dip.nome }}
+                            </a>
+                            {% if dip.stato != 'ATTIVO' %}
+                            <span class="bp-badge bp-badge-warn">{{ dip.stato }}</span>
+                            {% endif %}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px;">
+                            {% if row.has_telegram %}
+                            <span class="bp-badge bp-badge-ok" title="Chat ID: {{ dip.telegram_chat_id }}">✈️ Telegram Attivo</span>
+                            {% else %}
+                            <span class="bp-badge bp-badge-gray">No Telegram</span>
+                            {% endif %}
+
+                            <div style="display: inline-flex; align-items: center; gap: 4px;">
+                                <input type="text" value="{{ row.telefono_display }}"
+                                    id="tel-input-{{ ced.pk }}"
+                                    placeholder="📱 Aggiungi cell. WhatsApp..."
+                                    style="width: 135px; padding: 3px 7px; font-size: 0.76rem; border: 1px solid #CBD5E1; border-radius: 5px;">
+                                <button type="button" onclick="salvaTelefonoDipendente({{ ced.pk }})"
+                                    class="bp-btn bp-btn-outline bp-btn-sm" style="padding: 3px 7px; font-size: 0.72rem;" title="Salva numero di telefono in anagrafica">
+                                    💾
+                                </button>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                <span class="bp-badge bp-badge-warn">⚠️ Non in Anagrafica</span>
+                                <button type="button" onclick="creaDipendenteSingolo({{ ced.pk }})"
+                                    class="bp-btn bp-btn-amber bp-btn-sm">
+                                    ➕ Crea in Anagrafica 1-Click
+                                </button>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <select id="sel-dip-{{ ced.pk }}" style="font-size: 0.76rem; padding: 4px 6px; border: 1px solid #CBD5E1; border-radius: 5px; max-width: 210px;">
+                                    <option value="">— Oppure abbina a dipendente esistente —</option>
+                                    {% for td in tutti_dipendenti %}
+                                    <option value="{{ td.id }}">{{ td.cognome }} {{ td.nome }} ({{ td.codice_fiscale }})</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" onclick="associaDipendenteManuale({{ ced.pk }})" class="bp-btn bp-btn-outline bp-btn-sm" style="padding: 4px 8px;">
+                                    Abbina
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Netto in Busta -->
+                    <td style="white-space: nowrap;">
+                        {% if ced.netto_mese %}
+                        <span style="font-weight: 800; font-size: 0.95rem; color: #0F172A; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 4px 10px; border-radius: 8px;">
+                            {{ ced.netto_mese }}
+                        </span>
+                        {% else %}
+                        <span style="color: #94A3B8;">—</span>
+                        {% endif %}
+                    </td>
+
+                    <!-- PDF Singolo -->
+                    <td style="white-space: nowrap;">
+                        <div style="display: flex; gap: 6px;">
+                            <a href="/buste-paga/scarica/{{ ced.token_download }}/?preview=1" target="_blank"
+                                class="bp-btn bp-btn-outline bp-btn-sm" title="Visualizza il PDF estratto per questo Codice Fiscale">
+                                👁️ Apri PDF
+                            </a>
+                            <a href="/buste-paga/scarica/{{ ced.token_download }}/?download=1&preview=1"
+                                class="bp-btn bp-btn-outline bp-btn-sm" title="Scarica il PDF singolo">
+                                📥
+                            </a>
+                        </div>
+                    </td>
+
+                    <!-- Invio Telegram -->
+                    <td id="tg-cell-{{ ced.pk }}">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            {% if ced.inviato_telegram %}
+                            <span class="bp-badge bp-badge-ok" id="tg-status-{{ ced.pk }}">
+                                ✅ Inviato {{ ced.data_invio_telegram|date:"d/m H:i" }}
+                            </span>
+                            <button type="button" onclick="inviaSingoloTelegram({{ ced.pk }}, true)"
+                                class="bp-btn bp-btn-outline bp-btn-sm" id="tg-btn-{{ ced.pk }}" title="Reinvia PDF su Telegram">
+                                🔄 Reinvia
+                            </button>
+                            {% elif row.has_telegram %}
+                            <span class="bp-badge bp-badge-gray" id="tg-status-{{ ced.pk }}">Pronto</span>
+                            <button type="button" onclick="inviaSingoloTelegram({{ ced.pk }}, false)"
+                                class="bp-btn bp-btn-tg bp-btn-sm" id="tg-btn-{{ ced.pk }}">
+                                ✈️ Invia Telegram
+                            </button>
+                            {% else %}
+                            <span class="bp-badge bp-badge-gray" id="tg-status-{{ ced.pk }}">Non collegato</span>
+                            {% endif %}
+                        </div>
+                        {% if ced.errore_telegram %}
+                        <div style="font-size: 0.72rem; color: #DC2626; margin-top: 3px;" id="tg-err-{{ ced.pk }}">
+                            {{ ced.errore_telegram }}
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Invio WhatsApp -->
+                    <td id="wa-cell-{{ ced.pk }}">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            {% if ced.inviato_whatsapp %}
+                            <span class="bp-badge bp-badge-ok" id="wa-status-{{ ced.pk }}">
+                                ✅ Inviato {{ ced.data_invio_whatsapp|date:"d/m H:i" }}
+                            </span>
+                            {% endif %}
+                            <button type="button" onclick="inviaSingoloWhatsapp({{ ced.pk }})"
+                                class="bp-btn {% if row.has_whatsapp %}bp-btn-wa{% else %}bp-btn-outline{% endif %} bp-btn-sm"
+                                id="wa-btn-{{ ced.pk }}"
+                                title="{% if row.has_whatsapp %}Invia link PDF su WhatsApp al numero {{ row.telefono_display }}{% else %}Apri WhatsApp e scegli il contatto{% endif %}">
+                                💬 {% if ced.inviato_whatsapp %}Reinvia WA{% else %}Invia WhatsApp{% endif %}
+                            </button>
+                        </div>
+                        {% if ced.scaricato_dipendente %}
+                        <div style="font-size: 0.72rem; color: #16A34A; font-weight: 700; margin-top: 3px;">
+                            📥 Scaricato dal dipendente ({{ ced.data_primo_scarico|date:"d/m H:i" }})
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="background: #FFF; border: 1px solid #E2E8F0; border-radius: 14px; padding: 40px 24px; text-align: center; color: #64748B;">
+        <div style="font-size: 3rem; margin-bottom: 10px;">📄</div>
+        <h3 style="margin: 0 0 8px 0; color: #0F172A;">Nessun lotto di buste paga ancora caricato</h3>
+        <p style="margin: 0; font-size: 0.9rem;">
+            Carica sopra il file PDF unico ricevuto dal commercialista (es. <em>Libro_unico.pdf</em>) per suddividerlo automaticamente per Codice Fiscale e inviarlo ai dipendenti.
+        </p>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal Invio Sequenziale Guidato WhatsApp -->
+<div class="wa-modal-overlay" id="waQueueModal">
+    <div class="wa-modal">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <h3 style="margin: 0; font-size: 1.15rem; color: #0F172A;">📲 Invio Rapido Sequenziale WhatsApp</h3>
+            <button type="button" onclick="chiudiCodaWhatsapp()" style="background:none; border:none; font-size:1.3rem; cursor:pointer; color:#64748B;">&times;</button>
+        </div>
+        <p style="font-size: 0.85rem; color: #475569; margin: 0 0 14px 0;">
+            Invia le buste paga su WhatsApp con il link diretto al PDF personale del dipendente. Cliccando su <strong>"Invia &amp; Passa al Prossimo"</strong> si apre direttamente la chat WhatsApp precompilata e il sistema passa automaticamente al dipendente successivo.
+        </p>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;">
+            <button type="button" class="bp-tab active" id="waFilterNoTg" onclick="costruisciCodaWhatsapp('no_tg')">
+                🎯 Solo chi NON ha ricevuto su Telegram (Consigliato)
+            </button>
+            <button type="button" class="bp-tab" id="waFilterUnsent" onclick="costruisciCodaWhatsapp('unsent_wa')">
+                ⏳ Tutti non ancora inviati su WhatsApp
+            </button>
+            <button type="button" class="bp-tab" id="waFilterAll" onclick="costruisciCodaWhatsapp('all_wa')">
+                📋 Tutti con Telefono ({{ stats.con_whatsapp }})
+            </button>
+        </div>
+
+        <div id="waQueueCard" style="background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 12px; padding: 18px; margin-bottom: 16px;">
+            <!-- Popolato via JS -->
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 0.82rem; font-weight: 700; color: #64748B;" id="waQueueProgress">0 / 0</div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="bp-btn bp-btn-outline bp-btn-sm" onclick="saltaProssimoWhatsapp()">Salta &rarr;</button>
+                <button type="button" class="bp-btn bp-btn-wa" id="btnWaQueueSend" onclick="eseguiInvioCorrenteWhatsapp()">
+                    💬 Invia su WhatsApp &amp; Passa al Prossimo &rarr;
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const API_URL = '{% url "buste_paga_api" %}';
+let currentTabFilter = 'all';
+
+// Drag & Drop upload
+const dropZone = document.getElementById('dropZone');
+const pdfInput = document.getElementById('pdfFileInput');
+const uploadForm = document.getElementById('uploadForm');
+if (dropZone && pdfInput) {
+    ['dragenter', 'dragover'].forEach(ev => {
+        dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+        dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+    });
+    dropZone.addEventListener('drop', e => {
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            pdfInput.files = e.dataTransfer.files;
+        }
+    });
+    uploadForm.addEventListener('submit', () => {
+        const btn = document.getElementById('btnSubmitUpload');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Suddivisione PDF per Codice Fiscale in corso...';
+        }
+    });
+}
+
+async function postBustePagaApi(params) {
+    const fd = new FormData();
+    Object.entries(params).forEach(([k, v]) => fd.append(k, v));
+    const resp = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    });
+    return await resp.json();
+}
+
+function filtraTabella(mode, btnEl) {
+    currentTabFilter = mode;
+    document.querySelectorAll('.bp-tabs .bp-tab').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    applicaRicercaEFiltro();
+}
+
+function applicaRicercaEFiltro() {
+    const q = (document.getElementById('searchCedolini')?.value || '').trim().toLowerCase();
+    document.querySelectorAll('.ced-row').forEach(row => {
+        const nome = row.dataset.nome || '';
+        const cf = row.dataset.cf || '';
+        const associato = row.dataset.associato === '1';
+        const hasTg = row.dataset.hasTg === '1';
+        const sentTg = row.dataset.sentTg === '1';
+        const sentWa = row.dataset.sentWa === '1';
+
+        let matchTab = true;
+        if (currentTabFilter === 'da_inviare') {
+            matchTab = !sentTg && !sentWa;
+        } else if (currentTabFilter === 'con_tg') {
+            matchTab = hasTg;
+        } else if (currentTabFilter === 'solo_wa') {
+            matchTab = !hasTg;
+        } else if (currentTabFilter === 'non_associati') {
+            matchTab = !associato;
+        }
+
+        let matchQuery = true;
+        if (q) {
+            matchQuery = nome.includes(q) || cf.includes(q);
+        }
+
+        row.style.display = (matchTab && matchQuery) ? '' : 'none';
+    });
+}
+
+async function inviaSingoloTelegram(cedId, force) {
+    const btn = document.getElementById('tg-btn-' + cedId);
+    const statusEl = document.getElementById('tg-status-' + cedId);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Invio...';
+    }
+    try {
+        const res = await postBustePagaApi({
+            action: 'invia_singolo_telegram',
+            cedolino_id: cedId,
+            force: force ? '1' : '0'
+        });
+        if (res.ok) {
+            const row = document.getElementById('row-ced-' + cedId);
+            if (row) row.dataset.sentTg = '1';
+            if (statusEl) {
+                statusEl.className = 'bp-badge bp-badge-ok';
+                statusEl.textContent = '✅ Inviato ' + (res.data_invio || 'ora');
+            }
+            if (btn) {
+                btn.disabled = false;
+                btn.className = 'bp-btn bp-btn-outline bp-btn-sm';
+                btn.textContent = '🔄 Reinvia';
+                btn.setAttribute('onclick', `inviaSingoloTelegram(${cedId}, true)`);
+            }
+        } else {
+            alert('Errore invio Telegram: ' + (res.error || 'Errore sconosciuto'));
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '✈️ Riprova';
+            }
+        }
+    } catch (e) {
+        alert('Errore di rete durante l\'invio Telegram.');
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function inviaMassivoTelegram(lottoId, force) {
+    const msgConfirm = force
+        ? 'Vuoi reinviare su Telegram tutte le buste paga a tutti i dipendenti collegati?'
+        : 'Vuoi inviare automaticamente su Telegram tutte le buste paga non ancora inviate ai dipendenti con Telegram attivo?';
+    if (!confirm(msgConfirm)) return;
+
+    const btn = document.getElementById('btnMassivoTelegram');
+    const origText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Invio automatico PDF su Telegram in corso...';
+    }
+
+    try {
+        const res = await postBustePagaApi({
+            action: 'invia_massivo_telegram',
+            lotto_id: lottoId,
+            force: force ? '1' : '0'
+        });
+        if (res.ok) {
+            let riepilogo = `✅ Invio automatico Telegram completato!\n\n` +
+                `• Buste paga inviate ora: ${res.inviati}\n` +
+                `• Già inviate in precedenza: ${res.gia_inviati}\n` +
+                `• Dipendenti senza Telegram (invia con WhatsApp): ${res.senza_telegram}`;
+            if (res.errori > 0) {
+                riepilogo += `\n• Errori (${res.errori}):\n` + (res.dettagli_errori || []).join('\n');
+            }
+            alert(riepilogo);
+            window.location.reload();
+        } else {
+            alert('Errore: ' + (res.error || 'Impossibile completare l\'invio'));
+            if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+        }
+    } catch (e) {
+        alert('Errore di connessione durante l\'invio massivo.');
+        if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+}
+
+async function inviaSingoloWhatsapp(cedId) {
+    const row = document.getElementById('row-ced-' + cedId);
+    const waUrl = row ? row.dataset.waUrl : '';
+    if (waUrl) {
+        window.open(waUrl, '_blank', 'noopener');
+    }
+    try {
+        const res = await postBustePagaApi({
+            action: 'segna_whatsapp',
+            cedolino_id: cedId
+        });
+        if (res.ok) {
+            if (row) row.dataset.sentWa = '1';
+            const btn = document.getElementById('wa-btn-' + cedId);
+            if (btn) btn.innerHTML = '💬 Reinvia WA';
+            let statusEl = document.getElementById('wa-status-' + cedId);
+            if (!statusEl && btn) {
+                statusEl = document.createElement('span');
+                statusEl.id = 'wa-status-' + cedId;
+                statusEl.className = 'bp-badge bp-badge-ok';
+                btn.parentNode.insertBefore(statusEl, btn);
+            }
+            if (statusEl) {
+                statusEl.textContent = '✅ Inviato ' + (res.data_invio || 'ora');
+            }
+        }
+    } catch (e) {}
+}
+
+async function salvaTelefonoDipendente(cedId) {
+    const inp = document.getElementById('tel-input-' + cedId);
+    if (!inp) return;
+    const tel = inp.value.trim();
+    const res = await postBustePagaApi({
+        action: 'aggiorna_telefono_dipendente',
+        cedolino_id: cedId,
+        telefono: tel
+    });
+    if (res.ok) {
+        const row = document.getElementById('row-ced-' + cedId);
+        if (row) {
+            row.dataset.waUrl = res.wa_url;
+            row.dataset.hasWa = res.has_whatsapp ? '1' : '0';
+        }
+        const waBtn = document.getElementById('wa-btn-' + cedId);
+        if (waBtn && res.has_whatsapp) {
+            waBtn.className = 'bp-btn bp-btn-wa bp-btn-sm';
+        }
+        inp.style.borderColor = '#16A34A';
+        setTimeout(() => { inp.style.borderColor = '#CBD5E1'; }, 1500);
+    } else {
+        alert(res.error || 'Errore salvataggio telefono');
+    }
+}
+
+async function creaDipendenteSingolo(cedId) {
+    const res = await postBustePagaApi({
+        action: 'crea_dipendente',
+        cedolino_id: cedId
+    });
+    if (res.ok) {
+        window.location.reload();
+    } else {
+        alert(res.error || 'Errore durante la creazione del dipendente');
+    }
+}
+
+async function creaTuttiDipendentiMancanti(lottoId) {
+    if (!confirm('Vuoi creare automaticamente in anagrafica tutti i dipendenti presenti in questo PDF non ancora registrati?')) return;
+    const res = await postBustePagaApi({
+        action: 'crea_tutti_dipendenti_mancanti',
+        lotto_id: lottoId
+    });
+    if (res.ok) {
+        alert(`✅ Operazione completata: ${res.creati} nuovi dipendenti creati e ${res.associati} buste paga associate!`);
+        window.location.reload();
+    } else {
+        alert(res.error || 'Errore creazione dipendenti');
+    }
+}
+
+async function associaDipendenteManuale(cedId) {
+    const sel = document.getElementById('sel-dip-' + cedId);
+    if (!sel || !sel.value) {
+        alert('Seleziona prima un dipendente dal menu a tendina.');
+        return;
+    }
+    const res = await postBustePagaApi({
+        action: 'associa_dipendente',
+        cedolino_id: cedId,
+        dipendente_id: sel.value,
+        allinea_cf: '1'
+    });
+    if (res.ok) {
+        window.location.reload();
+    } else {
+        alert(res.error || 'Errore associazione');
+    }
+}
+
+async function eliminaLottoAttivo(lottoId) {
+    if (!confirm('Sei sicuro di voler eliminare questo lotto di buste paga?')) return;
+    const res = await postBustePagaApi({
+        action: 'elimina_lotto',
+        lotto_id: lottoId
+    });
+    if (res.ok) {
+        window.location.href = '{% url "buste_paga" %}';
+    }
+}
+
+// ================== CODA SEQUENZIALE WHATSAPP ==================
+let waQueue = [];
+let waQueueIdx = 0;
+
+function apriCodaWhatsapp() {
+    document.getElementById('waQueueModal').classList.add('active');
+    costruisciCodaWhatsapp('no_tg');
+}
+
+function chiudiCodaWhatsapp() {
+    document.getElementById('waQueueModal').classList.remove('active');
+}
+
+function costruisciCodaWhatsapp(mode) {
+    ['waFilterNoTg', 'waFilterUnsent', 'waFilterAll'].forEach(id => {
+        document.getElementById(id)?.classList.remove('active');
+    });
+    if (mode === 'no_tg') document.getElementById('waFilterNoTg')?.classList.add('active');
+    if (mode === 'unsent_wa') document.getElementById('waFilterUnsent')?.classList.add('active');
+    if (mode === 'all_wa') document.getElementById('waFilterAll')?.classList.add('active');
+
+    waQueue = [];
+    document.querySelectorAll('.ced-row').forEach(row => {
+        const hasWa = row.dataset.hasWa === '1';
+        const sentTg = row.dataset.sentTg === '1';
+        const sentWa = row.dataset.sentWa === '1';
+        const hasTg = row.dataset.hasTg === '1';
+
+        let include = false;
+        if (mode === 'no_tg') {
+            include = !sentTg && !sentWa && (hasWa || !hasTg);
+        } else if (mode === 'unsent_wa') {
+            include = !sentWa && hasWa;
+        } else {
+            include = hasWa;
+        }
+
+        if (include) {
+            const tds = row.querySelectorAll('td');
+            const nomeText = tds[1]?.innerText.trim().split('\n')[0] || '';
+            const cfText = (row.dataset.cf || '').toUpperCase();
+            const nettoText = tds[3]?.innerText.trim() || '';
+            const telInp = document.getElementById('tel-input-' + row.dataset.cedId);
+            const telVal = telInp ? telInp.value : '';
+            waQueue.push({
+                cedId: row.dataset.cedId,
+                nome: nomeText,
+                cf: cfText,
+                netto: nettoText,
+                tel: telVal,
+                waUrl: row.dataset.waUrl
+            });
+        }
+    });
+    waQueueIdx = 0;
+    renderCodaWhatsapp();
+}
+
+function renderCodaWhatsapp() {
+    const card = document.getElementById('waQueueCard');
+    const prog = document.getElementById('waQueueProgress');
+    const btnSend = document.getElementById('btnWaQueueSend');
+
+    if (waQueue.length === 0 || waQueueIdx >= waQueue.length) {
+        card.innerHTML = `<div style="text-align:center; padding: 14px; color:#166534; font-weight:700;">
+            🎉 Tutti i cedolini di questo filtro sono stati elaborati!
+        </div>`;
+        prog.textContent = `${waQueue.length} / ${waQueue.length}`;
+        if (btnSend) btnSend.disabled = true;
+        return;
+    }
+
+    if (btnSend) btnSend.disabled = false;
+    const item = waQueue[waQueueIdx];
+    prog.textContent = `Dipendente ${waQueueIdx + 1} di ${waQueue.length}`;
+    card.innerHTML = `
+        <div style="font-size: 0.78rem; text-transform: uppercase; color: #64748B; font-weight: 700;">Prossima busta paga da inviare:</div>
+        <div style="font-size: 1.2rem; font-weight: 800; color: #0F172A; margin-top: 4px;">👤 ${item.nome}</div>
+        <div style="margin-top: 6px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <span class="cf-code">${item.cf}</span>
+            <span class="bp-badge bp-badge-ok">Netto: ${item.netto || 'N/D'}</span>
+            <span class="bp-badge bp-badge-info">📱 Tel: ${item.tel || 'Scegli in rubrica WhatsApp'}</span>
+        </div>
+    `;
+}
+
+function saltaProssimoWhatsapp() {
+    if (waQueueIdx < waQueue.length) {
+        waQueueIdx++;
+        renderCodaWhatsapp();
+    }
+}
+
+async function eseguiInvioCorrenteWhatsapp() {
+    if (waQueueIdx >= waQueue.length) return;
+    const item = waQueue[waQueueIdx];
+    await inviaSingoloWhatsapp(item.cedId);
+    waQueueIdx++;
+    renderCodaWhatsapp();
+}
+</script>
+{% endblock %}

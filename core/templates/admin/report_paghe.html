@@ -377,6 +377,9 @@
             <p>Riepilogo ore lavorate, convalidate ed assenze per l'elaborazione delle buste paga dal <b>{{ data_inizio_formatted }}</b> al <b>{{ data_fine_formatted }}</b></p>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="{% url 'buste_paga' %}" class="btn-paghe-pdf" style="background:#059669; color:#FFF;">
+                📄 Invio Automatico Buste Paga (PDF)
+            </a>
             <a href="{% url 'ia_hub' %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}&dipendente_id={{ dipendente_id }}" class="btn-paghe-pdf" style="background:#4F46E5; color:#FFF;">
                 🤖 Revisore Ore IA & Auto-Valida
             </a>

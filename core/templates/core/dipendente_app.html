@@ -1038,6 +1038,34 @@
                 </div>
             </div>
 
+            <!-- Le Tue Buste Paga -->
+            <div class="section-title">
+                <span>📄 Le Tue Buste Paga (PDF)</span>
+                <span class="badge badge-green">{{ buste_paga|length }} documenti</span>
+            </div>
+            <div class="card">
+                {% if buste_paga %}
+                    {% for bp in buste_paga %}
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; {% if not forloop.last %}border-bottom:1px solid #E2E8F0;{% endif %}">
+                        <div>
+                            <div style="font-weight:800; font-size:14.5px; color:#0F172A;">📄 Busta Paga — {{ bp.periodo|default:bp.lotto.periodo }}</div>
+                            <div style="font-size:12px; color:#64748B; margin-top:2px;">
+                                {% if bp.netto_mese %}Netto: <strong style="color:#166534;">{{ bp.netto_mese }}</strong> &bull; {% endif %}
+                                {{ bp.numero_pagine }} pag. ({{ bp.created_at|date:"d/m/Y" }})
+                            </div>
+                        </div>
+                        <a href="/buste-paga/scarica/{{ bp.token_download }}/" target="_blank" class="btn btn-primary" style="padding:8px 12px; font-size:12.5px; text-decoration:none; white-space:nowrap;">
+                            📥 Apri PDF
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="text-align:center; color:#64748B; font-size:13px; padding:8px 0;">
+                        Nessuna busta paga ancora pubblicata nel tuo archivio digitale.
+                    </div>
+                {% endif %}
+            </div>
+
             <!-- Scadenza Visita Medica -->
             <div class="section-title">🏥 Visita Medica & Sicurezza</div>
             <div class="card">

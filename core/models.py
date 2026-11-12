@@ -1082,6 +1082,12 @@ class PassoModelloProcedura(models.Model):
         verbose_name="Dettagli / Note Operative",
     )
     obbligatorio = models.BooleanField(default=True, verbose_name="Obbligatorio")
+    incaricati_default = models.ManyToManyField(
+        Dipendente,
+        blank=True,
+        related_name='passi_modello_incaricato',
+        verbose_name="Colleghi per Avvallo / Incarico (Default)",
+    )
 
     class Meta:
         verbose_name = "Punto del Modello Procedura"
@@ -1190,20 +1196,30 @@ class ProceduraAvviata(models.Model):
             return 0
         if self.passaggi.exists():
             return 0
-        passi_modello = list(self.modello.passaggi.order_by('ordine', 'id'))
-        nuovi = [
-            PassoProceduraAvviata(
+        passi_modello = list(self.modello.passaggi.prefetch_related('incaricati_default').order_by('ordine', 'id'))
+        creati = 0
+        for idx, pm in enumerate(passi_modello, start=1):
+            inc_list = list(pm.incaricati_default.all())
+            passo_avviato = PassoProceduraAvviata.objects.create(
                 procedura=self,
-                ordine= idx,
+                ordine=idx,
                 titolo=pm.titolo,
                 descrizione=pm.descrizione,
                 completato=False,
+                richiede_avvallo=bool(inc_list),
+                bloccante=True,
             )
-            for idx, pm in enumerate(passi_modello, start=1)
-        ]
-        if nuovi:
-            PassoProceduraAvviata.objects.bulk_create(nuovi)
-        return len(nuovi)
+            creati += 1
+            for dip_inc in inc_list:
+                AvvalloPassoProcedura.objects.get_or_create(
+                    passo=passo_avviato,
+                    dipendente=dip_inc,
+                    defaults={
+                        'richiesto_da': self.dipendente,
+                        'stato': 'IN_ATTESA',
+                    }
+                )
+        return creati
 
     def riordina_passaggi(self):
         """Rinumera in modo progressivo (1, 2, 3...) i punti della pratica."""
@@ -1264,11 +1280,28 @@ class PassoProceduraAvviata(models.Model):
         blank=True,
         verbose_name="Note / Esito",
     )
+    richiede_avvallo = models.BooleanField(
+        default=False,
+        verbose_name="Richiede Avvallo / Incarico Colleghi",
+    )
+    bloccante = models.BooleanField(
+        default=True,
+        verbose_name="Blocca passaggi successivi fino all'OK",
+    )
 
     class Meta:
         verbose_name = "Punto della Procedura"
         verbose_name_plural = "Checklist Passaggi della Procedura"
         ordering = ['ordine', 'id']
+
+    @property
+    def ha_avvalli_in_attesa(self):
+        return self.avvalli.filter(stato='IN_ATTESA').exists()
+
+    @property
+    def tutti_avvalli_approvati(self):
+        qs = list(self.avvalli.all())
+        return bool(qs) and all(a.stato == 'APPROVATO' for a in qs)
 
     def save(self, *args, **kwargs):
         from django.utils import timezone
@@ -1283,6 +1316,70 @@ class PassoProceduraAvviata(models.Model):
     def __str__(self):
         check = "✅" if self.completato else "⬜"
         return f"{check} {self.ordine}) {self.titolo}"
+
+
+class AvvalloPassoProcedura(models.Model):
+    STATO_CHOICES = [
+        ('IN_ATTESA', '⏳ In attesa di OK'),
+        ('APPROVATO', '✅ OK / Avvallato'),
+        ('RIFIUTATO', '❌ Rifiutato / Da rivedere'),
+    ]
+
+    passo = models.ForeignKey(
+        PassoProceduraAvviata,
+        on_delete=models.CASCADE,
+        related_name='avvalli',
+        verbose_name="Passaggio Procedura",
+    )
+    dipendente = models.ForeignKey(
+        Dipendente,
+        on_delete=models.CASCADE,
+        related_name='avvalli_procedure',
+        verbose_name="Collega Incaricato / Avvallante",
+    )
+    richiesto_da = models.ForeignKey(
+        Dipendente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='avvalli_richiesti',
+        verbose_name="Richiesto da (Responsabile)",
+    )
+    stato = models.CharField(
+        max_length=20,
+        choices=STATO_CHOICES,
+        default='IN_ATTESA',
+        verbose_name="Stato Avvallo",
+    )
+    nota_richiesta = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Dettaglio / Messaggio Richiesta",
+    )
+    nota_risposta = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Nota Risposta / OK",
+    )
+    notifica_telegram_inviata = models.BooleanField(
+        default=False,
+        verbose_name="Notifica Telegram Inviata",
+    )
+    letto_da_responsabile = models.BooleanField(
+        default=False,
+        verbose_name="Esito visto dal Responsabile",
+    )
+    data_richiesta = models.DateTimeField(auto_now_add=True, verbose_name="Richiesto il")
+    data_risposta = models.DateTimeField(null=True, blank=True, verbose_name="Risposto il")
+
+    class Meta:
+        verbose_name = "Avvallo / Incarico Passaggio Procedura"
+        verbose_name_plural = "Avvalli / Incarichi Passaggi Procedure"
+        unique_together = ('passo', 'dipendente')
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.passo} — {self.dipendente} ({self.get_stato_display()})"
 
 
 def ensure_default_procedure():
@@ -1320,6 +1417,198 @@ def ensure_default_procedure():
 
 
 
+
+
+# ==============================================================================
+# GESTIONE BUSTE PAGA AUTOMATICHE (Split PDF per Codice Fiscale + Invio Telegram/WhatsApp)
+# ==============================================================================
+
+class LottoBustePaga(models.Model):
+    """
+    Lotto mensile caricato dall'amministrazione contenente il PDF unico
+    delle buste paga inviato dal commercialista (es. Libro Unico Zucchetti).
+    """
+    titolo = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Titolo / Riferimento",
+        help_text="Generato automaticamente dal periodo rilevato se lasciato vuoto",
+    )
+    periodo = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Periodo di Retribuzione",
+        help_text="Es. Settembre 2026",
+    )
+    file_originale = models.FileField(
+        upload_to='buste_paga/lotti/',
+        verbose_name="PDF Unico Commercialista",
+    )
+    file_riepilogo = models.FileField(
+        upload_to='buste_paga/riepiloghi/',
+        null=True,
+        blank=True,
+        verbose_name="PDF Riepilogo Generale",
+    )
+    totale_pagine = models.PositiveIntegerField(default=0, verbose_name="Totale Pagine PDF")
+    totale_cedolini = models.PositiveIntegerField(default=0, verbose_name="Cedolini Estratti (CF)")
+    pagine_riepilogo = models.PositiveIntegerField(default=0, verbose_name="Pagine Riepilogo")
+    note = models.TextField(blank=True, verbose_name="Note")
+    caricato_da = models.ForeignKey(
+        'auth.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name="Caricato da",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data Caricamento")
+
+    class Meta:
+        verbose_name = "Lotto Buste Paga"
+        verbose_name_plural = "Lotti Buste Paga"
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+        if not self.titolo or not self.titolo.strip():
+            per = (self.periodo or '').strip() or timezone.now().strftime('%m/%Y')
+            self.titolo = f"Buste Paga — {per}"
+        super().save(*args, **kwargs)
+
+    @property
+    def cedolini_associati_count(self):
+        return self.cedolini.filter(dipendente__isnull=False).count()
+
+    @property
+    def inviati_telegram_count(self):
+        return self.cedolini.filter(inviato_telegram=True).count()
+
+    @property
+    def inviati_whatsapp_count(self):
+        return self.cedolini.filter(inviato_whatsapp=True).count()
+
+    def __str__(self):
+        return f"{self.titolo} ({self.totale_cedolini} buste paga)"
+
+
+class CedolinoDipendente(models.Model):
+    """
+    Singola busta paga PDF estratta per uno specifico Codice Fiscale
+    dal file unico inviato dal commercialista.
+    """
+    lotto = models.ForeignKey(
+        LottoBustePaga,
+        on_delete=models.CASCADE,
+        related_name='cedolini',
+        verbose_name="Lotto Buste Paga",
+    )
+    dipendente = models.ForeignKey(
+        Dipendente,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='buste_paga',
+        verbose_name="Dipendente Associato",
+    )
+    codice_fiscale = models.CharField(
+        max_length=16,
+        db_index=True,
+        verbose_name="Codice Fiscale Rilevato",
+    )
+    nominativo_pdf = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name="Nominativo sul Cedolino",
+    )
+    periodo = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Periodo",
+    )
+    pagine_pdf = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name="Pagine nel PDF Originale",
+    )
+    numero_pagine = models.PositiveIntegerField(
+        default=1,
+        verbose_name="N° Pagine",
+    )
+    netto_mese = models.CharField(
+        max_length=80,
+        blank=True,
+        verbose_name="Netto in Busta",
+    )
+    data_nascita_pdf = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Data Nascita (da PDF)",
+    )
+    data_assunzione_pdf = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Data Assunzione (da PDF)",
+    )
+    file_pdf = models.FileField(
+        upload_to='buste_paga/cedolini/',
+        verbose_name="File PDF Busta Paga",
+    )
+    token_download = models.CharField(
+        max_length=64,
+        unique=True,
+        db_index=True,
+        verbose_name="Token Sicuro Download",
+    )
+    inviato_telegram = models.BooleanField(
+        default=False,
+        verbose_name="Inviato su Telegram",
+    )
+    data_invio_telegram = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Data Invio Telegram",
+    )
+    errore_telegram = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Note / Errore Telegram",
+    )
+    inviato_whatsapp = models.BooleanField(
+        default=False,
+        verbose_name="Inviato su WhatsApp",
+    )
+    data_invio_whatsapp = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Data Invio WhatsApp",
+    )
+    scaricato_dipendente = models.BooleanField(
+        default=False,
+        verbose_name="Scaricato dal Dipendente",
+    )
+    data_primo_scarico = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="Data Primo Scarico",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Busta Paga Dipendente"
+        verbose_name_plural = "Buste Paga Dipendenti"
+        ordering = ['nominativo_pdf', 'codice_fiscale']
+
+    def save(self, *args, **kwargs):
+        import secrets
+        if self.codice_fiscale:
+            self.codice_fiscale = self.codice_fiscale.strip().upper()
+        if not self.token_download:
+            self.token_download = secrets.token_urlsafe(24)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        nome = str(self.dipendente) if self.dipendente else (self.nominativo_pdf or self.codice_fiscale)
+        return f"Busta Paga {self.periodo} — {nome} ({self.codice_fiscale})"
 
 
 # --- Geocoding Signals ---

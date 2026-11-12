@@ -1226,3 +1226,461 @@ def rifiuta_assenza_da_amministrazione(assenza_id, note_admin=''):
     return {'ok': True, 'assenza': assenza}
 
 
+# ==============================================================================
+# GESTIONE AVVALLO PASSAGGI PROCEDURE & OPERATORE ATTIVO PORTALE
+# ==============================================================================
+
+def get_operatore_portale(request):
+    """
+    Determina il Dipendente / Responsabile attualmente attivo sul Portale:
+    1. Da parametro GET ?set_operatore_id=... (salvato in sessione)
+    2. Da sessione 'operatore_portale_id'
+    3. Da sessione WebApp 'dipendente_app_id'
+    4. Da utente Django loggato (Titolare, email, nome/cognome, username)
+    5. Fallback su admin: responsabile dell'ultima procedura attiva (es. Simone)
+    """
+    from .models import Dipendente, Titolare, ProceduraAvviata
+    from django.db.models import Q
+
+    if not request:
+        return None
+
+    try:
+        if hasattr(request, 'GET') and 'set_operatore_id' in request.GET:
+            raw_set = (request.GET.get('set_operatore_id') or '').strip()
+            if raw_set in ('0', 'NONE', 'none', ''):
+                request.session['operatore_portale_id'] = 'NONE'
+            elif raw_set.isdigit():
+                dip_sel = Dipendente.objects.filter(pk=int(raw_set)).first()
+                if dip_sel:
+                    request.session['operatore_portale_id'] = dip_sel.pk
+    except Exception:
+        pass
+
+    try:
+        sess_op = request.session.get('operatore_portale_id')
+        if sess_op == 'NONE':
+            return None
+        if sess_op and str(sess_op).isdigit():
+            dip = Dipendente.objects.filter(pk=int(sess_op)).first()
+            if dip:
+                return dip
+    except Exception:
+        pass
+
+    try:
+        webapp_id = request.session.get('dipendente_app_id')
+        if webapp_id and str(webapp_id).isdigit():
+            dip = Dipendente.objects.filter(pk=int(webapp_id)).first()
+            if dip:
+                return dip
+    except Exception:
+        pass
+
+    user = getattr(request, 'user', None)
+    if user and getattr(user, 'is_authenticated', False):
+        uname = (user.username or '').strip().lower()
+        if uname != 'admin':
+            try:
+                tit = Titolare.objects.filter(user=user).select_related('dipendente').first()
+                if tit and tit.dipendente:
+                    return tit.dipendente
+            except Exception:
+                pass
+
+            if user.email:
+                dip = Dipendente.objects.filter(email__iexact=user.email.strip()).first()
+                if dip:
+                    return dip
+
+            if user.first_name and user.last_name:
+                dip = Dipendente.objects.filter(
+                    nome__iexact=user.first_name.strip(),
+                    cognome__iexact=user.last_name.strip(),
+                ).first()
+                if dip:
+                    return dip
+
+            if uname:
+                dip = Dipendente.objects.filter(
+                    Q(nome__iexact=uname) | Q(cognome__iexact=uname)
+                ).first()
+                if dip:
+                    return dip
+        else:
+            # Utente condiviso 'admin' senza scelta esplicita in sessione:
+            # se esiste una procedura IN_CORSO con responsabile (es. Simone su PROVA 1),
+            # imposta di default quel responsabile finché l'operatore non cambia dal selettore rapido.
+            proc_attiva = (
+                ProceduraAvviata.objects.filter(stato='IN_CORSO', dipendente__isnull=False)
+                .select_related('dipendente')
+                .order_by('-id')
+                .first()
+            )
+            if proc_attiva and proc_attiva.dipendente:
+                return proc_attiva.dipendente
+
+    return None
+
+
+def get_operatori_rapidi_portale():
+    """
+    Restituisce i colleghi principali (Responsabili, Titolari, Ufficio: es. Simone, Roberta, Giorgio, Sonia, Gian Carlo)
+    per i pulsanti rapidi di selezione operatore e di richiesta avvallo.
+    """
+    from .models import Dipendente, ResponsabileArea, Titolare, ProceduraAvviata, AvvalloPassoProcedura
+    from django.db.models import Q
+
+    try:
+        ra_ids = set(ResponsabileArea.objects.values_list('dipendente_id', flat=True))
+        tit_ids = set(Titolare.objects.exclude(dipendente_id__isnull=True).values_list('dipendente_id', flat=True))
+        proc_ids = set(ProceduraAvviata.objects.exclude(dipendente_id__isnull=True).values_list('dipendente_id', flat=True))
+        avv_ids = set(AvvalloPassoProcedura.objects.values_list('dipendente_id', flat=True))
+
+        key_dips = list(
+            Dipendente.objects.filter(
+                Q(id__in=(ra_ids | tit_ids | proc_ids | avv_ids))
+                | Q(nome__iexact='SIMONE', cognome__iexact='CORTINOVIS')
+                | Q(nome__iexact='ROBERTA', cognome__iexact='GAMBA')
+                | Q(nome__iexact='GIORGIO', cognome__iexact='BORRINI')
+                | Q(nome__iexact='SONIA', cognome__iexact='CAVALERA')
+                | Q(nome__iexact='GIAN CARLO', cognome__iexact='SERRA')
+                | Q(nome__iexact='CONSUELO', cognome__iexact='PINA')
+            ).exclude(stato='INATTIVO').distinct()
+        )
+
+        # Ordina mettendo prima Simone, Roberta, Giorgio, Sonia, Gian Carlo
+        priority_order = ['SIMONE', 'ROBERTA', 'GIORGIO', 'SONIA', 'GIAN CARLO', 'CONSUELO']
+        def _sort_key(d):
+            n_up = (d.nome or '').strip().upper()
+            idx = priority_order.index(n_up) if n_up in priority_order else 99
+            return (idx, d.cognome or '', d.nome or '')
+
+        key_dips.sort(key=_sort_key)
+        return key_dips
+    except Exception:
+        return []
+
+
+def passo_bloccato_da_avvallo_precedente(passo):
+    """
+    Verifica se nella stessa ProceduraAvviata esiste un passaggio precedente (ordine < passo.ordine)
+    che richiede l'avvallo bloccante e non ha ancora ricevuto tutti gli OK (o non è completato).
+    Restituisce (passo_bloccante, lista_nomi_in_attesa) oppure (None, []).
+    """
+    if not passo or not passo.procedura_id:
+        return None, []
+
+    passi_prec = (
+        passo.procedura.passaggi.filter(ordine__lt=passo.ordine)
+        .prefetch_related('avvalli__dipendente')
+        .order_by('ordine', 'id')
+    )
+    for pp in passi_prec:
+        avvalli_pp = list(pp.avvalli.all())
+        if avvalli_pp and pp.bloccante:
+            in_attesa = [a for a in avvalli_pp if a.stato != 'APPROVATO']
+            if in_attesa or not pp.completato:
+                nomi = [f"{a.dipendente.nome} {a.dipendente.cognome}" for a in (in_attesa or avvalli_pp)]
+                return pp, nomi
+    return None, []
+
+
+def richiedi_avvallo_passo_procedura(
+    passo,
+    dipendenti_ids,
+    richiesto_da=None,
+    nota_richiesta='',
+    bloccante=True,
+    reinvia_notifica=False,
+):
+    """
+    Imposta i colleghi incaricati dell'avvallo di uno specifico passaggio di una procedura avviata
+    e invia loro automaticamente una notifica via Telegram (con pulsante inline 'Do l'OK')
+    oltre a metterla in evidenza nella Dashboard del portale.
+    """
+    from .models import Dipendente, AvvalloPassoProcedura, MessaggioChat
+    from .utils_kandor_chat import send_telegram_message
+
+    pratica = passo.procedura
+    responsabile = richiesto_da or pratica.dipendente
+    nota_clean = (nota_richiesta or '').strip()
+
+    clean_ids = []
+    for raw_id in (dipendenti_ids or []):
+        try:
+            val = int(raw_id)
+            if val not in clean_ids:
+                clean_ids.append(val)
+        except (ValueError, TypeError):
+            pass
+
+    if not clean_ids:
+        passo.avvalli.all().delete()
+        passo.richiede_avvallo = False
+        passo.save(update_fields=['richiede_avvallo'])
+        pratica.ricalcola_stato()
+        return {
+            'ok': True,
+            'notificati_telegram': 0,
+            'totale_incaricati': 0,
+            'nomi_incaricati': [],
+            'message': f'Richiesta di avvallo rimossa dal punto #{passo.ordine}.',
+        }
+
+    # Rimuovi eventuali incaricati non più presenti nella selezione
+    passo.avvalli.exclude(dipendente_id__in=clean_ids).delete()
+
+    dips_map = {d.id: d for d in Dipendente.objects.filter(pk__in=clean_ids)}
+    dips_ordered = [dips_map[did] for did in clean_ids if did in dips_map]
+
+    notificati_tg = 0
+    nomi_incaricati = []
+
+    resp_nome = f"{responsabile.nome} {responsabile.cognome}" if responsabile else "Amministrazione"
+    cliente_str = f"\n🏢 *Cliente:* {pratica.cliente.ragione_sociale}" if pratica.cliente else ""
+    modello_str = f" ({pratica.modello.nome})" if pratica.modello else ""
+    nota_str = (
+        f"\n💬 *Dettaglio richiesta:* {nota_clean}"
+        if nota_clean
+        else (f"\n📝 *Istruzioni:* {passo.descrizione}" if passo.descrizione else "")
+    )
+
+    for dip in dips_ordered:
+        nomi_incaricati.append(f"{dip.nome} {dip.cognome}")
+        avv, created = AvvalloPassoProcedura.objects.get_or_create(
+            passo=passo,
+            dipendente=dip,
+            defaults={
+                'richiesto_da': responsabile,
+                'stato': 'IN_ATTESA',
+                'nota_richiesta': nota_clean,
+                'letto_da_responsabile': False,
+            }
+        )
+        if not created:
+            if responsabile and avv.richiesto_da_id != responsabile.id:
+                avv.richiesto_da = responsabile
+            if nota_clean or 'nota_richiesta' in locals():
+                avv.nota_richiesta = nota_clean
+            if reinvia_notifica and avv.stato != 'APPROVATO':
+                avv.stato = 'IN_ATTESA'
+            avv.save()
+
+        deve_notificare = (created or reinvia_notifica or not avv.notifica_telegram_inviata) and avv.stato != 'APPROVATO'
+        if deve_notificare:
+            testo_tg = (
+                f"🔔 *RICHIESTA DI AVVALLO / INCARICO PROCEDURA*\n\n"
+                f"Ciao *{dip.nome}*, ti è stato richiesto di verificare e dare l'OK a un passaggio operativo:\n\n"
+                f"📋 *Procedura:* {pratica.titolo}{modello_str}"
+                f"{cliente_str}\n"
+                f"👤 *Responsabile procedura:* {resp_nome}\n"
+                f"🔢 *Passaggio #{passo.ordine}:* {passo.titolo}"
+                f"{nota_str}\n\n"
+                f"👇 *Premi il pulsante qui sotto per dare subito l'OK (oppure apri la Dashboard del Portale):*"
+            )
+            keyboard = {
+                'inline_keyboard': [
+                    [
+                        {
+                            'text': f"✅ Do l'OK — Avvalla Punto #{passo.ordine}",
+                            'callback_data': f"avvalla_passo_{avv.id}",
+                        }
+                    ],
+                    [
+                        {
+                            'text': '🌐 Apri sul Portale Kandor',
+                            'url': f"https://kandor.187.126.30.207.sslip.io/procedure/?pratica={pratica.id}",
+                        }
+                    ],
+                ]
+            }
+            sent_ok = False
+            if dip.telegram_chat_id:
+                sent_ok = send_telegram_message(dip.telegram_chat_id, testo_tg, reply_markup=keyboard)
+                if sent_ok:
+                    notificati_tg += 1
+                    avv.notifica_telegram_inviata = True
+                    avv.save(update_fields=['notifica_telegram_inviata'])
+            try:
+                MessaggioChat.objects.create(
+                    dipendente=dip,
+                    testo=testo_tg,
+                    direzione='OUT',
+                )
+            except Exception:
+                pass
+
+    passo.richiede_avvallo = True
+    passo.bloccante = bool(bloccante)
+    # Se c'è almeno un avvallo non ancora APPROVATO, il flag del passaggio resta in attesa
+    if passo.avvalli.exclude(stato='APPROVATO').exists():
+        passo.completato = False
+        passo.data_completamento = None
+    passo.save(update_fields=['richiede_avvallo', 'bloccante', 'completato', 'data_completamento'])
+    pratica.ricalcola_stato()
+
+    nomi_str = ", ".join(nomi_incaricati)
+    tg_info = f" (notifica Telegram inviata a {notificati_tg} colleghi + messa in evidenza in Dashboard)" if notificati_tg else " (messa in evidenza sulla Dashboard del portale)"
+    return {
+        'ok': True,
+        'notificati_telegram': notificati_tg,
+        'totale_incaricati': len(nomi_incaricati),
+        'nomi_incaricati': nomi_incaricati,
+        'message': f"Richiesta di avvallo per il punto #{passo.ordine} inviata a: {nomi_str}{tg_info}.",
+    }
+
+
+def conferma_avvallo_passo_procedura(
+    avvallo_id=None,
+    passo_id=None,
+    dipendente_id=None,
+    nota_risposta='',
+    source='PORTALE',
+):
+    """
+    Registra l'OK (avvallo) di un collega su un passaggio di una procedura avviata.
+    Quando tutti i colleghi selezionati su quel passaggio hanno dato l'OK:
+    - Il flag del passaggio si spunta automaticamente (completato = True)
+    - I passaggi successivi vengono sbloccati
+    - Il Responsabile della procedura (es. Simone) riceve una notifica su Telegram e in Dashboard.
+    """
+    from .models import AvvalloPassoProcedura, MessaggioChat
+    from .utils_kandor_chat import send_telegram_message
+
+    avvallo = None
+    if avvallo_id:
+        avvallo = (
+            AvvalloPassoProcedura.objects.select_related(
+                'passo__procedura__dipendente',
+                'passo__procedura__cliente',
+                'passo__procedura__modello',
+                'dipendente',
+                'richiesto_da',
+            )
+            .filter(pk=avvallo_id)
+            .first()
+        )
+    elif passo_id and dipendente_id:
+        avvallo = (
+            AvvalloPassoProcedura.objects.select_related(
+                'passo__procedura__dipendente',
+                'passo__procedura__cliente',
+                'passo__procedura__modello',
+                'dipendente',
+                'richiesto_da',
+            )
+            .filter(passo_id=passo_id, dipendente_id=dipendente_id)
+            .first()
+        )
+    elif passo_id:
+        avvallo = (
+            AvvalloPassoProcedura.objects.select_related(
+                'passo__procedura__dipendente',
+                'passo__procedura__cliente',
+                'passo__procedura__modello',
+                'dipendente',
+                'richiesto_da',
+            )
+            .filter(passo_id=passo_id, stato='IN_ATTESA')
+            .first()
+        )
+
+    if not avvallo:
+        return {'ok': False, 'error': 'Richiesta di avvallo non trovata.'}
+
+    now = timezone.now()
+    avvallo.stato = 'APPROVATO'
+    avvallo.data_risposta = now
+    avvallo.letto_da_responsabile = False
+    if nota_risposta:
+        avvallo.nota_risposta = (nota_risposta or '').strip()
+    avvallo.save()
+
+    passo = avvallo.passo
+    pratica = passo.procedura
+    responsabile = pratica.dipendente or avvallo.richiesto_da
+
+    tutti_avvalli = list(passo.avvalli.select_related('dipendente').all())
+    in_attesa = [a for a in tutti_avvalli if a.stato != 'APPROVATO']
+    approvati = [a for a in tutti_avvalli if a.stato == 'APPROVATO']
+
+    collega_nome = f"{avvallo.dipendente.nome} {avvallo.dipendente.cognome}"
+    tutti_ok = (len(in_attesa) == 0)
+
+    if tutti_ok:
+        nomi_ok = ", ".join(f"{a.dipendente.nome} {a.dipendente.cognome}" for a in approvati)
+        passo.completato = True
+        passo.data_completamento = now
+        nota_avv = f"Avvallato da: {nomi_ok}"
+        if avvallo.nota_risposta:
+            nota_avv += f" ({avvallo.nota_risposta})"
+        if not passo.note_esecuzione:
+            passo.note_esecuzione = nota_avv
+        elif nota_avv not in passo.note_esecuzione:
+            passo.note_esecuzione = f"{passo.note_esecuzione} | {nota_avv}"[:500]
+        passo.save()
+        pratica.ricalcola_stato()
+
+        if responsabile:
+            testo_resp = (
+                f"✅ *AVVALLO COMPLETATO — PUOI CONTINUARE LA PROCEDURA!*\n\n"
+                f"📋 *Procedura:* {pratica.titolo}\n"
+                f"🔢 *Passaggio #{passo.ordine} completato:* {passo.titolo}\n"
+                f"👥 *OK ricevuto da:* {nomi_ok}\n\n"
+                f"Il flag del passaggio #{passo.ordine} è stato attivato automaticamente ✅.\n"
+                f"Ora puoi proseguire la procedura seguendo gli altri punti!"
+            )
+            keyboard_resp = {
+                'inline_keyboard': [
+                    [
+                        {
+                            'text': '🚀 Continua Procedura sul Portale',
+                            'url': f"https://kandor.187.126.30.207.sslip.io/procedure/?pratica={pratica.id}",
+                        }
+                    ]
+                ]
+            }
+            if responsabile.telegram_chat_id:
+                send_telegram_message(responsabile.telegram_chat_id, testo_resp, reply_markup=keyboard_resp)
+            try:
+                MessaggioChat.objects.create(
+                    dipendente=responsabile,
+                    testo=testo_resp,
+                    direzione='OUT',
+                )
+            except Exception:
+                pass
+
+        return {
+            'ok': True,
+            'tutti_approvati': True,
+            'passo': passo,
+            'pratica': pratica,
+            'avvallo': avvallo,
+            'message': f"✅ OK registrato da {collega_nome}! Tutti gli avvalli per il punto #{passo.ordine} sono completati: il passaggio è stato spuntato e {responsabile.nome if responsabile else 'il responsabile'} è stato notificato.",
+        }
+    else:
+        nomi_mancanti = ", ".join(f"{a.dipendente.nome} {a.dipendente.cognome}" for a in in_attesa)
+        if responsabile and responsabile.telegram_chat_id:
+            testo_parz = (
+                f"👍 *AGGIORNAMENTO AVVALLO PROCEDURA*\n\n"
+                f"📋 *Procedura:* {pratica.titolo}\n"
+                f"🔢 *Passaggio #{passo.ordine}:* {passo.titolo}\n"
+                f"✅ *{collega_nome}* ha dato l'OK!\n"
+                f"⏳ *In attesa di:* {nomi_mancanti}"
+            )
+            send_telegram_message(responsabile.telegram_chat_id, testo_parz)
+
+        return {
+            'ok': True,
+            'tutti_approvati': False,
+            'passo': passo,
+            'pratica': pratica,
+            'avvallo': avvallo,
+            'nomi_mancanti': nomi_mancanti,
+            'message': f"👍 OK registrato da {collega_nome}! In attesa dell'OK di: {nomi_mancanti}.",
+        }
+
+
+

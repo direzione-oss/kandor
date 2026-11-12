@@ -668,28 +668,150 @@ def weekly_schedule_widget(context):
 
 @register.filter
 def is_operational_model(model_name):
-    return model_name in ['AssegnazioneTurno', 'Assenza', 'TimeTracking', 'Turno', 'ProceduraAvviata']
+    return model_name in ['AssegnazioneTurno', 'Assenza', 'TimeTracking', 'Turno', 'ProceduraAvviata', 'LottoBustePaga', 'CedolinoDipendente']
 
 @register.filter
 def is_resource_model(model_name):
     return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione', 'ModelloProcedura', 'Squadra', 'MessaggioProgrammato']
 
-@register.simple_tag
-def active_procedures_badge():
-    from core.models import ProceduraAvviata
+@register.simple_tag(takes_context=True)
+def active_procedures_badge(context):
+    from core.models import ProceduraAvviata, AvvalloPassoProcedura
+    from core.services import get_operatore_portale
     from django.utils.safestring import mark_safe
     try:
-        count = ProceduraAvviata.objects.filter(stato='IN_CORSO').count()
-        if not count:
+        request = context.get('request') if context else None
+        operatore = get_operatore_portale(request)
+        if not operatore:
             return ''
+
+        mie_count = ProceduraAvviata.objects.filter(
+            stato='IN_CORSO',
+            dipendente=operatore,
+        ).count()
+
+        avvalli_miei = AvvalloPassoProcedura.objects.filter(
+            dipendente=operatore,
+            stato='IN_ATTESA',
+            passo__procedura__stato='IN_CORSO',
+        ).count()
+
+        badges = []
+        if avvalli_miei > 0:
+            badges.append(
+                f'<span style="background:#DC2626;color:white;border-radius:999px;min-width:22px;height:22px;'
+                f'font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;'
+                f'padding:0 8px;box-shadow:0 2px 6px rgba(220,38,38,0.35);" '
+                f'title="Hai {avvalli_miei} passaggio/i da avvallare">'
+                f'🔔 {avvalli_miei} da avvallare</span>'
+            )
+        if mie_count > 0:
+            badges.append(
+                f'<span style="background:#D97706;color:white;border-radius:50%;min-width:24px;height:24px;'
+                f'font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;'
+                f'padding:0 6px;box-shadow:0 2px 6px rgba(217,119,6,0.35);" '
+                f'title="Procedure aperte di cui sei responsabile ({operatore.nome} {operatore.cognome})">'
+                f'{mie_count}</span>'
+            )
+
+        if not badges:
+            return ''
+
         return mark_safe(
-            f'<span style="position:absolute;top:8px;right:8px;background:#D97706;color:white;'
-            f'border-radius:12px;min-width:20px;height:20px;font-size:11px;font-weight:bold;'
-            f'display:inline-flex;align-items:center;justify-content:center;padding:0 6px">'
-            f'{count} in corso</span>'
+            f'<div style="position:absolute;top:10px;right:10px;display:flex;gap:6px;align-items:center;">'
+            f'{"".join(badges)}</div>'
         )
     except Exception:
         return ''
+
+
+@register.inclusion_tag('admin/widgets/procedure_dashboard_alerts_widget.html', takes_context=True)
+def procedure_dashboard_alerts_widget(context):
+    from core.models import ProceduraAvviata, AvvalloPassoProcedura, PassoProceduraAvviata
+    from core.services import get_operatore_portale, get_operatori_rapidi_portale
+    try:
+        request = context.get('request') if context else None
+        operatore = get_operatore_portale(request)
+        operatori_rapidi = get_operatori_rapidi_portale()
+
+        # 1. Richieste di avvallo in attesa (per l'operatore corrente e generali in evidenza)
+        tutti_avvalli_attesa = list(
+            AvvalloPassoProcedura.objects.filter(
+                stato='IN_ATTESA',
+                passo__procedura__stato='IN_CORSO',
+            )
+            .select_related(
+                'passo__procedura__dipendente',
+                'passo__procedura__cliente',
+                'passo__procedura__modello',
+                'dipendente',
+                'richiesto_da',
+            )
+            .order_by('-data_richiesta', 'id')
+        )
+
+        # Raggruppa per passaggio in modo da mostrare una card pulita per ogni passaggio da avvallare
+        passi_in_attesa_map = {}
+        for avv in tutti_avvalli_attesa:
+            pid = avv.passo_id
+            if pid not in passi_in_attesa_map:
+                tutti_del_passo = list(avv.passo.avvalli.select_related('dipendente').all())
+                passi_in_attesa_map[pid] = {
+                    'passo': avv.passo,
+                    'pratica': avv.passo.procedura,
+                    'responsabile': avv.passo.procedura.dipendente or avv.richiesto_da,
+                    'nota_richiesta': avv.nota_richiesta,
+                    'data_richiesta': avv.data_richiesta,
+                    'avvalli_tutti': tutti_del_passo,
+                    'avvalli_in_attesa': [a for a in tutti_del_passo if a.stato == 'IN_ATTESA'],
+                    'is_for_current_operatore': False,
+                    'mio_avvallo': None,
+                }
+            if operatore and avv.dipendente_id == operatore.id:
+                passi_in_attesa_map[pid]['is_for_current_operatore'] = True
+                passi_in_attesa_map[pid]['mio_avvallo'] = avv
+
+        passi_da_avvallare = list(passi_in_attesa_map.values())
+
+        # 2. Passaggi appena avvallati (tutti OK) per le procedure di cui l'operatore corrente è Responsabile
+        passi_avvallati_per_responsabile = []
+        mie_procedure_attive = []
+        if operatore:
+            mie_procedure_attive = list(
+                ProceduraAvviata.objects.filter(
+                    stato='IN_CORSO',
+                    dipendente=operatore,
+                )
+                .select_related('cliente', 'modello', 'dipendente')
+                .prefetch_related('passaggi__avvalli__dipendente')
+                .order_by('-id')
+            )
+            for proc in mie_procedure_attive:
+                for p in proc.passaggi.all():
+                    avvs = list(p.avvalli.all())
+                    if avvs and all(a.stato == 'APPROVATO' for a in avvs) and any(not a.letto_da_responsabile for a in avvs):
+                        passi_avvallati_per_responsabile.append({
+                            'passo': p,
+                            'pratica': proc,
+                            'avvalli': avvs,
+                            'nomi_approvatori': ", ".join(f"{a.dipendente.nome} {a.dipendente.cognome}" for a in avvs),
+                        })
+
+        return {
+            'operatore': operatore,
+            'operatori_rapidi': operatori_rapidi,
+            'passi_da_avvallare': passi_da_avvallare,
+            'passi_avvallati_per_responsabile': passi_avvallati_per_responsabile,
+            'mie_procedure_attive': mie_procedure_attive,
+        }
+    except Exception:
+        return {
+            'operatore': None,
+            'operatori_rapidi': [],
+            'passi_da_avvallare': [],
+            'passi_avvallati_per_responsabile': [],
+            'mie_procedure_attive': [],
+        }
 
 @register.inclusion_tag('admin/widgets/telegram_feed_widget.html')
 def telegram_feed_widget():
