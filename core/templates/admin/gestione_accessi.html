@@ -1,0 +1,585 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<style>
+    .ga-wrap {
+        max-width: 1480px;
+        margin: 18px auto 50px auto;
+        padding: 0 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .ga-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%);
+        color: #fff;
+        border-radius: 16px;
+        padding: 24px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 18px;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.22);
+        border-left: 5px solid #f59e0b;
+        margin-bottom: 24px;
+    }
+    .ga-hero h1 {
+        margin: 0 0 6px 0;
+        font-size: 1.55rem;
+        font-weight: 800;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .ga-hero p {
+        margin: 0;
+        color: #cbd5e1;
+        font-size: 0.92rem;
+    }
+    .ga-prog-card {
+        background: linear-gradient(135deg, #fffbeb 0%, #ffffff 100%);
+        border: 2px solid #f59e0b;
+        border-radius: 14px;
+        padding: 20px 24px;
+        margin-bottom: 26px;
+        box-shadow: 0 4px 14px rgba(245, 158, 11, 0.12);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 18px;
+    }
+    .ga-badge-gold {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #ffffff;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .ga-tabs-bar {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 14px;
+        border: 1px solid #e2e8f0;
+    }
+    .ga-tab-btn {
+        background: #ffffff;
+        border: 1.5px solid #cbd5e1;
+        color: #1e293b;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.15s ease;
+    }
+    .ga-tab-btn:hover {
+        border-color: #4f46e5;
+        transform: translateY(-1px);
+    }
+    .ga-tab-btn.active {
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+        color: #ffffff;
+        border-color: #0f172a;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.22);
+    }
+    .ga-tab-count {
+        background: #e0e7ff;
+        color: #3730a3;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 800;
+    }
+    .ga-tab-btn.active .ga-tab-count {
+        background: #38bdf8;
+        color: #0f172a;
+    }
+    .ga-resp-panel {
+        display: none;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 24px 28px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+    .ga-resp-panel.active {
+        display: block;
+    }
+    .ga-resp-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 18px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #f1f5f9;
+        margin-bottom: 22px;
+    }
+    .ga-cred-box {
+        background: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+    .ga-input {
+        padding: 7px 11px;
+        border: 1px solid #cbd5e1;
+        border-radius: 7px;
+        font-size: 0.86rem;
+        font-weight: 700;
+        color: #0f172a;
+        width: 150px;
+    }
+    .ga-btn {
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+    .ga-btn-primary { background: #2563eb; color: #fff !important; }
+    .ga-btn-primary:hover { background: #1d4ed8; }
+    .ga-btn-success { background: #10b981; color: #fff !important; }
+    .ga-btn-success:hover { background: #059669; }
+    .ga-btn-amber { background: #f59e0b; color: #0f172a !important; }
+    .ga-btn-amber:hover { background: #d97706; color: #fff !important; }
+    .ga-btn-danger { background: #ef4444; color: #fff !important; }
+    .ga-btn-danger:hover { background: #dc2626; }
+    .ga-btn-slate { background: #334155; color: #fff !important; }
+    .ga-btn-slate:hover { background: #0f172a; }
+
+    .ga-group-box {
+        margin-bottom: 26px;
+    }
+    .ga-group-title {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 0 0 4px 0;
+    }
+    .ga-group-sub {
+        font-size: 0.82rem;
+        color: #64748b;
+        margin: 0 0 14px 0;
+    }
+    .ga-sections-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 12px;
+    }
+    .ga-sec-card {
+        border: 1.5px solid #e2e8f0;
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 12px 14px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        user-select: none;
+    }
+    .ga-sec-card.enabled {
+        border-color: #10b981;
+        background: #ecfdf5;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+    }
+    .ga-sec-card:hover {
+        transform: translateY(-1px);
+    }
+    .ga-sec-check {
+        width: 20px;
+        height: 20px;
+        margin-top: 2px;
+        accent-color: #059669;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .ga-sec-info h4 {
+        margin: 0 0 3px 0;
+        font-size: 0.9rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .ga-sec-info p {
+        margin: 0;
+        font-size: 0.77rem;
+        color: #475569;
+        line-height: 1.35;
+    }
+    #ga-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #0f172a;
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+        border-left: 4px solid #10b981;
+        display: none;
+        z-index: 9999;
+    }
+</style>
+
+<div class="ga-wrap">
+    <!-- HERO -->
+    <div class="ga-hero">
+        <div>
+            <h1>💻 Console Programmatore — Gestione Accessi &amp; Sezioni Responsabili</h1>
+            <p>Riservata a <strong>Gian Carlo Serra</strong>: il tuo account Programmatore visualizza sempre tutte le {{ totale_sezioni }} sezioni. Qui puoi abilitare o nascondere con 1 click le sezioni per ogni singolo Responsabile.</p>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="/admin/" class="ga-btn ga-btn-amber">🏠 Torna alla Dashboard Completa</a>
+        </div>
+    </div>
+
+    <!-- ACCOUNT PROGRAMMATORE: SERRA GIAN CARLO -->
+    {% if profilo_programmatore %}
+    <div class="ga-prog-card">
+        <div>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
+                <span class="ga-badge-gold">💻 Account Programmatore (Super-Admin)</span>
+                <span style="font-size:1.15rem; font-weight:800; color:#0f172a;">
+                    {% if profilo_programmatore.dipendente %}
+                        {{ profilo_programmatore.dipendente.nome }} {{ profilo_programmatore.dipendente.cognome }}
+                    {% else %}
+                        GIAN CARLO SERRA
+                    {% endif %}
+                </span>
+                <span style="background:#dcfce7; color:#166534; font-size:0.78rem; font-weight:800; padding:3px 10px; border-radius:999px;">
+                    ✅ Tutte le {{ totale_sezioni }}/{{ totale_sezioni }} Sezioni Sempre Visibili
+                </span>
+            </div>
+            <div style="font-size:0.84rem; color:#475569;">
+                Accedendo con questo account hai visibilità completa su ogni modulo del portale e puoi configurare in qualsiasi momento gli accessi dei Responsabili.
+            </div>
+        </div>
+        <div class="ga-cred-box" style="background:#ffffff; border-color:#f59e0b;">
+            <div>
+                <label style="display:block; font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Username Programmatore</label>
+                <input type="text" id="uname-{{ profilo_programmatore.id }}" class="ga-input" value="{{ profilo_programmatore.user.username }}">
+            </div>
+            <div>
+                <label style="display:block; font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Password Programmatore</label>
+                <input type="text" id="pwd-{{ profilo_programmatore.id }}" class="ga-input" value="{{ profilo_programmatore.password_visibile }}">
+            </div>
+            <div style="padding-top:14px; display:flex; gap:6px;">
+                <button type="button" class="ga-btn ga-btn-primary" onclick="salvaCredenziali({{ profilo_programmatore.id }}, true)">
+                    💾 Aggiorna Mie Credenziali
+                </button>
+                <button type="button" class="ga-btn ga-btn-slate" onclick="copiaCredenziali({{ profilo_programmatore.id }}, 'Gian Carlo Serra (Programmatore)')">
+                    📋 Copia
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- BARRA SELEZIONE RESPONSABILE + AGGIUNGI NUOVO RESPONSABILE -->
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
+        <h2 style="margin:0; font-size:1.15rem; font-weight:800; color:#0f172a;">
+            👔 Configura le Sezioni Visibili per Ciascun Responsabile ({{ profili_responsabili|length }} Responsabili)
+        </h2>
+        {% if dipendenti_disponibili %}
+        <div style="display:flex; align-items:center; gap:8px; background:#ffffff; padding:6px 12px; border-radius:10px; border:1px solid #cbd5e1;">
+            <span style="font-size:0.8rem; font-weight:700; color:#334155;">➕ Aggiungi Responsabile:</span>
+            <select id="new-resp-dip-id" style="padding:6px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:0.82rem; font-weight:600;">
+                <option value="">— Seleziona dipendente —</option>
+                {% for d in dipendenti_disponibili %}
+                <option value="{{ d.id }}">{{ d.cognome }} {{ d.nome }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="ga-btn ga-btn-success" onclick="aggiungiNuovoResponsabile()">Aggiungi</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- TABS DEI RESPONSABILI -->
+    <div class="ga-tabs-bar">
+        {% for prof in profili_responsabili %}
+        <button type="button"
+                id="tab-btn-{{ prof.id }}"
+                class="ga-tab-btn {% if forloop.first %}active{% endif %}"
+                onclick="selezionaTabResponsabile({{ prof.id }})">
+            <span>👤 {% if prof.dipendente %}{{ prof.dipendente.nome }} {{ prof.dipendente.cognome }}{% else %}{{ prof.user.username }}{% endif %}</span>
+            <span class="ga-tab-count" id="tab-count-{{ prof.id }}">{{ prof.sezioni_abilitate|length }}/{{ totale_sezioni }}</span>
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- PANNELLI DI CONFIGURAZIONE PER OGNI RESPONSABILE -->
+    {% for prof in profili_responsabili %}
+    <div id="resp-panel-{{ prof.id }}" class="ga-resp-panel {% if forloop.first %}active{% endif %}">
+        <div class="ga-resp-header">
+            <div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+                    <h2 style="margin:0; font-size:1.35rem; font-weight:800; color:#0f172a;">
+                        👔 {% if prof.dipendente %}{{ prof.dipendente.nome }} {{ prof.dipendente.cognome }}{% else %}{{ prof.user.username }}{% endif %}
+                    </h2>
+                    <span id="panel-badge-{{ prof.id }}" style="background:#e0e7ff; color:#1e40af; padding:4px 12px; border-radius:999px; font-size:0.8rem; font-weight:800;">
+                        {{ prof.sezioni_abilitate|length }} di {{ totale_sezioni }} sezioni abilitate
+                    </span>
+                </div>
+                <p style="margin:0 0 12px 0; font-size:0.85rem; color:#64748b;">
+                    Spunta o deseleziona le sezioni qui sotto: le modifiche sono salvate automaticamente in tempo reale per l'accesso di <strong>{% if prof.dipendente %}{{ prof.dipendente.nome }} {{ prof.dipendente.cognome }}{% else %}{{ prof.user.username }}{% endif %}</strong>.
+                </p>
+                <!-- PULSANTI PRESET RAPIDI -->
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="ga-btn ga-btn-success" onclick="applicaPreset({{ prof.id }}, 'TUTTE')">
+                        ✅ Abilita Tutte ({{ totale_sezioni }})
+                    </button>
+                    <button type="button" class="ga-btn ga-btn-primary" onclick="applicaPreset({{ prof.id }}, 'DEFAULT')">
+                        ⭐ Preset Standard Responsabile
+                    </button>
+                    <button type="button" class="ga-btn ga-btn-amber" onclick="applicaPreset({{ prof.id }}, 'OPERATIVO_BASE')">
+                        📋 Solo Operatività, Turni &amp; Procedure
+                    </button>
+                    <button type="button" class="ga-btn ga-btn-danger" onclick="applicaPreset({{ prof.id }}, 'NESSUNA')">
+                        ❌ Disabilita Tutte
+                    </button>
+                    <a href="/admin/?preview_responsabile_id={{ prof.id }}" class="ga-btn ga-btn-slate" title="Guarda la Dashboard esattamente come la vede questo Responsabile">
+                        👁️ Vedi Dashboard come {% if prof.dipendente %}{{ prof.dipendente.nome }}{% else %}{{ prof.user.username }}{% endif %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- CREDENZIALI PERSONALI DEL RESPONSABILE -->
+            <div class="ga-cred-box">
+                <div>
+                    <label style="display:block; font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Username Accesso</label>
+                    <input type="text" id="uname-{{ prof.id }}" class="ga-input" value="{{ prof.user.username }}">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Password Accesso</label>
+                    <input type="text" id="pwd-{{ prof.id }}" class="ga-input" value="{{ prof.password_visibile }}">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase;">Stato</label>
+                    <select id="attivo-{{ prof.id }}" style="padding:7px 10px; border-radius:7px; border:1px solid #cbd5e1; font-size:0.84rem; font-weight:700;">
+                        <option value="1" {% if prof.attivo %}selected{% endif %}>🟢 Attivo</option>
+                        <option value="0" {% if not prof.attivo %}selected{% endif %}>🔴 Sospeso</option>
+                    </select>
+                </div>
+                <div style="padding-top:14px; display:flex; gap:6px;">
+                    <button type="button" class="ga-btn ga-btn-primary" onclick="salvaCredenziali({{ prof.id }}, false)">
+                        💾 Salva Credenziali
+                    </button>
+                    <button type="button" class="ga-btn ga-btn-slate" onclick="copiaCredenziali({{ prof.id }}, '{% if prof.dipendente %}{{ prof.dipendente.nome|escapejs }} {{ prof.dipendente.cognome|escapejs }}{% else %}{{ prof.user.username|escapejs }}{% endif %}')">
+                        📋 Copia
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- GRIGLIA SEZIONI DIVISA PER GRUPPO -->
+        {% for g in gruppi_sezioni %}
+        <div class="ga-group-box">
+            <h3 class="ga-group-title">{{ g.titolo }}</h3>
+            <p class="ga-group-sub">{{ g.sottotitolo }}</p>
+            <div class="ga-sections-grid">
+                {% for sec in g.sezioni %}
+                <label class="ga-sec-card {% if sec.codice in prof.sezioni_abilitate %}enabled{% endif %}"
+                       id="card-{{ prof.id }}-{{ sec.codice }}">
+                    <input type="checkbox"
+                           class="ga-sec-check sec-check-{{ prof.id }}"
+                           data-profilo="{{ prof.id }}"
+                           data-codice="{{ sec.codice }}"
+                           {% if sec.codice in prof.sezioni_abilitate %}checked{% endif %}
+                           onchange="toggleSingolaSezione({{ prof.id }}, '{{ sec.codice }}', this.checked)">
+                    <div class="ga-sec-info">
+                        <h4>{{ sec.icona }} {{ sec.titolo }}</h4>
+                        <p>{{ sec.descrizione }}</p>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+<div id="ga-toast">✅ Modifica salvata con successo!</div>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+const TOTALE_SEZIONI = {{ totale_sezioni }};
+
+function mostraToast(msg, isError) {
+    const t = document.getElementById('ga-toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.style.borderLeftColor = isError ? '#ef4444' : '#10b981';
+    t.style.display = 'block';
+    clearTimeout(window._gaToastTimer);
+    window._gaToastTimer = setTimeout(() => { t.style.display = 'none'; }, 2600);
+}
+
+function selezionaTabResponsabile(profId) {
+    document.querySelectorAll('.ga-tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.ga-resp-panel').forEach(p => p.classList.remove('active'));
+    const btn = document.getElementById('tab-btn-' + profId);
+    const panel = document.getElementById('resp-panel-' + profId);
+    if (btn) btn.classList.add('active');
+    if (panel) panel.classList.add('active');
+}
+
+function aggiornaContatoriUI(profId, listaCodici) {
+    const setCodici = new Set(listaCodici || []);
+    const countEl = document.getElementById('tab-count-' + profId);
+    if (countEl) countEl.textContent = setCodici.size + '/' + TOTALE_SEZIONI;
+    const badgeEl = document.getElementById('panel-badge-' + profId);
+    if (badgeEl) badgeEl.textContent = setCodici.size + ' di ' + TOTALE_SEZIONI + ' sezioni abilitate';
+
+    document.querySelectorAll('.sec-check-' + profId).forEach(chk => {
+        const cod = chk.getAttribute('data-codice');
+        const isEn = setCodici.has(cod);
+        chk.checked = isEn;
+        const card = document.getElementById('card-' + profId + '-' + cod);
+        if (card) {
+            if (isEn) card.classList.add('enabled');
+            else card.classList.remove('enabled');
+        }
+    });
+}
+
+function toggleSingolaSezione(profId, codice, isChecked) {
+    const card = document.getElementById('card-' + profId + '-' + codice);
+    if (card) {
+        if (isChecked) card.classList.add('enabled');
+        else card.classList.remove('enabled');
+    }
+
+    const fd = new FormData();
+    fd.append('action', 'toggle_sezione');
+    fd.append('profilo_id', profId);
+    fd.append('codice', codice);
+    fd.append('abilitata', isChecked ? '1' : '0');
+
+    fetch('{% url "gestione_accessi_api" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            aggiornaContatoriUI(profId, data.sezioni_abilitate);
+            mostraToast('✅ Sezione aggiornata (' + data.count + '/' + data.totale + ' attive)');
+        } else {
+            mostraToast('❌ ' + (data.error || 'Errore salvataggio'), true);
+        }
+    })
+    .catch(() => mostraToast('❌ Errore di connessione', true));
+}
+
+function applicaPreset(profId, presetName) {
+    const fd = new FormData();
+    fd.append('action', 'set_preset_sezioni');
+    fd.append('profilo_id', profId);
+    fd.append('preset', presetName);
+
+    fetch('{% url "gestione_accessi_api" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            aggiornaContatoriUI(profId, data.sezioni_abilitate);
+            mostraToast('✅ Preset applicato (' + data.count + '/' + data.totale + ' sezioni abilitate)');
+        } else {
+            mostraToast('❌ ' + (data.error || 'Errore'), true);
+        }
+    });
+}
+
+function salvaCredenziali(profId, isProgrammatore) {
+    const uname = document.getElementById('uname-' + profId).value.trim();
+    const pwd = document.getElementById('pwd-' + profId).value.trim();
+    const attivoEl = document.getElementById('attivo-' + profId);
+    const attivo = attivoEl ? attivoEl.value : '1';
+
+    const fd = new FormData();
+    fd.append('action', 'aggiorna_credenziali');
+    fd.append('profilo_id', profId);
+    fd.append('username', uname);
+    fd.append('password', pwd);
+    fd.append('attivo', attivo);
+
+    fetch('{% url "gestione_accessi_api" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            mostraToast('✅ Credenziali salvate per @' + data.username);
+        } else {
+            mostraToast('❌ ' + (data.error || 'Errore salvataggio credenziali'), true);
+        }
+    });
+}
+
+function copiaCredenziali(profId, nomePersona) {
+    const uname = document.getElementById('uname-' + profId).value.trim();
+    const pwd = document.getElementById('pwd-' + profId).value.trim();
+    const testo = `Accesso Portale Kandor — ${nomePersona}\nURL: ${window.location.origin}/admin/\nUtente: ${uname}\nPassword: ${pwd}`;
+    navigator.clipboard.writeText(testo).then(() => {
+        mostraToast('📋 Credenziali di ' + nomePersona + ' copiate negli appunti!');
+    });
+}
+
+function aggiungiNuovoResponsabile() {
+    const sel = document.getElementById('new-resp-dip-id');
+    if (!sel || !sel.value) {
+        mostraToast('⚠️ Seleziona prima un dipendente dalla tendina', true);
+        return;
+    }
+    const fd = new FormData();
+    fd.append('action', 'crea_profilo_responsabile');
+    fd.append('dipendente_id', sel.value);
+
+    fetch('{% url "gestione_accessi_api" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            window.location.reload();
+        } else {
+            mostraToast('❌ ' + (data.error || 'Errore creazione profilo'), true);
+        }
+    });
+}
+</script>
+{% endblock %}

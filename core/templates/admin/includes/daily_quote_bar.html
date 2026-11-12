@@ -80,7 +80,32 @@
             ✨ &ldquo;<span id="kandor-daily-quote-text">{{ daily_quote_text }}</span>&rdquo;
         </span>
     </div>
-    {% if operatore_portale %}
+    {% if is_programmatore_reale %}
+        {% if in_preview_responsabile %}
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #7c2d12, #9a3412); border: 1.5px solid #fb923c; border-radius: 999px; padding: 4px 14px;" title="Stai simulando la vista di questo Responsabile">
+            <span style="font-size: 0.76rem; font-weight: 800; color: #fed7aa; white-space: nowrap;">👁️ Anteprima Responsabile:</span>
+            <span style="color: #ffffff; font-size: 0.8rem; font-weight: 800; white-space: nowrap;">
+                {% if operatore_portale %}{{ operatore_portale.nome }} {{ operatore_portale.cognome }}{% endif %}
+            </span>
+            <a href="/admin/?preview_responsabile_id=0" style="background:#f59e0b; color:#0f172a !important; text-decoration:none; padding:2px 9px; border-radius:999px; font-size:0.72rem; font-weight:800;">
+                ✕ Torna a Programmatore
+            </a>
+            <a href="/gestione-accessi/" style="background:#ffffff; color:#0f172a !important; text-decoration:none; padding:2px 9px; border-radius:999px; font-size:0.72rem; font-weight:800;">
+                🔐 Configura Sezioni
+            </a>
+        </div>
+        {% else %}
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(15, 23, 42, 0.95); border: 1.5px solid #f59e0b; border-radius: 999px; padding: 4px 12px;" title="Account Programmatore (Gian Carlo Serra) — Tutte le sezioni attive">
+            <span style="font-size: 0.76rem; font-weight: 800; color: #fbbf24; white-space: nowrap;">💻 Programmatore:</span>
+            <span style="color: #F8FAFC; font-size: 0.8rem; font-weight: 800; white-space: nowrap;">
+                {% if operatore_portale %}{{ operatore_portale.nome }} {{ operatore_portale.cognome }}{% else %}GIAN CARLO SERRA{% endif %}
+            </span>
+            <a href="/gestione-accessi/" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a !important; text-decoration: none; padding: 3px 10px; border-radius: 999px; font-size: 0.73rem; font-weight: 800; white-space: nowrap;">
+                🔐 Sezioni Responsabili
+            </a>
+        </div>
+        {% endif %}
+    {% elif operatore_portale %}
     <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 999px; padding: 5px 14px;" title="Operatore autenticato con il proprio accesso personale">
         <span style="font-size: 0.76rem; font-weight: 700; color: #38BDF8; white-space: nowrap;">👤 Operatore:</span>
         <span style="color: #F8FAFC; font-size: 0.8rem; font-weight: 700; white-space: nowrap;">

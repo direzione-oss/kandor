@@ -33,6 +33,10 @@ from .views_buste_paga import (
     buste_paga_api_view,
     scarica_busta_paga_token_view,
 )
+from .views_accessi import (
+    gestione_accessi_view,
+    gestione_accessi_api_view,
+)
 from django.views.generic import RedirectView
 
 urlpatterns = [
@@ -134,4 +138,8 @@ urlpatterns = [
     path('buste-paga/', buste_paga_view, name='buste_paga'),
     path('api/buste-paga/action/', buste_paga_api_view, name='buste_paga_api'),
     path('buste-paga/scarica/<str:token>/', scarica_busta_paga_token_view, name='scarica_busta_paga_token'),
+
+    # Console Programmatore (Serra Gian Carlo) — Gestione Accessi & Sezioni Responsabili
+    path('gestione-accessi/', gestione_accessi_view, name='gestione_accessi'),
+    path('api/gestione-accessi/action/', gestione_accessi_api_view, name='gestione_accessi_api'),
 ]

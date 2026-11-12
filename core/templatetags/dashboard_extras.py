@@ -690,6 +690,32 @@ def is_operational_model(model_name):
 def is_resource_model(model_name):
     return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione', 'ModelloProcedura', 'Squadra', 'MessaggioProgrammato']
 
+@register.filter
+def can_view_model(model_name, sezioni_abilitate):
+    if sezioni_abilitate is None:
+        return True
+    return f"mod_{model_name}" in sezioni_abilitate
+
+@register.filter
+def has_visible_operational_models(models_list, sezioni_abilitate):
+    if not models_list:
+        return False
+    for m in models_list:
+        obj_name = m.get('object_name') if isinstance(m, dict) else getattr(m, 'object_name', '')
+        if is_operational_model(obj_name) and can_view_model(obj_name, sezioni_abilitate):
+            return True
+    return False
+
+@register.filter
+def has_visible_resource_models(models_list, sezioni_abilitate):
+    if not models_list:
+        return False
+    for m in models_list:
+        obj_name = m.get('object_name') if isinstance(m, dict) else getattr(m, 'object_name', '')
+        if is_resource_model(obj_name) and can_view_model(obj_name, sezioni_abilitate):
+            return True
+    return False
+
 @register.simple_tag(takes_context=True)
 def active_procedures_badge(context):
     from core.models import ProceduraAvviata, AvvalloPassoProcedura

@@ -234,7 +234,12 @@
             <h2>KANDOR ERP  -   Enterprise Resource Planning</h2>
             <p>Pannello di controllo operativo per turni, personale, contratti e notifiche</p>
         </div>
-        <div style="display: flex; gap: 10px; align-items: center;">
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            {% if is_programmatore_reale %}
+            <a href="{% url 'gestione_accessi' %}" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a !important; padding: 8px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 800; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(245,158,11,0.4);">
+                🔐 Console Programmatore (Sezioni Responsabili)
+            </a>
+            {% endif %}
             {% if '127.0.0.1' in request.get_host or 'localhost' in request.get_host %}
             <a href="{% url 'dev_tools' %}" style="background: #16a34a; color: #ffffff !important; padding: 7px 16px; border-radius: 8px; font-size: 0.82rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(22,163,74,0.35);">
                 🚀 Dev Tools &amp; Pubblica Online
@@ -245,11 +250,30 @@
     </div>
 
     <!-- Alert Procedure & Richieste di Avvallo in Evidenza -->
+    {% if 'widget_procedure_evidenza' in sezioni_abilitate_portale %}
     {% procedure_dashboard_alerts_widget %}
+    {% endif %}
 
     <!-- Sezione Operazioni Veloci -->
     <div class="section-title">Operazioni Frequenti</div>
     <div class="quick-ops-grid">
+        {% if is_programmatore_reale and not in_preview_responsabile %}
+        <!-- Console Programmatore (Visibile SOLO a Serra Gian Carlo) -->
+        <div class="quick-card" style="border: 2px solid #F59E0B; background: linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #FEF3C7; color: #D97706;">🔐</div>
+                    <h3 style="color: #92400E;">Sezioni Responsabili</h3>
+                </div>
+                <p>Console Programmatore: abilita o nascondi le sezioni per ciascun Responsabile</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'gestione_accessi' %}" class="quick-btn" style="background:#D97706;">Configura Accessi &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'jolly' in sezioni_abilitate_portale %}
         <!-- Jolly -->
         <div class="quick-card">
             <div>
@@ -263,7 +287,9 @@
                 <a href="{% url 'find_jolly' %}" class="quick-btn">Trova Sostituto &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'report_ore' in sezioni_abilitate_portale %}
         <!-- Report Ore -->
         <div class="quick-card">
             <div>
@@ -277,7 +303,9 @@
                 <a href="{% url 'verifica_ore' %}" class="quick-btn">Vedi Report &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'cedolini_paghe' in sezioni_abilitate_portale %}
         <!-- Cedolini Paghe -->
         <div class="quick-card">
             <div>
@@ -291,7 +319,9 @@
                 <a href="{% url 'report_paghe' %}" class="quick-btn" style="background:#2563EB;">Elabora Paghe &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'buste_paga' in sezioni_abilitate_portale %}
         <!-- Invio Automatico Buste Paga -->
         <div class="quick-card" style="border: 1.5px solid #A7F3D0; background: linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%);">
             <div>
@@ -305,7 +335,9 @@
                 <a href="{% url 'buste_paga' %}" class="quick-btn" style="background:#059669;">Invia Buste Paga &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'chat_telegram' in sezioni_abilitate_portale %}
         <!-- Telegram & Chat -->
         <div class="quick-card" style="position: relative;">
             <div>
@@ -320,7 +352,9 @@
                 {% unread_chat_badge %}
             </div>
         </div>
+        {% endif %}
 
+        {% if 'app_dipendenti' in sezioni_abilitate_portale %}
         <!-- App Mobile Dipendenti (PWA) -->
         <div class="quick-card">
             <div>
@@ -334,7 +368,9 @@
                 <a href="{% url 'dipendente_app' %}" target="_blank" class="quick-btn" style="background:#EA580C;">Apri Web App &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'analisi_contratti' in sezioni_abilitate_portale %}
         <!-- Analisi Contratti -->
         <div class="quick-card">
             <div>
@@ -348,7 +384,9 @@
                 <a href="{% url 'analisi_contratti' %}" class="quick-btn">Analizza &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'procedure' in sezioni_abilitate_portale %}
         <!-- Gestione Procedure (Disdetta Contratto, Checklist, ecc.) -->
         <div class="quick-card" style="position: relative;">
             <div>
@@ -363,7 +401,9 @@
                 {% active_procedures_badge %}
             </div>
         </div>
+        {% endif %}
 
+        {% if 'gestione_dati' in sezioni_abilitate_portale %}
         <!-- Dati -->
         <div class="quick-card">
             <div>
@@ -377,7 +417,9 @@
                 <a href="/data-management/" class="quick-btn">Gestisci &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'centro_ia' in sezioni_abilitate_portale %}
         <!-- Centro IA & Automazioni Smart -->
         <div class="quick-card" style="border: 1.5px solid #C7D2FE; background: linear-gradient(135deg, #EEF2FF 0%, #FFFFFF 100%);">
             <div>
@@ -391,7 +433,9 @@
                 <a href="{% url 'ia_hub' %}" class="quick-btn" style="background:#4F46E5;">Apri Centro IA &rarr;</a>
             </div>
         </div>
+        {% endif %}
 
+        {% if 'guide_manuali' in sezioni_abilitate_portale %}
         <!-- Guide -->
         <div class="quick-card">
             <div>
@@ -407,25 +451,40 @@
                 <a href="{% url 'manuale_dipendente' %}" target="_blank" class="quick-btn" style="background:#475569" title="Guida Dipendenti Web & PDF">📱 Dipendente</a>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <!-- Widget Telegram Feed -->
+    {% if 'widget_telegram_feed' in sezioni_abilitate_portale %}
     {% telegram_feed_widget %}
+    {% endif %}
 
     <!-- RIGA SUPERIORE: Scadenze Mezzi, Visite Mediche, Corsi Formazione & Compleanni (Affiancati) -->
     <style>.dashboard-alert-col:empty { display: none; }</style>
     <div style="display: flex; gap: 24px; margin-bottom: 28px; flex-wrap: wrap;">
+        {% if 'widget_scadenze_mezzi' in sezioni_abilitate_portale %}
         <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% expiring_vehicles_widget %}</div>
+        {% endif %}
+        {% if 'widget_scadenze_visite' in sezioni_abilitate_portale %}
         <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% expiring_medical_visits_widget %}</div>
+        {% endif %}
+        {% if 'widget_scadenze_corsi' in sezioni_abilitate_portale %}
         <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% expiring_training_courses_widget %}</div>
+        {% endif %}
+        {% if 'widget_compleanni' in sezioni_abilitate_portale %}
         <div class="dashboard-alert-col" style="flex: 1; min-width: 320px;">{% upcoming_birthdays_widget %}</div>
+        {% endif %}
     </div>
 
     <!-- Widget Contratti in Scadenza -->
+    {% if 'widget_contratti_scadenza' in sezioni_abilitate_portale %}
     {% expiring_contracts_widget %}
+    {% endif %}
 
     <!-- Widget Programmazione Settimanale -->
+    {% if 'widget_calendario_settimanale' in sezioni_abilitate_portale %}
     {% weekly_schedule_widget %}
+    {% endif %}
 
 
     {% if app_list %}
@@ -434,11 +493,12 @@
 
     <div class="dashboard-columns">
         <!-- COLONNA SINISTRA: Operativita -->
+        {% if app.models|has_visible_operational_models:sezioni_abilitate_portale %}
         <div class="dashboard-col">
             <h2>Operatività Giornaliera</h2>
             <table>
                 {% for model in app.models %}
-                {% if model.object_name|is_operational_model %}
+                {% if model.object_name|is_operational_model and model.object_name|can_view_model:sezioni_abilitate_portale %}
                 <tr>
                     <th scope="row"><a href="{{ model.admin_url }}">{{ model.name }}</a></th>
                     <td style="text-align: right;">
@@ -449,13 +509,15 @@
                 {% endfor %}
             </table>
         </div>
+        {% endif %}
 
         <!-- COLONNA DESTRA: Risorse & Anagrafiche -->
+        {% if app.models|has_visible_resource_models:sezioni_abilitate_portale %}
         <div class="dashboard-col">
             <h2>Anagrafiche & Risorse</h2>
             <table>
                 {% for model in app.models %}
-                {% if model.object_name|is_resource_model %}
+                {% if model.object_name|is_resource_model and model.object_name|can_view_model:sezioni_abilitate_portale %}
                 <tr>
                     <th scope="row"><a href="{{ model.admin_url }}">{{ model.name }}</a></th>
                     <td style="text-align: right;">
@@ -466,12 +528,14 @@
                 {% endfor %}
             </table>
         </div>
+        {% endif %}
     </div>
 
     {% endif %}
     {% endfor %}
 
 
+    {% if 'col_sistema' in sezioni_abilitate_portale %}
     <div style="margin-top: 40px; border-top: 1px solid var(--border-color); padding-top: 24px;">
         <div class="section-title">Amministrazione Sistema</div>
         {% for app in app_list %}
@@ -503,6 +567,7 @@
             </a>
         </div>
     </div>
+    {% endif %}
 
     {% else %}
     <p>{% translate "You don't have permission to view or edit anything." %}</p>

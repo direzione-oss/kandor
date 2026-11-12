@@ -16,8 +16,8 @@ class CoreConfig(AppConfig):
                 from django.core.management import call_command
 
                 tables = connection.introspection.table_names()
-                if 'django_session' not in tables or 'core_turno' not in tables:
-                    print("⚠️ Tabelle critiche assenti. Esecuzione migrazione automatica in ready()...")
+                if 'django_session' not in tables or 'core_turno' not in tables or 'core_profiloaccessoportale' not in tables:
+                    print("⚠️ Tabelle critiche o nuove assenti. Esecuzione migrazione automatica in ready()...")
                     call_command('migrate', interactive=False)
                     print("   ✅ Migrazione automatica in ready() completata!")
 
@@ -25,6 +25,9 @@ class CoreConfig(AppConfig):
                 if not User.objects.filter(username='admin').exists():
                     User.objects.create_superuser('admin', 'admin@kandor.it', 'Kandor2024!')
                     print("   ✅ Superuser 'admin' creato con successo in ready()!")
+
+                from .accessi_service import assicura_profili_accesso_portale
+                assicura_profili_accesso_portale()
             except Exception as e:
                 print(f"⚠️ Avviso durante verifica tabelle in ready(): {e}")
 

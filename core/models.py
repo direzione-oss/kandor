@@ -1629,6 +1629,67 @@ class CedolinoDipendente(models.Model):
         return f"Busta Paga {self.periodo} — {nome} ({self.codice_fiscale})"
 
 
+class ProfiloAccessoPortale(models.Model):
+    """
+    Configurazione dell'account di accesso al Portale Kandor e delle sezioni visibili.
+    - Ruolo 'PROGRAMMATORE' (Serra Gian Carlo): visualizza sempre tutte le sezioni e gestisce i permessi dei Responsabili.
+    - Ruolo 'RESPONSABILE': visualizza nel proprio accesso esclusivamente le sezioni abilitate dal Programmatore.
+    """
+    RUOLO_CHOICES = [
+        ('PROGRAMMATORE', '💻 Programmatore / Super-Admin (Accesso Totale)'),
+        ('RESPONSABILE', '👔 Responsabile / Operatore (Sezioni Personalizzate)'),
+    ]
+
+    user = models.OneToOneField(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='profilo_accesso_portale',
+        verbose_name="Utente di Accesso Django",
+    )
+    dipendente = models.OneToOneField(
+        'Dipendente',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='profilo_accesso_portale',
+        verbose_name="Dipendente / Responsabile Collegato",
+    )
+    ruolo = models.CharField(
+        max_length=30,
+        choices=RUOLO_CHOICES,
+        default='RESPONSABILE',
+        verbose_name="Ruolo nel Portale",
+    )
+    password_visibile = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name="Password Assegnata (Visibile al Programmatore)",
+    )
+    sezioni_abilitate = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name="Codici Sezioni Abilitate",
+    )
+    attivo = models.BooleanField(
+        default=True,
+        verbose_name="Accesso Attivo",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Profilo Accesso & Sezioni Responsabile"
+        verbose_name_plural = "Profili Accesso & Sezioni Responsabili"
+        ordering = ['ruolo', 'user__username']
+
+    def is_programmatore(self):
+        return self.ruolo == 'PROGRAMMATORE'
+
+    def __str__(self):
+        label_dip = f"{self.dipendente.nome} {self.dipendente.cognome}" if self.dipendente else self.user.username
+        return f"{label_dip} ({self.get_ruolo_display()}) — @{self.user.username}"
+
+
 # --- Geocoding Signals ---
 @receiver(pre_save, sender=Dipendente)
 def geocode_dipendente_address(sender, instance, **kwargs):

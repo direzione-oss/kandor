@@ -1251,7 +1251,20 @@ def get_operatore_portale(request):
 
     user = getattr(request, 'user', None)
     if user and getattr(user, 'is_authenticated', False):
+        try:
+            from .accessi_service import get_profilo_accesso_corrente
+            prof_acc, _, _ = get_profilo_accesso_corrente(request)
+            if prof_acc and prof_acc.dipendente:
+                return prof_acc.dipendente
+        except Exception:
+            pass
+
         uname = (user.username or '').strip().lower()
+        if uname == 'admin':
+            dip_serra = Dipendente.objects.filter(nome__iexact='GIAN CARLO', cognome__iexact='SERRA').first()
+            if dip_serra:
+                return dip_serra
+
         try:
             tit = Titolare.objects.filter(user=user).select_related('dipendente').first()
             if tit and tit.dipendente:
