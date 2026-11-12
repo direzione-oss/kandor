@@ -1342,10 +1342,12 @@ def get_operatori_rapidi_portale():
                 Q(id__in=(ra_ids | tit_ids | proc_ids | avv_ids))
                 | Q(nome__iexact='SIMONE', cognome__iexact='CORTINOVIS')
                 | Q(nome__iexact='ROBERTA', cognome__iexact='GAMBA')
-                | Q(nome__iexact='GIORGIO', cognome__iexact='BORRINI')
+                | Q(nome__iexact='GIORGIO', cognome__iexact='GAMBA')
                 | Q(nome__iexact='SONIA', cognome__iexact='CAVALERA')
                 | Q(nome__iexact='GIAN CARLO', cognome__iexact='SERRA')
                 | Q(nome__iexact='CONSUELO', cognome__iexact='PINA')
+            ).exclude(
+                nome__iexact='GIORGIO', cognome__iexact='BORRINI'
             ).exclude(stato='INATTIVO').distinct()
         )
 

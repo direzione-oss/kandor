@@ -5541,7 +5541,8 @@ def gestione_procedure_view(request):
             p.bloccato_da_nomi = ", ".join(primo_blocco_nomi) if p.bloccato_da_precedente else ''
 
     clienti = Cliente.objects.all().order_by('ragione_sociale')
-    dipendenti = list(Dipendente.objects.exclude(stato='INATTIVO').order_by('cognome', 'nome'))
+    # Elenco degli operatori d'ufficio / responsabili / titolari (escludendo gli addetti alle pulizie)
+    dipendenti = list(operatori_rapidi)
 
     dipendenti_js = [
         {

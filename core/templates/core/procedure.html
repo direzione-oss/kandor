@@ -1676,26 +1676,14 @@ function renderPraticaSteps(pratica) {
                             ${chipsHtml}
                         </div>
 
-                        <div style="display:grid; grid-template-columns: 1fr 1.3fr; gap:8px; margin-bottom:10px;">
-                            <div>
-                                <label style="font-size:0.74rem; font-weight:700; color:#475569; display:block; margin-bottom:3px;">
-                                    + Aggiungi altro dipendente dall'elenco
-                                </label>
-                                <select class="proc-select" style="width:100%; box-sizing:border-box;"
-                                        onchange="aggiungiAltroCollegaAvvallo(${p.id}, this)">
-                                    <option value="">— Seleziona collega da aggiungere —</option>
-                                    ${otherOptionsHtml}
-                                </select>
-                            </div>
-                            <div>
-                                <label style="font-size:0.74rem; font-weight:700; color:#475569; display:block; margin-bottom:3px;">
-                                    Messaggio / Nota per i colleghi (opzionale)
-                                </label>
-                                <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
-                                       id="avvallo-nota-step-${p.id}"
-                                       value="${escapeHtml(p.nota_richiesta_avvallo || '')}"
-                                       placeholder="Es. Richiesta di avvallo del preventivo prima dell'invio al cliente">
-                            </div>
+                        <div style="margin-bottom:10px;">
+                            <label style="font-size:0.74rem; font-weight:700; color:#475569; display:block; margin-bottom:3px;">
+                                Messaggio / Nota per i colleghi selezionati (opzionale)
+                            </label>
+                            <input type="text" class="proc-input" style="width:100%; box-sizing:border-box;"
+                                   id="avvallo-nota-step-${p.id}"
+                                   value="${escapeHtml(p.nota_richiesta_avvallo || '')}"
+                                   placeholder="Es. Richiesta di avvallo del preventivo prima dell'invio al cliente">
                         </div>
 
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
