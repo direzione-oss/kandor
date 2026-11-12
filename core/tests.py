@@ -402,6 +402,9 @@ from core.services import avvalla_assenza_da_amministrazione, rifiuta_assenza_da
 
 class AvvalloAssenzaTestCase(TestCase):
     def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser('admin_avvallo', 'avvallo@kandor.it', 'pass1234')
+        self.client.force_login(self.admin_user)
         self.today = timezone.now().date()
         self.dip = Dipendente.objects.create(
             nome='Mario', cognome='Rossi', codice_fiscale='MRORSS80A01H501U',
@@ -505,6 +508,9 @@ from core.models import ModificaCedolino
 
 class ModificaCedolinoTestCase(TestCase):
     def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser('admin_cedolino', 'cedolino@kandor.it', 'pass1234')
+        self.client.force_login(self.admin_user)
         self.today = timezone.now().date()
         self.data_inizio = self.today.replace(day=1)
         self.data_fine = self.today
@@ -626,6 +632,9 @@ from decimal import Decimal
 
 class PreservazioneTurniPassatiTestCase(TestCase):
     def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser('admin_preserv', 'preserv@kandor.it', 'pass1234')
+        self.client.force_login(self.admin_user)
         self.today = timezone.now().date()
         self.past_date = self.today - timedelta(days=5)
         self.future_date = self.today + timedelta(days=5)
@@ -1214,6 +1223,67 @@ class AIEngineAndHubTestCase(TestCase):
         req.refresh_from_db()
         self.assertEqual(req.stato, 'ANNULLATA')
         self.assertFalse(TimeTracking.objects.filter(assegnazione=self.assegnazione, dipendente=self.jolly_nuovo).exists())
+
+
+class SecurityHardeningTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser('admin', 'admin@kandor.it', 'CustomSecurePass!99')
+
+    def test_1_debug_db_blocked_for_anonymous_and_does_not_reset_password(self):
+        for debug_url in ['/debug-db/', '/ping-db/', '/test-admin-debug/', '/test-admin-debug/?step=10']:
+            resp = self.client.get(debug_url)
+            self.assertEqual(resp.status_code, 403, f"Endpoint {debug_url} deve essere 403 per utenti non autenticati")
+        self.admin_user.refresh_from_db()
+        self.assertTrue(self.admin_user.check_password('CustomSecurePass!99'))
+        self.assertFalse(self.admin_user.check_password('Kandor2024!'))
+
+        # Anche quando chiamato da superuser, NON deve resettare la password né esporre username
+        self.client.force_login(self.admin_user)
+        resp_su = self.client.get('/debug-db/')
+        self.assertEqual(resp_su.status_code, 200)
+        data = resp_su.json()
+        self.assertEqual(data.get('connection'), 'OK')
+        self.assertNotIn('usernames', data)
+        self.assertNotIn('admin_user_action', data)
+        self.admin_user.refresh_from_db()
+        self.assertTrue(self.admin_user.check_password('CustomSecurePass!99'))
+
+    def test_2_admin_views_and_apis_require_authentication(self):
+        # Utente anonimo bloccato su API di modifica (403)
+        for api_url in [
+            '/api/add-turno/',
+            '/api/invia-notifiche-sostituti/',
+            '/api/conferma-sostituto-ufficio/',
+            '/report-paghe/salva-modifica/',
+        ]:
+            resp = self.client.post(api_url, data=json.dumps({}), content_type='application/json')
+            self.assertEqual(resp.status_code, 403, f"API {api_url} dovrebbe restituire 403 agli anonimi")
+
+        # Utente anonimo rediretto al login su viste riservate (302)
+        for view_url in [
+            '/report-paghe/',
+            '/report-paghe/pdf/',
+            '/report-paghe/csv/',
+            '/verifica-ore/',
+            '/analisi-contratti/',
+            '/reconciliation/',
+        ]:
+            resp = self.client.get(view_url)
+            self.assertEqual(resp.status_code, 302, f"Vista {view_url} dovrebbe redirigere al login")
+            self.assertIn('/admin/login/', resp['Location'])
+
+    def test_3_local_dev_backend_disabled_in_vps_production(self):
+        import os
+        from unittest.mock import patch
+        from django.contrib.auth import authenticate
+
+        with patch.dict(os.environ, {'VPS_PROD': '1', 'LOCAL_DEV': '0'}, clear=False):
+            user_fallback = authenticate(username='admin', password='Kandor2024!')
+            self.assertIsNone(user_fallback, "Le password di fallback dev devono essere disattivate su VPS_PROD=1")
+            user_real = authenticate(username='admin', password='CustomSecurePass!99')
+            self.assertIsNotNone(user_real)
+
 
 
 

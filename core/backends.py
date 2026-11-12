@@ -5,17 +5,24 @@ from django.contrib.auth import get_user_model
 
 class LocalDevFriendlyBackend(ModelBackend):
     """
-    In ambiente di sviluppo locale (LOCAL_DEV=1 o non-Render), permette l'accesso
-    ai superuser con la password configurata a DB oppure con le password di servizio
-    locali ('Kandor2024!' e 'admin123') per evitare disallineamenti dopo un pull dati.
+    Esclusivamente in ambiente di sviluppo locale (LOCAL_DEV=1 e non VPS_PROD/RENDER),
+    permette l'accesso ai superuser con la password configurata a DB oppure con le
+    password di servizio locali per evitare disallineamenti dopo un pull dati.
+    Disattivato rigorosamente in produzione (VPS Coolify).
     """
     def authenticate(self, request, username=None, password=None, **kwargs):
         user = super().authenticate(request, username=username, password=password, **kwargs)
         if user is not None:
             return user
 
-        is_render = 'RENDER' in os.environ or os.environ.get('RENDER') == 'true'
-        if not is_render and username and password in ('Kandor2024!', 'admin123'):
+        is_prod = (
+            os.environ.get('VPS_PROD') in ('1', 'true', 'True')
+            or 'RENDER' in os.environ
+            or os.environ.get('RENDER') == 'true'
+        )
+        is_explicit_local = os.environ.get('LOCAL_DEV', '').strip() == '1'
+
+        if is_explicit_local and not is_prod and username and password in ('Kandor2024!', 'admin123'):
             User = get_user_model()
             try:
                 candidate = User.objects.filter(username__iexact=username.strip()).first()

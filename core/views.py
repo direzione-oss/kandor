@@ -2,6 +2,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from datetime import datetime, timedelta
+from functools import wraps
+import hmac
 from .models import Cliente, Qualifica, Dipendente
 from .services import trova_jolly, trova_sostituti, genera_turni_automatici
 from django.db.models import Sum, F
@@ -15,6 +17,38 @@ from django.core.management import call_command
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 
 
+def _is_staff_or_titolare(request):
+    """Restituisce True se l'utente è autenticato come staff/superuser o ha una sessione titolare attiva."""
+    if getattr(request, 'user', None) and request.user.is_authenticated and (
+        request.user.is_staff or request.user.is_superuser or hasattr(request.user, 'profilo_titolare')
+    ):
+        return True
+    if hasattr(request, 'session') and request.session.get('titolare_id'):
+        return True
+    return False
+
+
+def staff_or_titolare_required(view_fn):
+    """Decoratore per viste HTML riservate ad Amministrazione / Staff / Titolari."""
+    @wraps(view_fn)
+    def _wrapped(request, *args, **kwargs):
+        if not _is_staff_or_titolare(request):
+            return HttpResponseRedirect(f'/admin/login/?next={request.path}')
+        return view_fn(request, *args, **kwargs)
+    return _wrapped
+
+
+def staff_or_titolare_api_required(view_fn):
+    """Decoratore per endpoint API/AJAX riservati ad Amministrazione / Staff / Titolari (ritorna 403 JSON)."""
+    @wraps(view_fn)
+    def _wrapped(request, *args, **kwargs):
+        if not _is_staff_or_titolare(request):
+            return JsonResponse({'status': 'error', 'ok': False, 'error': 'Autenticazione richiesta'}, status=403)
+        return view_fn(request, *args, **kwargs)
+    return _wrapped
+
+
+@staff_or_titolare_required
 def find_jolly_view(request):
     results = None
     selected_client = None
@@ -71,6 +105,7 @@ def find_jolly_view(request):
         'error_message': error_message
     })
 
+@staff_or_titolare_required
 def reconciliation_view(request):
     mesi = [
         (1, 'Gennaio'), (2, 'Febbraio'), (3, 'Marzo'), (4, 'Aprile'),
@@ -454,6 +489,7 @@ def chat_simulator_view(request):
     })
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def add_turno_ajax(request):
     """Crea un turno con assegnazione e la relativa programmazione."""
     if request.method != 'POST':
@@ -559,6 +595,7 @@ def add_turno_ajax(request):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def edit_turno_ajax(request, assign_id):
     """Modifica un'assegnazione turno via AJAX."""
     if request.method != 'POST':
@@ -653,6 +690,7 @@ def edit_turno_ajax(request, assign_id):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def assegna_sostituto_turno_ajax(request, assign_id):
     """
     Salva immediatamente dall'interno della scheda turno la deselezione di un componente
@@ -695,6 +733,7 @@ def assegna_sostituto_turno_ajax(request, assign_id):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def copy_move_turno_ajax(request, assign_id):
     """Copia o sposta un'assegnazione turno su un altro giorno."""
     if request.method != 'POST':
@@ -742,6 +781,7 @@ def copy_move_turno_ajax(request, assign_id):
         return JsonResponse({'status': 'error', 'error': str(e)})
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def delete_turno_ajax(request, assign_id):
     """Elimina un'assegnazione turno via AJAX."""
     if request.method != 'POST':
@@ -770,6 +810,7 @@ def delete_turno_ajax(request, assign_id):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def validate_ore_ajax(request, assign_id):
     """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra (escludendo gli assenti e gli esclusi)."""
     if request.method != 'POST':
@@ -944,6 +985,7 @@ def validate_ore_ajax(request, assign_id):
         return JsonResponse({'status': 'error', 'error': str(e)})
 
 
+@staff_or_titolare_api_required
 def get_squadre_clienti_json(request):
     """Ritorna JSON con squadre e clienti per la modale del calendario."""
     from .models import Squadra, Cliente
@@ -961,6 +1003,7 @@ def get_squadre_clienti_json(request):
     return JsonResponse({'squadre': squadre, 'clienti': clienti})
 
 
+@staff_or_titolare_api_required
 def get_assegnazione_componenti_json(request, assign_id):
     """Per una specifica assegnazione: restituisce i componenti della squadra, i sostituti, le ore dichiarate, assenze e ID degli esclusi."""
     try:
@@ -1392,6 +1435,7 @@ def telegram_webhook_view(request):
     return HttpResponse('OK')
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def toggle_telegram_status(request, model_name, item_id):
     if request.method != 'POST':
         return HttpResponse('Method not allowed', status=405)
@@ -1443,6 +1487,7 @@ def toggle_telegram_status(request, model_name, item_id):
     except Exception as e:
         return HttpResponse(f'Error: {str(e)}', status=500)
 
+@staff_or_titolare_required
 def manuale_pdf_view(request):
     """Restituisce il file PDF completo con screenshot del Manuale Utente Kandor (v3.2)."""
     import os
@@ -1552,6 +1597,7 @@ def _convert_markdown_safe(content):
         return '\n'.join(new_lines)
 
 
+@staff_or_titolare_required
 def manuale_view(request):
     """Visualizza il manuale utente admin completo in formato HTML."""
     import os
@@ -1702,10 +1748,10 @@ def titolari_riepilogo_view(request):
     Configurare SECRET in settings come RIEPILOGO_TOKEN.
     """
     from django.conf import settings
-    token_atteso = getattr(settings, 'RIEPILOGO_TOKEN', '')
-    token_ricevuto = request.GET.get('token', '')
+    token_atteso = (getattr(settings, 'RIEPILOGO_TOKEN', '') or '').strip()
+    token_ricevuto = (request.GET.get('token') or request.headers.get('X-Cron-Token') or '').strip()
     
-    if not token_atteso or token_ricevuto != token_atteso:
+    if not token_atteso or not token_ricevuto or not hmac.compare_digest(token_ricevuto, token_atteso):
         return JsonResponse({'errore': 'Non autorizzato'}, status=403)
     
     # Solo venerdì (weekday 4) o forzato con ?force=1
@@ -1832,6 +1878,7 @@ def manuale_dipendente_view(request):
     
     return HttpResponse(page_html)
 
+@staff_or_titolare_required
 def extend_contract_view(request, prog_id):
     """Prolunga un contratto di 12 mesi e rigenera i turni."""
     from .models import ProgrammazioneRicorrente
@@ -1862,6 +1909,7 @@ def extend_contract_view(request, prog_id):
     return redirect('/admin/')
 
 
+@staff_or_titolare_required
 def analisi_contratti_view(request):
     """Analisi economica dei contratti: importo orario, soglia, costi effettivi."""
     from .models import Cliente, TimeTracking
@@ -2034,6 +2082,7 @@ def analisi_contratti_view(request):
     return render(request, 'core/analisi_contratti.html', context)
 
 
+@staff_or_titolare_required
 def pdf_contratti_sotto_soglia(request):
     """Genera PDF con elenco contratti sotto soglia."""
     import io
@@ -2185,6 +2234,7 @@ def pdf_contratti_sotto_soglia(request):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def richiesta_sostituzione_api(request):
     """API per creare una richiesta di sostituzione dalla UI del calendario."""
     if request.method != 'POST':
@@ -2224,6 +2274,7 @@ def richiesta_sostituzione_api(request):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def risposta_sostituto_api(request, richiesta_id):
     """API per gestire la risposta del sostituto (accetta/rifiuta)."""
     if request.method != 'POST':
@@ -2253,6 +2304,7 @@ def risposta_sostituto_api(request, richiesta_id):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def trova_sostituti_api(request):
     """API per mostrare lista sostituti disponibili senza creare la richiesta."""
     assign_id = request.GET.get('assign_id')
@@ -2313,6 +2365,7 @@ def trova_sostituti_api(request):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def get_sostituti_richiesta_api(request, richiesta_id):
     """
     Ritorna l'elenco di tutti i sostituti compatibili/disponibili per una richiesta di sostituzione,
@@ -2465,6 +2518,7 @@ def get_sostituti_richiesta_api(request, richiesta_id):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def invia_notifiche_sostituti_api(request):
     """
     Riceve l'elenco dei sostituti selezionati e il loro ordine di preferenza,
@@ -2583,6 +2637,7 @@ def invia_notifiche_sostituti_api(request):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def valida_assenza_api(request, assenza_id):
     """
     Endpoint per validare (avvallare) un'assenza dall'Amministrazione e creare
@@ -2607,6 +2662,7 @@ def valida_assenza_api(request, assenza_id):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def conferma_sostituto_ufficio_api(request):
     """
     Endpoint per confermare direttamente dall'ufficio (Amministrazione) il sostituto
@@ -2704,6 +2760,7 @@ def conferma_sostituto_ufficio_api(request):
 
 
 @csrf_exempt
+@staff_or_titolare_required
 def verifica_ore_view(request):
     """Dashboard verifica ore mensili: confronto ore lavorate vs contrattuali."""
     from .models import Cliente, TimeTracking, AssegnazioneTurno, Squadra, Dipendente
@@ -2932,6 +2989,7 @@ def verifica_ore_view(request):
 
 
 @csrf_exempt
+@staff_or_titolare_required
 def pdf_verifica_ore(request):
     """Genera PDF report verifica ore mensili."""
     from .models import Cliente, TimeTracking, AssegnazioneTurno
@@ -4043,50 +4101,29 @@ def dev_tools_publish_code(request):
 
 
 def debug_db_view(request):
+    """
+    Endpoint diagnostico di sistema: riservato esclusivamente ai Superuser autenticati.
+    Non modifica né resetta mai alcuna password e non espone configurazioni sensibili.
+    """
     import traceback
     from django.db import connection
-    from django.core.management import call_command
-    from django.conf import settings
     from django.http import JsonResponse
-    from django.contrib.auth import get_user_model, authenticate
+    from django.contrib.auth import get_user_model
+
+    if not request.user.is_authenticated or not request.user.is_superuser:
+        return JsonResponse({'error': 'Accesso negato: privilegi di superuser richiesti.'}, status=403)
+
     info = {}
     try:
-        db_settings = settings.DATABASES['default']
-        info['engine'] = db_settings.get('ENGINE')
-        info['host'] = db_settings.get('HOST')
-        info['port'] = db_settings.get('PORT')
-        info['name'] = str(db_settings.get('NAME'))
-
         connection.ensure_connection()
         info['connection'] = 'OK'
 
         tables = connection.introspection.table_names()
         info['tables_count'] = len(tables)
-
-        # Check migration status
         info['migration_result'] = 'MIGRATION_OK'
 
-        # Superuser creation/reset
         User = get_user_model()
-        users = list(User.objects.values_list('username', flat=True))
-        info['users_count'] = len(users)
-        info['usernames'] = users
-
-        admin_user = User.objects.filter(username='admin').first()
-        if not admin_user:
-            admin_user = User.objects.create_superuser('admin', 'admin@example.com', 'Kandor2024!')
-            info['admin_user_action'] = 'CREATED'
-        else:
-            admin_user.set_password('Kandor2024!')
-            admin_user.is_superuser = True
-            admin_user.is_staff = True
-            admin_user.is_active = True
-            admin_user.save()
-            info['admin_user_action'] = 'RESET_PASSWORD'
-
-        # Test auth
-        auth_user = authenticate(request, username='admin', password='Kandor2024!')
-        info['test_auth'] = 'SUCCESS' if auth_user else 'FAILED'
+        info['users_count'] = User.objects.count()
 
         # Test Widgets rendering
         from core.templatetags.dashboard_extras import (
@@ -4097,35 +4134,36 @@ def debug_db_view(request):
             expiring_vehicles_widget()
             info['widget_expiring_vehicles'] = 'OK'
         except Exception as e:
-            info['widget_expiring_vehicles_error'] = f"{e}\n{traceback.format_exc()}"
+            info['widget_expiring_vehicles_error'] = str(e)
 
         try:
             upcoming_birthdays_widget()
             info['widget_upcoming_birthdays'] = 'OK'
         except Exception as e:
-            info['widget_upcoming_birthdays_error'] = f"{e}\n{traceback.format_exc()}"
+            info['widget_upcoming_birthdays_error'] = str(e)
 
         try:
             weekly_schedule_widget({'request': request})
             info['widget_weekly_schedule'] = 'OK'
         except Exception as e:
-            info['widget_weekly_schedule_error'] = f"{e}\n{traceback.format_exc()}"
+            info['widget_weekly_schedule_error'] = str(e)
 
         try:
             telegram_feed_widget()
             info['widget_telegram_feed'] = 'OK'
         except Exception as e:
-            info['widget_telegram_feed_error'] = f"{e}\n{traceback.format_exc()}"
+            info['widget_telegram_feed_error'] = str(e)
 
         try:
             expiring_contracts_widget()
             info['widget_expiring_contracts'] = 'OK'
         except Exception as e:
-            info['widget_expiring_contracts_error'] = f"{e}\n{traceback.format_exc()}"
+            info['widget_expiring_contracts_error'] = str(e)
 
     except Exception as e:
         info['error'] = str(e)
-        info['traceback'] = traceback.format_exc()
+        if settings.DEBUG:
+            info['traceback'] = traceback.format_exc()
 
     return JsonResponse(info)
 
@@ -4135,6 +4173,7 @@ def debug_db_view(request):
 # REPORT CEDOLINI PAGHE (DA DATA A DATA)
 # ==============================================================================
 
+@staff_or_titolare_required
 def report_paghe_view(request):
     """
     Report Elaborazione Cedolini Paghe da Data Inizio a Data Fine.
@@ -4428,6 +4467,7 @@ def report_paghe_view(request):
 
 
 @csrf_exempt
+@staff_or_titolare_required
 def pdf_report_paghe(request):
     """Genera report PDF per la consulenza paghe da data ad altra data."""
     from .models import Dipendente, TimeTracking, Assenza, ModificaCedolino
@@ -4772,6 +4812,7 @@ def pdf_report_paghe(request):
 
 
 @csrf_exempt
+@staff_or_titolare_required
 def export_paghe_csv(request):
     """Esporta i dati elaborazione paghe in formato CSV con codifica UTF-8 BOM per Excel."""
     import csv
@@ -4954,6 +4995,7 @@ def export_paghe_csv(request):
 
 
 @csrf_exempt
+@staff_or_titolare_api_required
 def salva_modifica_cedolino_ajax(request):
     """
     Endpoint AJAX per l'amministrazione per salvare o resettare

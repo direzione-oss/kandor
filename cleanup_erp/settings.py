@@ -39,8 +39,10 @@ ALLOWED_HOSTS = [
     'kandor.187.126.30.207.sslip.io', 'kandor.serrastudio.it',
     '.sslip.io', '.serrastudio.it',
     '.ngrok-free.app', '.ngrok-free.dev',
-    '.railway.app', '.render.com', '.onrender.com', '*'
+    'testserver',
 ]
+if DEBUG:
+    ALLOWED_HOSTS.append('*')
 
 
 # Application definition
@@ -261,8 +263,12 @@ SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 60 * 60 * 24 * 30
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SECURE = not is_local_dev
+
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_HTTPONLY = False

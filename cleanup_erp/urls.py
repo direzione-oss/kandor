@@ -15,7 +15,15 @@ from core.views import debug_db_view
 def handler500(request, *args, **kwargs):
     exc_type, exc_value, exc_traceback = sys.exc_info()
     tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
-    return HttpResponseServerError(f"<h1>500 Internal Server Error</h1><pre>{tb_str}</pre>", content_type="text/html")
+    sys.stderr.write(f"\n[KANDOR 500 ERROR] {request.method} {request.path}\n{tb_str}\n")
+    sys.stderr.flush()
+    if settings.DEBUG:
+        return HttpResponseServerError(f"<h1>500 Internal Server Error</h1><pre>{tb_str}</pre>", content_type="text/html")
+    return HttpResponseServerError(
+        "<h1>500 — Errore Interno del Server</h1>"
+        "<p>Si è verificato un problema temporaneo. L'errore è stato registrato nei log di sistema.</p>",
+        content_type="text/html"
+    )
 
 handler500 = handler500
 
@@ -25,14 +33,13 @@ def ping_view(request):
     return JsonResponse({'status': 'ok', 'message': 'gunicorn is alive'})
 
 def ping_db_view(request):
+    if not request.user.is_authenticated or not request.user.is_superuser:
+        return JsonResponse({'error': 'Accesso negato: privilegi di superuser richiesti.'}, status=403)
     import traceback
     from django.db import connection
     from django.conf import settings
     res = {
         'engine': settings.DATABASES['default'].get('ENGINE'),
-        'host': settings.DATABASES['default'].get('HOST'),
-        'port': settings.DATABASES['default'].get('PORT'),
-        'name': str(settings.DATABASES['default'].get('NAME')),
     }
     try:
         connection.ensure_connection()
@@ -40,10 +47,13 @@ def ping_db_view(request):
     except Exception as e:
         res['db_connection'] = 'FAILED'
         res['error'] = str(e)
-        res['traceback'] = traceback.format_exc()
+        if settings.DEBUG:
+            res['traceback'] = traceback.format_exc()
     return JsonResponse(res)
 
 def test_admin_debug_view(request):
+    if not request.user.is_authenticated or not request.user.is_superuser:
+        return JsonResponse({'error': 'Accesso negato: privilegi di superuser richiesti.'}, status=403)
     step = request.GET.get('step', '0')
     import traceback
     res = {'requested_step': step}
@@ -84,28 +94,13 @@ def test_admin_debug_view(request):
             res['status'] = "Step 8 OK - expiring_contracts_widget"
         elif step == '9':
             from django.contrib import admin
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            admin_user = User.objects.filter(username='admin').first()
-            request.user = admin_user
             res['admin_index_status'] = admin.site.index(request).status_code
             res['status'] = "Step 9 OK - admin.site.index rendered"
         elif step == '10':
-            from django.contrib.auth import authenticate, login
-            u = authenticate(request, username='admin', password='Kandor2024!')
-            res['auth_user'] = str(u)
-            if u:
-                login(request, u)
-                res['status'] = "Step 10 OK - Login successful and session created"
-            else:
-                res['status'] = "Step 10 Failed - Invalid credentials"
+            res['status'] = "Step 10 Disabled for security"
         elif step == '11':
             from django.contrib import admin
-            from django.contrib.auth import get_user_model
             from django.template.response import TemplateResponse
-            User = get_user_model()
-            admin_user = User.objects.filter(username='admin').first()
-            request.user = admin_user
             response = admin.site.index(request)
             if isinstance(response, TemplateResponse):
                 response.render()
@@ -147,7 +142,8 @@ def test_admin_debug_view(request):
             res['status'] = "Unknown step"
     except Exception as e:
         res['error'] = str(e)
-        res['traceback'] = traceback.format_exc()
+        if settings.DEBUG:
+            res['traceback'] = traceback.format_exc()
     return JsonResponse(res)
 
 urlpatterns = [
