@@ -18,7 +18,9 @@
 </div>
 {% endblock %}
 
-{% block nav-global %}{% endblock %}
+{% block nav-global %}
+{% include "admin/includes/daily_quote_bar.html" %}
+{% endblock %}
 
 {% block footer %}
 {{ block.super }}
