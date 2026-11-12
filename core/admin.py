@@ -421,12 +421,12 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'sostituto_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'sostituto_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
-    list_filter = (StatoDipendenteDefaultAttiviFilter, 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche', 'riceve_notifiche_messaggi')
+    list_filter = (StatoDipendenteDefaultAttiviFilter, 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
-    actions = ['send_telegram_message_action', 'rigenera_pin_action']
+    actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action']
     readonly_fields = ('anteprima_foto_telegram', 'condivisione_whatsapp_box')
     fieldsets = (
         ('Dati Anagrafici & Accesso App', {
@@ -451,11 +451,11 @@ class DipendenteAdmin(KandorBaseAdmin):
             ),
             'description': 'Inserire la data di assunzione e, se il contratto è Part-Time, selezionare la sigla: M (Misto), V (Verticale) o O (Orizzontale).',
         }),
-        ('Qualifiche & Squadra', {
-            'fields': ('qualifiche', 'is_sostituto')
+        ('Qualifiche, Sostituto & Ruolo Responsabile', {
+            'fields': ('qualifiche', 'is_sostituto', 'riceve_notifiche_messaggi')
         }),
         ('Integrazione Telegram & Foto', {
-            'fields': ('telegram_chat_id', 'riceve_notifiche_messaggi', 'foto_profilo_url', 'foto', 'foto_url'),
+            'fields': ('telegram_chat_id', 'foto_profilo_url', 'foto', 'foto_url'),
             'classes': ('collapse',)
         }),
     )
@@ -468,6 +468,11 @@ class DipendenteAdmin(KandorBaseAdmin):
                 'toggle-sostituto/<int:dip_id>/',
                 self.admin_site.admin_view(self.toggle_sostituto_view),
                 name='core_dipendente_toggle_sostituto',
+            ),
+            path(
+                'toggle-riceve-notifiche/<int:dip_id>/',
+                self.admin_site.admin_view(self.toggle_riceve_notifiche_view),
+                name='core_dipendente_toggle_riceve_notifiche',
             ),
         ]
         return custom_urls + urls
@@ -484,6 +489,66 @@ class DipendenteAdmin(KandorBaseAdmin):
             new_val = not dip.is_sostituto
         Dipendente.objects.filter(pk=dip.pk).update(is_sostituto=new_val)
         return JsonResponse({'ok': True, 'id': dip.pk, 'is_sostituto': new_val})
+
+    def toggle_riceve_notifiche_view(self, request, dip_id):
+        from django.http import JsonResponse
+        dip = Dipendente.objects.filter(pk=dip_id).first()
+        if not dip:
+            return JsonResponse({'ok': False, 'error': 'Dipendente non trovato'}, status=404)
+        val_raw = request.GET.get('val') or request.POST.get('val')
+        if val_raw is not None:
+            new_val = str(val_raw).lower() in ('1', 'true', 'yes', 'on')
+        else:
+            new_val = not dip.riceve_notifiche_messaggi
+        Dipendente.objects.filter(pk=dip.pk).update(riceve_notifiche_messaggi=new_val)
+        return JsonResponse({'ok': True, 'id': dip.pk, 'riceve_notifiche_messaggi': new_val})
+
+    @admin.action(description='🔔 Abilita "Riceve notifiche messaggi (Solo Responsabili)" sui selezionati')
+    def abilita_notifiche_messaggi_action(self, request, queryset):
+        updated = queryset.update(riceve_notifiche_messaggi=True)
+        self.message_user(request, f'✅ Flag "Riceve notifiche messaggi (Solo Responsabili)" abilitato per {updated} dipendenti.', messages.SUCCESS)
+
+    @admin.action(description='🔕 Disabilita "Riceve notifiche messaggi (Solo Responsabili)" sui selezionati')
+    def disabilita_notifiche_messaggi_action(self, request, queryset):
+        updated = queryset.update(riceve_notifiche_messaggi=False)
+        self.message_user(request, f'🔕 Flag "Riceve notifiche messaggi (Solo Responsabili)" disabilitato per {updated} dipendenti.', messages.SUCCESS)
+
+    @admin.display(description='🔔 Riceve notifiche messaggi (Solo Responsabili)', ordering='riceve_notifiche_messaggi')
+    def riceve_notifiche_toggle_badge(self, obj):
+        checked_attr = 'checked' if obj.riceve_notifiche_messaggi else ''
+        bg = '#DBEAFE' if obj.riceve_notifiche_messaggi else '#F1F5F9'
+        fg = '#1E40AF' if obj.riceve_notifiche_messaggi else '#64748B'
+        border = '#93C5FD' if obj.riceve_notifiche_messaggi else '#CBD5E1'
+        lbl = 'Abilitato (Responsabile)' if obj.riceve_notifiche_messaggi else 'No'
+        js_call = (
+            "var cb=this; var wrap=cb.closest('label'); var sp=wrap.querySelector('.notif-lbl');"
+            "cb.disabled=true; sp.textContent='⏳...';"
+            "fetch('/admin/core/dipendente/toggle-riceve-notifiche/' + cb.getAttribute('data-dip-id') + '/?val=' + (cb.checked ? '1' : '0'), {credentials:'same-origin'})"
+            ".then(function(r){return r.json();})"
+            ".then(function(d){"
+            "  cb.disabled=false;"
+            "  if(d && d.ok){"
+            "    wrap.style.background = d.riceve_notifiche_messaggi ? '#DBEAFE' : '#F1F5F9';"
+            "    wrap.style.color = d.riceve_notifiche_messaggi ? '#1E40AF' : '#64748B';"
+            "    wrap.style.borderColor = d.riceve_notifiche_messaggi ? '#93C5FD' : '#CBD5E1';"
+            "    sp.textContent = '✓ Salvato';"
+            "    setTimeout(function(){ sp.textContent = d.riceve_notifiche_messaggi ? 'Abilitato (Responsabile)' : 'No'; }, 900);"
+            "  } else { cb.checked = !cb.checked; sp.textContent = 'Errore'; }"
+            "}).catch(function(){ cb.disabled=false; cb.checked = !cb.checked; sp.textContent='Errore'; });"
+        )
+        return format_html(
+            '<label style="display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; border:1px solid {}; background:{}; color:{}; font-size:11.5px; font-weight:700; cursor:pointer; user-select:none; white-space:nowrap;" title="Spunta o rimuovi per abilitare/disabilitare Riceve notifiche messaggi (Solo Responsabili) — salvataggio automatico">'
+            '<input type="checkbox" data-dip-id="{}" {} onchange="{}" style="cursor:pointer; width:14px; height:14px; margin:0; accent-color:#2563EB;" />'
+            '<span class="notif-lbl">{}</span>'
+            '</label>',
+            border,
+            bg,
+            fg,
+            obj.pk,
+            checked_attr,
+            js_call,
+            lbl,
+        )
 
     @admin.display(description='🔄 Sostituto', ordering='is_sostituto')
     def sostituto_toggle_badge(self, obj):
