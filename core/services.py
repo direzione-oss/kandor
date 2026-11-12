@@ -628,15 +628,14 @@ def notifica_nuovo_messaggio(dipendente, testo=None, foto_url=None):
     except Exception:
         pass
 
-    # 4. Dipendenti con flag riceve_notifiche_messaggi SOLO se ricoprono un ruolo da responsabile o titolare
+    # 4. Dipendenti attivi con flag riceve_notifiche_messaggi (RIC.NOT.) abilitato
     try:
         for ref in Dipendente.objects.filter(
+            stato='ATTIVO',
             riceve_notifiche_messaggi=True,
             telegram_chat_id__isnull=False
         ).exclude(telegram_chat_id='').exclude(pk=dipendente.pk):
-            is_responsabile = hasattr(ref, 'ruolo_responsabile') or hasattr(ref, 'titolare_profilo')
-            if is_responsabile:
-                chat_ids.add(str(ref.telegram_chat_id))
+            chat_ids.add(str(ref.telegram_chat_id))
     except Exception:
         pass
 
@@ -1339,7 +1338,8 @@ def get_operatori_rapidi_portale():
 
         key_dips = list(
             Dipendente.objects.filter(
-                Q(id__in=(ra_ids | tit_ids | proc_ids | avv_ids))
+                Q(riceve_notifiche_messaggi=True)
+                | Q(id__in=(ra_ids | tit_ids | proc_ids | avv_ids))
                 | Q(nome__iexact='SIMONE', cognome__iexact='CORTINOVIS')
                 | Q(nome__iexact='ROBERTA', cognome__iexact='GAMBA')
                 | Q(nome__iexact='GIORGIO', cognome__iexact='GAMBA')

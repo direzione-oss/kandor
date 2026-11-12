@@ -391,21 +391,35 @@
     <h1>Chat Telegram</h1>
 
     {% if broadcast_ok %}
-    <div class="broadcast-ok">Messaggio inviato a {{ broadcast_ok }} dipendenti{% if sq_name %} della squadra {{ sq_name
-        }}{% endif %}</div>
+    <div class="broadcast-ok">
+        {% if sq_name == 'Responsabili' %}
+        ✅ Messaggio inviato a {{ broadcast_ok }} responsabili
+        {% else %}
+        ✅ Messaggio inviato a {{ broadcast_ok }} dipendenti{% if sq_name %} della squadra {{ sq_name }}{% endif %}
+        {% endif %}
+    </div>
     {% endif %}
 
     <div class="chat-layout">
         <div class="contacts-panel">
-            <div class="panel-title">Broadcast</div>
+            <div class="panel-title">Broadcast / Destinatari</div>
             <select id="broadcastSelect" onchange="if(this.value)window.location=this.value"
                 style="width:calc(100% - 24px);margin:4px 12px 8px;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:#3a5a6e;color:#fff;font-size:13px">
                 <option value="" style="color:#333;background:#fff">-- Seleziona destinatario --</option>
-                <option value="?broadcast=all" style="color:#333;background:#fff">📢 Tutti i dipendenti</option>
-                {% for sq in squadre %}
-                <option value="?broadcast=squadra_{{ sq.id }}" style="color:#333;background:#fff">👥 {{ sq.nome }}
-                </option>
-                {% endfor %}
+                <option value="?broadcast=responsabili" {% if broadcast_mode == 'responsabili' %}selected{% endif %} style="color:#1e40af;background:#eff6ff;font-weight:bold">🔔 Solo i Responsabili ({{ responsabili|length }})</option>
+                <option value="?broadcast=all" {% if broadcast_mode == 'all' %}selected{% endif %} style="color:#333;background:#fff">📢 Tutti i dipendenti</option>
+                {% if responsabili %}
+                <optgroup label="🔔 Singoli Responsabili" style="color:#333;background:#fff">
+                    {% for resp in responsabili %}
+                    <option value="?employee_id={{ resp.id }}" {% if selected_employee_id == resp.id %}selected{% endif %} style="color:#333;background:#fff">👤 {{ resp.nome }} {{ resp.cognome }}</option>
+                    {% endfor %}
+                </optgroup>
+                {% endif %}
+                <optgroup label="👥 Squadre" style="color:#333;background:#fff">
+                    {% for sq in squadre %}
+                    <option value="?broadcast=squadra_{{ sq.id }}" {% if broadcast_mode == 'squadra_'|add:sq.id|stringformat:"s" %}selected{% endif %} style="color:#333;background:#fff">👥 {{ sq.nome }}</option>
+                    {% endfor %}
+                </optgroup>
             </select>
 
             <div class="panel-title">Dipendenti</div>
@@ -506,7 +520,21 @@
             {% elif broadcast_mode %}
             <div class="chat-header broadcast-header">{{ broadcast_label }}</div>
             <div class="chat-history">
-                <div class="msg-status">Scrivi un messaggio o allega un file da inviare a {{ broadcast_label }}</div>
+                <div class="msg-status">Scrivi un messaggio o allega un file da inviare a <strong>{{ broadcast_label }}</strong></div>
+                {% if broadcast_mode == 'responsabili' and responsabili %}
+                <div style="margin:12px auto; max-width:520px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px; text-align:center;">
+                    <div style="font-size:12px; font-weight:700; color:#1e40af; margin-bottom:8px;">
+                        🔔 Destinatari abilitati (RIC.NOT. = Sì):
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">
+                        {% for resp in responsabili %}
+                        <span style="background:#fff; color:#1e3a8a; border:1px solid #93c5fd; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700;">
+                            👤 {{ resp.nome }} {{ resp.cognome }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             <div class="chat-input-area">
                 <div id="attachmentsPreviewBroadcast" class="attachments-preview"></div>
@@ -520,9 +548,11 @@
                             style="display:none"
                             onchange="updateAttachmentPreview(this, 'attachmentsPreviewBroadcast')">
                     </label>
-                    <input type="text" name="message" placeholder="Messaggio broadcast o allegato..." autocomplete="off"
+                    <input type="text" name="message" placeholder="Messaggio o allegato per {{ broadcast_label }}..." autocomplete="off"
                         autofocus>
-                    <button type="submit" style="background:#8e44ad">Invia a tutti</button>
+                    <button type="submit" style="background:#8e44ad">
+                        {% if broadcast_mode == 'responsabili' %}Invia ai Responsabili{% else %}Invia a tutti{% endif %}
+                    </button>
                 </form>
             </div>
 

@@ -298,7 +298,21 @@ def chat_simulator_view(request):
                         pass
                 broadcast_result = f"Inviato a {sent} dipendenti"
                 return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}')
-                
+
+            elif broadcast_target == 'responsabili':
+                # Invio SOLO ai Responsabili abilitati (RIC.NOT. = True)
+                responsabili_qs = Dipendente.objects.filter(stato='ATTIVO', riceve_notifiche_messaggi=True)
+                sent = 0
+                prefix = "[Responsabili] "
+                resp_text = (prefix + msg) if msg else "[Responsabili]"
+                for dip in responsabili_qs:
+                    try:
+                        if send_and_record_telegram_to_employee(dip, text=resp_text, attachments=attachments):
+                            sent += 1
+                    except Exception:
+                        pass
+                return HttpResponseRedirect(f'/chat-simulator/?broadcast_ok={sent}&sq=Responsabili')
+
             elif broadcast_target.startswith('squadra_'):
                 # Invio a una SQUADRA
                 sq_id = broadcast_target.replace('squadra_', '')
@@ -355,6 +369,8 @@ def chat_simulator_view(request):
     broadcast_label = ''
     if broadcast_mode == 'all':
         broadcast_label = 'Tutti i dipendenti'
+    elif broadcast_mode == 'responsabili':
+        broadcast_label = '🔔 Solo i Responsabili'
     elif broadcast_mode.startswith('squadra_'):
         try:
             bsq = Squadra.objects.get(pk=broadcast_mode.replace('squadra_', ''))
@@ -366,11 +382,15 @@ def chat_simulator_view(request):
     employees = Dipendente.objects.filter(stato='ATTIVO').annotate(
         unread_count=Count('messaggi_chat', filter=Q(messaggi_chat__direzione='IN', messaggi_chat__letto=False))
     ).order_by('-unread_count', 'nome', 'cognome')
+    responsabili = list(
+        Dipendente.objects.filter(stato='ATTIVO', riceve_notifiche_messaggi=True).order_by('cognome', 'nome')
+    )
     squadre = Squadra.objects.all()
     total_unread = sum(e.unread_count for e in employees)
     
     return render(request, 'core/chat_simulator.html', {
         'employees': employees,
+        'responsabili': responsabili,
         'squadre': squadre,
         'selected_employee_id': selected_employee_id,
         'selected_employee': selected_employee,
