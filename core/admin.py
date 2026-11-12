@@ -513,13 +513,13 @@ class DipendenteAdmin(KandorBaseAdmin):
         updated = queryset.update(riceve_notifiche_messaggi=False)
         self.message_user(request, f'🔕 Flag "Riceve notifiche messaggi (Solo Responsabili)" disabilitato per {updated} dipendenti.', messages.SUCCESS)
 
-    @admin.display(description='🔔 Riceve notifiche messaggi (Solo Responsabili)', ordering='riceve_notifiche_messaggi')
+    @admin.display(description='RIC.NOT.', ordering='riceve_notifiche_messaggi')
     def riceve_notifiche_toggle_badge(self, obj):
         checked_attr = 'checked' if obj.riceve_notifiche_messaggi else ''
         bg = '#DBEAFE' if obj.riceve_notifiche_messaggi else '#F1F5F9'
         fg = '#1E40AF' if obj.riceve_notifiche_messaggi else '#64748B'
         border = '#93C5FD' if obj.riceve_notifiche_messaggi else '#CBD5E1'
-        lbl = 'Abilitato (Responsabile)' if obj.riceve_notifiche_messaggi else 'No'
+        lbl = 'Sì' if obj.riceve_notifiche_messaggi else 'No'
         js_call = (
             "var cb=this; var wrap=cb.closest('label'); var sp=wrap.querySelector('.notif-lbl');"
             "cb.disabled=true; sp.textContent='⏳...';"
@@ -531,8 +531,8 @@ class DipendenteAdmin(KandorBaseAdmin):
             "    wrap.style.background = d.riceve_notifiche_messaggi ? '#DBEAFE' : '#F1F5F9';"
             "    wrap.style.color = d.riceve_notifiche_messaggi ? '#1E40AF' : '#64748B';"
             "    wrap.style.borderColor = d.riceve_notifiche_messaggi ? '#93C5FD' : '#CBD5E1';"
-            "    sp.textContent = '✓ Salvato';"
-            "    setTimeout(function(){ sp.textContent = d.riceve_notifiche_messaggi ? 'Abilitato (Responsabile)' : 'No'; }, 900);"
+            "    sp.textContent = '✓';"
+            "    setTimeout(function(){ sp.textContent = d.riceve_notifiche_messaggi ? 'Sì' : 'No'; }, 900);"
             "  } else { cb.checked = !cb.checked; sp.textContent = 'Errore'; }"
             "}).catch(function(){ cb.disabled=false; cb.checked = !cb.checked; sp.textContent='Errore'; });"
         )
