@@ -189,8 +189,8 @@ class AssenzaAdmin(KandorBaseAdmin):
 
 
 # -- Branding Configuration --
-admin.site.site_header = "Kandor Administration"
-admin.site.site_title = "Kandor Portal"
+admin.site.site_header = "KANDOR ERP  -   Enterprise Resource Planning"
+admin.site.site_title = "KANDOR ERP  -   Enterprise Resource Planning"
 admin.site.index_title = "Benvenuto in Kandor"
 
 

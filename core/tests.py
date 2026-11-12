@@ -1118,7 +1118,7 @@ class AIEngineAndHubTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         html_content = resp.content.decode('utf-8')
         self.assertIn('core/img/logo.png', html_content)
-        self.assertIn('Kandor Portal', html_content)
+        self.assertIn('KANDOR ERP', html_content)
         self.assertIn('href="/admin/"', html_content)
 
     def test_6_inserimento_ore_amministrazione_da_turno_calendario(self):
