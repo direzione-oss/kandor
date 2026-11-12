@@ -334,40 +334,13 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             except Exception:
                 return {"text": "Errore nel recupero del turno.", "reply_markup": get_main_menu()}
             
-            res = _salva_ore_turno(dipendente, assegnazione, hours, text, note_extra=note_extra)
-
-            # Se le ore inserite sono diverse da quelle previste e non è già stato indicato un motivo, richiedilo (non obbligatorio)
-            _ore_prev = None
-            if assegnazione.ore_previste_contratto and assegnazione.ore_previste_contratto > 0:
-                _ore_prev = round(float(assegnazione.ore_previste_contratto), 1)
-            elif assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto:
-                try:
-                    _dt_s = datetime.combine(date.today(), assegnazione.orario_inizio_previsto)
-                    _dt_e = datetime.combine(date.today(), assegnazione.orario_fine_previsto)
-                    if _dt_e < _dt_s:
-                        _dt_e += timedelta(days=1)
-                    _ore_prev = round((_dt_e - _dt_s).total_seconds() / 3600.0, 1)
-                except Exception:
-                    pass
-
-            if _ore_prev and abs(hours - _ore_prev) >= 0.01 and not note_extra and isinstance(res, dict):
-                _TELEGRAM_STATE[telegram_chat_id] = {
-                    'action': 'attesa_motivo_ore',
-                    'assegnazione_id': assegnazione.pk,
-                }
-                res['text'] = (
-                    res.get('text', '')
-                    + f"\n\n⚠️ Hai inserito {hours:g}h invece delle {_ore_prev:g}h previste.\n"
-                    + "📝 Vuoi indicare il motivo della variazione? Scrivilo qui sotto (non obbligatorio, oppure scrivi 'salta'):"
-                )
-            return res
+            return _salva_ore_turno(dipendente, assegnazione, hours, text, note_extra=note_extra)
         
         # Attesa testo segnalazione
         
         # Attesa date malattia o ferie
         if action in ['attesa_date_malattia', 'attesa_date_ferie']:
             del _TELEGRAM_STATE[telegram_chat_id]
-            import datetime
             tipo = 'MALATTIA' if action == 'attesa_date_malattia' else 'FERIE'
             # Parser data: DD/MM/YYYY (opzionale - DD/MM/YYYY)
             pattern = r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?'
@@ -383,7 +356,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 year = int(m[2]) if m[2] else today.year
                 if year < 100: year += 2000
                 try:
-                    dates.append(datetime.date(year, month, day))
+                    dates.append(date(year, month, day))
                 except ValueError:
                     return "Data non valida. Riprova."
             
@@ -397,7 +370,6 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
         # Attesa date 104
         if action == 'attesa_dati_104':
             del _TELEGRAM_STATE[telegram_chat_id]
-            import datetime
             pattern = r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?'
             matches = re.findall(pattern, text)
             
@@ -411,7 +383,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 year = int(m[2]) if m[2] else today.year
                 if year < 100: year += 2000
                 try:
-                    dates.append(datetime.date(year, month, day))
+                    dates.append(date(year, month, day))
                 except ValueError:
                     return "Data non valida. Riprova."
             
@@ -425,7 +397,6 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
         # Attesa dati permesso
         if action == 'attesa_dati_permesso':
             del _TELEGRAM_STATE[telegram_chat_id]
-            import datetime
             
             # Parser: 15/10/2026 09:00 - 11:00
             date_pattern = r'(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?'
@@ -443,7 +414,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 year = int(m[2]) if m[2] else today.year
                 if year < 100: year += 2000
                 try:
-                    data_permesso = datetime.date(year, month, day)
+                    data_permesso = date(year, month, day)
                 except ValueError:
                     return "Data non valida."
             
@@ -451,8 +422,8 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 return "Devi specificare sia l'ora di inizio che l'ora di fine (es. 09:00 - 11:00)."
                 
             try:
-                ora_inizio = datetime.time(int(t_matches[0][0]), int(t_matches[0][1]))
-                ora_fine = datetime.time(int(t_matches[1][0]), int(t_matches[1][1]))
+                ora_inizio = time(int(t_matches[0][0]), int(t_matches[0][1]))
+                ora_fine = time(int(t_matches[1][0]), int(t_matches[1][1]))
             except ValueError:
                 return "Orari non validi."
                 
@@ -910,6 +881,20 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         assign_id = callback_data.replace('conf_squadra_si_', '')
         try:
             assign = AssegnazioneTurno.objects.select_related('cliente').get(pk=assign_id)
+            st = _TELEGRAM_STATE.get(str(telegram_chat_id), {})
+            if st.get('action') == 'attesa_motivo_ore':
+                return {
+                    'text': (
+                        f"✅ Perfetto, presenza confermata per tutti i componenti della squadra per il turno {assign.cliente.ragione_sociale}.\n\n"
+                        f"📝 Scrivi ora qui sotto il motivo delle ore diverse da quelle previste (oppure premi 'Salta', non è obbligatorio):"
+                    ),
+                    'reply_markup': {
+                        'inline_keyboard': [
+                            [{'text': '⏭ Salta (nessuna motivazione)', 'callback_data': f'salta_motivo_ore_{assign.pk}'}],
+                            [{'text': '🏠 Menu Principale', 'callback_data': 'menu_start'}],
+                        ]
+                    },
+                }
             return {
                 'text': f"✅ Perfetto, presenza confermata per tutti i componenti della squadra per il turno {assign.cliente.ragione_sociale}.\n\nLe ore sono state contabilizzate per l'intero gruppo.",
                 'reply_markup': get_main_menu(dipendente)
@@ -1138,6 +1123,14 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
             )
         except Exception as e:
             return {'text': f"❌ Errore invio assenza: {e}", 'reply_markup': get_main_menu(dipendente)}
+
+    # Salta inserimento motivazione ore diverse da quelle previste (opzionale)
+    if callback_data.startswith('salta_motivo_ore'):
+        _TELEGRAM_STATE.pop(str(telegram_chat_id), None)
+        return {
+            'text': "👍 Perfetto, ore confermate senza motivazione aggiuntiva.",
+            'reply_markup': get_main_menu(dipendente),
+        }
     
     return {'text': "Comando non riconosciuto.", 'reply_markup': get_main_menu(dipendente)}
 
@@ -1207,6 +1200,27 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text, note_extra=
             )
             send_telegram_message(alt_dip.telegram_chat_id, msg_collega)
 
+    # Calcola ore previste per verificare eventuale scostamento
+    _ore_prev = None
+    if assegnazione.ore_previste_contratto and assegnazione.ore_previste_contratto > 0:
+        _ore_prev = round(float(assegnazione.ore_previste_contratto), 1)
+    elif assegnazione.orario_inizio_previsto and assegnazione.orario_fine_previsto:
+        try:
+            _dt_s = datetime.combine(date.today(), assegnazione.orario_inizio_previsto)
+            _dt_e = datetime.combine(date.today(), assegnazione.orario_fine_previsto)
+            if _dt_e < _dt_s:
+                _dt_e += timedelta(days=1)
+            _ore_prev = round((_dt_e - _dt_s).total_seconds() / 3600.0, 1)
+        except Exception:
+            pass
+
+    richiedi_motivo = bool(_ore_prev and abs(float(hours) - _ore_prev) >= 0.01 and not note_extra)
+    if richiedi_motivo and dipendente.telegram_chat_id:
+        _TELEGRAM_STATE[str(dipendente.telegram_chat_id)] = {
+            'action': 'attesa_motivo_ore',
+            'assegnazione_id': assegnazione.pk,
+        }
+
     # 5. SE CI SONO ALTRI COMPONENTI, CHIEDI LA VERIFICA PRESENZA SQUADRA A CHI HA SCRITTO
     if altri_comp:
         nomi_comp = "\n".join([f"• {c.nome} {c.cognome}" for c in altri_comp])
@@ -1215,6 +1229,11 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text, note_extra=
             f"👥 Confermi la presenza anche degli altri componenti della squadra?\n"
             f"{nomi_comp}"
         )
+        if richiedi_motivo:
+            prompt_text += (
+                f"\n\n⚠️ Hai inserito {float(hours):g}h invece delle {_ore_prev:g}h previste.\n"
+                f"📝 Se vuoi, scrivi qui sotto il motivo della variazione (non è obbligatorio):"
+            )
         keyboard = {
             'inline_keyboard': [
                 [{'text': '✅ Sì, squadra al completo', 'callback_data': f'conf_squadra_si_{assegnazione.pk}'}],
@@ -1223,6 +1242,21 @@ def _salva_ore_turno(dipendente, assegnazione, hours, original_text, note_extra=
             ]
         }
         return {'text': prompt_text, 'reply_markup': keyboard}
+
+    if richiedi_motivo:
+        return {
+            'text': (
+                f"✅ {action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).\n\n"
+                f"⚠️ Hai inserito {float(hours):g}h invece delle {_ore_prev:g}h previste.\n"
+                f"📝 Scrivi qui sotto il motivo delle ore diverse da quelle previste (non obbligatorio, puoi anche premere 'Salta'):"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '⏭ Salta (nessuna motivazione)', 'callback_data': f'salta_motivo_ore_{assegnazione.pk}'}],
+                    [{'text': '🏠 Menu Principale', 'callback_data': 'menu_start'}],
+                ]
+            },
+        }
 
     return {
         'text': f"✅ {action}! {hours}h per {assegnazione.cliente.ragione_sociale} ({data_str}).",
