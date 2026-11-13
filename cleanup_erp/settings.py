@@ -93,23 +93,12 @@ WSGI_APPLICATION = 'cleanup_erp.wsgi.application'
 
 
 # =====================================================
-# DATABASE — Supabase PostgreSQL
-# =====================================================
-# Le credenziali vengono lette dal file .env
-# Per tornare a SQLite locale, decommentare il blocco sotto
-# e commentare quello Supabase.
-# =====================================================
-
-# =====================================================
-# DATABASE — modalità automatica
-#   LOCAL_DEV=1  →  SQLite locale (veloce, offline)
-#   (default)    →  Supabase PostgreSQL (produzione)
+# DATABASE — PostgreSQL VPS Coolify (Produzione) / SQLite (Locale)
 # =====================================================
 import urllib.parse
 
-db_url = os.environ.get('DATABASE_URL') or os.environ.get('SUPABASE_DB_URL')
-supabase_pw = os.environ.get('SUPABASE_DB_PASSWORD')
-use_postgres = (os.environ.get('USE_POSTGRES') == '1' or ((db_url or supabase_pw) and os.environ.get('USE_POSTGRES') != '0'))
+db_url = os.environ.get('DATABASE_URL')
+use_postgres = (os.environ.get('USE_POSTGRES') == '1' or (bool(db_url) and os.environ.get('USE_POSTGRES') != '0'))
 
 if use_postgres:
     if db_url:
@@ -122,15 +111,13 @@ if use_postgres:
         db_name = parsed.path.lstrip('/') or 'postgres'
         db_password = urllib.parse.unquote(parsed.password or '')
     else:
-        db_host = os.environ.get('SUPABASE_DB_HOST', 'localhost')
-        db_user = os.environ.get('SUPABASE_DB_USER', 'postgres')
-        db_port = str(os.environ.get('SUPABASE_DB_PORT', '5432'))
-        db_name = os.environ.get('SUPABASE_DB_NAME', 'postgres')
-        db_password = os.environ.get('SUPABASE_DB_PASSWORD', '')
+        db_host = os.environ.get('DB_HOST', 'localhost')
+        db_user = os.environ.get('DB_USER', 'postgres')
+        db_port = str(os.environ.get('DB_PORT', '5432'))
+        db_name = os.environ.get('DB_NAME', 'kandor')
+        db_password = os.environ.get('DB_PASSWORD', '')
 
-    db_sslmode = os.environ.get('DB_SSLMODE')
-    if not db_sslmode:
-        db_sslmode = 'require' if ('supabase.com' in db_host or 'supabase.co' in db_host) else 'prefer'
+    db_sslmode = os.environ.get('DB_SSLMODE', 'prefer')
 
     DATABASES = {
         'default': {
@@ -245,17 +232,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Ottieni il token da @BotFather su Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
-# Supabase Storage (per foto profilo e allegati)
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
-SUPABASE_KEY = SUPABASE_SERVICE_KEY  # alias usato in views._upload_foto_profilo_supabase
-SUPABASE_STORAGE_BUCKET = os.environ.get('SUPABASE_STORAGE_BUCKET', 'kandor-media')
-
-# Token per endpoint riepilogo settimanale (cron-job.org → GET /titolari/riepilogo/?token=...)
+# Token per endpoint riepilogo settimanale (GET /titolari/riepilogo/?token=...)
 RIEPILOGO_TOKEN = os.environ.get('RIEPILOGO_TOKEN', '')
 
 # URL del repository GitHub (usato dall'installer locale)
-# Imposta come variabile d'ambiente su Render oppure qui sotto
 GITHUB_REPO_URL = os.environ.get(
     'GITHUB_REPO_URL',
     'https://github.com/direzione-oss/kandor.git'
@@ -286,7 +266,7 @@ CSRF_COOKIE_AGE = 60 * 60 * 24 * 30
 CSRF_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SECURE = not is_local_dev
 
-# Gestione Proxy SSL (fondamentale per Render e ngrok dietro HTTPS)
+# Gestione Proxy SSL (fondamentale per Traefik/Coolify dietro HTTPS)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
@@ -296,7 +276,7 @@ LOGIN_URL = '/admin/login/'
 LOGIN_REDIRECT_URL = '/admin/'
 LOGOUT_REDIRECT_URL = '/admin/login/'
 
-# Origini fidate per CSRF (necessario in Django per richieste HTTPS)
+# Origini fidate per CSRF (necessario in Django per richieste HTTPS su VPS Coolify)
 CSRF_TRUSTED_ORIGINS = [
     'https://kandor.187.126.30.207.sslip.io',
     'http://kandor.187.126.30.207.sslip.io',
@@ -305,13 +285,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://kandor.serrastudio.it',
     'http://kandor.serrastudio.it',
     'https://*.serrastudio.it',
-    'https://kandor.onrender.com',
-    'http://kandor.onrender.com',
-    'https://*.onrender.com',
-    'http://*.onrender.com',
     'https://*.ngrok-free.app',
     'https://*.ngrok-free.dev',
-    'https://*.railway.app',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]

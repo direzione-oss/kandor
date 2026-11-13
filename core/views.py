@@ -1075,16 +1075,15 @@ def get_assegnazione_componenti_json(request, assign_id):
         return JsonResponse({'status': 'error', 'error': str(e)})
 
 
-def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
+def _salva_foto_profilo_media(telegram_foto_url, dipendente_id):
     """
-    Scarica la foto da Telegram, la salva localmente nel campo Dipendente.foto e
-    se configurato la carica su Supabase Storage.
-    Ritorna l'URL permanente (Supabase o Media locale), prevenendo l'uso di URL Telegram temporanei.
+    Scarica la foto da Telegram e la salva in modo permanente nel volume Media locale (/app/media)
+    sul campo Dipendente.foto.
+    Ritorna l'URL permanente Media, prevenendo l'uso di URL Telegram temporanei.
     """
     try:
         import requests as req
         from django.core.files.base import ContentFile
-        from django.conf import settings
         from .models import Dipendente
 
         resp = req.get(telegram_foto_url, timeout=15)
@@ -1092,80 +1091,33 @@ def _upload_foto_profilo_supabase(telegram_foto_url, dipendente_id):
             return None
         foto_bytes = resp.content
 
-        # 1. Salva il file permanente locale
         dip = Dipendente.objects.filter(pk=dipendente_id).first()
         file_name = f"dipendente_{dipendente_id}.jpg"
-        local_url = None
         if dip:
             dip.foto.save(file_name, ContentFile(foto_bytes), save=True)
-            local_url = dip.foto.url if dip.foto else None
-
-        # 2. Prova anche l'upload su Supabase Storage se configurato
-        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
-        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
-
-        if supabase_url and supabase_key:
-            bucket = "avatar"
-            upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
-            upload_resp = req.post(
-                upload_url,
-                data=foto_bytes,
-                headers={
-                    "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": "image/jpeg",
-                    "x-upsert": "true",
-                },
-                timeout=20
-            )
-            if upload_resp.status_code in (200, 201):
-                return f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
-
-        return local_url
-
+            return dip.foto.url if dip.foto else None
     except Exception as e:
         print(f"[FotoProfiloUpload] Errore salvataggio foto profilo: {e}")
 
     return None
 
-def _upload_chat_foto_supabase(telegram_foto_url, chat_id):
+
+def _salva_chat_foto_media(telegram_foto_url, chat_id):
     """
-    Scarica la foto dalla chat Telegram e la salva su Supabase Storage.
-    Ritorna l'URL permanente (Supabase) o il Telegram URL come fallback.
+    Scarica la foto dalla chat Telegram e la salva in modo permanente nel volume Media locale (/app/media).
+    Ritorna l'URL permanente Media o il Telegram URL come fallback.
     """
     try:
         import requests as req
-        from django.conf import settings
         import uuid
-        import os
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
 
         resp = req.get(telegram_foto_url, timeout=15)
         if not resp.ok:
             return telegram_foto_url
         foto_bytes = resp.content
 
-        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
-        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
-        bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'kandor-media')
-
-        if supabase_url and supabase_key:
-            file_name = f"chat_{chat_id}_{uuid.uuid4().hex[:8]}.jpg"
-            upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{file_name}"
-            upload_resp = req.post(
-                upload_url,
-                data=foto_bytes,
-                headers={
-                    "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": "image/jpeg",
-                    "x-upsert": "true",
-                },
-                timeout=20
-            )
-            if upload_resp.status_code in (200, 201):
-                return f"{supabase_url}/storage/v1/object/public/{bucket}/{file_name}"
-        
-        # Fallback se Supabase non va a buon fine, salviamo file locale in media
-        from django.core.files.storage import default_storage
-        from django.core.files.base import ContentFile
         file_name = f"chat_images/chat_{chat_id}_{uuid.uuid4().hex[:8]}.jpg"
         saved_path = default_storage.save(file_name, ContentFile(foto_bytes))
         return default_storage.url(saved_path)
@@ -1173,6 +1125,11 @@ def _upload_chat_foto_supabase(telegram_foto_url, chat_id):
         print(f"[ChatFotoUpload] Errore salvataggio foto chat: {e}")
 
     return telegram_foto_url
+
+
+# Alias per retrocompatibilità
+_upload_foto_profilo_supabase = _salva_foto_profilo_media
+_upload_chat_foto_supabase = _salva_chat_foto_media
 
 @csrf_exempt
 def telegram_webhook_view(request):

@@ -56,22 +56,31 @@ def get_calendario_giornaliero(dipendente, data_calendario):
     try:
         from datetime import timedelta
         
-        assegnazioni = AssegnazioneTurno.objects.filter(
-            turno__data=data_calendario
-        ).filter(
-            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
-        ).select_related('cliente', 'turno').distinct().order_by('orario_inizio_previsto')
+        assegnazioni = list(
+            AssegnazioneTurno.objects.filter(
+                turno__data=data_calendario
+            ).filter(
+                Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+            ).select_related('cliente', 'turno', 'turno__squadra').distinct().order_by('orario_inizio_previsto')
+        )
         
         testo = f"📅 Calendario del {data_calendario.strftime('%d/%m/%Y')}\n\n"
         
-        if not assegnazioni.exists():
+        if not assegnazioni:
             testo += "Nessun turno assegnato per questa giornata.\n"
         else:
+            tt_map = {
+                t.assegnazione_id: t
+                for t in TimeTracking.objects.filter(
+                    dipendente=dipendente,
+                    assegnazione_id__in=[a.id for a in assegnazioni],
+                )
+            }
             for a in assegnazioni:
                 inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
                 fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
-                cliente_nome = a.cliente.ragione_sociale
-                squadra_nome = a.turno.squadra.nome
+                cliente_nome = a.cliente.ragione_sociale if a.cliente else 'Cliente'
+                squadra_nome = a.turno.squadra.nome if (a.turno and a.turno.squadra) else 'Squadra'
                 
                 testo += f"🏢 *{cliente_nome}*\n"
                 testo += f"🕒 {inizio} - {fine} (Squadra: {squadra_nome})\n"
@@ -80,8 +89,8 @@ def get_calendario_giornaliero(dipendente, data_calendario):
                 if a.mansione_svolta:
                     testo += f"📋 Mansione: {a.mansione_svolta}\n"
                 
-                # Cerca timetracking
-                tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).first()
+                # Usa TimeTracking pre-caricato in batch
+                tt = tt_map.get(a.id)
                 if tt:
                     ore = tt.ore_dichiarate if tt.ore_dichiarate else 'N/D'
                     note = tt.note if tt.note else 'Nessuna'
@@ -141,11 +150,19 @@ def get_turni_oggi_keyboard(dipendente):
     """Ritorna tastiera inline con i turni di OGGI del dipendente."""
     try:
         today = timezone.now().date()
-        assegnazioni = AssegnazioneTurno.objects.filter(
-            turno__data=today
-        ).filter(
-            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
-        ).select_related('cliente', 'turno').distinct()
+        assegnazioni = list(
+            AssegnazioneTurno.objects.filter(
+                turno__data=today
+            ).filter(
+                Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+            ).select_related('cliente', 'turno').distinct()
+        )
+        compilati_ids = set(
+            TimeTracking.objects.filter(
+                dipendente=dipendente,
+                assegnazione_id__in=[a.id for a in assegnazioni],
+            ).values_list('assegnazione_id', flat=True)
+        ) if assegnazioni else set()
         
         keyboard = []
         for a in assegnazioni:
@@ -153,9 +170,7 @@ def get_turni_oggi_keyboard(dipendente):
             fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
             cliente_nome = a.cliente.ragione_sociale[:20] if a.cliente else 'N/D'
             label = f"{cliente_nome} ({inizio}-{fine})"
-            # Controlla se già compilato
-            has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
-            if has_tt:
+            if a.id in compilati_ids:
                 label = f"✅ {label}"
             keyboard.append([{'text': label, 'callback_data': f'ore_turno_{a.pk}'}])
         
@@ -176,19 +191,26 @@ def get_turni_non_compilati_keyboard(dipendente):
         today = timezone.now().date()
         trentuno_giorni_fa = today - td(days=31)
         
-        assegnazioni = AssegnazioneTurno.objects.filter(
-            turno__data__gte=trentuno_giorni_fa,
-            turno__data__lte=today,
-        ).filter(
-            Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
-        ).exclude(
-            dipendenti_esclusi=dipendente
-        ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
+        assegnazioni = list(
+            AssegnazioneTurno.objects.filter(
+                turno__data__gte=trentuno_giorni_fa,
+                turno__data__lte=today,
+            ).filter(
+                Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+            ).exclude(
+                dipendenti_esclusi=dipendente
+            ).select_related('cliente', 'turno').order_by('-turno__data').distinct()
+        )
+        compilati_ids = set(
+            TimeTracking.objects.filter(
+                dipendente=dipendente,
+                assegnazione_id__in=[a.id for a in assegnazioni],
+            ).values_list('assegnazione_id', flat=True)
+        ) if assegnazioni else set()
         
         keyboard = []
         for a in assegnazioni:
-            has_tt = TimeTracking.objects.filter(assegnazione=a, dipendente=dipendente).exists()
-            if not has_tt:
+            if a.id not in compilati_ids:
                 data_str = a.turno.data.strftime('%d/%m')
                 inizio = a.orario_inizio_previsto.strftime('%H:%M') if a.orario_inizio_previsto else '?'
                 fine = a.orario_fine_previsto.strftime('%H:%M') if a.orario_fine_previsto else '?'
@@ -1675,39 +1697,14 @@ def send_telegram_file(chat_id, file_bytes, filename, caption='', content_type=N
 
 
 def _save_uploaded_attachment_storage(file_bytes, filename, content_type=None):
-    """Salva l'allegato caricato dall'ufficio su Supabase Storage o su storage locale e restituisce l'URL."""
+    """Salva l'allegato caricato dall'ufficio sul volume Media persistente VPS (/app/media) e restituisce l'URL."""
     import os
     import uuid
     import re
-    from django.conf import settings
 
     ext = os.path.splitext(filename or '')[1].lower() or '.bin'
     base = re.sub(r'[^a-zA-Z0-9_\-]', '_', os.path.splitext(filename or 'file')[0])[:40]
     stored_name = f"chat_office_{base}_{uuid.uuid4().hex[:8]}{ext}"
-    mime = content_type or 'application/octet-stream'
-
-    try:
-        import requests as req
-        supabase_url = getattr(settings, 'SUPABASE_URL', '') or os.environ.get('SUPABASE_URL', '')
-        supabase_key = getattr(settings, 'SUPABASE_KEY', '') or os.environ.get('SUPABASE_KEY', '')
-        bucket = getattr(settings, 'SUPABASE_STORAGE_BUCKET', 'kandor-media')
-
-        if supabase_url and supabase_key:
-            upload_url = f"{supabase_url}/storage/v1/object/{bucket}/{stored_name}"
-            upload_resp = req.post(
-                upload_url,
-                data=file_bytes,
-                headers={
-                    "Authorization": f"Bearer {supabase_key}",
-                    "Content-Type": mime,
-                    "x-upsert": "true",
-                },
-                timeout=25,
-            )
-            if upload_resp.status_code in (200, 201):
-                return f"{supabase_url}/storage/v1/object/public/{bucket}/{stored_name}"
-    except Exception as e:
-        print(f"[AttachmentUpload] Supabase fallback: {e}")
 
     try:
         from django.core.files.storage import default_storage
@@ -1873,7 +1870,33 @@ def invia_promemoria_ore_mancanti(only_check=False, test_chat_id=None):
     errori = 0
     dettagli = []
 
-    for emp in query_emps:
+    emp_list = list(query_emps)
+    emp_ids = [e.id for e in emp_list]
+    if not emp_ids:
+        return {'inviati': 0, 'errori': 0, 'dettagli': []}
+
+    # Pre-carica assenze e timetracking della finestra (yesterday..today) per eliminare le query N+1
+    assenze_attive = list(
+        Assenza.objects.filter(
+            dipendente_id__in=emp_ids,
+            data_inizio__lte=today,
+            data_fine__gte=yesterday,
+        ).exclude(stato_approvazione='RIFIUTATA')
+    )
+    assenze_per_emp = {}
+    for ass in assenze_attive:
+        assenze_per_emp.setdefault(ass.dipendente_id, []).append(ass)
+
+    tt_compilati = set()
+    for tt_row in TimeTracking.objects.filter(
+        dipendente_id__in=emp_ids,
+        assegnazione__turno__data__gte=yesterday,
+        assegnazione__turno__data__lte=today,
+    ):
+        if tt_row.ore_dichiarate is not None or tt_row.durata_ore:
+            tt_compilati.add((tt_row.dipendente_id, tt_row.assegnazione_id))
+
+    for emp in emp_list:
         assigns = AssegnazioneTurno.objects.filter(
             turno__data__gte=yesterday,
             turno__data__lte=today
@@ -1881,22 +1904,20 @@ def invia_promemoria_ore_mancanti(only_check=False, test_chat_id=None):
             Q(turno__squadra__componenti=emp) | Q(turno__squadra__caposquadra=emp)
         ).select_related('cliente', 'turno').distinct().order_by('turno__data', 'orario_inizio_previsto')
 
+        emp_assenze = assenze_per_emp.get(emp.id, [])
         missing_assigns = []
         for a in assigns:
             if a.turno.data == today and a.orario_inizio_previsto and a.orario_inizio_previsto > current_time:
                 continue
 
-            has_assenza = Assenza.objects.filter(
-                dipendente=emp,
-                data_inizio__lte=a.turno.data,
-                data_fine__gte=a.turno.data
-            ).exclude(stato_approvazione='RIFIUTATA').exists()
-
+            has_assenza = any(
+                ass.data_inizio <= a.turno.data <= ass.data_fine
+                for ass in emp_assenze
+            )
             if has_assenza:
                 continue
 
-            tt = TimeTracking.objects.filter(assegnazione=a, dipendente=emp).first()
-            if not tt or (tt.ore_dichiarate is None and not tt.durata_ore):
+            if (emp.id, a.id) not in tt_compilati:
                 missing_assigns.append(a)
 
         if not missing_assigns:

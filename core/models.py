@@ -1,9 +1,9 @@
 import os
 from decimal import Decimal
 from django.db import models
-from django.db.models.signals import pre_save
+from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
-from .utils_geocoding import geocode_address
+from .utils_geocoding import geocode_address, get_cached_geocode, schedule_async_geocode
 from django.utils.translation import gettext_lazy as _
 
 # Se PostGIS fosse attivo:
@@ -513,6 +513,9 @@ class Turno(models.Model):
 
     class Meta:
         verbose_name_plural = "Turni"
+        indexes = [
+            models.Index(fields=['data', 'squadra'], name='core_turno_data_sq_idx'),
+        ]
 
 class AssegnazioneTurno(models.Model):
     turno = models.ForeignKey(Turno, on_delete=models.CASCADE, related_name='assegnazioni')
@@ -591,6 +594,9 @@ class AssegnazioneTurno(models.Model):
     class Meta:
         verbose_name = "Assegnazione Turno"
         verbose_name_plural = "Assegnazioni Turno"
+        indexes = [
+            models.Index(fields=['turno', 'cliente'], name='core_assign_turno_cli_idx'),
+        ]
 
 class TimeTracking(models.Model):
     dipendente = models.ForeignKey(Dipendente, on_delete=models.CASCADE)
@@ -610,6 +616,12 @@ class TimeTracking(models.Model):
     ]
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='MANUAL')
     is_validated = models.BooleanField(default=False, verbose_name="Validato")
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['dipendente', 'assegnazione'], name='core_tt_dip_assign_idx'),
+            models.Index(fields=['assegnazione', 'is_validated'], name='core_tt_assign_val_idx'),
+        ]
 
     @property
     def durata_ore(self):
@@ -2274,41 +2286,79 @@ class SchedulerExecutionLog(models.Model):
         return f"{self.job_name} ({self.execution_date})"
 
 
-# --- Geocoding Signals ---
+# --- Geocoding Signals (Non-blocking Post-Commit + Cache) ---
 @receiver(pre_save, sender=Dipendente)
 def geocode_dipendente_address(sender, instance, **kwargs):
     geocode_helper(instance, 'indirizzo_residenza')
+
 
 @receiver(pre_save, sender=Cliente)
 def geocode_cliente_address(sender, instance, **kwargs):
     geocode_helper(instance, 'indirizzo_sede')
 
+
+@receiver(post_save, sender=Dipendente)
+def post_save_geocode_dipendente(sender, instance, **kwargs):
+    pending = getattr(instance, '_pending_async_geocode', None)
+    if pending:
+        instance._pending_async_geocode = None
+        schedule_async_geocode(Dipendente, instance.pk, 'indirizzo_residenza', pending)
+
+
+@receiver(post_save, sender=Cliente)
+def post_save_geocode_cliente(sender, instance, **kwargs):
+    pending = getattr(instance, '_pending_async_geocode', None)
+    if pending:
+        instance._pending_async_geocode = None
+        schedule_async_geocode(Cliente, instance.pk, 'indirizzo_sede', pending)
+
+
 def geocode_helper(instance, address_field):
-    # Skip durante loaddata/push per evitare chiamate lente all'API
+    # Skip durante loaddata/push/test per evitare chiamate esterne
     if os.environ.get('SKIP_GEOCODING'):
         return
 
-    address = getattr(instance, address_field)
+    address = (getattr(instance, address_field, '') or '').strip()
     if not address:
         return
 
-    # Check if address changed or is new
+    update_fields = kwargs_update_fields = getattr(instance, '_ geo_update_fields', None)
+    if update_fields and address_field not in update_fields:
+        return
+
+    # Verifica se l'indirizzo è cambiato o se mancano le coordinate
     should_geocode = False
     if instance.pk:
-        try:
-            old_instance = instance.__class__.objects.get(pk=instance.pk)
-            old_address = getattr(old_instance, address_field)
-            if address != old_address:
-                should_geocode = True
-        except instance.__class__.DoesNotExist:
+        old_address = (
+            instance.__class__.objects.filter(pk=instance.pk)
+            .values_list(address_field, flat=True)
+            .first()
+        )
+        if old_address is None or (old_address or '').strip() != address:
             should_geocode = True
     else:
-        should_geocode = True
+        if instance.latitudine is None or instance.longitudine is None:
+            should_geocode = True
 
-    if should_geocode:
+    if not should_geocode:
+        return
+
+    # 1. Se le coordinate sono già in cache, applicale istantaneamente in 0ms
+    cached = get_cached_geocode(address)
+    if cached and isinstance(cached, (tuple, list)) and len(cached) == 2:
+        instance.latitudine, instance.longitudine = cached[0], cached[1]
+        return
+
+    # 2. Se richiesto geocoding sincrono esplicito (SYNC_GEOCODING=1), esegui subito
+    if os.environ.get('SYNC_GEOCODING') == '1':
         lat, lon = geocode_address(address)
         if lat is not None and lon is not None:
             instance.latitudine = lat
             instance.longitudine = lon
+        return
+
+    # 3. Altrimenti delega al worker asincrono post-commit in post_save per non bloccare mai l'Admin
+    instance._pending_async_geocode = address
+
 
 

@@ -1574,6 +1574,129 @@ class TelegramStateAndSchedulerMultiWorkerTestCase(TestCase):
         self.assertEqual(log_entry.details.get('inviati'), 3)
 
 
+class PerformanceAndGeocodingTestCase(TestCase):
+    """
+    Test del Miglioramento 4:
+    1. Eliminazione delle query N+1 in _get_assegnazioni_dipendente (numero di query costante O(1)
+       anche aumentando il numero di turni, compagni di squadra e TimeTracking).
+    2. Geocoding non bloccante con cache persistente e worker asincrono post-commit.
+    3. Archiviazione allegati e foto su Media Storage locale VPS senza dipendenze cloud dismesse.
+    """
+
+    def setUp(self):
+        from core.models import Dipendente, Cliente, Squadra, Turno, AssegnazioneTurno, TimeTracking
+
+        self.dip1 = Dipendente.objects.create(
+            nome="Marco",
+            cognome="Neri",
+            codice_fiscale="NRIMRC82A01B157A",
+            stato="ATTIVO",
+            costo_orario_aziendale=18.0,
+        )
+        self.dip2 = Dipendente.objects.create(
+            nome="Paolo",
+            cognome="Gialli",
+            codice_fiscale="GLLPLA84A01B157B",
+            stato="ATTIVO",
+            costo_orario_aziendale=18.0,
+        )
+        self.squadra = Squadra.objects.create(nome="Squadra Rapida", caposquadra=self.dip1)
+        self.squadra.componenti.add(self.dip1, self.dip2)
+
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Centro Direzionale Bergamo",
+            indirizzo_sede="Via XX Settembre 1, Bergamo",
+            importo_mensile_contratto=2500,
+        )
+        self.today = timezone.now().date()
+
+        # Creiamo 12 turni in 12 giornate diverse con TimeTracking registrati
+        for i in range(12):
+            d = self.today - timedelta(days=i)
+            t = Turno.objects.create(data=d, squadra=self.squadra)
+            a = AssegnazioneTurno.objects.create(
+                turno=t,
+                cliente=self.cliente,
+                orario_inizio_previsto=datetime.time(8, 0),
+                orario_fine_previsto=datetime.time(11, 0),
+            )
+            if i % 2 == 0:
+                TimeTracking.objects.create(
+                    dipendente=self.dip1,
+                    assegnazione=a,
+                    ore_dichiarate=3.0,
+                    source='WEBAPP',
+                )
+
+    def test_1_zero_n_plus_one_queries_in_webapp_shifts(self):
+        from core.views_webapp import _get_assegnazioni_dipendente
+
+        start_date = self.today - timedelta(days=15)
+        # Con 12 turni e compagni di squadra, il numero di query deve essere costante (<= 6 query totali:
+        # 1 RichiestaSostituzione, 1 AssegnazioneTurno+select_related, 2 prefetch_related, 1 TimeTracking batch)
+        with self.assertNumQueries(5):
+            result = _get_assegnazioni_dipendente(self.dip1, start_date, self.today)
+
+        self.assertEqual(len(result), 12)
+        compilati = [r for r in result if r['is_compilato']]
+        self.assertEqual(len(compilati), 6)
+        self.assertEqual(len(result[0]['compagni']), 1)
+        self.assertEqual(result[0]['compagni'][0]['nome'], "Paolo Gialli")
+
+    def test_2_non_blocking_cached_and_async_geocoding(self):
+        import os
+        from unittest.mock import patch
+        from django.core.cache import cache
+        from core.models import Cliente
+        from core.utils_geocoding import _cache_key_for_address, _async_geocode_worker, get_cached_geocode
+
+        addr = "Piazza Pontida 10, Bergamo"
+        cache.set(_cache_key_for_address(addr), (45.6944, 9.6628), 3600)
+
+        old_skip = os.environ.get('SKIP_GEOCODING')
+        try:
+            os.environ.pop('SKIP_GEOCODING', None)
+
+            # 1) Se l'indirizzo è in cache, il salvataggio popola subito lat/lon senza chiamare Nominatim
+            with patch("core.utils_geocoding.Nominatim.geocode") as mock_nom:
+                c_cached = Cliente.objects.create(
+                    ragione_sociale="Cliente Cache",
+                    indirizzo_sede=addr,
+                )
+                self.assertEqual(mock_nom.call_count, 0)
+                self.assertAlmostEqual(c_cached.latitudine, 45.6944, places=4)
+                self.assertAlmostEqual(c_cached.longitudine, 9.6628, places=4)
+
+            # 2) Se l'indirizzo non è in cache, il pre_save NON blocca la richiesta e delega al worker asincrono
+            addr_new = "Via Borgo Palazzo 50, Bergamo"
+            cache.delete(_cache_key_for_address(addr_new))
+            with patch("core.models.schedule_async_geocode") as mock_sched:
+                c_async = Cliente.objects.create(
+                    ragione_sociale="Cliente Async",
+                    indirizzo_sede=addr_new,
+                )
+                mock_sched.assert_called_once_with(Cliente, c_async.pk, 'indirizzo_sede', addr_new)
+
+            # 3) Quando il worker in background esegue il geocoding, aggiorna il DB e salva in cache
+            class FakeLoc:
+                latitude = 45.6981
+                longitude = 9.6852
+
+            with patch("core.utils_geocoding.Nominatim.geocode", return_value=FakeLoc()):
+                _async_geocode_worker(Cliente, c_async.pk, 'indirizzo_sede', addr_new)
+
+            c_async.refresh_from_db()
+            self.assertAlmostEqual(c_async.latitudine, 45.6981, places=4)
+            self.assertAlmostEqual(c_async.longitudine, 9.6852, places=4)
+            self.assertEqual(get_cached_geocode(addr_new), (45.6981, 9.6852))
+        finally:
+            if old_skip is not None:
+                os.environ['SKIP_GEOCODING'] = old_skip
+            else:
+                os.environ['SKIP_GEOCODING'] = '1'
+
+
+
 
 
 

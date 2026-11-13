@@ -96,16 +96,22 @@ def _calcola_ore_previste(assign):
     return 4.0
 
 
-def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None):
+_SENTINEL = object()
+
+
+def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None, tt=_SENTINEL):
     sost_assign_ids = sost_assign_ids or set()
-    tt = TimeTracking.objects.filter(dipendente=dipendente, assegnazione=assign).first()
+    if tt is _SENTINEL:
+        tt = TimeTracking.objects.filter(dipendente=dipendente, assegnazione=assign).first()
     squadra = assign.turno.squadra if assign.turno else None
-    esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
+    # Usa il set già pre-caricato da prefetch_related('dipendenti_esclusi') senza generare query SQL extra
+    esclusi_ids = {d.pk for d in assign.dipendenti_esclusi.all()}
 
     compagni = []
     if squadra and assign.id not in sost_assign_ids:
-        membri = list(squadra.componenti.filter(stato='ATTIVO'))
-        if squadra.caposquadra and squadra.caposquadra.stato == 'ATTIVO' and squadra.caposquadra not in membri:
+        # Filtra in memoria i componenti già pre-caricati da prefetch_related('turno__squadra__componenti')
+        membri = [c for c in squadra.componenti.all() if c.stato == 'ATTIVO']
+        if squadra.caposquadra and squadra.caposquadra.stato == 'ATTIVO' and all(m.pk != squadra.caposquadra_id for m in membri):
             membri.insert(0, squadra.caposquadra)
         for m in membri:
             if m.pk != dipendente.pk:
@@ -167,7 +173,7 @@ def _get_assegnazioni_dipendente(dipendente, data_inizio, data_fine=None):
         ).values_list('assegnazione_originale_id', flat=True)
     )
 
-    qs = (
+    assign_list = list(
         AssegnazioneTurno.objects.filter(
             turno__data__gte=data_inizio,
             turno__data__lte=data_fine,
@@ -178,20 +184,38 @@ def _get_assegnazioni_dipendente(dipendente, data_inizio, data_fine=None):
             | Q(id__in=sost_assign_ids)
             | Q(timetracks__dipendente=dipendente)
         )
-        .select_related('cliente', 'turno', 'turno__squadra', 'turno__mezzo')
+        .select_related('cliente', 'turno', 'turno__squadra', 'turno__squadra__caposquadra', 'turno__mezzo')
         .prefetch_related('dipendenti_esclusi', 'turno__squadra__componenti')
         .distinct()
         .order_by('turno__data', 'orario_inizio_previsto')
     )
 
+    if not assign_list:
+        return []
+
+    # Pre-carica tutti i TimeTracking del dipendente per i turni trovati in 1 sola query (zero N+1)
+    assign_ids = [a.id for a in assign_list]
+    tt_map = {
+        t.assegnazione_id: t
+        for t in TimeTracking.objects.filter(dipendente=dipendente, assegnazione_id__in=assign_ids)
+    }
+
     result = []
-    for a in qs:
+    for a in assign_list:
+        tt_obj = tt_map.get(a.id)
         # Se è stato escluso dal turno (e non ha compilato ore né è sostituto), non mostrarlo
         esclusi_pks = {d.pk for d in a.dipendenti_esclusi.all()}
         if dipendente.pk in esclusi_pks and a.id not in sost_assign_ids:
-            if not TimeTracking.objects.filter(dipendente=dipendente, assegnazione=a).exists():
+            if tt_obj is None:
                 continue
-        result.append(_serialize_assign_for_dipendente(a, dipendente, sost_assign_ids=sost_assign_ids))
+        result.append(
+            _serialize_assign_for_dipendente(
+                a,
+                dipendente,
+                sost_assign_ids=sost_assign_ids,
+                tt=tt_obj,
+            )
+        )
     return result
 
 
@@ -257,17 +281,20 @@ def dipendente_app_view(request):
     except ValueError:
         cal_date = today
 
-    # 1. Turni di Oggi
-    turni_oggi = _get_assegnazioni_dipendente(dip, today, today)
-
-    # 2. Turni da compilare e turni compilati negli ultimi 31 giorni
+    # 1 & 2. Carica i turni degli ultimi 31 giorni in un unico batch e ricava anche quelli di oggi
     thirty_one_days_ago = today - timedelta(days=31)
     turni_31gg = _get_assegnazioni_dipendente(dip, thirty_one_days_ago, today)
+    today_iso_str = today.strftime('%Y-%m-%d')
+    turni_oggi = [t for t in turni_31gg if t['data_iso'] == today_iso_str]
     turni_da_compilare = [t for t in turni_31gg if not t['is_compilato']]
     turni_compilati_31gg = [t for t in reversed(turni_31gg) if t['is_compilato']]
 
     # 3. Turni del giorno selezionato nel Calendario + striscia 7 giorni
-    turni_calendario = _get_assegnazioni_dipendente(dip, cal_date, cal_date)
+    if thirty_one_days_ago <= cal_date <= today:
+        cal_iso_str = cal_date.strftime('%Y-%m-%d')
+        turni_calendario = [t for t in turni_31gg if t['data_iso'] == cal_iso_str]
+    else:
+        turni_calendario = _get_assegnazioni_dipendente(dip, cal_date, cal_date)
     start_strip = cal_date - timedelta(days=2)
     GIORNI_BREVI = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
     strip_days = []
