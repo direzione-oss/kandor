@@ -1386,7 +1386,7 @@ def toggle_telegram_status(request, model_name, item_id):
 
 @staff_or_titolare_required
 def manuale_pdf_view(request):
-    """Restituisce il file PDF completo con screenshot del Manuale Utente Kandor (v3.2)."""
+    """Restituisce il file PDF completo con screenshot del Manuale Utente Kandor (v3.3)."""
     import os
     from django.http import FileResponse, Http404
     pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE_KANDOR.pdf')
@@ -1396,7 +1396,7 @@ def manuale_pdf_view(request):
 
 
 def manuale_dipendente_pdf_view(request):
-    """Restituisce il file PDF della Guida Operativa Dipendente Kandor (v3.2)."""
+    """Restituisce il file PDF della Guida Operativa Dipendente Kandor (v3.3)."""
     import os
     from django.http import FileResponse, Http404
     pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_DIPENDENTE_KANDOR.pdf')

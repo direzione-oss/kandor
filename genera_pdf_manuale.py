@@ -45,8 +45,8 @@ class ManualePDF(FPDF):
         # Info
         self.set_font('Helvetica', '', 11)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 7, 'Versione 3.2 - 12 Novembre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.cell(0, 7, 'Sistema ERP con Buste Paga Automatiche, Procedure con Avvallo & Centro IA Zero-Cost', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Versione 3.3 - 13 Novembre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Manuale Operativo Passo-Passo: Accessi, Procedure, Buste Paga, MOL, Magazzino, SLA, CRM & IA', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(8)
         self.cell(0, 7, 'URL Gestionale (VPS 24/7): https://kandor.187.126.30.207.sslip.io', align='C', new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 7, 'Buste Paga Automatiche: https://kandor.187.126.30.207.sslip.io/buste-paga/', align='C', new_x="LMARGIN", new_y="NEXT")
