@@ -414,16 +414,7 @@ def _gestisci_accreditamento_telegram(telegram_chat_id, text, sender_name="Utent
 
         existing_tg = (cand.telegram_chat_id or '').strip()
         if existing_tg and existing_tg != chat_id_str:
-            # Blocco furto identità / secondo telefono non autorizzato
-            try:
-                send_telegram_message(
-                    existing_tg,
-                    f"⚠️ *Avviso di Sicurezza Kandor*\n"
-                    f"Un altro account Telegram ({sender_name}, ID `{chat_id_str}`) ha appena tentato di accreditarsi "
-                    f"usando il tuo Codice Fiscale e PIN. Il tentativo è stato *bloccato automaticamente*.",
-                )
-            except Exception:
-                pass
+            # Blocco furto identità / secondo telefono non autorizzato (senza inviare messaggi allarmanti al dipendente)
             return (
                 f"⛔ Blocco di sicurezza: il profilo di {cand.cognome} {cand.nome} è GIÀ collegato a un account Telegram.\n"
                 f"Per impedire che qualcuno entri a nome di un collega, non è consentito collegare un secondo telefono in autonomia.\n"
