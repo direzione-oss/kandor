@@ -36,6 +36,7 @@ from .models import (
     ProdottoMagazzino, DotazioneCantiere, ConsegnaRichiestaMateriale,
     IspezioneQualitaCantiere, PreventivoCommerciale, VoceAmbientePreventivo,
     ensure_default_prodotti_magazzino,
+    TelegramConversationState, SchedulerExecutionLog,
 )
 
 @admin.register(ModificaCedolino)
@@ -1672,6 +1673,23 @@ class PreventivoCommercialeAdmin(KandorBaseAdmin):
             '<a href="/preventivi-crm/pdf/{}/" target="_blank" style="background:#0F172A; color:#FFF; padding:4px 9px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none;">📄 PDF</a>',
             obj.pk, obj.pk,
         )
+
+
+@admin.register(TelegramConversationState)
+class TelegramConversationStateAdmin(KandorBaseAdmin):
+    list_display = ('chat_id', 'action', 'updated_at')
+    list_filter = ('updated_at',)
+    search_fields = ('chat_id',)
+    readonly_fields = ('updated_at',)
+
+
+@admin.register(SchedulerExecutionLog)
+class SchedulerExecutionLogAdmin(KandorBaseAdmin):
+    list_display = ('job_name', 'execution_date', 'status', 'worker_pid', 'executed_at')
+    list_filter = ('job_name', 'execution_date')
+    search_fields = ('job_name',)
+    readonly_fields = ('executed_at',)
+
 
 
 

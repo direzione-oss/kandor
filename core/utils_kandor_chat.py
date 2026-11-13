@@ -207,8 +207,116 @@ def get_turni_non_compilati_keyboard(dipendente):
         ]}
 
 
-# Stato conversazione multi-step (in memoria)
-_TELEGRAM_STATE = {}
+# ==============================================================================
+# STATO CONVERSAZIONALE TELEGRAM PERSISTENTE (MULTI-WORKER & DB-BACKED)
+# ==============================================================================
+
+TELEGRAM_STATE_TTL_SECONDS = 86400  # 24 ore di validità massima per uno stato conversazionale aperto
+
+
+class PersistentTelegramStateStore:
+    """
+    Dizionario persistente per lo stato conversazionale multi-step del bot Telegram.
+    Salva e legge da `TelegramConversationState` su database (con fallback in memoria/cache),
+    normalizzando sempre le chiavi `chat_id` a stringa (`str(chat_id).strip()`).
+    """
+    def __init__(self):
+        self._fallback = {}
+
+    @staticmethod
+    def _norm(key):
+        return str(key).strip() if key is not None else ''
+
+    def get(self, key, default=None):
+        k = self._norm(key)
+        if not k:
+            return default
+        try:
+            from .models import TelegramConversationState
+            obj = TelegramConversationState.objects.filter(pk=k).first()
+            if obj is not None:
+                # Scadenza automatica dopo 24 ore per evitare stati appesi
+                if obj.updated_at and (timezone.now() - obj.updated_at).total_seconds() > TELEGRAM_STATE_TTL_SECONDS:
+                    obj.delete()
+                    self._fallback.pop(k, None)
+                    return default
+                return dict(obj.state_data) if isinstance(obj.state_data, dict) else obj.state_data
+            return default
+        except Exception:
+            return self._fallback.get(k, default)
+
+    def __getitem__(self, key):
+        val = self.get(key, default=None)
+        if val is None:
+            raise KeyError(self._norm(key))
+        return val
+
+    def __setitem__(self, key, value):
+        k = self._norm(key)
+        if not k:
+            return
+        clean_val = dict(value) if isinstance(value, dict) else value
+        self._fallback[k] = clean_val
+        try:
+            from django.core.cache import cache
+            cache.set(f"tg_conv_state_{k}", clean_val, TELEGRAM_STATE_TTL_SECONDS)
+        except Exception:
+            pass
+        try:
+            from .models import TelegramConversationState
+            TelegramConversationState.objects.update_or_create(
+                chat_id=k,
+                defaults={'state_data': clean_val},
+            )
+        except Exception:
+            pass
+
+    def pop(self, key, default=None):
+        k = self._norm(key)
+        if not k:
+            return default
+        val = self.get(k, default=default)
+        self._fallback.pop(k, None)
+        try:
+            from django.core.cache import cache
+            cache.delete(f"tg_conv_state_{k}")
+        except Exception:
+            pass
+        try:
+            from .models import TelegramConversationState
+            TelegramConversationState.objects.filter(pk=k).delete()
+        except Exception:
+            pass
+        return val
+
+    def __delitem__(self, key):
+        self.pop(key, default=None)
+
+    def __contains__(self, key):
+        return self.get(key, default=None) is not None
+
+    def clear(self):
+        self._fallback.clear()
+        try:
+            from .models import TelegramConversationState
+            TelegramConversationState.objects.all().delete()
+        except Exception:
+            pass
+
+
+_TELEGRAM_STATE = PersistentTelegramStateStore()
+
+
+def get_telegram_state(chat_id, default=None):
+    return _TELEGRAM_STATE.get(chat_id, default=default)
+
+
+def set_telegram_state(chat_id, state_dict):
+    _TELEGRAM_STATE[chat_id] = state_dict
+
+
+def clear_telegram_state(chat_id):
+    return _TELEGRAM_STATE.pop(chat_id, None)
 
 
 def _gestisci_accreditamento_telegram(telegram_chat_id, text, sender_name="Utente"):
@@ -344,6 +452,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     
     # COMANDI /start e /menu
     if clean_text in ('/start', '/menu', 'menu', 'start'):
+        _TELEGRAM_STATE.pop(telegram_chat_id, None)
         return {
             'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
             'reply_markup': get_main_menu(dipendente)
@@ -888,6 +997,7 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     
     # Menu principale
     if callback_data == 'menu_start':
+        _TELEGRAM_STATE.pop(telegram_chat_id, None)
         return {
             'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
             'reply_markup': get_main_menu(dipendente)

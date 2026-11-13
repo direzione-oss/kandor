@@ -25,4 +25,4 @@ RUN mkdir -p /app/media /app/staticfiles && \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "mkdir -p /app/media && python manage.py migrate --noinput && python manage.py set_telegram_webhook ${PUBLIC_BASE_URL} && exec gunicorn cleanup_erp.wsgi:application --workers 1 --threads 4 --max-requests 500 --max-requests-jitter 50 --timeout 120 --bind 0.0.0.0:${PORT:-8000}"]
+CMD ["sh", "-c", "mkdir -p /app/media && python manage.py migrate --noinput && python manage.py createcachetable && python manage.py set_telegram_webhook ${PUBLIC_BASE_URL} && exec gunicorn cleanup_erp.wsgi:application --workers ${GUNICORN_WORKERS:-3} --threads 4 --max-requests 500 --max-requests-jitter 50 --timeout 120 --bind 0.0.0.0:${PORT:-8000}"]

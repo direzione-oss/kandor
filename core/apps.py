@@ -16,10 +16,14 @@ class CoreConfig(AppConfig):
                 from django.core.management import call_command
 
                 tables = connection.introspection.table_names()
-                if 'django_session' not in tables or 'core_turno' not in tables or 'core_profiloaccessoportale' not in tables:
+                if 'django_session' not in tables or 'core_turno' not in tables or 'core_profiloaccessoportale' not in tables or 'core_telegramconversationstate' not in tables:
                     print("⚠️ Tabelle critiche o nuove assenti. Esecuzione migrazione automatica in ready()...")
                     call_command('migrate', interactive=False)
+                    tables = connection.introspection.table_names()
                     print("   ✅ Migrazione automatica in ready() completata!")
+
+                if 'kandor_cache_table' not in tables:
+                    call_command('createcachetable')
 
                 from django.contrib.auth.models import User
                 if not User.objects.filter(username='admin').exists():

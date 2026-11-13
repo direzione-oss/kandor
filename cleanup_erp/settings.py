@@ -219,14 +219,24 @@ PUBLIC_BASE_URL = (
     or 'https://kandor.187.126.30.207.sslip.io'
 ).rstrip('/')
 
-# Cache - usa memoria locale per velocizzare
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'kandor-cache',
-        'TIMEOUT': 300,  # 5 minuti default
+# Cache - su VPS/Produzione usa DatabaseCache condivisa tra tutti i worker Gunicorn;
+# in locale/test usa LocMemCache veloce in memoria.
+if is_render and use_postgres:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'LOCATION': 'kandor_cache_table',
+            'TIMEOUT': 300,  # 5 minuti default
+        }
     }
-}
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'kandor-cache',
+            'TIMEOUT': 300,  # 5 minuti default
+        }
+    }
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -1435,6 +1435,146 @@ class PagheRefactoringAndDedupTestCase(TestCase):
         self.assertEqual(rec_row['ore_reali'], 4.5)
 
 
+class TelegramStateAndSchedulerMultiWorkerTestCase(TestCase):
+    """
+    Test del Miglioramento 3:
+    - Persistenza dello stato conversazionale Telegram su DB (TelegramConversationState)
+      condiviso tra più worker Gunicorn, con normalizzazione chiavi int/str, TTL 24h e reset su /start.
+    - Lock atomico multi-worker per lo scheduler giornaliero (SchedulerExecutionLog)
+      che impedisce invii duplicati alle 17:00 quando girano più worker o il container si riavvia.
+    """
+
+    def setUp(self):
+        from core.models import Dipendente, Cliente, Squadra, Turno, AssegnazioneTurno
+
+        self.dip = Dipendente.objects.create(
+            nome="Luca",
+            cognome="Bianchi",
+            codice_fiscale="BNCLCU85A01B157Z",
+            stato="ATTIVO",
+            telegram_chat_id="99887766",
+            costo_orario_aziendale=18.0,
+        )
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Condominio Verdi",
+            indirizzo_sede="Via Verdi 10, Bergamo",
+            importo_mensile_contratto=1200,
+        )
+        self.squadra = Squadra.objects.create(nome="Squadra Verdi", caposquadra=self.dip)
+        self.squadra.componenti.add(self.dip)
+        self.today = timezone.now().date()
+        self.turno = Turno.objects.create(data=self.today, squadra=self.squadra)
+        self.assegnazione = AssegnazioneTurno.objects.create(
+            turno=self.turno,
+            cliente=self.cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0),
+        )
+
+    def test_1_persistent_telegram_state_cross_worker_and_int_str_normalization(self):
+        from django.core.cache import cache
+        from core.models import TelegramConversationState, TimeTracking
+        from core.utils_kandor_chat import _TELEGRAM_STATE, handle_telegram_callback, handle_telegram_message
+
+        chat_id_int = 99887766
+        chat_id_str = "99887766"
+
+        # Worker 1 riceve il callback di selezione turno (con chat_id intero)
+        res_cb = handle_telegram_callback(chat_id_int, f"ore_turno_{self.assegnazione.pk}")
+        self.assertIn("Quante ore hai lavorato?", res_cb['text'])
+
+        # Verifica che lo stato sia persistito nella tabella DB TelegramConversationState
+        db_row = TelegramConversationState.objects.filter(chat_id=chat_id_str).first()
+        self.assertIsNotNone(db_row)
+        self.assertEqual(db_row.action, "attesa_ore")
+        self.assertEqual(db_row.payload.get("assegnazione_id"), self.assegnazione.pk)
+
+        # Simuliamo il passaggio a Worker 2 svuotando la cache in-memory e il fallback locale
+        cache.clear()
+        _TELEGRAM_STATE._fallback.clear()
+
+        # Worker 2 legge lo stato sia con int sia con str grazie alla persistenza su DB
+        self.assertIn(chat_id_int, _TELEGRAM_STATE)
+        self.assertIn(chat_id_str, _TELEGRAM_STATE)
+        self.assertEqual(_TELEGRAM_STATE.get(chat_id_str)['action'], 'attesa_ore')
+
+        # Worker 2 riceve il messaggio testuale "4" con chat_id stringa e registra le ore
+        res_msg = handle_telegram_message(chat_id_str, "4")
+        txt = res_msg['text'] if isinstance(res_msg, dict) else str(res_msg)
+        self.assertIn("4", txt)
+
+        tt = TimeTracking.objects.filter(assegnazione=self.assegnazione, dipendente=self.dip).first()
+        self.assertIsNotNone(tt)
+        self.assertEqual(float(tt.ore_dichiarate), 4.0)
+
+        # Lo stato "attesa_ore" è stato consumato (o passato ad attesa_motivo_ore se ore != previste, qui 4h == 4h previste)
+        st_after = TelegramConversationState.objects.filter(chat_id=chat_id_str).first()
+        self.assertTrue(st_after is None or st_after.action != "attesa_ore")
+
+    def test_2_state_ttl_expiration_and_reset_on_start_or_menu(self):
+        from django.core.cache import cache
+        from core.models import TelegramConversationState
+        from core.utils_kandor_chat import _TELEGRAM_STATE, handle_telegram_message, handle_telegram_callback
+
+        chat_id = "99887766"
+        _TELEGRAM_STATE[chat_id] = {'action': 'attesa_date_ferie'}
+        self.assertEqual(_TELEGRAM_STATE.get(chat_id)['action'], 'attesa_date_ferie')
+
+        # Se l'utente invia /start o preme menu_start, lo stato appeso viene pulito
+        handle_telegram_message(chat_id, "/start")
+        self.assertIsNone(_TELEGRAM_STATE.get(chat_id))
+        self.assertFalse(TelegramConversationState.objects.filter(chat_id=chat_id).exists())
+
+        # Impostiamo di nuovo uno stato e simuliamo che sia rimasto appeso da oltre 25 ore (> TTL 24h)
+        _TELEGRAM_STATE[chat_id] = {'action': 'attesa_date_malattia'}
+        TelegramConversationState.objects.filter(chat_id=chat_id).update(
+            updated_at=timezone.now() - timedelta(hours=25)
+        )
+        cache.clear()
+        _TELEGRAM_STATE._fallback.clear()
+
+        # Alla lettura successiva, lo stato scaduto viene ignorato e rimosso automaticamente dal DB
+        self.assertIsNone(_TELEGRAM_STATE.get(chat_id))
+        self.assertFalse(TelegramConversationState.objects.filter(chat_id=chat_id).exists())
+
+        # Verifica pulizia anche tramite callback menu_start
+        _TELEGRAM_STATE[chat_id] = {'action': 'segnalazione'}
+        handle_telegram_callback(chat_id, "menu_start")
+        self.assertIsNone(_TELEGRAM_STATE.get(chat_id))
+
+    def test_3_scheduler_atomic_lock_prevents_duplicate_daily_reminders(self):
+        from unittest.mock import patch
+        from core.models import SchedulerExecutionLog
+        from core.scheduler import esegui_promemoria_giornaliero_atomico, JOB_PROMEMORIA_ORE_17
+
+        target_day = datetime.date(2026, 6, 15)
+
+        with patch(
+            "core.utils_kandor_chat.invia_promemoria_ore_mancanti",
+            return_value={'inviati': 3, 'errori': 0, 'totale_mancanti': 3},
+        ) as mock_invia:
+            # Worker 1 scatta alle 17:00 -> acquisisce il lock e invia i 3 promemoria
+            res_worker_1 = esegui_promemoria_giornaliero_atomico(target_date=target_day)
+            self.assertFalse(res_worker_1['skipped_locked'])
+            self.assertEqual(res_worker_1['inviati'], 3)
+            self.assertEqual(mock_invia.call_count, 1)
+
+            # Worker 2 (o riavvio del container nello stesso minuto 17:00-17:05) prova a eseguire lo stesso job
+            res_worker_2 = esegui_promemoria_giornaliero_atomico(target_date=target_day)
+            self.assertTrue(res_worker_2['skipped_locked'])
+            self.assertEqual(res_worker_2['inviati'], 0)
+            # La funzione di invio Telegram NON viene richiamata una seconda volta!
+            self.assertEqual(mock_invia.call_count, 1)
+
+        log_entry = SchedulerExecutionLog.objects.get(
+            job_name=JOB_PROMEMORIA_ORE_17,
+            execution_date=target_day,
+        )
+        self.assertEqual(log_entry.status, 'COMPLETED')
+        self.assertEqual(log_entry.details.get('inviati'), 3)
+
+
+
 
 
 

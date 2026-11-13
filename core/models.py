@@ -2217,6 +2217,63 @@ class VoceAmbientePreventivo(models.Model):
         return f"{self.nome_ambiente} ({self.metri_quadri} m² @ {self.resa_oraria_mq} m²/h)"
 
 
+# ==============================================================================
+# STATO CONVERSAZIONALE TELEGRAM E LOCK MULTI-WORKER DELLO SCHEDULER
+# ==============================================================================
+
+class TelegramConversationState(models.Model):
+    """
+    Persiste su database lo stato conversazionale multi-step del bot Telegram
+    (es. attesa ore turno, date malattia/ferie/104, permesso, segnalazione, materiali, PIN accreditamento).
+    Garantisce che lo stato sia condiviso tra tutti i worker Gunicorn e sopravviva ai riavvii del container.
+    """
+    chat_id = models.CharField(max_length=64, primary_key=True, verbose_name="Telegram Chat ID")
+    state_data = models.JSONField(default=dict, blank=True, verbose_name="Dati Stato Conversazione")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Ultimo Aggiornamento")
+
+    class Meta:
+        verbose_name = "Stato Conversazione Telegram"
+        verbose_name_plural = "Stati Conversazione Telegram"
+        ordering = ['-updated_at']
+
+    @property
+    def action(self):
+        return (self.state_data or {}).get('action', 'idle')
+
+    @property
+    def payload(self):
+        return self.state_data or {}
+
+    def __str__(self):
+        return f"Telegram State [{self.chat_id}] -> {self.action}"
+
+
+class SchedulerExecutionLog(models.Model):
+    """
+    Registro e lock atomico a database per i job schedulati giornalieri (es. promemoria ore 17:00).
+    Il vincolo di unicità (job_name, execution_date) garantisce che in un ambiente multi-worker Gunicorn
+    o in caso di riavvio del container, ciascun job venga eseguito una sola volta per giornata.
+    """
+    job_name = models.CharField(max_length=100, verbose_name="Nome Job Schedulato")
+    execution_date = models.DateField(verbose_name="Data Esecuzione")
+    executed_at = models.DateTimeField(auto_now_add=True, verbose_name="Timestamp Esecuzione")
+    worker_pid = models.IntegerField(null=True, blank=True, verbose_name="PID Worker")
+    details = models.JSONField(default=dict, blank=True, verbose_name="Esito / Dettagli")
+
+    class Meta:
+        verbose_name = "Log Esecuzione Scheduler"
+        verbose_name_plural = "Log Esecuzioni Scheduler"
+        unique_together = [('job_name', 'execution_date')]
+        ordering = ['-execution_date', '-executed_at']
+
+    @property
+    def status(self):
+        return (self.details or {}).get('status', 'COMPLETED')
+
+    def __str__(self):
+        return f"{self.job_name} ({self.execution_date})"
+
+
 # --- Geocoding Signals ---
 @receiver(pre_save, sender=Dipendente)
 def geocode_dipendente_address(sender, instance, **kwargs):
