@@ -397,8 +397,8 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
     def lookups(self, request, model_admin):
         return (
             ('INATTIVO', '🔴 Inattivo / Licenziato'),
-            ('IN_MALATTIA', '🤒 In Malattia'),
-            ('IN_FERIE', '🏖️ In Ferie'),
+            ('MALATTIA', '🤒 In Malattia'),
+            ('FERIE', '🏖️ In Ferie'),
             ('TUTTI', '👥 Tutti (inclusi Inattivi)'),
         )
 
@@ -421,6 +421,10 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
             return queryset.filter(stato='ATTIVO')
         if val == 'TUTTI':
             return queryset
+        if val == 'IN_MALATTIA':
+            return queryset.filter(stato='MALATTIA')
+        if val == 'IN_FERIE':
+            return queryset.filter(stato='FERIE')
         return queryset.filter(stato=val)
 
 
@@ -668,6 +672,8 @@ class DipendenteAdmin(KandorBaseAdmin):
 
     def changelist_view(self, request, extra_context=None):
         self._cached_webapp_dip_ids = self._get_webapp_connected_dip_ids()
+        extra_context = dict(extra_context or {})
+        extra_context.setdefault('title', 'Elenco Dipendenti')
         return super().changelist_view(request, extra_context=extra_context)
 
     @admin.display(description='🔑 PIN & App', ordering='pin_accesso')

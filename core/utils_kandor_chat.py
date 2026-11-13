@@ -414,12 +414,29 @@ def _gestisci_accreditamento_telegram(telegram_chat_id, text, sender_name="Utent
 
         existing_tg = (cand.telegram_chat_id or '').strip()
         if existing_tg and existing_tg != chat_id_str:
-            # Blocco furto identità / secondo telefono non autorizzato (senza inviare messaggi allarmanti al dipendente)
-            return (
-                f"⛔ Blocco di sicurezza: il profilo di {cand.cognome} {cand.nome} è GIÀ collegato a un account Telegram.\n"
-                f"Per impedire che qualcuno entri a nome di un collega, non è consentito collegare un secondo telefono in autonomia.\n"
-                f"Se hai cambiato telefono, contatta l'Amministrazione comunicando il tuo ID: {chat_id_str}"
-            )
+            # Verifica se existing_tg è un ID realmente esistente su Telegram oppure un refuso di battitura in anagrafica
+            existing_is_valid_chat = True
+            token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
+            if token:
+                try:
+                    import requests as req
+                    chk = req.get(
+                        f"https://api.telegram.org/bot{token}/getChat",
+                        params={'chat_id': existing_tg},
+                        timeout=4,
+                    ).json()
+                    if not chk.get('ok') and chk.get('error_code') in (400, 404):
+                        existing_is_valid_chat = False
+                except Exception:
+                    pass
+
+            if existing_is_valid_chat:
+                # Blocco furto identità / secondo telefono non autorizzato (senza inviare messaggi allarmanti al dipendente)
+                return (
+                    f"⛔ Blocco di sicurezza: il profilo di {cand.cognome} {cand.nome} è GIÀ collegato a un account Telegram.\n"
+                    f"Per impedire che qualcuno entri a nome di un collega, non è consentito collegare un secondo telefono in autonomia.\n"
+                    f"Se hai cambiato telefono, contatta l'Amministrazione comunicando il tuo ID: {chat_id_str}"
+                )
 
         # Verifica che questo chat_id non sia associato a nessun altro record
         altro = Dipendente.objects.filter(telegram_chat_id=chat_id_str).exclude(pk=cand.pk).first()
