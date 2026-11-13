@@ -134,7 +134,7 @@ Kandor ERP e pubblicato su connessione cifrata HTTPS e non richiede alcuna insta
 ### 2.1 L'Account Programmatore (Gian Carlo Serra)
 Per garantire il controllo tecnico e organizzativo totale della piattaforma, e configurato l'account Super-Admin dedicato al Programmatore **Gian Carlo Serra**:
 - **Username**: `serra`
-- **Password predefinita**: `Serra2026!`
+- **Password predefinita**: `*Password personale riservata*`
 - **Privilegi**:
   - Visualizza **sempre il 100% delle 38 sezioni** del portale (Card Operazioni Frequenti, Moduli Direzionali ERP, Widget Dashboard, Calendario, Operativita Giornaliera, Anagrafiche e Amministrazione Sistema).
   - E l'unico profilo autorizzato ad aprire e modificare la **Console Configurazione Accessi & Sezioni Responsabili (`/gestione-accessi/`)**.
@@ -143,18 +143,18 @@ Per garantire il controllo tecnico e organizzativo totale della piattaforma, e c
 ### 2.2 Credenziali Personali dei Responsabili e Titolari
 Il sistema mantiene sincronizzati gli account personali per ciascuno dei 6 Responsabili/Titolari aziendali:
 
-| Nominativo Responsabile | Ruolo Aziendale | Username | Password Iniziale |
+| Nominativo Responsabile | Ruolo Aziendale | Username | Credenziali |
 |---|---|---|---|
-| **Gian Carlo Serra** | Programmatore (Super-Admin) | `serra` | `Serra2026!` |
-| **Simone Cortinovis** | Titolare / Responsabile | `simone` | `Simone2026!` |
-| **Roberta Gamba** | Titolare / Responsabile | `roberta` | `Roberta2026!` |
-| **Giorgio Gamba** | Titolare / Responsabile | `giorgio` | `Giorgio2026!` |
-| **Sonia Cavalera** | Responsabile d'Area | `sonia` | `Sonia2026!` |
-| **Consuelo Pina** | Responsabile d'Area | `consuelo` | `Consuelo2026!` |
-| **Carla Bordoni** | Responsabile d'Area | `carla` | `Carla2026!` |
+| **Gian Carlo Serra** | Programmatore (Super-Admin) | `serra` | `*Password personale riservata*` |
+| **Simone Cortinovis** | Titolare / Responsabile | `simone` | `*Password personale riservata*` |
+| **Roberta Gamba** | Titolare / Responsabile | `roberta` | `*Password personale riservata*` |
+| **Giorgio Gamba** | Titolare / Responsabile | `giorgio` | `*Password personale riservata*` |
+| **Sonia Cavalera** | Responsabile d'Area | `sonia` | `*Password personale riservata*` |
+| **Consuelo Pina** | Responsabile d'Area | `consuelo` | `*Password personale riservata*` |
+| **Carla Bordoni** | Responsabile d'Area | `carla` | `*Password personale riservata*` |
 
 ### 2.3 Come Abilitare o Disabilitare le Sezioni per ciascun Responsabile (Passo-Passo)
-1. Accedere al portale con l'account Programmatore (`serra` / `Serra2026!`).
+1. Accedere al portale con l'account Programmatore (`serra` / `*Password personale riservata*`).
 2. Cliccare sul pulsante blu **`🛠️ Console Programmatore (Sezioni & Accessi)`** in alto a destra nella barra della Dashboard (oppure sulla card **`🛠️ Accessi & Sezioni`** nella griglia Operazioni Frequenti, o navigare direttamente su `/gestione-accessi/`).
 3. Nella pagina **Console Programmatore** viene mostrata una scheda dedicata per ciascun Responsabile (*Simone Cortinovis*, *Roberta Gamba*, *Giorgio Gamba*, *Sonia Cavalera*, *Consuelo Pina*, *Carla Bordoni*).
 4. All'interno della scheda del Responsabile desiderato, le **38 sezioni del portale** sono organizzate in **3 gruppi chiari**:
@@ -749,7 +749,7 @@ Dalla card **💾 Gestione Dati** (abilitabile dal Programmatore per i profili a
 ### 24.2 Domande Frequenti e Risoluzione Rapida Problemi (FAQ Amministratore)
 
 - **D: Un Responsabile non vede una card o una sezione nella propria Dashboard. Come la abilito?**  
-  **R:** Accedere con l'account Programmatore (`serra` / `Serra2026!`), aprire la **Console Programmatore (`/gestione-accessi/`)**, individuare la scheda di quel Responsabile, spuntare la casella della sezione desiderata e cliccare su **`💾 Salva Configurazione`**.
+  **R:** Accedere con l'account Programmatore (`serra` / `*Password personale riservata*`), aprire la **Console Programmatore (`/gestione-accessi/`)**, individuare la scheda di quel Responsabile, spuntare la casella della sezione desiderata e cliccare su **`💾 Salva Configurazione`**.
 
 - **D: Un dipendente ha cambiato telefono e il Bot Telegram gli dice che il suo Codice Fiscale e gia associato a un altro dispositivo. Cosa faccio?**  
   **R:** Questo e il **blocco automatico anti-duplicato** che protegge il profilo del lavoratore. Andare in **Anagrafiche → Dipendenti**, aprire la scheda del lavoratore, cancellare il numero presente nel campo **`Telegram Chat ID`**, cliccare su **`Salva`** e far premere `/start` al lavoratore dal nuovo smartphone.
