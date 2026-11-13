@@ -14,7 +14,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Cliente, Dipendente, TimeTracking, ModificaCedolino
+from .models import Cliente, Dipendente, TimeTracking, ModificaCedolino, to_decimal
 from .paghe_service import (
     MESI_NOMI,
     calcola_ore_lavorate_record,
@@ -34,7 +34,7 @@ def reconciliation_view(request):
     selected_year = int(request.GET.get('year', today.year))
 
     report_data = []
-    clienti = Cliente.objects.all()
+    clienti = Cliente.objects.prefetch_related('storico_contratti').all()
 
     for cliente in clienti:
         timetracks = TimeTracking.objects.filter(
@@ -45,7 +45,8 @@ def reconciliation_view(request):
         ).distinct()
 
         ore_reali = round(sum(calcola_ore_lavorate_record(t) for t in timetracks), 2)
-        ore_previste = float(cliente.ore_mensili_contratto)
+        ore_previste_dec, _ = cliente.get_condizioni_contrattuali_mese(selected_year, selected_month)
+        ore_previste = float(ore_previste_dec)
         diff = round(ore_reali - ore_previste, 2)
 
         status = 'OK'
@@ -786,17 +787,17 @@ def salva_modifica_cedolino_ajax(request):
                     pass
             return None
 
-        def parse_optional_float(val):
+        def parse_optional_decimal(val):
             if val is not None and str(val).strip() != '':
                 try:
-                    return float(str(val).replace(',', '.'))
-                except ValueError:
+                    return to_decimal(val, places=2)
+                except (ValueError, TypeError):
                     pass
             return None
 
         giorni_lavorati = parse_optional_int(data.get('giorni_lavorati_override'))
-        ore_lavorate = parse_optional_float(data.get('ore_lavorate_override'))
-        ore_validate = parse_optional_float(data.get('ore_validate_override'))
+        ore_lavorate = parse_optional_decimal(data.get('ore_lavorate_override'))
+        ore_validate = parse_optional_decimal(data.get('ore_validate_override'))
         giorni_ferie = parse_optional_int(data.get('giorni_ferie_override'))
         giorni_permesso = parse_optional_int(data.get('giorni_permesso_override'))
         giorni_malattia = parse_optional_int(data.get('giorni_malattia_override'))

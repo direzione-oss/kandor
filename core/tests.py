@@ -1696,6 +1696,143 @@ class PerformanceAndGeocodingTestCase(TestCase):
                 os.environ['SKIP_GEOCODING'] = '1'
 
 
+class DecimalPrecisionAndContractHistoryTestCase(TestCase):
+    """
+    Test del Miglioramento 5:
+    1) Precisione Decimal (ROUND_HALF_UP) su AssegnazioneTurno.ore_previste_contratto,
+       ModificaCedolino.ore_lavorate_override / ore_validate_override e Cliente.importo_orario_decimal.
+    2) Storicizzazione automatica delle condizioni contrattuali (StoricoContrattoCliente)
+       quando cambiano ore_mensili_contratto o importo_mensile_contratto, preservando
+       i consuntivi storici nei report dei mesi precedenti (Verifica Ore, Analisi Contratti,
+       Riconciliazione, Contabilità Industriale e AI Engine).
+    """
+    def setUp(self):
+        from core.models import Dipendente, Squadra
+        self.dip = Dipendente.objects.create(
+            nome="Andrea",
+            cognome="Bianchi",
+            codice_fiscale="BNCNDR85A01A794W",
+            indirizzo_residenza="Via Roma 10, Bergamo",
+            stato="ATTIVO",
+        )
+        self.squadra = Squadra.objects.create(nome="Squadra Decimal", caposquadra=self.dip)
+
+    def test_1_decimal_fields_and_round_half_up_precision(self):
+        from core.models import (
+            Cliente, Turno, AssegnazioneTurno, ModificaCedolino, to_decimal
+        )
+        # 1) Verifica arrotondamento ROUND_HALF_UP
+        self.assertEqual(to_decimal("12.345", places=2), Decimal("12.35"))
+        self.assertEqual(to_decimal(0.1 + 0.2, places=2), Decimal("0.30"))
+
+        cliente = Cliente.objects.create(
+            ragione_sociale="Condominio Precisione",
+            indirizzo_sede="Via Verdi 1, Bergamo",
+            ore_mensili_contratto=Decimal("33.00"),
+            importo_mensile_contratto=Decimal("1000.00"),
+        )
+        # 1000 / 33 = 30.3030... -> Decimal('30.30')
+        self.assertEqual(cliente.importo_orario_decimal, Decimal("30.30"))
+        self.assertEqual(cliente.importo_orario, 30.30)
+
+        turno = Turno.objects.create(data=datetime.date(2026, 5, 10), squadra=self.squadra)
+        asg = AssegnazioneTurno.objects.create(
+            turno=turno,
+            cliente=cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(10, 30),
+            ore_previste_contratto=Decimal("2.75"),
+        )
+        asg.refresh_from_db()
+        self.assertIsInstance(asg.ore_previste_contratto, Decimal)
+        self.assertEqual(asg.ore_previste_contratto, Decimal("2.75"))
+
+        mod = ModificaCedolino.objects.create(
+            dipendente=self.dip,
+            data_inizio=datetime.date(2026, 5, 1),
+            data_fine=datetime.date(2026, 5, 31),
+            ore_lavorate_override=Decimal("164.25"),
+            ore_validate_override=Decimal("162.50"),
+        )
+        mod.refresh_from_db()
+        self.assertIsInstance(mod.ore_lavorate_override, Decimal)
+        self.assertIsInstance(mod.ore_validate_override, Decimal)
+        self.assertEqual(mod.ore_lavorate_override, Decimal("164.25"))
+        self.assertEqual(mod.ore_validate_override, Decimal("162.50"))
+
+    def test_2_automatic_contract_history_preserves_past_months_reports(self):
+        from core.models import Cliente, Turno, AssegnazioneTurno, TimeTracking, StoricoContrattoCliente
+        from core.paghe_service import calcola_verifica_ore_mensile, calcola_analisi_contratti
+        from core.views_erp_pro import calcola_contabilita_industriale_mese
+
+        # 1) Creazione cliente con condizioni originarie (es. in vigore a Maggio 2026: 40h / 1000€)
+        cliente = Cliente.objects.create(
+            ragione_sociale="Azienda Storica Srl",
+            partita_iva="04445556667",
+            indirizzo_sede="Via Milano 20, Bergamo",
+            ore_mensili_contratto=Decimal("40.00"),
+            importo_mensile_contratto=Decimal("1000.00"),
+        )
+
+        # Lavorazione svolta a Maggio 2026 (38 ore lavorate e validate)
+        turno_mag = Turno.objects.create(data=datetime.date(2026, 5, 15), squadra=self.squadra)
+        asg_mag = AssegnazioneTurno.objects.create(
+            turno=turno_mag,
+            cliente=cliente,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(16, 0),
+        )
+        TimeTracking.objects.create(
+            assegnazione=asg_mag,
+            dipendente=self.dip,
+            ore_dichiarate=Decimal("38.00"),
+            is_validated=True,
+        )
+
+        # 2) A Novembre 2026 il cliente adegua il contratto a 60h e 1800€
+        cliente._contract_effective_date = datetime.date(2026, 11, 1)
+        cliente.ore_mensili_contratto = Decimal("60.00")
+        cliente.importo_mensile_contratto = Decimal("1800.00")
+        cliente.save()
+
+        # Verifica che siano state generate automaticamente 2 righe nello storico contrattuale
+        storico = list(StoricoContrattoCliente.objects.filter(cliente=cliente).order_by('valido_dal'))
+        self.assertEqual(len(storico), 2)
+        self.assertEqual(storico[0].ore_mensili_contratto, Decimal("40.00"))
+        self.assertEqual(storico[0].importo_mensile_contratto, Decimal("1000.00"))
+        self.assertEqual(storico[0].valido_al, datetime.date(2026, 10, 31))
+        self.assertEqual(storico[1].ore_mensili_contratto, Decimal("60.00"))
+        self.assertEqual(storico[1].importo_mensile_contratto, Decimal("1800.00"))
+        self.assertEqual(storico[1].valido_dal, datetime.date(2026, 11, 1))
+        self.assertIsNone(storico[1].valido_al)
+
+        # 3) Ricalcolando Maggio 2026, i report DEVONO continuare a mostrare 40h e 1000€ (non 60h e 1800€!)
+        ver_mag = calcola_verifica_ore_mensile(mese=5, anno=2026)
+        cl_mag = next(c for c in ver_mag['clienti_list'] if c['cliente'].pk == cliente.pk)
+        self.assertEqual(cl_mag['ore_contratto'], 40.0)
+        self.assertEqual(cl_mag['importo_contratto'], 1000.0)
+        self.assertEqual(cl_mag['ore_lavorate'], 38.0)
+        self.assertEqual(cl_mag['diff'], -2.0)
+
+        ana_mag = calcola_analisi_contratti(mese=5, anno=2026)
+        row_mag = next(r for r in ana_mag['analisi'] if r['cliente_id'] == cliente.pk)
+        self.assertEqual(row_mag['ore_contratto_num'], 40.0)
+        self.assertEqual(row_mag['importo_num'], 1000.0)
+
+        ind_mag = calcola_contabilita_industriale_mese(anno=2026, mese=5)
+        ind_row_mag = next(r for r in ind_mag['analisi'] if r['cliente_id'] == cliente.pk)
+        self.assertEqual(ind_row_mag['ore_contratto_val'], 40.0)
+        self.assertEqual(ind_row_mag['canone_mensile_val'], 1000.0)
+
+        # 4) Calcolando Novembre 2026, i report DEVONO mostrare le nuove condizioni 60h e 1800€
+        ver_nov = calcola_verifica_ore_mensile(mese=11, anno=2026)
+        cl_nov = next(c for c in ver_nov['clienti_list'] if c['cliente'].pk == cliente.pk)
+        self.assertEqual(cl_nov['ore_contratto'], 60.0)
+        self.assertEqual(cl_nov['importo_contratto'], 1800.0)
+        self.assertEqual(cl_nov['importo_orario'], 30.0)
+
+
+
 
 
 

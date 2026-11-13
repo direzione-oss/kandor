@@ -1,10 +1,32 @@
+import calendar
 import os
-from decimal import Decimal
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from django.db import models
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from .utils_geocoding import geocode_address, get_cached_geocode, schedule_async_geocode
 from django.utils.translation import gettext_lazy as _
+
+
+def to_decimal(val, places=2):
+    """
+    Converte in modo sicuro qualsiasi valore numerico o stringa in Decimal
+    arrotondato con ROUND_HALF_UP al numero di cifre decimali specificato.
+    """
+    quant = Decimal(10) ** -places
+    if val is None or val == '':
+        return Decimal('0').quantize(quant)
+    try:
+        if isinstance(val, Decimal):
+            d = val
+        elif isinstance(val, (int, float)):
+            d = Decimal(str(val))
+        else:
+            d = Decimal(str(val).strip().replace(',', '.'))
+        return d.quantize(quant, rounding=ROUND_HALF_UP)
+    except (InvalidOperation, ValueError, TypeError):
+        return Decimal('0').quantize(quant)
 
 # Se PostGIS fosse attivo:
 # from django.contrib.gis.db import models as gis_models
@@ -218,11 +240,54 @@ class Cliente(models.Model):
     note_mansioni = models.TextField(blank=True, help_text="Mansioni richieste specifiche", verbose_name="Note Mansioni")
 
     @property
+    def importo_orario_decimal(self):
+        """Calcola l'importo orario con precisione Decimal (ROUND_HALF_UP)."""
+        ore = to_decimal(self.ore_mensili_contratto)
+        if ore > Decimal('0.00'):
+            return to_decimal(to_decimal(self.importo_mensile_contratto) / ore, places=2)
+        return Decimal('0.00')
+
+    @property
     def importo_orario(self):
         """Calcola l'importo orario: importo_mensile / ore_mensili"""
-        if self.ore_mensili_contratto and self.ore_mensili_contratto > 0:
-            return round(float(self.importo_mensile_contratto) / float(self.ore_mensili_contratto), 2)
+        ore = to_decimal(self.ore_mensili_contratto)
+        if ore > Decimal('0.00'):
+            return float(self.importo_orario_decimal)
         return 0
+
+    def get_condizioni_contrattuali_alla_data(self, target_date):
+        """
+        Restituisce la tupla (ore_mensili_dec, importo_mensile_dec) valida alla data `target_date`.
+        Se esiste uno storico contrattuale (`storico_contratti`), individua il periodo di competenza
+        che copre `target_date` senza alterare i consuntivi dei mesi precedenti in caso di rinnovo/adeguamento.
+        """
+        if not self.pk:
+            return to_decimal(self.ore_mensili_contratto), to_decimal(self.importo_mensile_contratto)
+
+        records = list(self.storico_contratti.all())
+        if not records:
+            return to_decimal(self.ore_mensili_contratto), to_decimal(self.importo_mensile_contratto)
+
+        # Ordina per valido_dal decrescente, id decrescente (in memoria per sfruttare prefetch_related)
+        records_desc = sorted(records, key=lambda r: (r.valido_dal or date.min, r.pk or 0), reverse=True)
+        for rec in records_desc:
+            if rec.valido_dal <= target_date and (rec.valido_al is None or rec.valido_al >= target_date):
+                return to_decimal(rec.ore_mensili_contratto), to_decimal(rec.importo_mensile_contratto)
+
+        # Se target_date è antecedente al primo record storico registrato, usa il record più antico
+        earliest = records_desc[-1]
+        if target_date < earliest.valido_dal:
+            return to_decimal(earliest.ore_mensili_contratto), to_decimal(earliest.importo_mensile_contratto)
+
+        return to_decimal(self.ore_mensili_contratto), to_decimal(self.importo_mensile_contratto)
+
+    def get_condizioni_contrattuali_mese(self, anno, mese):
+        """
+        Restituisce (ore_mensili_dec, importo_mensile_dec) validi nel mese `(anno, mese)`,
+        valutati all'ultimo giorno del mese di competenza.
+        """
+        _, last_day = calendar.monthrange(int(anno), int(mese))
+        return self.get_condizioni_contrattuali_alla_data(date(int(anno), int(mese), last_day))
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -242,6 +307,73 @@ class Cliente(models.Model):
         verbose_name = "Cliente"
         verbose_name_plural = "Clienti"
         ordering = ['ragione_sociale']
+
+
+class StoricoContrattoCliente(models.Model):
+    """
+    Storicizzazione delle condizioni economiche e orarie del contratto Cliente.
+    Garantisce che un adeguamento tariffario o una variazione del monte ore mensile
+    non sovrascriva retroattivamente i report di riconciliazione, verifica ore e MOL dei mesi passati.
+    """
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.CASCADE,
+        related_name='storico_contratti',
+        verbose_name="Cliente",
+    )
+    valido_dal = models.DateField(verbose_name="Valido Dal")
+    valido_al = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Valido Fino Al",
+        help_text="Lasciare vuoto se è il contratto attualmente in vigore",
+    )
+    ore_mensili_contratto = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Ore Mensili Contratto",
+    )
+    importo_mensile_contratto = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Importo Mensile Contratto (€)",
+    )
+    note_variazione = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name="Note Variazione / Adeguamento",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def importo_orario(self):
+        ore = to_decimal(self.ore_mensili_contratto)
+        if ore > Decimal('0.00'):
+            return float(to_decimal(to_decimal(self.importo_mensile_contratto) / ore, places=2))
+        return 0.0
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.valido_dal and self.valido_al and self.valido_al < self.valido_dal:
+            raise ValidationError({'valido_al': "La data di fine validità non può essere antecedente alla data di inizio validità."})
+
+    def __str__(self):
+        fine_str = self.valido_al.strftime('%d/%m/%Y') if self.valido_al else 'In corso'
+        return (
+            f"{self.cliente.ragione_sociale}: {self.valido_dal.strftime('%d/%m/%Y')} → {fine_str} "
+            f"({self.ore_mensili_contratto}h / €{self.importo_mensile_contratto})"
+        )
+
+    class Meta:
+        verbose_name = "Storico Contratto Cliente"
+        verbose_name_plural = "Storico Contratti Clienti"
+        ordering = ['-valido_dal', '-id']
+        indexes = [
+            models.Index(fields=['cliente', 'valido_dal', 'valido_al'], name='core_storicocontr_cli_dt_idx'),
+        ]
 
 class ProgrammazioneRicorrente(models.Model):
     TIPO_RIPETIZIONE = [
@@ -527,7 +659,8 @@ class AssegnazioneTurno(models.Model):
     
     orario_inizio_previsto = models.TimeField()
     orario_fine_previsto = models.TimeField()
-    ore_previste_contratto = models.FloatField(
+    ore_previste_contratto = models.DecimalField(
+        max_digits=6, decimal_places=2,
         null=True, blank=True,
         verbose_name="Ore previste (contratto)",
         help_text="Ore contrattuali previste per questo turno. Possono differire dalla durata orario inizio-fine."
@@ -899,8 +1032,8 @@ class ModificaCedolino(models.Model):
     data_inizio = models.DateField(verbose_name="Data Inizio Periodo")
     data_fine = models.DateField(verbose_name="Data Fine Periodo")
     giorni_lavorati_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Lavorati Rettificati")
-    ore_lavorate_override = models.FloatField(null=True, blank=True, verbose_name="Ore Totali Rettificate")
-    ore_validate_override = models.FloatField(null=True, blank=True, verbose_name="Ore Validate Rettificate")
+    ore_lavorate_override = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True, verbose_name="Ore Totali Rettificate")
+    ore_validate_override = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True, verbose_name="Ore Validate Rettificate")
     giorni_ferie_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Ferie Rettificati")
     giorni_permesso_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Permesso Rettificati")
     giorni_malattia_override = models.IntegerField(null=True, blank=True, verbose_name="Giorni Malattia Rettificati")
@@ -2295,6 +2428,19 @@ def geocode_dipendente_address(sender, instance, **kwargs):
 @receiver(pre_save, sender=Cliente)
 def geocode_cliente_address(sender, instance, **kwargs):
     geocode_helper(instance, 'indirizzo_sede')
+    if instance.pk:
+        old_vals = (
+            Cliente.objects.filter(pk=instance.pk)
+            .values_list('ore_mensili_contratto', 'importo_mensile_contratto')
+            .first()
+        )
+        if old_vals:
+            old_ore = to_decimal(old_vals[0])
+            old_imp = to_decimal(old_vals[1])
+            new_ore = to_decimal(instance.ore_mensili_contratto)
+            new_imp = to_decimal(instance.importo_mensile_contratto)
+            if old_ore != new_ore or old_imp != new_imp:
+                instance._contract_change_transition = (old_ore, old_imp, new_ore, new_imp)
 
 
 @receiver(post_save, sender=Dipendente)
@@ -2311,6 +2457,65 @@ def post_save_geocode_cliente(sender, instance, **kwargs):
     if pending:
         instance._pending_async_geocode = None
         schedule_async_geocode(Cliente, instance.pk, 'indirizzo_sede', pending)
+
+    transition = getattr(instance, '_contract_change_transition', None)
+    if transition:
+        instance._contract_change_transition = None
+        old_ore, old_imp, new_ore, new_imp = transition
+        from django.utils import timezone
+        today = timezone.now().date()
+        effective_start = getattr(instance, '_contract_effective_date', None) or date(today.year, today.month, 1)
+        prev_end = effective_start - timedelta(days=1)
+
+        existing = list(StoricoContrattoCliente.objects.filter(cliente=instance).order_by('valido_dal', 'id'))
+        if not existing:
+            # Storicizza automaticamente le condizioni precedenti per tutti i mesi passati
+            StoricoContrattoCliente.objects.create(
+                cliente=instance,
+                valido_dal=date(2000, 1, 1),
+                valido_al=prev_end,
+                ore_mensili_contratto=old_ore,
+                importo_mensile_contratto=old_imp,
+                note_variazione="Condizioni contrattuali precedenti (storicizzate automaticamente)",
+            )
+            StoricoContrattoCliente.objects.create(
+                cliente=instance,
+                valido_dal=effective_start,
+                valido_al=None,
+                ore_mensili_contratto=new_ore,
+                importo_mensile_contratto=new_imp,
+                note_variazione=f"Adeguamento contrattuale dal {effective_start.strftime('%d/%m/%Y')}",
+            )
+        else:
+            open_rec = StoricoContrattoCliente.objects.filter(cliente=instance, valido_al__isnull=True).order_by('-valido_dal', '-id').first()
+            if open_rec:
+                if open_rec.valido_dal < effective_start:
+                    open_rec.valido_al = prev_end
+                    open_rec.save(update_fields=['valido_al'])
+                    StoricoContrattoCliente.objects.create(
+                        cliente=instance,
+                        valido_dal=effective_start,
+                        valido_al=None,
+                        ore_mensili_contratto=new_ore,
+                        importo_mensile_contratto=new_imp,
+                        note_variazione=f"Adeguamento contrattuale dal {effective_start.strftime('%d/%m/%Y')}",
+                    )
+                else:
+                    open_rec.ore_mensili_contratto = new_ore
+                    open_rec.importo_mensile_contratto = new_imp
+                    open_rec.save(update_fields=['ore_mensili_contratto', 'importo_mensile_contratto'])
+            else:
+                StoricoContrattoCliente.objects.create(
+                    cliente=instance,
+                    valido_dal=effective_start,
+                    valido_al=None,
+                    ore_mensili_contratto=new_ore,
+                    importo_mensile_contratto=new_imp,
+                    note_variazione=f"Adeguamento contrattuale dal {effective_start.strftime('%d/%m/%Y')}",
+                )
+
+        if hasattr(instance, '_prefetched_objects_cache') and isinstance(instance._prefetched_objects_cache, dict):
+            instance._prefetched_objects_cache.pop('storico_contratti', None)
 
 
 def geocode_helper(instance, address_field):

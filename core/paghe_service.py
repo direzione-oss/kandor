@@ -11,7 +11,7 @@ from decimal import Decimal
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Dipendente, Cliente, TimeTracking, Assenza, ModificaCedolino
+from .models import Dipendente, Cliente, TimeTracking, Assenza, ModificaCedolino, to_decimal
 
 
 MESI_NOMI = {
@@ -232,16 +232,16 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
             item['modifica_note'] = modifica.note or ''
             item['modifica_id'] = modifica.pk
             item['giorni_lavorati_override'] = modifica.giorni_lavorati_override
-            item['ore_lavorate_override'] = modifica.ore_lavorate_override
-            item['ore_validate_override'] = modifica.ore_validate_override
+            item['ore_lavorate_override'] = float(to_decimal(modifica.ore_lavorate_override)) if modifica.ore_lavorate_override is not None else None
+            item['ore_validate_override'] = float(to_decimal(modifica.ore_validate_override)) if modifica.ore_validate_override is not None else None
             item['giorni_ferie_override'] = modifica.giorni_ferie_override
             item['giorni_permesso_override'] = modifica.giorni_permesso_override
             item['giorni_malattia_override'] = modifica.giorni_malattia_override
             item['giorni_104_override'] = modifica.giorni_104_override
 
             item['giorni_lavorati'] = modifica.giorni_lavorati_override if modifica.giorni_lavorati_override is not None else giorni_orig
-            item['ore_lavorate'] = round(modifica.ore_lavorate_override, 2) if modifica.ore_lavorate_override is not None else ore_lav_orig
-            item['ore_validate'] = round(modifica.ore_validate_override, 2) if modifica.ore_validate_override is not None else ore_val_orig
+            item['ore_lavorate'] = float(to_decimal(modifica.ore_lavorate_override)) if modifica.ore_lavorate_override is not None else ore_lav_orig
+            item['ore_validate'] = float(to_decimal(modifica.ore_validate_override)) if modifica.ore_validate_override is not None else ore_val_orig
 
             if modifica.giorni_ferie_override is not None:
                 item['assenze_dict']['FERIE'] = modifica.giorni_ferie_override
@@ -353,12 +353,17 @@ def calcola_verifica_ore_mensile(mese=None, anno=None):
         assegnazione__turno__data__lte=ultimo_giorno
     ).select_related('assegnazione__cliente', 'dipendente', 'assegnazione__turno__squadra')
 
+    # Pre-carica tutti i clienti con lo storico contrattuale in 2 query complessive (zero N+1)
+    tutti_clienti = list(Cliente.objects.prefetch_related('storico_contratti'))
+    clienti_by_pk = {c.pk: c for c in tutti_clienti}
+
     # === 1. SEZIONE PER CLIENTE (Raggruppato per Partita IVA) ===
     clienti_data = {}
     for tt in tt_mese:
-        cliente = tt.assegnazione.cliente
-        if not cliente:
+        raw_cl = tt.assegnazione.cliente
+        if not raw_cl:
             continue
+        cliente = clienti_by_pk.get(raw_cl.pk, raw_cl)
         piva = (cliente.partita_iva or '').strip().upper()
         key = f"PIVA_{piva}" if piva else f"PK_{cliente.pk}"
 
@@ -377,7 +382,10 @@ def calcola_verifica_ore_mensile(mese=None, anno=None):
         if tt.is_validated:
             clienti_data[key]['ore_validate'] += ore
 
-    for cl in Cliente.objects.filter(ore_mensili_contratto__gt=0):
+    for cl in tutti_clienti:
+        ore_storiche, _ = cl.get_condizioni_contrattuali_mese(anno, mese)
+        if ore_storiche <= Decimal('0.00'):
+            continue
         piva = (cl.partita_iva or '').strip().upper()
         key = f"PIVA_{piva}" if piva else f"PK_{cl.pk}"
 
@@ -394,9 +402,19 @@ def calcola_verifica_ore_mensile(mese=None, anno=None):
     for cd in clienti_data.values():
         clienti_list_sorted = sorted(list(cd['clienti']), key=lambda x: x.ragione_sociale)
         cd['cliente'] = clienti_list_sorted[0]
-        cd['ore_contratto'] = float(sum(c.ore_mensili_contratto or 0 for c in clienti_list_sorted))
-        cd['importo_contratto'] = float(sum(c.importo_mensile_contratto or 0 for c in clienti_list_sorted))
-        cd['importo_orario'] = round(cd['importo_contratto'] / cd['ore_contratto'], 2) if cd['ore_contratto'] > 0 else 0
+        ore_contratto_dec = Decimal('0.00')
+        imp_contratto_dec = Decimal('0.00')
+        for c in clienti_list_sorted:
+            ore_c, imp_c = c.get_condizioni_contrattuali_mese(anno, mese)
+            ore_contratto_dec += ore_c
+            imp_contratto_dec += imp_c
+        cd['ore_contratto'] = float(ore_contratto_dec)
+        cd['importo_contratto'] = float(imp_contratto_dec)
+        cd['importo_orario'] = (
+            float(to_decimal(imp_contratto_dec / ore_contratto_dec, places=2))
+            if ore_contratto_dec > Decimal('0.00')
+            else 0
+        )
 
         piva_str = cd['piva']
         if len(clienti_list_sorted) > 1 and piva_str:
@@ -541,12 +559,13 @@ def calcola_analisi_contratti(mese=None, anno=None, soglia=15.0):
     anno = int(anno) if anno else today.year
     soglia = float(soglia) if soglia is not None else 15.0
 
-    clienti_qs = Cliente.objects.filter(
-        ore_mensili_contratto__gt=0
-    ).order_by('ragione_sociale')
+    clienti_qs = Cliente.objects.prefetch_related('storico_contratti').order_by('ragione_sociale')
 
     grouped_clienti = {}
     for c in clienti_qs:
+        ore_c, _ = c.get_condizioni_contrattuali_mese(anno, mese)
+        if ore_c <= Decimal('0.00'):
+            continue
         piva = (c.partita_iva or '').strip().upper()
         key = f"PIVA_{piva}" if piva else f"PK_{c.pk}"
         if key not in grouped_clienti:
@@ -560,9 +579,19 @@ def calcola_analisi_contratti(mese=None, anno=None, soglia=15.0):
 
     for key, grp in grouped_clienti.items():
         clienti_list = grp['clienti']
-        importo = sum(float(c.importo_mensile_contratto or 0) for c in clienti_list)
-        ore_contratto = sum(float(c.ore_mensili_contratto or 0) for c in clienti_list)
-        importo_orario = round(importo / ore_contratto, 2) if ore_contratto > 0 else 0
+        ore_contratto_dec = Decimal('0.00')
+        importo_dec = Decimal('0.00')
+        for c in clienti_list:
+            ore_c, imp_c = c.get_condizioni_contrattuali_mese(anno, mese)
+            ore_contratto_dec += ore_c
+            importo_dec += imp_c
+        importo = float(importo_dec)
+        ore_contratto = float(ore_contratto_dec)
+        importo_orario = (
+            float(to_decimal(importo_dec / ore_contratto_dec, places=2))
+            if ore_contratto_dec > Decimal('0.00')
+            else 0
+        )
 
         piva_str = grp['piva']
         if len(clienti_list) > 1 and piva_str:

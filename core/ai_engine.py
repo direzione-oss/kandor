@@ -1177,7 +1177,7 @@ def analizza_marginalita_e_budget_clienti(mese=None, anno=None):
     else:
         giorni_trascorsi = 1
 
-    clienti = list(Cliente.objects.all().order_by('ragione_sociale'))
+    clienti = list(Cliente.objects.prefetch_related('storico_contratti').order_by('ragione_sociale'))
     report_clienti = []
     lavori_extra_rilevati = []
 
@@ -1195,8 +1195,9 @@ def analizza_marginalita_e_budget_clienti(mese=None, anno=None):
         assegnazioni_per_cliente.setdefault(a_item.cliente_id, []).append(a_item)
 
     for cliente in clienti:
-        ore_contratto = float(cliente.ore_mensili_contratto or 0)
-        importo_contratto = float(cliente.importo_mensile_contratto or 0)
+        ore_c_dec, imp_c_dec = cliente.get_condizioni_contrattuali_mese(anno, mese)
+        ore_contratto = float(ore_c_dec)
+        importo_contratto = float(imp_c_dec)
 
         assegnazioni_mese = assegnazioni_per_cliente.get(cliente.id, ())
 

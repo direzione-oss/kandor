@@ -37,6 +37,7 @@ from .models import (
     IspezioneQualitaCantiere, PreventivoCommerciale, VoceAmbientePreventivo,
     ensure_default_prodotti_magazzino,
     TelegramConversationState, SchedulerExecutionLog,
+    StoricoContrattoCliente,
 )
 
 @admin.register(ModificaCedolino)
@@ -1017,6 +1018,22 @@ class DotazioneCantiereInline(admin.TabularInline):
     fields = ('tipo', 'descrizione', 'matricola_codice', 'quantita', 'valore_stimato', 'stato', 'data_consegna', 'note')
 
 
+class StoricoContrattoClienteInline(admin.TabularInline):
+    model = StoricoContrattoCliente
+    extra = 0
+    fields = ('valido_dal', 'valido_al', 'ore_mensili_contratto', 'importo_mensile_contratto', 'note_variazione', 'created_at')
+    readonly_fields = ('created_at',)
+    ordering = ('-valido_dal', '-id')
+
+
+@admin.register(StoricoContrattoCliente)
+class StoricoContrattoClienteAdmin(KandorBaseAdmin):
+    list_display = ('cliente', 'valido_dal', 'valido_al', 'ore_mensili_contratto', 'importo_mensile_contratto', 'importo_orario', 'note_variazione')
+    list_filter = ('valido_dal', 'valido_al')
+    search_fields = ('cliente__ragione_sociale', 'cliente__partita_iva', 'note_variazione')
+    autocomplete_fields = ('cliente',)
+
+
 @admin.register(RichiestaStraordinaria)
 class RichiestaStraordinariaAdmin(KandorBaseAdmin):
     list_display = ('cliente', 'data_inizio', 'data_fine', 'ora_inizio', 'ora_fine', 'descrizione', 'completata', 'stato_fatturazione', 'prezzo_concordato', 'numero_fattura_rif')
@@ -1029,7 +1046,7 @@ class RichiestaStraordinariaAdmin(KandorBaseAdmin):
 class ClienteAdmin(KandorBaseAdmin):
     list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge')
     search_fields = ('ragione_sociale', 'partita_iva')
-    inlines = [ProgrammazioneInline, StraordinarioInline, DotazioneCantiereInline]
+    inlines = [ProgrammazioneInline, StraordinarioInline, DotazioneCantiereInline, StoricoContrattoClienteInline]
     actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action']
 
     @admin.display(description="⚙️ Dotazioni Cantiere")

@@ -109,7 +109,7 @@ def calcola_contabilita_industriale_mese(mese=None, anno=None, soglia_oraria=15.
     inizio_mese = date(anno, mese, 1)
     fine_mese = date(anno, mese, last_day)
 
-    clienti_qs = list(Cliente.objects.all().order_by('ragione_sociale'))
+    clienti_qs = list(Cliente.objects.prefetch_related('storico_contratti').order_by('ragione_sociale'))
 
     # Pre-carica TimeTracking del mese
     tt_qs = list(
@@ -159,7 +159,8 @@ def calcola_contabilita_industriale_mese(mese=None, anno=None, soglia_oraria=15.
     # Raggruppa per Cliente / Partita IVA
     grouped = {}
     for c in clienti_qs:
-        if (c.ore_mensili_contratto or 0) <= 0 and (c.importo_mensile_contratto or 0) <= 0:
+        ore_c_mese, imp_c_mese = c.get_condizioni_contrattuali_mese(anno, mese)
+        if ore_c_mese <= 0 and imp_c_mese <= 0:
             # Includi comunque se ha lavorazioni o consegne nel mese
             has_act = any(t.assegnazione.cliente_id == c.id for t in tt_qs) or any(m.cliente_id == c.id for m in consegne_qs)
             if not has_act:
@@ -190,8 +191,12 @@ def calcola_contabilita_industriale_mese(mese=None, anno=None, soglia_oraria=15.
         cl_list = grp['clienti']
         cl_ids = {c.id for c in cl_list}
 
-        canone_mensile = sum(float(c.importo_mensile_contratto or 0) for c in cl_list)
-        ore_contratto = sum(float(c.ore_mensili_contratto or 0) for c in cl_list)
+        canone_mensile = 0.0
+        ore_contratto = 0.0
+        for c in cl_list:
+            ore_c_m, imp_c_m = c.get_condizioni_contrattuali_mese(anno, mese)
+            ore_contratto += float(ore_c_m)
+            canone_mensile += float(imp_c_m)
 
         # Ricavi Extra da RichiestaStraordinaria (DA_FATTURARE o FATTURATO)
         ricavi_extra = sum(
@@ -1185,7 +1190,7 @@ def pre_fatturazione_view(request):
     lavori_extra_ia = ia_budget.get('lavori_extra_rilevati', [])
 
     # 3. Costruisci il Prospetto Mensile di Pre-Fatturazione per ogni Cliente attivo
-    clienti_qs = list(Cliente.objects.all().order_by('ragione_sociale'))
+    clienti_qs = list(Cliente.objects.prefetch_related('storico_contratti').order_by('ragione_sociale'))
     tt_mese = list(
         TimeTracking.objects.filter(
             assegnazione__turno__data__gte=inizio_mese,
