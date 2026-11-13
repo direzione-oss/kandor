@@ -32,7 +32,10 @@ from .models import (
     CorsoFormazione, CorsoDipendente, calcola_data_scadenza_corso,
     ensure_default_corsi_formazione, ensure_corsi_per_dipendente,
     ModelloProcedura, PassoModelloProcedura, ProceduraAvviata, PassoProceduraAvviata,
-    ensure_default_procedure, LottoBustePaga, CedolinoDipendente
+    ensure_default_procedure, LottoBustePaga, CedolinoDipendente,
+    ProdottoMagazzino, DotazioneCantiere, ConsegnaRichiestaMateriale,
+    IspezioneQualitaCantiere, PreventivoCommerciale, VoceAmbientePreventivo,
+    ensure_default_prodotti_magazzino,
 )
 
 @admin.register(ModificaCedolino)
@@ -421,9 +424,10 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'sostituto_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
+    list_editable = ('costo_orario_aziendale',)
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
-    list_filter = (StatoDipendenteDefaultAttiviFilter, 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
+    list_filter = (StatoDipendenteDefaultAttiviFilter, 'livello_contrattuale', 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
     actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action']
@@ -442,14 +446,15 @@ class DipendenteAdmin(KandorBaseAdmin):
         ('Stato', {
             'fields': ('stato',)
         }),
-        ('Dati Contrattuali', {
+        ('Dati Contrattuali & Costo Orario Industriale', {
             'fields': (
+                ('livello_contrattuale', 'costo_orario_aziendale'),
                 'categoria_protetta', 'usufruisce_104', 'file_contratto',
                 'data_assunzione', 'data_licenziamento',
                 'is_part_time', 'tipo_part_time', 'ore_settimanali_part_time',
                 'data_ultima_visita_medica',
             ),
-            'description': 'Inserire la data di assunzione e, se il contratto è Part-Time, selezionare la sigla: M (Misto), V (Verticale) o O (Orizzontale).',
+            'description': 'Inserire il Livello Contrattuale e il Costo Orario Aziendale pieno (Lordo + TFR + INAIL/INPS) per il calcolo reale del MOL per Cantiere.',
         }),
         ('Qualifiche, Sostituto & Ruolo Responsabile', {
             'fields': ('qualifiche', 'is_sostituto', 'riceve_notifiche_messaggi')
@@ -1005,19 +1010,41 @@ class ProgrammazioneRicorrenteAdmin(KandorBaseAdmin):
         return f"Giorno {obj.giorno_mese}" if obj.giorno_mese else '-'
     get_giorno_display.short_description = 'Giorno'
 
+class DotazioneCantiereInline(admin.TabularInline):
+    model = DotazioneCantiere
+    extra = 0
+    fields = ('tipo', 'descrizione', 'matricola_codice', 'quantita', 'valore_stimato', 'stato', 'data_consegna', 'note')
+
+
 @admin.register(RichiestaStraordinaria)
 class RichiestaStraordinariaAdmin(KandorBaseAdmin):
-    list_display = ('cliente', 'data_inizio', 'data_fine', 'ora_inizio', 'ora_fine', 'completata')
-    list_filter = ('completata', 'data_inizio')
-    search_fields = ('cliente__ragione_sociale', 'descrizione')
+    list_display = ('cliente', 'data_inizio', 'data_fine', 'ora_inizio', 'ora_fine', 'descrizione', 'completata', 'stato_fatturazione', 'prezzo_concordato', 'numero_fattura_rif')
+    list_editable = ('completata', 'stato_fatturazione', 'prezzo_concordato')
+    list_filter = ('stato_fatturazione', 'completata', 'data_inizio')
+    search_fields = ('cliente__ragione_sociale', 'descrizione', 'numero_fattura_rif')
     autocomplete_fields = ('cliente',)
 
 @admin.register(Cliente)
 class ClienteAdmin(KandorBaseAdmin):
-    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'procedure_cliente_badge')
+    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge')
     search_fields = ('ragione_sociale', 'partita_iva')
-    inlines = [ProgrammazioneInline, StraordinarioInline]
+    inlines = [ProgrammazioneInline, StraordinarioInline, DotazioneCantiereInline]
     actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action']
+
+    @admin.display(description="⚙️ Dotazioni Cantiere")
+    def dotazioni_badge(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        cnt = obj.dotazioni_cantiere.filter(stato__in=['IN_CANTIERE', 'DA_RITIRARE']).count()
+        if cnt == 0:
+            return format_html(
+                '<a href="/magazzino-dotazioni/?cliente_id={}" style="color:#64748B; font-size:11px; text-decoration:none;">+ Dotazioni</a>',
+                obj.pk,
+            )
+        return format_html(
+            '<a href="/magazzino-dotazioni/?cliente_id={}" style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none;">⚙️ {} dotazioni</a>',
+            obj.pk, cnt,
+        )
 
     @admin.display(description="📋 Procedure / Disdetta")
     def procedure_cliente_badge(self, obj):
@@ -1577,6 +1604,74 @@ class CedolinoDipendenteAdmin(KandorBaseAdmin):
     list_filter = ('periodo', 'inviato_telegram', 'inviato_whatsapp', 'scaricato_dipendente', 'lotto')
     search_fields = ('nominativo_pdf', 'codice_fiscale', 'dipendente__cognome', 'dipendente__nome')
     autocomplete_fields = ('dipendente',)
+
+
+@admin.register(ProdottoMagazzino)
+class ProdottoMagazzinoAdmin(KandorBaseAdmin):
+    list_display = ('nome', 'codice', 'categoria', 'unita_misura', 'costo_unitario', 'giacenza_attuale', 'scorta_minima', 'fornitore_abituale', 'attivo')
+    list_editable = ('costo_unitario', 'giacenza_attuale', 'scorta_minima', 'attivo')
+    list_filter = ('categoria', 'attivo')
+    search_fields = ('nome', 'codice', 'fornitore_abituale')
+
+    def changelist_view(self, request, extra_context=None):
+        ensure_default_prodotti_magazzino()
+        return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(DotazioneCantiere)
+class DotazioneCantiereAdmin(KandorBaseAdmin):
+    list_display = ('descrizione', 'tipo', 'cliente', 'matricola_codice', 'quantita', 'valore_stimato', 'stato', 'data_consegna', 'note')
+    list_editable = ('stato', 'quantita')
+    list_filter = ('stato', 'tipo')
+    search_fields = ('descrizione', 'matricola_codice', 'cliente__ragione_sociale', 'note')
+    autocomplete_fields = ('cliente',)
+
+
+@admin.register(ConsegnaRichiestaMateriale)
+class ConsegnaRichiestaMaterialeAdmin(KandorBaseAdmin):
+    list_display = ('data_richiesta', 'cliente', 'prodotto', 'descrizione_libera', 'quantita', 'costo_totale', 'urgenza', 'stato', 'richiesto_da', 'data_consegna')
+    list_editable = ('stato', 'quantita')
+    list_filter = ('stato', 'urgenza', 'data_richiesta')
+    search_fields = ('cliente__ragione_sociale', 'descrizione_libera', 'prodotto__nome', 'note')
+    autocomplete_fields = ('cliente', 'prodotto', 'richiesto_da', 'consegnato_da')
+
+
+@admin.register(IspezioneQualitaCantiere)
+class IspezioneQualitaCantiereAdmin(KandorBaseAdmin):
+    list_display = ('data_ispezione', 'cliente', 'ispettore', 'squadra_valutata', 'media_voto', 'esito', 'inviato_al_cliente', 'pdf_verbale_btn')
+    list_filter = ('esito', 'inviato_al_cliente', 'data_ispezione')
+    search_fields = ('cliente__ragione_sociale', 'ispettore__cognome', 'note_interne_squadra', 'messaggio_cortesia_cliente')
+    autocomplete_fields = ('cliente', 'ispettore', 'squadra_valutata')
+
+    @admin.display(description="Report PDF Cortesia")
+    def pdf_verbale_btn(self, obj):
+        return format_html(
+            '<a href="/qualita-ispezioni/pdf/{}/" target="_blank" style="background:#0F172A; color:#FFF; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; white-space:nowrap;">📄 Verbale PDF &rarr;</a>',
+            obj.pk,
+        )
+
+
+class VoceAmbientePreventivoInline(admin.TabularInline):
+    model = VoceAmbientePreventivo
+    extra = 1
+    fields = ('nome_ambiente', 'metri_quadri', 'resa_oraria_mq', 'passaggi_settimanali', 'giorni_preferiti', 'ora_inizio_suggerita', 'ore_per_intervento', 'ore_settimanali_ambiente')
+    readonly_fields = ('ore_per_intervento', 'ore_settimanali_ambiente')
+
+
+@admin.register(PreventivoCommerciale)
+class PreventivoCommercialeAdmin(KandorBaseAdmin):
+    list_display = ('numero_preventivo', 'ragione_sociale_prospect', 'totale_mq', 'ore_mensili_stimate', 'costo_vivo_mensile', 'canone_consigliato_mensile', 'canone_finale_offerto', 'stato', 'azioni_preventivo_btn')
+    list_filter = ('stato', 'data_emissione')
+    search_fields = ('numero_preventivo', 'ragione_sociale_prospect', 'indirizzo_cantiere', 'referente_nome')
+    inlines = [VoceAmbientePreventivoInline]
+
+    @admin.display(description="PDF & Conversione 1-Click")
+    def azioni_preventivo_btn(self, obj):
+        return format_html(
+            '<a href="/preventivi-crm/?prev_id={}" style="background:#2563EB; color:#FFF; padding:4px 9px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none; margin-right:4px;">📐 Configura</a>'
+            '<a href="/preventivi-crm/pdf/{}/" target="_blank" style="background:#0F172A; color:#FFF; padding:4px 9px; border-radius:6px; font-size:11px; font-weight:700; text-decoration:none;">📄 PDF</a>',
+            obj.pk, obj.pk,
+        )
 
 
 

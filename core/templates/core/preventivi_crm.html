@@ -1,0 +1,352 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+<style>
+    #container, #content, #content-main { max-width: 100% !important; width: 100% !important; }
+    #content-related { display: none !important; }
+    .crm-panel { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,.05); margin-bottom: 20px; overflow: hidden; }
+    .crm-hdr { background: #065f46; color: #fff; padding: 13px 18px; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+    .crm-body { padding: 18px; }
+    .crm-input, .crm-select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .crm-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .crm-table th { background: #f8fafc; padding: 9px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 700; }
+    .crm-table td { padding: 9px; border-bottom: 1px solid #e2e8f0; }
+</style>
+
+<div style="padding: 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:3px solid #059669;padding-bottom:12px;margin-bottom:20px">
+        <div>
+            <h1 style="margin:0;color:#065f46;font-size:22px">📐 Configuratore Sopralluoghi &amp; Preventivazione Rapida CRM (1-Click)</h1>
+            <p style="margin:4px 0 0 0;color:#64748b;font-size:13px">
+                Calcolo automatico ore mensili da superficie (m²) e resa oraria (m²/h), costo vivo, margine target, PDF Offerta e conversione <strong>1-Click in Cliente Attivo</strong> + avvio procedura <em>Attivazione Nuovo Cantiere</em>
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/preventivi-crm/?prev_id=new" style="background:#059669;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">+ Nuovo Preventivo</a>
+            <a href="/procedure/" style="background:#d97706;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">📋 Procedure Attivazione</a>
+            <a href="/admin/" style="background:#475569;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">&larr; Dashboard</a>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start">
+        <!-- CONFIGURATORE INTERATTIVO PREVENTIVO -->
+        <div class="crm-panel">
+            <div class="crm-hdr">
+                <span>🧮 Configuratore Tecnico-Economico Sopralluogo &amp; Ambienti (m² / Resa Oraria)</span>
+            </div>
+            <div class="crm-body">
+                <div style="display:grid;grid-template-columns:1.4fr 0.8fr 0.8fr;gap:10px;margin-bottom:12px">
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Ragione Sociale / Condominio Prospect *</label>
+                        <input type="text" id="prv_ragione" value="{{ selected_prev.ragione_sociale_prospect|default:'' }}" placeholder="Es. Condominio Parco Verde / Azienda Alfa Srl" class="crm-input">
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Partita IVA</label>
+                        <input type="text" id="prv_piva" value="{{ selected_prev.partita_iva|default:'' }}" class="crm-input">
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Codice Fiscale</label>
+                        <input type="text" id="prv_cf" value="{{ selected_prev.codice_fiscale|default:'' }}" class="crm-input">
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1.4fr 0.8fr 0.8fr;gap:10px;margin-bottom:14px">
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Indirizzo Cantiere *</label>
+                        <input type="text" id="prv_indirizzo" value="{{ selected_prev.indirizzo_cantiere|default:'' }}" placeholder="Via Roma 10, Bergamo" class="crm-input">
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Referente / Amministratore</label>
+                        <input type="text" id="prv_ref_nome" value="{{ selected_prev.referente_nome|default:'' }}" class="crm-input">
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Contatto (Email / Tel)</label>
+                        <input type="text" id="prv_ref_contatto" value="{{ selected_prev.referente_contatto|default:'' }}" class="crm-input">
+                    </div>
+                </div>
+
+                <!-- Parametri Industriali -->
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:14px">
+                    <div style="font-weight:700;font-size:12px;color:#065f46;margin-bottom:8px">⚙️ Parametri Industriali &amp; Marginalità Target</div>
+                    <div style="display:grid;grid-template-columns:repeat(5, 1fr);gap:8px">
+                        <div>
+                            <label style="font-size:10.5px;font-weight:700">Costo Orario (&euro;/h)</label>
+                            <input type="number" id="prv_costo_h" value="{{ selected_prev.costo_orario_applicato|default:'16.50'|stringformat:'.2f' }}" step="0.25" oninput="ricalcolaLive()" class="crm-input">
+                        </div>
+                        <div>
+                            <label style="font-size:10.5px;font-weight:700">Prodotti (%)</label>
+                            <input type="number" id="prv_prod_perc" value="{{ selected_prev.incidenza_prodotti_perc|default:'6.00'|stringformat:'.1f' }}" step="0.5" oninput="ricalcolaLive()" class="crm-input">
+                        </div>
+                        <div>
+                            <label style="font-size:10.5px;font-weight:700">Quota Mezzi (&euro;/m)</label>
+                            <input type="number" id="prv_mezzi" value="{{ selected_prev.quota_fissa_mezzi_mensile|default:'25.00'|stringformat:'.2f' }}" step="5" oninput="ricalcolaLive()" class="crm-input">
+                        </div>
+                        <div>
+                            <label style="font-size:10.5px;font-weight:700">Margine Target (%)</label>
+                            <input type="number" id="prv_margine" value="{{ selected_prev.margine_target_perc|default:'28.00'|stringformat:'.1f' }}" step="1" oninput="ricalcolaLive()" class="crm-input">
+                        </div>
+                        <div>
+                            <label style="font-size:10.5px;font-weight:700">Sgrosso Iniziale (&euro;)</label>
+                            <input type="number" id="prv_sgrosso" value="{{ selected_prev.importo_una_tantum_sgrosso|default:'0.00'|stringformat:'.2f' }}" step="10" class="crm-input">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabella Ambienti m2 / resa -->
+                <div style="margin-bottom:14px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+                        <strong style="font-size:12.5px;color:#0f172a">🏢 Ambienti del Sopralluogo (m² &times; Resa m²/h &times; Frequenza)</strong>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            {% for r in rese_standard %}
+                            <button type="button" onclick="aggiungiAmbiente('{{ r.amb }}', 120, {{ r.resa }}, {{ r.freq }})"
+                                style="background:#e2e8f0;color:#0f172a;border:none;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer">+ {{ r.amb|truncatechars:18 }}</button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <table class="crm-table" id="tabAmbienti">
+                        <thead>
+                            <tr>
+                                <th>Ambiente / Zona</th>
+                                <th style="width:90px">m²</th>
+                                <th style="width:100px">Resa (m²/h)</th>
+                                <th style="width:110px">Passaggi/Sett.</th>
+                                <th style="width:90px">Ore/Sett.</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyAmbienti">
+                            {% if selected_prev and selected_prev.voci_ambienti.all %}
+                                {% for v in selected_prev.voci_ambienti.all %}
+                                <tr class="amb-row">
+                                    <td><input type="text" class="crm-input amb-nome" value="{{ v.nome_ambiente }}"></td>
+                                    <td><input type="number" class="crm-input amb-mq" value="{{ v.metri_quadri|stringformat:'.1f' }}" step="5" oninput="ricalcolaLive()"></td>
+                                    <td><input type="number" class="crm-input amb-resa" value="{{ v.resa_oraria_mq|stringformat:'.0f' }}" step="10" oninput="ricalcolaLive()"></td>
+                                    <td><input type="number" class="crm-input amb-freq" value="{{ v.passaggi_settimanali|stringformat:'.1f' }}" step="0.5" oninput="ricalcolaLive()"></td>
+                                    <td class="amb-ore-lbl" style="font-weight:700;text-align:center">{{ v.ore_settimanali_ambiente }}h</td>
+                                    <td><button type="button" onclick="this.closest('tr').remove();ricalcolaLive()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:800">&times;</button></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr class="amb-row">
+                                    <td><input type="text" class="crm-input amb-nome" value="Uffici e Postazioni Lavoro"></td>
+                                    <td><input type="number" class="crm-input amb-mq" value="250" step="5" oninput="ricalcolaLive()"></td>
+                                    <td><input type="number" class="crm-input amb-resa" value="150" step="10" oninput="ricalcolaLive()"></td>
+                                    <td><input type="number" class="crm-input amb-freq" value="2" step="0.5" oninput="ricalcolaLive()"></td>
+                                    <td class="amb-ore-lbl" style="font-weight:700;text-align:center">3.3h</td>
+                                    <td><button type="button" onclick="this.closest('tr').remove();ricalcolaLive()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:800">&times;</button></td>
+                                </tr>
+                                <tr class="amb-row">
+                                    <td><input type="text" class="crm-input amb-nome" value="Servizi Igienici e Sanitari"></td>
+                                    <td><input type="number" class="crm-input amb-mq" value="40" step="5" oninput="ricalcolaLive()"></td>
+                                    <td><input type="number" class="crm-input amb-resa" value="60" step="10" oninput="ricalcolaLive()"></td>
+                                    <td><input type="number" class="crm-input amb-freq" value="2" step="0.5" oninput="ricalcolaLive()"></td>
+                                    <td class="amb-ore-lbl" style="font-weight:700;text-align:center">1.3h</td>
+                                    <td><button type="button" onclick="this.closest('tr').remove();ricalcolaLive()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:800">&times;</button></td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Riepilogo Live Calcolo -->
+                <div style="background:#0f172a;color:#fff;border-radius:10px;padding:14px 18px;margin-bottom:14px;display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;align-items:center">
+                    <div>
+                        <div style="font-size:10.5px;color:#94a3b8;text-transform:uppercase">Monte Ore Mensile</div>
+                        <div id="live_ore_mese" style="font-size:20px;font-weight:800;color:#38bdf8">0.0 h/mese</div>
+                    </div>
+                    <div>
+                        <div style="font-size:10.5px;color:#94a3b8;text-transform:uppercase">Costo Vivo Industriale</div>
+                        <div id="live_costo_vivo" style="font-size:20px;font-weight:800;color:#fbbf24">&euro;0.00</div>
+                    </div>
+                    <div>
+                        <div style="font-size:10.5px;color:#94a3b8;text-transform:uppercase">Canone Consigliato</div>
+                        <div id="live_canone_cons" style="font-size:20px;font-weight:800;color:#34d399">&euro;0.00/mese</div>
+                    </div>
+                    <div>
+                        <label style="font-size:10.5px;color:#a7f3d0;text-transform:uppercase;display:block">Canone Finale Offerto (&euro;)</label>
+                        <input type="number" id="prv_canone_off" value="{{ selected_prev.canone_finale_offerto|default:'' }}" step="5" placeholder="Auto"
+                            style="padding:6px 8px;border-radius:6px;border:2px solid #10b981;font-weight:800;font-size:15px;width:100%;box-sizing:border-box">
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Squadra Prevista (per attivazione automatica)</label>
+                        <select id="prv_squadra" class="crm-select">
+                            <option value="">Da assegnare in seguito</option>
+                            {% for s in squadre %}
+                            <option value="{{ s.id }}" {% if selected_prev and selected_prev.squadra_prevista_id == s.id %}selected{% endif %}>{{ s.nome }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:11.5px;font-weight:700">Note Capitolato &amp; Mansioni</label>
+                        <input type="text" id="prv_note" value="{{ selected_prev.note_capitolato|default:'' }}" placeholder="Prodotti inclusi, orari accesso..." class="crm-input">
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap">
+                    <button type="button" onclick="salvaPreventivo('')" style="flex:1;background:#059669;color:#fff;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:13.5px;cursor:pointer">
+                        💾 Salva Nuovo Preventivo e Ricalcola
+                    </button>
+                    {% if selected_prev %}
+                    <button type="button" onclick="salvaPreventivo('{{ selected_prev.id }}')" style="background:#0f172a;color:#fff;border:none;padding:11px 16px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">
+                        🔄 Aggiorna {{ selected_prev.numero_preventivo }}
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ARCHIVIO PREVENTIVI & CONVERSIONE 1-CLICK -->
+        <div class="crm-panel">
+            <div class="crm-hdr" style="background:#0f172a">
+                <span>📂 Preventivi Emessi &amp; Conversione 1-Click in Cliente Attivo</span>
+            </div>
+            <div class="crm-body">
+                <table class="crm-table">
+                    <thead>
+                        <tr>
+                            <th>Preventivo / Prospect</th>
+                            <th>Ore &amp; Canone</th>
+                            <th>Stato</th>
+                            <th>Azioni (PDF &amp; 1-Click)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in preventivi %}
+                        <tr>
+                            <td>
+                                <a href="/preventivi-crm/?prev_id={{ p.id }}" style="font-weight:800;color:#065f46;text-decoration:none">{{ p.numero_preventivo }}</a>
+                                <div style="font-weight:700;color:#0f172a">{{ p.ragione_sociale_prospect }}</div>
+                                <div style="font-size:11px;color:#64748b">{{ p.indirizzo_cantiere }} ({{ p.totale_mq }} m²)</div>
+                            </td>
+                            <td>
+                                <strong>&euro;{{ p.canone_finale_offerto|floatformat:2 }}/mese</strong>
+                                <div style="font-size:11px;color:#64748b">{{ p.ore_mensili_stimate }}h/m &bull; Costo vivo &euro;{{ p.costo_vivo_mensile|floatformat:2 }}</div>
+                            </td>
+                            <td>
+                                <span style="font-size:11.5px;font-weight:700">{{ p.get_stato_display }}</span>
+                            </td>
+                            <td style="white-space:nowrap">
+                                <a href="/preventivi-crm/pdf/{{ p.id }}/" target="_blank"
+                                   style="display:inline-block;background:#1e293b;color:#fff;padding:5px 9px;border-radius:5px;text-decoration:none;font-size:11px;font-weight:700;margin-bottom:4px">📄 PDF Offerta</a>
+                                {% if not p.cliente_convertito_id %}
+                                <button onclick="converti1Click({{ p.id }}, '{{ p.ragione_sociale_prospect|escapejs }}')"
+                                   style="display:block;background:#16a34a;color:#fff;border:none;padding:6px 10px;border-radius:5px;font-size:11px;font-weight:800;cursor:pointer">
+                                    🚀 Converti in Cliente 1-Click
+                                </button>
+                                {% else %}
+                                <div style="font-size:11px;color:#15803d;font-weight:700">
+                                    ✅ <a href="/admin/core/cliente/{{ p.cliente_convertito_id }}/change/" style="color:#15803d">Cliente Attivo #{{ p.cliente_convertito_id }}</a>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:24px">Nessun preventivo salvato. Compila il configuratore a sinistra!</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function aggiungiAmbiente(nome, mq, resa, freq) {
+    const tr = document.createElement('tr');
+    tr.className = 'amb-row';
+    tr.innerHTML = `
+        <td><input type="text" class="crm-input amb-nome" value="${nome}"></td>
+        <td><input type="number" class="crm-input amb-mq" value="${mq}" step="5" oninput="ricalcolaLive()"></td>
+        <td><input type="number" class="crm-input amb-resa" value="${resa}" step="10" oninput="ricalcolaLive()"></td>
+        <td><input type="number" class="crm-input amb-freq" value="${freq}" step="0.5" oninput="ricalcolaLive()"></td>
+        <td class="amb-ore-lbl" style="font-weight:700;text-align:center">0.0h</td>
+        <td><button type="button" onclick="this.closest('tr').remove();ricalcolaLive()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:800">&times;</button></td>
+    `;
+    document.getElementById('tbodyAmbienti').appendChild(tr);
+    ricalcolaLive();
+}
+
+function ricalcolaLive() {
+    let oreSettTot = 0;
+    document.querySelectorAll('#tbodyAmbienti .amb-row').forEach(tr => {
+        const mq = parseFloat(tr.querySelector('.amb-mq').value || 0);
+        const resa = Math.max(10, parseFloat(tr.querySelector('.amb-resa').value || 150));
+        const freq = parseFloat(tr.querySelector('.amb-freq').value || 1);
+        const oreSing = Math.max(0.25, mq / resa);
+        const oreSett = oreSing * freq;
+        oreSettTot += oreSett;
+        tr.querySelector('.amb-ore-lbl').textContent = oreSett.toFixed(1) + 'h';
+    });
+    const oreMese = oreSettTot * 4.33;
+    const costoH = parseFloat(document.getElementById('prv_costo_h').value || 16.5);
+    const prodPerc = parseFloat(document.getElementById('prv_prod_perc').value || 6.0);
+    const quotaMezzi = parseFloat(document.getElementById('prv_mezzi').value || 25.0);
+    const marginePerc = Math.min(80, Math.max(0, parseFloat(document.getElementById('prv_margine').value || 28.0)));
+
+    const manodopera = oreMese * costoH;
+    const prodotti = manodopera * (prodPerc / 100.0);
+    const costoVivo = manodopera + prodotti + quotaMezzi;
+    const canoneCons = costoVivo / (1.0 - (marginePerc / 100.0));
+
+    document.getElementById('live_ore_mese').textContent = oreMese.toFixed(1) + ' h/mese';
+    document.getElementById('live_costo_vivo').textContent = '€' + costoVivo.toFixed(2);
+    document.getElementById('live_canone_cons').textContent = '€' + canoneCons.toFixed(2) + '/mese';
+}
+
+async function salvaPreventivo(prevId) {
+    const ambienti = [];
+    document.querySelectorAll('#tbodyAmbienti .amb-row').forEach(tr => {
+        ambienti.push({
+            nome_ambiente: tr.querySelector('.amb-nome').value,
+            metri_quadri: tr.querySelector('.amb-mq').value,
+            resa_oraria_mq: tr.querySelector('.amb-resa').value,
+            passaggi_settimanali: tr.querySelector('.amb-freq').value
+        });
+    });
+    const payload = {
+        action: 'salva_preventivo',
+        preventivo_id: prevId,
+        ragione_sociale_prospect: document.getElementById('prv_ragione').value,
+        partita_iva: document.getElementById('prv_piva').value,
+        codice_fiscale: document.getElementById('prv_cf').value,
+        indirizzo_cantiere: document.getElementById('prv_indirizzo').value,
+        referente_nome: document.getElementById('prv_ref_nome').value,
+        referente_contatto: document.getElementById('prv_ref_contatto').value,
+        costo_orario_applicato: document.getElementById('prv_costo_h').value,
+        incidenza_prodotti_perc: document.getElementById('prv_prod_perc').value,
+        quota_fissa_mezzi_mensile: document.getElementById('prv_mezzi').value,
+        margine_target_perc: document.getElementById('prv_margine').value,
+        importo_una_tantum_sgrosso: document.getElementById('prv_sgrosso').value,
+        canone_finale_offerto: document.getElementById('prv_canone_off').value,
+        squadra_prevista_id: document.getElementById('prv_squadra').value,
+        note_capitolato: document.getElementById('prv_note').value,
+        ambienti: ambienti
+    };
+    const resp = await fetch('/api/preventivi-crm/action/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!data.ok) { alert(data.error || 'Errore'); return; }
+    window.location.href = '/preventivi-crm/?prev_id=' + data.preventivo_id;
+}
+
+async function converti1Click(prevId, nome) {
+    if (!confirm(`Vuoi convertire "${nome}" in Cliente Attivo?\n\nVerranno creati automaticamente:\n1. Anagrafica Cliente con canone e monte ore\n2. Programmazione Ricorrente settimanale\n3. Procedura operativa "Attivazione Nuovo Cantiere"`)) return;
+    const resp = await fetch('/api/preventivi-crm/action/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'converti_in_cliente_1click', preventivo_id: prevId})
+    });
+    const data = await resp.json();
+    if (!data.ok) { alert(data.error || 'Errore'); return; }
+    alert(data.message);
+    location.reload();
+}
+
+document.addEventListener('DOMContentLoaded', ricalcolaLive);
+</script>
+{% endblock %}

@@ -123,10 +123,12 @@ def get_main_menu(dipendente=None):
     if dipendente and getattr(dipendente, 'usufruisce_104', False):
         keyboard.append([{'text': 'Permesso', 'callback_data': 'menu_permesso'},
                          {'text': 'Legge 104', 'callback_data': 'menu_104'}])
-        keyboard.append([{'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}])
+        keyboard.append([{'text': '🧴 Richiedi Materiali', 'callback_data': 'menu_materiali'},
+                         {'text': '🚨 Segnalazione', 'callback_data': 'menu_segnalazione'}])
     else:
         keyboard.append([{'text': 'Permesso', 'callback_data': 'menu_permesso'},
-                         {'text': 'Segnalazione', 'callback_data': 'menu_segnalazione'}])
+                         {'text': '🚨 Segnalazione', 'callback_data': 'menu_segnalazione'}])
+        keyboard.append([{'text': '🧴 Richiedi Materiali Cantiere', 'callback_data': 'menu_materiali'}])
     
     keyboard.extend([
         [{'text': '📄 Buste Paga', 'callback_data': 'menu_buste_paga'},
@@ -559,6 +561,43 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
                 'reply_markup': get_main_menu(dipendente)
             }
 
+        if action == 'attesa_testo_materiale':
+            cliente_id = state.get('cliente_id')
+            del _TELEGRAM_STATE[telegram_chat_id]
+            from .models import ConsegnaRichiestaMateriale, ProdottoMagazzino
+            from decimal import Decimal
+            cli = Cliente.objects.filter(pk=cliente_id).first() if cliente_id else None
+            if not cli:
+                cli = Cliente.objects.first()
+            testo_mat = text.strip()
+            prod_match = None
+            for p in ProdottoMagazzino.objects.filter(attivo=True):
+                if p.nome.lower() in testo_mat.lower():
+                    prod_match = p
+                    break
+            if cli:
+                ConsegnaRichiestaMateriale.objects.create(
+                    cliente=cli,
+                    prodotto=prod_match,
+                    descrizione_libera=prod_match.nome if prod_match else testo_mat[:200],
+                    quantita=Decimal('1.0'),
+                    costo_unitario_applicato=prod_match.costo_unitario if prod_match else Decimal('0.00'),
+                    stato='RICHIESTA',
+                    richiesto_da=dipendente,
+                    data_richiesta=timezone.localdate(),
+                    note=testo_mat[:300],
+                )
+            return {
+                'text': (
+                    f"🧴 *Richiesta Materiali Registrata!*\n"
+                    f"📍 Cantiere: *{cli.ragione_sociale if cli else 'N/D'}*\n"
+                    f"📦 Prodotti richiesti: _{testo_mat}_\n\n"
+                    f"Il Magazzino / Caposquadra è stato avvisato per la consegna."
+                ),
+                'reply_markup': get_main_menu(dipendente),
+                'parse_mode': 'Markdown',
+            }
+
     # --- ASSISTENTE CONVERSAZIONALE IA (linguaggio naturale gratuito) ---
     try:
         from .ai_engine import interpreta_messaggio_libero
@@ -647,6 +686,32 @@ def _crea_segnalazione_con_triage_ia(dipendente, testo):
         testo=testo,
         note_amministrazione=nota_ia,
     )
+    # Se la segnalazione riguarda scorte/materiali, alimenta automaticamente anche la lista Magazzino & Consegne
+    if triage.get('categoria') == 'MATERIALI_SCORTE':
+        try:
+            from .models import ConsegnaRichiestaMateriale
+            from decimal import Decimal
+            ultimo_turno = (
+                AssegnazioneTurno.objects.filter(
+                    Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente)
+                )
+                .select_related('cliente')
+                .order_by('-turno__data')
+                .first()
+            )
+            cli_target = ultimo_turno.cliente if ultimo_turno and ultimo_turno.cliente else Cliente.objects.first()
+            if cli_target:
+                ConsegnaRichiestaMateriale.objects.create(
+                    cliente=cli_target,
+                    descrizione_libera=testo[:200],
+                    quantita=Decimal('1.0'),
+                    stato='RICHIESTA',
+                    richiesto_da=dipendente,
+                    data_richiesta=timezone.localdate(),
+                    note=f"Generata da Triage IA Segnalazione #{seg.id}",
+                )
+        except Exception:
+            pass
     if triage['urgenza'] in ('CRITICA', 'ALTA'):
         emoji = "🚨" if triage['urgenza'] == 'CRITICA' else "⚠️"
         alert_msg = (
@@ -885,6 +950,41 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
     if callback_data == 'menu_segnalazione':
         _TELEGRAM_STATE[telegram_chat_id] = {'action': 'segnalazione'}
         return {'text': "Scrivi il testo della segnalazione:"}
+
+    # Richiesta Materiali Cantiere -> scegli cantiere
+    if callback_data == 'menu_materiali':
+        today = timezone.now().date()
+        assegnazioni = (
+            AssegnazioneTurno.objects.filter(turno__data__gte=today - timedelta(days=14), turno__data__lte=today + timedelta(days=7))
+            .filter(Q(turno__squadra__componenti=dipendente) | Q(turno__squadra__caposquadra=dipendente))
+            .select_related('cliente')
+        )
+        seen_c = {}
+        for a in assegnazioni:
+            if a.cliente_id and a.cliente_id not in seen_c:
+                seen_c[a.cliente_id] = a.cliente.ragione_sociale
+        if not seen_c:
+            for c in Cliente.objects.all().order_by('ragione_sociale')[:10]:
+                seen_c[c.id] = c.ragione_sociale
+        kb = [[{'text': f"🏢 {nome[:28]}", 'callback_data': f"mat_cli_{cid}"}] for cid, nome in list(seen_c.items())[:10]]
+        kb.append([{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}])
+        return {
+            'text': "🧴 *Richiesta Materiali Cantiere*\nSeleziona il cantiere in cui stanno finendo i prodotti:",
+            'reply_markup': {'inline_keyboard': kb},
+            'parse_mode': 'Markdown',
+        }
+
+    if callback_data.startswith('mat_cli_'):
+        cid = int(callback_data.replace('mat_cli_', ''))
+        cli = Cliente.objects.filter(pk=cid).first()
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_testo_materiale', 'cliente_id': cid}
+        return {
+            'text': (
+                f"🧴 Cantiere selezionato: *{cli.ragione_sociale if cli else 'Cantiere'}*\n\n"
+                f"Scrivi ora quali materiali o detergenti servono (es. _'2 taniche detergente pavimenti e 5 rotoli sacchi neri'_):"
+            ),
+            'parse_mode': 'Markdown',
+        }
 
     # Foto Profilo -> metti in attesa foto
     if callback_data == 'menu_foto_profilo':

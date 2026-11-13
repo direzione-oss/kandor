@@ -1667,6 +1667,51 @@ def titolari_dashboard_view(request):
             alerts.append({'msg': f'🚗 {mezzi_in_scadenza} mezzo/i aziendale/i con scadenze (polizza, revisione o permessi) entro 30 giorni', 'critico': False})
     except Exception:
         pass
+
+    # --- Contabilità Industriale & Semaforo Direzionale MOL ---
+    contabilita_industriale = {}
+    cantieri_perdita = 0
+    cantieri_erosione = 0
+    cantieri_ottimi = 0
+    richieste_materiali_aperte = 0
+    lavori_extra_da_fatturare = 0
+    ispezioni_mese = 0
+    try:
+        from .views_erp_pro import calcola_contabilita_industriale_mese
+        from .models import ConsegnaRichiestaMateriale, RichiestaStraordinaria, IspezioneQualitaCantiere
+        contabilita_industriale = calcola_contabilita_industriale_mese(
+            anno=oggi.year,
+            mese=oggi.month,
+            soglia_oraria=soglia_default,
+        )
+        cantieri_perdita = len(contabilita_industriale.get('cantieri_perdita', []))
+        cantieri_erosione = len(contabilita_industriale.get('cantieri_erosione', []))
+        cantieri_ottimi = len(contabilita_industriale.get('cantieri_ottimi', []))
+        if cantieri_perdita > 0:
+            alerts.append({
+                'msg': f'🔴 {cantieri_perdita} cantiere/i in PERDITA o sotto soglia nel mese corrente (verifica MOL in Contabilità Industriale)',
+                'critico': True,
+            })
+        elif cantieri_erosione > 0:
+            alerts.append({
+                'msg': f'🟠 {cantieri_erosione} cantiere/i in EROSIONE DI MARGINE nel mese corrente',
+                'critico': False,
+            })
+        richieste_materiali_aperte = ConsegnaRichiestaMateriale.objects.filter(stato__in=['RICHIESTA', 'IN_CONSEGNA']).count()
+        if richieste_materiali_aperte > 0:
+            alerts.append({
+                'msg': f'🧴 {richieste_materiali_aperte} richiesta/e materiali dai cantieri in attesa di consegna',
+                'critico': False,
+            })
+        lavori_extra_da_fatturare = RichiestaStraordinaria.objects.filter(stato_fatturazione='DA_FATTURARE').count()
+        if lavori_extra_da_fatturare > 0:
+            alerts.append({
+                'msg': f'🧾 {lavori_extra_da_fatturare} lavoro/i straordinario/i DA FATTURARE',
+                'critico': False,
+            })
+        ispezioni_mese = IspezioneQualitaCantiere.objects.filter(data_ispezione__year=oggi.year, data_ispezione__month=oggi.month).count()
+    except Exception:
+        pass
     
     return render(request, 'core/titolari_dashboard.html', {
         'oggi': oggi, 'lun': lun, 'ven': ven,
@@ -1678,6 +1723,13 @@ def titolari_dashboard_view(request):
         'sost_sett_ok': sost_sett_ok, 'sost_sett_fail': sost_sett_fail, 'sost_sett_corso': sost_sett_corso,
         'n_sotto_soglia': n_sotto_soglia, 'soglia_default': soglia_default,
         'alerts': alerts,
+        'contabilita_industriale': contabilita_industriale,
+        'cantieri_perdita': cantieri_perdita,
+        'cantieri_erosione': cantieri_erosione,
+        'cantieri_ottimi': cantieri_ottimi,
+        'richieste_materiali_aperte': richieste_materiali_aperte,
+        'lavori_extra_da_fatturare': lavori_extra_da_fatturare,
+        'ispezioni_mese': ispezioni_mese,
     })
 
 

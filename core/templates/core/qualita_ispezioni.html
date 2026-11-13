@@ -1,0 +1,247 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+<style>
+    #container, #content, #content-main { max-width: 100% !important; width: 100% !important; }
+    #content-related { display: none !important; }
+    .sla-panel { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,.05); margin-bottom: 22px; overflow: hidden; }
+    .sla-hdr { background: #0f172a; color: #fff; padding: 13px 18px; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+    .sla-body { padding: 18px; }
+    .sla-input, .sla-select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .sla-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .sla-table th { background: #f8fafc; padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 700; }
+    .sla-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+</style>
+
+<div style="padding: 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:3px solid #d97706;padding-bottom:12px;margin-bottom:20px">
+        <div>
+            <h1 style="margin:0;color:#92400e;font-size:22px">⭐ Qualità, Ispezioni Cantiere (SLA Cliente) &amp; QR Code Geofence</h1>
+            <p style="margin:4px 0 0 0;color:#64748b;font-size:13px">
+                Checklist sopralluoghi 1–5 stelle per ambiente, Certificato PDF di Cortesia per il Cliente e stampa QR Code Cantiere per Check-in/out GPS
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/app/" target="_blank" style="background:#ea580c;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">📲 App Mobile Dipendenti</a>
+            <a href="/admin/" style="background:#475569;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">&larr; Dashboard</a>
+        </div>
+    </div>
+
+    <!-- KPI -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:20px">
+        <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid #e2e8f0;border-top:4px solid #f59e0b">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">⭐ Media Qualità Globale</div>
+            <div style="font-size:26px;font-weight:800;color:#b45309;margin-top:4px">{{ media_globale }} / 5.00</div>
+            <div style="font-size:12px;color:#64748b">Su {{ ispezioni|length }} verbali di sopralluogo</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid #e2e8f0;border-top:4px solid #dc2626">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">🟠 Non Conformità / Richiami</div>
+            <div style="font-size:26px;font-weight:800;color:#dc2626;margin-top:4px">{{ non_conformi_count }}</div>
+            <div style="font-size:12px;color:#64748b">Cantieri con voto &lt; 3.5 da ricontrollare</div>
+        </div>
+        <div style="background:#fff;border-radius:10px;padding:16px;border:1px solid #e2e8f0;border-top:4px solid #4f46e5">
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">📱 Stampa QR Code Cantiere</div>
+            <div style="margin-top:8px;display:flex;gap:6px">
+                <select id="qr_sel_cliente" class="sla-select">
+                    {% for c in clienti %}
+                    <option value="{{ c.id }}">{{ c.ragione_sociale }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" onclick="window.open('/qualita-ispezioni/qr/' + document.getElementById('qr_sel_cliente').value + '/', '_blank')"
+                    style="background:#4f46e5;color:#fff;border:none;padding:8px 12px;border-radius:6px;font-weight:700;cursor:pointer;white-space:nowrap">🖨️ QR</button>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1.35fr;gap:20px;align-items:start">
+        <!-- FORM NUOVA ISPEZIONE QUALITÀ -->
+        <div class="sla-panel">
+            <div class="sla-hdr" style="background:#b45309">
+                <span>📝 Compila Nuovo Verbale di Sopralluogo Qualità (1–5 Stelle)</span>
+            </div>
+            <div class="sla-body">
+                <form id="formIspezione" onsubmit="salvaIspezione(event)" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="crea_ispezione">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                        <div style="grid-column:span 2">
+                            <label style="font-size:12px;font-weight:700;color:#334155">Cliente / Cantiere Ispezionato *</label>
+                            <select name="cliente_id" required class="sla-select">
+                                <option value="">Seleziona Cantiere...</option>
+                                {% for c in clienti %}
+                                <option value="{{ c.id }}" {% if cliente_id_selected == c.id %}selected{% endif %}>{{ c.ragione_sociale }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:12px;font-weight:700;color:#334155">Responsabile / Ispettore</label>
+                            <select name="ispettore_id" class="sla-select">
+                                <option value="">Amministrazione / Titolare</option>
+                                {% for d in dipendenti %}
+                                <option value="{{ d.id }}">{{ d.cognome }} {{ d.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:12px;font-weight:700;color:#334155">Squadra Valutata</label>
+                            <select name="squadra_id" class="sla-select">
+                                <option value="">Automatica da programmazione</option>
+                                {% for s in squadre %}
+                                <option value="{{ s.id }}">{{ s.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:12px">
+                        <div style="font-weight:700;font-size:12.5px;color:#92400e;margin-bottom:8px">Checklist Qualità per Ambiente (Voto da 1 a 5 stelle)</div>
+                        <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;font-size:12.5px">
+                            <span>1. Ingressi, Scale, Ascensori e Parti Comuni</span>
+                            <select name="voto_ingressi_scale" class="sla-select" style="width:120px"><option value="5">⭐⭐⭐⭐⭐ (5)</option><option value="4">⭐⭐⭐⭐ (4)</option><option value="3">⭐⭐⭐ (3)</option><option value="2">⭐⭐ (2)</option><option value="1">⭐ (1)</option></select>
+
+                            <span>2. Uffici, Postazioni di Lavoro e Pavimenti</span>
+                            <select name="voto_uffici_postazioni" class="sla-select" style="width:120px"><option value="5">⭐⭐⭐⭐⭐ (5)</option><option value="4">⭐⭐⭐⭐ (4)</option><option value="3">⭐⭐⭐ (3)</option><option value="2">⭐⭐ (2)</option><option value="1">⭐ (1)</option></select>
+
+                            <span>3. Servizi Igienici, Sanitari e Disinfezione</span>
+                            <select name="voto_bagni_sanitari" class="sla-select" style="width:120px"><option value="5">⭐⭐⭐⭐⭐ (5)</option><option value="4">⭐⭐⭐⭐ (4)</option><option value="3">⭐⭐⭐ (3)</option><option value="2">⭐⭐ (2)</option><option value="1">⭐ (1)</option></select>
+
+                            <span>4. Vetrate, Specchi, Porte e Infissi</span>
+                            <select name="voto_vetrate_infissi" class="sla-select" style="width:120px"><option value="5">⭐⭐⭐⭐⭐ (5)</option><option value="4">⭐⭐⭐⭐ (4)</option><option value="3">⭐⭐⭐ (3)</option><option value="2">⭐⭐ (2)</option><option value="1">⭐ (1)</option></select>
+
+                            <span>5. Locale Tecnico, Riordino Prodotti e Dotazioni</span>
+                            <select name="voto_riordino_dotazioni" class="sla-select" style="width:120px"><option value="5">⭐⭐⭐⭐⭐ (5)</option><option value="4">⭐⭐⭐⭐ (4)</option><option value="3">⭐⭐⭐ (3)</option><option value="2">⭐⭐ (2)</option><option value="1">⭐ (1)</option></select>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:10px">
+                        <label style="font-size:12px;font-weight:700;color:#334155">Messaggio di Cortesia per il Report PDF Cliente (visibile nel certificato)</label>
+                        <textarea name="messaggio_cortesia_cliente" rows="2" class="sla-input" placeholder="Es. Controllo regolare eseguito: standard igienico pienamente conforme. Effettuata disinfezione approfondita punti di contatto."></textarea>
+                    </div>
+                    <div style="margin-bottom:10px">
+                        <label style="font-size:12px;font-weight:700;color:#334155">Note Tecniche Interne per la Squadra (NON visibili al cliente)</label>
+                        <textarea name="note_interne_squadra" rows="2" class="sla-input" placeholder="Es. Ricordarsi di decalcificare il rubinetto del bagno al 1° piano."></textarea>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                        <div>
+                            <label style="font-size:11.5px;font-weight:700">Foto Rilievo 1 (Prima/Ambiente)</label>
+                            <input type="file" name="foto_1" accept="image/*" class="sla-input">
+                        </div>
+                        <div>
+                            <label style="font-size:11.5px;font-weight:700">Foto Rilievo 2 (Dopo/Dettaglio)</label>
+                            <input type="file" name="foto_2" accept="image/*" class="sla-input">
+                        </div>
+                    </div>
+                    <div style="margin-bottom:14px">
+                        <label style="font-size:12px;font-weight:700;color:#334155">Referente Cliente Presente (opzionale)</label>
+                        <input type="text" name="firma_referente_cliente" placeholder="Es. Sig. Bianchi (Reception)" class="sla-input">
+                    </div>
+                    <button type="submit" style="width:100%;background:#b45309;color:#fff;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:14px;cursor:pointer">
+                        ⭐ Registra Verbale &amp; Genera Certificato PDF Cliente
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- STORICO VERBALI + LOG TIMBRATURE GPS GEOFENCE -->
+        <div>
+            <div class="sla-panel">
+                <div class="sla-hdr">
+                    <span>📋 Storico Verbali di Sopralluogo &amp; Certificati PDF di Cortesia</span>
+                </div>
+                <div class="sla-body" style="overflow-x:auto">
+                    <table class="sla-table">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Cliente / Cantiere</th>
+                                <th>Ispettore / Squadra</th>
+                                <th>Media &amp; Esito SLA</th>
+                                <th>Azioni &amp; Report PDF</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for isp in ispezioni %}
+                            <tr>
+                                <td style="white-space:nowrap">{{ isp.data_ispezione|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    <strong>{{ isp.cliente.ragione_sociale }}</strong>
+                                    {% if isp.messaggio_cortesia_cliente %}
+                                    <div style="font-size:11px;color:#64748b">{{ isp.messaggio_cortesia_cliente|truncatechars:60 }}</div>
+                                    {% endif %}
+                                </td>
+                                <td style="font-size:11.5px">
+                                    {{ isp.ispettore|default:"Direzione" }}<br>
+                                    <span style="color:#64748b">{{ isp.squadra_valutata|default:"—" }}</span>
+                                </td>
+                                <td>
+                                    <strong style="font-size:14px;color:#b45309">⭐ {{ isp.media_voto }}/5</strong>
+                                    <div style="font-size:11px;font-weight:700">{{ isp.get_esito_display }}</div>
+                                </td>
+                                <td style="white-space:nowrap">
+                                    <a href="/qualita-ispezioni/pdf/{{ isp.id }}/?token={{ isp.token_pubblico }}" target="_blank"
+                                       style="background:#0f172a;color:#fff;padding:5px 10px;border-radius:5px;text-decoration:none;font-size:11.5px;font-weight:700">📄 Certificato PDF</a>
+                                    <a href="/qualita-ispezioni/qr/{{ isp.cliente_id }}/" target="_blank"
+                                       style="background:#4f46e5;color:#fff;padding:5px 9px;border-radius:5px;text-decoration:none;font-size:11.5px;font-weight:700">📱 QR</a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:22px">Nessun verbale di ispezione ancora registrato.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TIMBRATURE GEOFENCE / PROXIMITY LOG -->
+            <div class="sla-panel">
+                <div class="sla-hdr" style="background:#312e81">
+                    <span>📍 Ultime Timbrature Geofence GPS / QR Code Cantiere (ProximityLog)</span>
+                </div>
+                <div class="sla-body" style="overflow-x:auto">
+                    <table class="sla-table">
+                        <thead>
+                            <tr>
+                                <th>Dipendente</th>
+                                <th>Cantiere</th>
+                                <th>Stato GPS</th>
+                                <th>Check-In</th>
+                                <th>Check-Out</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in proximity_logs %}
+                            <tr>
+                                <td style="font-weight:700">{{ log.dipendente.cognome }} {{ log.dipendente.nome }}</td>
+                                <td>{{ log.cliente.ragione_sociale }}</td>
+                                <td>
+                                    {% if log.is_near %}
+                                    <span style="color:#16a34a;font-weight:700">🟢 In Cantiere</span>
+                                    {% else %}
+                                    <span style="color:#64748b">⚪ Uscito</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ log.entered_at|date:"d/m H:i"|default:"—" }}</td>
+                                <td>{{ log.exited_at|date:"d/m H:i"|default:"—" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:16px">Nessun log GPS ancora registrato. Stampa il QR Code Cantiere e inquadralo dall'App Dipendenti!</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function salvaIspezione(e) {
+    e.preventDefault();
+    const fd = new FormData(document.getElementById('formIspezione'));
+    const resp = await fetch('/api/qualita-ispezioni/action/', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!data.ok) { alert(data.error || 'Errore'); return; }
+    alert(data.message);
+    location.reload();
+}
+</script>
+{% endblock %}

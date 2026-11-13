@@ -1,0 +1,398 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+<style>
+    #container, #content, #content-main { max-width: 100% !important; width: 100% !important; }
+    #content-related { display: none !important; }
+    .erp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .erp-kpi { background: #fff; border-radius: 10px; padding: 16px 18px; border: 1px solid #e2e8f0; border-top: 4px solid #0f766e; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+    .erp-kpi .lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; }
+    .erp-kpi .val { font-size: 24px; font-weight: 800; color: #0f172a; margin-top: 4px; }
+    .erp-panel { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,.05); margin-bottom: 22px; overflow: hidden; }
+    .erp-panel-hdr { background: #0f172a; color: #fff; padding: 13px 18px; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+    .erp-panel-body { padding: 18px; }
+    .erp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .erp-table th { background: #f8fafc; color: #334155; padding: 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 700; }
+    .erp-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+    .erp-input, .erp-select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
+    .erp-btn { background: #0f766e; color: #fff; border: none; padding: 8px 15px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
+    .erp-btn:hover { opacity: .92; }
+</style>
+
+<div style="padding: 14px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:3px solid #0f766e;padding-bottom:12px;margin-bottom:20px">
+        <div>
+            <h1 style="margin:0;color:#115e59;font-size:22px">🧴 Magazzino Prodotti, Attrezzature &amp; Consegne Cantiere</h1>
+            <p style="margin:4px 0 0 0;color:#64748b;font-size:13px">
+                Inventario macchinari assegnati ai clienti (collegato al Punto 3 della procedura Disdetta Contratto), scorte detergenti e richieste materiali da App Dipendenti / Telegram
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/analisi-contratti/" style="background:#1d4ed8;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">📈 Contabilità &amp; MOL</a>
+            <a href="/procedure/" style="background:#d97706;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">📋 Procedure Disdetta</a>
+            <a href="/admin/" style="background:#475569;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">&larr; Dashboard</a>
+        </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="erp-grid">
+        <div class="erp-kpi" style="border-top-color:#d97706">
+            <div class="lbl">🔔 Richieste Materiali Aperte</div>
+            <div class="val" style="color:#b45309">{{ richieste_aperte }}</div>
+            <div style="font-size:11.5px;color:#64748b">Da App Dipendenti e Bot Telegram</div>
+        </div>
+        <div class="erp-kpi" style="border-top-color:#0f766e">
+            <div class="lbl">🧴 Costo Materiali Consegnati (Mese)</div>
+            <div class="val" style="color:#0f766e">&euro;{{ spesa_mese_materiali|floatformat:2 }}</div>
+            <div style="font-size:11.5px;color:#64748b">Imputato automaticamente nel MOL cantieri</div>
+        </div>
+        <div class="erp-kpi" style="border-top-color:#dc2626">
+            <div class="lbl">⚠️ Prodotti Sotto Scorta Minima</div>
+            <div class="val" style="color:#dc2626">{{ prodotti_sotto_scorta|length }}</div>
+            <div style="font-size:11.5px;color:#64748b">Su {{ prodotti|length }} articoli in catalogo</div>
+        </div>
+        <div class="erp-kpi" style="border-top-color:#2563eb">
+            <div class="lbl">⚙️ Dotazioni &amp; Macchinari Attivi</div>
+            <div class="val" style="color:#1d4ed8">{{ dotazioni|length }}</div>
+            <div style="font-size:11.5px;color:#64748b">{% if dotazioni_da_ritirare %}🔴 {{ dotazioni_da_ritirare|length }} da ritirare per disdetta{% else %}Tutti regolari{% endif %}</div>
+        </div>
+    </div>
+
+    {% if dotazioni_da_ritirare %}
+    <div style="background:#fef2f2;border:1px solid #ef4444;border-radius:10px;padding:14px 18px;margin-bottom:20px">
+        <strong style="color:#b91c1c;font-size:13.5px">🚨 Oggetti &amp; Macchinari DA RITIRARE presso Clienti (Procedura Disdetta Contratto - Punto 3):</strong>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+            {% for d in dotazioni_da_ritirare %}
+            <span style="background:#fff;border:1px solid #fca5a5;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:700;color:#991b1b">
+                {{ d.cliente.ragione_sociale }}: {{ d.quantita }}x {{ d.descrizione }}
+                <button onclick="cambiaStatoDotazione({{ d.id }}, 'RITIRATO')" style="margin-left:6px;background:#16a34a;color:#fff;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px">✅ Segna Ritirato</button>
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Filtro Cliente -->
+    <div style="background:#fff;padding:12px 16px;border-radius:10px;border:1px solid #e2e8f0;margin-bottom:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0">
+            <label style="font-weight:700;font-size:12.5px;color:#334155">Filtra per Cliente / Cantiere:</label>
+            <select name="cliente_id" class="erp-select" style="width:260px">
+                <option value="">— Tutti i Cantieri —</option>
+                {% for c in clienti %}
+                <option value="{{ c.id }}" {% if cliente_id_selected == c.id %}selected{% endif %}>{{ c.ragione_sociale }}</option>
+                {% endfor %}
+            </select>
+            <select name="stato" class="erp-select" style="width:200px">
+                <option value="">— Tutti gli Stati Consegna —</option>
+                <option value="RICHIESTA" {% if stato_selected == 'RICHIESTA' %}selected{% endif %}>🔔 Richiesto da Operatore</option>
+                <option value="IN_CONSEGNA" {% if stato_selected == 'IN_CONSEGNA' %}selected{% endif %}>🚐 In Consegna</option>
+                <option value="CONSEGNATO" {% if stato_selected == 'CONSEGNATO' %}selected{% endif %}>✅ Consegnato in Cantiere</option>
+            </select>
+            <button type="submit" class="erp-btn" style="background:#0f172a">Filtra</button>
+            {% if cliente_id_selected or stato_selected %}
+            <a href="/magazzino-dotazioni/" style="font-size:12px;color:#64748b">Azzera filtri</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:20px;align-items:start">
+        <!-- COLONNA SINISTRA: Richieste Materiali & Consegne in Cantiere -->
+        <div>
+            <div class="erp-panel">
+                <div class="erp-panel-hdr">
+                    <span>🚐 Richieste Materiali &amp; Consegne in Cantiere</span>
+                    <span style="font-size:11.5px;color:#94a3b8">Scarica giacenza e aggiorna MOL</span>
+                </div>
+                <div class="erp-panel-body">
+                    <!-- Form nuova consegna/richiesta -->
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:16px">
+                        <div style="font-weight:700;font-size:12.5px;color:#0f172a;margin-bottom:8px">+ Registra Consegna o Richiesta Materiale per Cantiere</div>
+                        <div style="display:grid;grid-template-columns:1.2fr 1.2fr 0.5fr 0.7fr auto;gap:8px;align-items:end">
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#475569">Cliente / Cantiere</label>
+                                <select id="con_cliente" class="erp-select">
+                                    <option value="">Seleziona...</option>
+                                    {% for c in clienti %}
+                                    <option value="{{ c.id }}" {% if cliente_id_selected == c.id %}selected{% endif %}>{{ c.ragione_sociale }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#475569">Prodotto di Magazzino</label>
+                                <select id="con_prodotto" class="erp-select">
+                                    <option value="">Seleziona dal catalogo...</option>
+                                    {% for p in prodotti %}
+                                    <option value="{{ p.id }}" data-costo="{{ p.costo_unitario }}">{{ p.nome }} (&euro;{{ p.costo_unitario }}/{{ p.unita_misura }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#475569">Q.tà</label>
+                                <input type="number" id="con_qta" value="1" step="0.5" min="0.5" class="erp-input">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#475569">Stato</label>
+                                <select id="con_stato" class="erp-select">
+                                    <option value="CONSEGNATO">✅ Consegnato</option>
+                                    <option value="IN_CONSEGNA">🚐 In Consegna</option>
+                                    <option value="RICHIESTA">🔔 Da Preparare</option>
+                                </select>
+                            </div>
+                            <button type="button" onclick="registraConsegna()" class="erp-btn">Registra</button>
+                        </div>
+                    </div>
+
+                    <div style="overflow-x:auto">
+                        <table class="erp-table">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Cantiere / Cliente</th>
+                                    <th>Prodotto / Materiale</th>
+                                    <th>Q.tà</th>
+                                    <th>Costo Tot.</th>
+                                    <th>Richiesto da</th>
+                                    <th>Stato &amp; Azione</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in consegne %}
+                                <tr style="{% if item.stato == 'RICHIESTA' %}background:#fffbeb{% endif %}">
+                                    <td style="white-space:nowrap">{{ item.data_richiesta|date:"d/m/Y" }}</td>
+                                    <td style="font-weight:700">{{ item.cliente.ragione_sociale }}</td>
+                                    <td>
+                                        <strong>{{ item.descrizione_libera|default:item.prodotto.nome }}</strong>
+                                        {% if item.urgenza == 'URGENTE' %}
+                                        <span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800">URGENTE</span>
+                                        {% endif %}
+                                        {% if item.note %}<div style="font-size:11px;color:#64748b">{{ item.note }}</div>{% endif %}
+                                    </td>
+                                    <td style="font-weight:700">{{ item.quantita }}</td>
+                                    <td style="font-weight:700;color:#0f766e">&euro;{{ item.costo_totale|floatformat:2 }}</td>
+                                    <td style="font-size:11.5px;color:#475569">{{ item.richiesto_da|default:"Ufficio" }}</td>
+                                    <td style="white-space:nowrap">
+                                        {% if item.stato == 'RICHIESTA' %}
+                                        <button onclick="aggiornaConsegna({{ item.id }}, 'IN_CONSEGNA')" style="background:#d97706;color:#fff;border:none;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer">🚐 In Consegna</button>
+                                        <button onclick="aggiornaConsegna({{ item.id }}, 'CONSEGNATO')" style="background:#16a34a;color:#fff;border:none;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer">✅ Consegnato</button>
+                                        {% elif item.stato == 'IN_CONSEGNA' %}
+                                        <button onclick="aggiornaConsegna({{ item.id }}, 'CONSEGNATO')" style="background:#16a34a;color:#fff;border:none;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer">✅ Conferma Consegna</button>
+                                        {% else %}
+                                        <span style="color:#15803d;font-weight:700;font-size:11.5px">✅ {{ item.get_stato_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">Nessuna richiesta o consegna registrata.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- INVENTARIO DOTAZIONI E MACCHINARI IN CANTIERE -->
+            <div class="erp-panel">
+                <div class="erp-panel-hdr" style="background:#1e3a8a">
+                    <span>⚙️ Inventario Dotazioni, Macchinari &amp; Chiavi in Cantiere</span>
+                    <span style="font-size:11.5px;color:#bfdbfe">Allacciato a Disdetta Contratto</span>
+                </div>
+                <div class="erp-panel-body">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px">
+                        <div style="font-weight:700;font-size:12.5px;color:#1e3a8a;margin-bottom:8px">+ Assegna Macchinario / Carrello / Chiavi a un Cantiere</div>
+                        <div style="display:grid;grid-template-columns:1fr 0.9fr 1.2fr 0.7fr 0.5fr auto;gap:8px;align-items:end">
+                            <div>
+                                <label style="font-size:11px;font-weight:700">Cliente</label>
+                                <select id="dot_cliente" class="erp-select">
+                                    <option value="">Seleziona...</option>
+                                    {% for c in clienti %}
+                                    <option value="{{ c.id }}" {% if cliente_id_selected == c.id %}selected{% endif %}>{{ c.ragione_sociale }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700">Tipologia</label>
+                                <select id="dot_tipo" class="erp-select">
+                                    <option value="MACCHINARIO">⚙️ Macchinario</option>
+                                    <option value="CARRELLO">🛒 Carrello Pulizie</option>
+                                    <option value="SCALA">🪜 Scala / Asta</option>
+                                    <option value="CHIAVI_BADGE">🔑 Chiavi / Badge</option>
+                                    <option value="DISPENSER">🧻 Dispenser</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700">Modello / Descrizione</label>
+                                <input type="text" id="dot_desc" placeholder="Es. Lavasciuga Comac / Mazzo 3 chiavi" class="erp-input">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700">Matricola/Rif.</label>
+                                <input type="text" id="dot_matr" placeholder="SN-001" class="erp-input">
+                            </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700">Q.tà</label>
+                                <input type="number" id="dot_qta" value="1" min="1" class="erp-input">
+                            </div>
+                            <button type="button" onclick="aggiungiDotazione()" class="erp-btn" style="background:#1d4ed8">Assegna</button>
+                        </div>
+                    </div>
+
+                    <table class="erp-table">
+                        <thead>
+                            <tr>
+                                <th>Cliente / Cantiere</th>
+                                <th>Tipo</th>
+                                <th>Descrizione &amp; Matricola</th>
+                                <th>Q.tà</th>
+                                <th>Stato Attuale</th>
+                                <th>Cambia Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in dotazioni %}
+                            <tr>
+                                <td style="font-weight:700">{{ d.cliente.ragione_sociale }}</td>
+                                <td>{{ d.get_tipo_display }}</td>
+                                <td>
+                                    <strong>{{ d.descrizione }}</strong>
+                                    {% if d.matricola_codice %}<span style="color:#64748b;font-size:11px">({{ d.matricola_codice }})</span>{% endif %}
+                                </td>
+                                <td style="font-weight:700">{{ d.quantita }}</td>
+                                <td>{{ d.get_stato_display }}</td>
+                                <td>
+                                    <select onchange="cambiaStatoDotazione({{ d.id }}, this.value)" class="erp-select" style="width:auto;padding:4px 8px;font-size:11.5px">
+                                        <option value="IN_CANTIERE" {% if d.stato == 'IN_CANTIERE' %}selected{% endif %}>🟢 In Cantiere</option>
+                                        <option value="IN_MANUTENZIONE" {% if d.stato == 'IN_MANUTENZIONE' %}selected{% endif %}>🟠 In Manutenzione</option>
+                                        <option value="DA_RITIRARE" {% if d.stato == 'DA_RITIRARE' %}selected{% endif %}>🔴 Da Ritirare</option>
+                                        <option value="RITIRATO" {% if d.stato == 'RITIRATO' %}selected{% endif %}>✅ Ritirato in Sede</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px">Nessuna dotazione assegnata.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLONNA DESTRA: Catalogo Prodotti & Giacenze Magazzino -->
+        <div>
+            <div class="erp-panel">
+                <div class="erp-panel-hdr" style="background:#0f766e">
+                    <span>📦 Catalogo Prodotti &amp; Scorte Magazzino Centrale</span>
+                </div>
+                <div class="erp-panel-body">
+                    <div style="background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;padding:12px;margin-bottom:14px">
+                        <div style="font-weight:700;font-size:12.5px;color:#115e59;margin-bottom:8px">+ Nuovo Prodotto in Catalogo</div>
+                        <div style="display:grid;grid-template-columns:1.4fr 0.8fr 0.6fr 0.6fr auto;gap:6px;align-items:end">
+                            <div>
+                                <label style="font-size:10.5px;font-weight:700">Nome Prodotto</label>
+                                <input type="text" id="prd_nome" placeholder="Es. Detergente Vetri 5L" class="erp-input">
+                            </div>
+                            <div>
+                                <label style="font-size:10.5px;font-weight:700">Categoria</label>
+                                <select id="prd_cat" class="erp-select">
+                                    <option value="DETERGENTE">🧴 Detergente</option>
+                                    <option value="SACCHI">🗑️ Sacchi</option>
+                                    <option value="CARTA">🧻 Carta</option>
+                                    <option value="ATTREZZATURA">🧹 Panni/Mop</option>
+                                    <option value="DPI">🧤 Guanti/DPI</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:10.5px;font-weight:700">Costo &euro;</label>
+                                <input type="number" id="prd_costo" value="5.00" step="0.1" class="erp-input">
+                            </div>
+                            <div>
+                                <label style="font-size:10.5px;font-weight:700">Giacenza</label>
+                                <input type="number" id="prd_giac" value="20" step="1" class="erp-input">
+                            </div>
+                            <button type="button" onclick="aggiungiProdotto()" class="erp-btn">Salva</button>
+                        </div>
+                    </div>
+
+                    <table class="erp-table">
+                        <thead>
+                            <tr>
+                                <th>Prodotto</th>
+                                <th>Costo Unit.</th>
+                                <th>Giacenza</th>
+                                <th>Carico Rapido</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in prodotti %}
+                            <tr style="{% if p.sotto_scorta %}background:#fef2f2{% endif %}">
+                                <td>
+                                    <strong>{{ p.nome }}</strong>
+                                    <div style="font-size:11px;color:#64748b">{{ p.get_categoria_display }} &bull; Scorta min: {{ p.scorta_minima|floatformat:"-1" }} {{ p.unita_misura }}</div>
+                                </td>
+                                <td style="font-weight:700">&euro;{{ p.costo_unitario|floatformat:2 }}/{{ p.unita_misura }}</td>
+                                <td>
+                                    <span style="font-weight:800;font-size:13.5px;color:{% if p.sotto_scorta %}#dc2626{% else %}#059669{% endif %}">
+                                        {{ p.giacenza_attuale }} {{ p.unita_misura }}
+                                    </span>
+                                    {% if p.sotto_scorta %}
+                                    <div style="font-size:10px;color:#dc2626;font-weight:800">⚠️ SOTTO SCORTA</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button onclick="caricaScorta({{ p.id }}, 10)" style="background:#0f172a;color:#fff;border:none;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer">+10 {{ p.unita_misura }}</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function postMagazzino(payload) {
+    const resp = await fetch('/api/magazzino-dotazioni/action/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!data.ok) { alert(data.error || 'Errore'); return null; }
+    location.reload();
+}
+function registraConsegna() {
+    const cid = document.getElementById('con_cliente').value;
+    const pid = document.getElementById('con_prodotto').value;
+    const qta = document.getElementById('con_qta').value;
+    const stato = document.getElementById('con_stato').value;
+    if (!cid || !pid) { alert('Seleziona il cliente e il prodotto.'); return; }
+    postMagazzino({action: 'registra_consegna', cliente_id: cid, prodotto_id: pid, quantita: qta, stato: stato});
+}
+function aggiornaConsegna(id, stato) {
+    postMagazzino({action: 'aggiorna_stato_consegna', consegna_id: id, stato: stato});
+}
+function aggiungiDotazione() {
+    const cid = document.getElementById('dot_cliente').value;
+    const tipo = document.getElementById('dot_tipo').value;
+    const desc = document.getElementById('dot_desc').value;
+    const matr = document.getElementById('dot_matr').value;
+    const qta = document.getElementById('dot_qta').value;
+    if (!cid || !desc) { alert('Seleziona il cliente e inserisci la descrizione.'); return; }
+    postMagazzino({action: 'aggiungi_dotazione', cliente_id: cid, tipo: tipo, descrizione: desc, matricola_codice: matr, quantita: qta});
+}
+function cambiaStatoDotazione(id, stato) {
+    postMagazzino({action: 'cambia_stato_dotazione', dotazione_id: id, stato: stato});
+}
+function aggiungiProdotto() {
+    const nome = document.getElementById('prd_nome').value;
+    const cat = document.getElementById('prd_cat').value;
+    const costo = document.getElementById('prd_costo').value;
+    const giac = document.getElementById('prd_giac').value;
+    if (!nome) { alert('Inserisci il nome del prodotto.'); return; }
+    postMagazzino({action: 'aggiungi_prodotto', nome: nome, categoria: cat, costo_unitario: costo, giacenza_attuale: giac});
+}
+function caricaScorta(pid, qta) {
+    postMagazzino({action: 'carica_scorta', prodotto_id: pid, quantita: qta});
+}
+</script>
+{% endblock %}

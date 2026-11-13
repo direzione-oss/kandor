@@ -97,9 +97,26 @@ def _resolve_soglia_and_periodo(request):
 
 @staff_or_titolare_required
 def analisi_contratti_view(request):
-    """Analisi economica dei contratti: importo orario, soglia, costi effettivi."""
+    """Analisi economica & Contabilità Industriale dei contratti: MOL reale, costo personale per livello, materiali, mezzi e semaforo direzionale."""
+    from .views_erp_pro import calcola_contabilita_industriale_mese
+    from .models import DotazioneCantiere
+
     soglia, mese, anno, _ = _resolve_soglia_and_periodo(request)
-    dati = calcola_analisi_contratti(mese=mese, anno=anno, soglia=soglia)
+    filtro_semaforo = (request.GET.get('semaforo') or '').strip().upper()
+
+    dati = calcola_contabilita_industriale_mese(anno=anno, mese=mese, soglia_oraria=soglia)
+
+    dot_counts = {}
+    for d in DotazioneCantiere.objects.filter(stato__in=['IN_CANTIERE', 'DA_RITIRARE']):
+        dot_counts[d.cliente_id] = dot_counts.get(d.cliente_id, 0) + d.quantita
+
+    righe_tutte = dati['analisi']
+    analisi = []
+    for r in righe_tutte:
+        r['dotazioni_attive'] = dot_counts.get(r['cliente_id'], 0)
+        if filtro_semaforo and r['semaforo'] != filtro_semaforo:
+            continue
+        analisi.append(r)
 
     mesi_list = [
         {
@@ -114,14 +131,16 @@ def analisi_contratti_view(request):
     sotto_soglia_html = ''
     if sotto_soglia:
         badges = [
-            f'<span style="background: #e74c3c; color: white; padding: 4px 12px; border-radius: 15px; font-size: 13px;">'
-            f'{c["cliente"]} &mdash; {c["importo_orario"]}/h</span>'
+            f'<span style="background: {c["semaforo_color"]}; color: white; padding: 4px 12px; border-radius: 15px; font-size: 12.5px;">'
+            f'{c["cliente"]} &mdash; MOL {c["mol_euro_fmt"]} ({c["mol_perc_fmt"]})</span>'
             for c in sotto_soglia
         ]
         sotto_soglia_html = ' '.join(badges)
 
     context = {
-        'analisi': dati['analisi'],
+        'analisi': analisi,
+        'contabilita': dati,
+        'filtro_semaforo': filtro_semaforo,
         'sotto_soglia': sotto_soglia,
         'sotto_soglia_html': sotto_soglia_html,
         'soglia': soglia,
@@ -130,86 +149,96 @@ def analisi_contratti_view(request):
         'mese_nome': dati['mese_nome'],
         'anno': anno,
         'ore_header': f'Ore Lavorate<br><small>{dati["mese_nome"]} {anno}</small>',
-        'totale_contratti': len(dati['analisi']),
-        'totale_fatturato': f"&euro;{dati['totale_fatturato']:,.2f}",
-        'media_oraria': f"&euro;{dati['media_oraria']:.2f}",
+        'totale_contratti': len(analisi),
+        'totale_fatturato': dati['totale_fatturato'],
+        'media_oraria': dati['media_oraria'],
     }
     return render(request, 'core/analisi_contratti.html', context)
 
 
 @staff_or_titolare_required
 def pdf_contratti_sotto_soglia(request):
-    """Genera PDF con elenco contratti sotto soglia usando `calcola_analisi_contratti`."""
+    """Genera PDF Contabilità Industriale & Contratti Sotto Soglia / In Perdita."""
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from .views_erp_pro import calcola_contabilita_industriale_mese
 
     soglia, mese, anno, today = _resolve_soglia_and_periodo(request)
-    dati = calcola_analisi_contratti(mese=mese, anno=anno, soglia=soglia)
-    sotto_soglia = dati['sotto_soglia']
+    dati = calcola_contabilita_industriale_mese(anno=anno, mese=mese, soglia_oraria=soglia)
+    solo_critici = request.GET.get('tutti') != '1'
+    righe_pdf = dati['sotto_soglia'] if solo_critici else dati['analisi']
+    if not righe_pdf:
+        righe_pdf = dati['analisi']
     mese_nome = dati['mese_nome']
 
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
         pagesize=landscape(A4),
-        topMargin=20 * mm,
+        topMargin=15 * mm,
         bottomMargin=15 * mm,
-        leftMargin=20 * mm,
-        rightMargin=20 * mm,
+        leftMargin=15 * mm,
+        rightMargin=15 * mm,
     )
     elements = []
     styles = getSampleStyleSheet()
 
-    title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=18, textColor=colors.HexColor('#1a5276'))
-    elements.append(Paragraph('Report Contratti Sotto Soglia', title_style))
-    elements.append(Spacer(1, 5 * mm))
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=16, textColor=colors.HexColor('#1a5276'))
+    elements.append(Paragraph('Contabilità Industriale Cantieri & Analisi Marginalità (MOL)', title_style))
+    elements.append(Spacer(1, 4 * mm))
 
-    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor('#555'))
-    elements.append(Paragraph(f'Soglia: {soglia:.2f} EUR/ora | Periodo: {mese_nome} {anno}', info_style))
-    elements.append(Paragraph(f'Data generazione: {today.strftime("%d/%m/%Y")} | Contratti sotto soglia: {len(sotto_soglia)}', info_style))
-    elements.append(Spacer(1, 8 * mm))
+    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#555'))
+    elements.append(Paragraph(
+        f'Periodo: {mese_nome} {anno} | Soglia Oraria: {soglia:.2f} EUR/h | '
+        f'Ricavi Tot: {dati["totale_ricavi_val"]:,.2f} EUR | '
+        f'MOL Aziendale: {dati["totale_mol_val"]:,.2f} EUR ({dati["totale_mol_perc"]:.1f}%)',
+        info_style
+    ))
+    elements.append(Spacer(1, 6 * mm))
 
-    if sotto_soglia:
-        data = [['Cliente', 'Importo Mensile', 'Ore Contratto', 'EUR/Ora', 'Ore Lavorate', 'Costo Effettivo/Ora']]
-        for row in sotto_soglia:
+    if righe_pdf:
+        data = [['Cliente / Cantiere', 'Ricavi Tot.', 'Ore (Lav/Ctr)', 'Costo Pers.', 'Materiali', 'Mezzi', 'MOL EUR', 'MOL %', 'Semaforo']]
+        for row in righe_pdf:
             data.append([
-                row['cliente'],
-                f"{row['importo_num']:,.2f} EUR",
-                f"{row['ore_contratto_num']}h",
-                f"{row['importo_orario_num']:.2f} EUR",
-                f"{row['ore_lavorate_num']}h",
-                f"{row['costo_effettivo_num']:.2f} EUR" if row['costo_effettivo_num'] else '-',
+                row['cliente'][:38],
+                f"{row['ricavi_totali_val']:,.2f} EUR",
+                f"{row['ore_lavorate_val']:g}h / {row['ore_contratto_val']:g}h",
+                f"{row['costo_personale_val']:,.2f} EUR",
+                f"{row['costo_materiali_val']:,.2f} EUR",
+                f"{row['costo_mezzi_val']:,.2f} EUR",
+                f"{row['mol_euro_val']:,.2f} EUR",
+                f"{row['mol_perc_val']:.1f}%",
+                row['semaforo'],
             ])
 
-        table = Table(data, colWidths=[95 * mm, 35 * mm, 30 * mm, 25 * mm, 30 * mm, 35 * mm])
+        table = Table(data, colWidths=[72 * mm, 26 * mm, 28 * mm, 26 * mm, 24 * mm, 22 * mm, 26 * mm, 20 * mm, 23 * mm])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a5276')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('TOPPADDING', (0, 0), (-1, 0), 8),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('FONTSIZE', (0, 1), (-1, -1), 8.5),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 7),
+            ('TOPPADDING', (0, 0), (-1, 0), 7),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
+            ('TOPPADDING', (0, 1), (-1, -1), 5),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc')),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')]),
-            ('TEXTCOLOR', (3, 1), (3, -1), colors.HexColor('#e74c3c')),
-            ('FONTNAME', (3, 1), (3, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (6, 1), (7, -1), 'Helvetica-Bold'),
         ]))
         elements.append(table)
     else:
-        elements.append(Paragraph('Nessun contratto sotto la soglia impostata.', styles['Normal']))
+        elements.append(Paragraph('Nessun contratto presente per i criteri selezionati.', styles['Normal']))
 
     doc.build(elements)
     buffer.seek(0)
 
     response = HttpResponse(buffer, content_type='application/pdf')
-    nome_file = f'contratti_sotto_soglia_{mese_nome}{anno}.pdf'
+    nome_file = f'contabilita_industriale_cantieri_{mese_nome}{anno}.pdf'
     response['Content-Disposition'] = f'attachment; filename="{nome_file}"'
     return response
 

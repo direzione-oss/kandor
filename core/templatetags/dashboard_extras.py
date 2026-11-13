@@ -684,11 +684,19 @@ def weekly_schedule_widget(context):
 
 @register.filter
 def is_operational_model(model_name):
-    return model_name in ['AssegnazioneTurno', 'Assenza', 'TimeTracking', 'Turno', 'ProceduraAvviata', 'LottoBustePaga', 'CedolinoDipendente']
+    return model_name in [
+        'AssegnazioneTurno', 'Assenza', 'TimeTracking', 'Turno',
+        'ProceduraAvviata', 'LottoBustePaga', 'CedolinoDipendente',
+        'ConsegnaRichiestaMateriale', 'IspezioneQualitaCantiere', 'PreventivoCommerciale',
+    ]
 
 @register.filter
 def is_resource_model(model_name):
-    return model_name in ['Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione', 'ModelloProcedura', 'Squadra', 'MessaggioProgrammato']
+    return model_name in [
+        'Cliente', 'Dipendente', 'Mezzo', 'Qualifica', 'CorsoFormazione',
+        'ModelloProcedura', 'Squadra', 'MessaggioProgrammato',
+        'ProdottoMagazzino', 'DotazioneCantiere',
+    ]
 
 @register.filter
 def can_view_model(model_name, sezioni_abilitate):

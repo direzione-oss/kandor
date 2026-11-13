@@ -2,122 +2,247 @@
 {% load i18n %}
 {% block content %}
 <style>
-    #container,
-    #content,
-    #content-main {
+    #container, #content, #content-main {
         max-width: 100% !important;
         width: 100% !important;
     }
-
     #content-related {
         display: none !important;
     }
+    .mol-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+    .mol-kpi-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 16px 18px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.06);
+        border: 1px solid #e2e8f0;
+        border-top: 4px solid #2980b9;
+    }
+    .mol-kpi-card .lbl {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #64748b;
+        letter-spacing: .04em;
+    }
+    .mol-kpi-card .val {
+        font-size: 23px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-top: 4px;
+    }
+    .mol-kpi-card .sub {
+        font-size: 12px;
+        color: #64748b;
+        margin-top: 3px;
+    }
+    .semaforo-bar {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+    }
+    .semaforo-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        border: 2px solid transparent;
+        transition: all .15s;
+    }
+    .semaforo-pill.active {
+        box-shadow: 0 0 0 3px rgba(15,23,42,.18);
+        transform: translateY(-1px);
+    }
 </style>
-<div style="max-width:100%;margin:0 auto;padding:20px">
-    <h1 style="color:#1a5276;border-bottom:3px solid #2980b9;padding-bottom:10px;margin-bottom:20px">Analisi Economica
-        Contratti</h1>
-    <div style="background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);padding:20px;margin-bottom:20px">
-        <form method="get" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+
+<div style="max-width:100%;margin:0 auto;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:3px solid #2980b9;padding-bottom:12px;margin-bottom:20px">
+        <div>
+            <h1 style="color:#1a5276;margin:0;font-size:22px">📊 Contabilità Industriale per Cantiere &amp; Marginalità Reale (MOL)</h1>
+            <p style="margin:4px 0 0 0;color:#64748b;font-size:13px">
+                Formula: <strong>MOL = (Canone Mensile + Lavori Extra) &minus; (Ore Lavorate &times; Costo Orario Effettivo Dipendenti) &minus; Materiali Consegnati &minus; Costo Mezzi</strong>
+            </p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/magazzino-dotazioni/" style="background:#0f766e;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">🧴 Magazzino &amp; Dotazioni</a>
+            <a href="/pre-fatturazione/?mese={{ mese }}&anno={{ anno }}" style="background:#7c3aed;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">🧾 Pre-Fatturazione &amp; Extra</a>
+            <a href="/admin/" style="background:#475569;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:700">&larr; Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Filtri -->
+    <div style="background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:16px 20px;margin-bottom:18px;border:1px solid #e2e8f0">
+        <form method="get" style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
             <div>
-                <label style="font-weight:600;font-size:13px;color:#555;display:block;margin-bottom:4px">Soglia
-                    Minima/ora</label>
+                <label style="font-weight:700;font-size:12px;color:#475569;display:block;margin-bottom:4px">Soglia Ricavo Orario (€/h)</label>
                 <input type="number" name="soglia" value="{{ soglia }}" step="0.5" min="0"
-                    style="padding:8px 12px;border:1px solid #ddd;border-radius:4px;width:120px">
+                    style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;width:120px;font-weight:700">
             </div>
             <div>
-                <label style="font-weight:600;font-size:13px;color:#555;display:block;margin-bottom:4px">Mese</label>
-                <select name="mese" style="padding:8px 12px;border:1px solid #ddd;border-radius:4px">
+                <label style="font-weight:700;font-size:12px;color:#475569;display:block;margin-bottom:4px">Mese</label>
+                <select name="mese" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-weight:600">
                     {% for m in mesi %}
                     <option value="{{ m.value }}" {{ m.selected }}>{{ m.nome }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div>
-                <label style="font-weight:600;font-size:13px;color:#555;display:block;margin-bottom:4px">Anno</label>
+                <label style="font-weight:700;font-size:12px;color:#475569;display:block;margin-bottom:4px">Anno</label>
                 <input type="number" name="anno" value="{{ anno }}" min="2024" max="2030"
-                    style="padding:8px 12px;border:1px solid #ddd;border-radius:4px;width:90px">
+                    style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;width:95px;font-weight:600">
             </div>
-            <div style="align-self:flex-end">
+            <div>
+                <label style="font-weight:700;font-size:12px;color:#475569;display:block;margin-bottom:4px">Semaforo Direzionale</label>
+                <select name="semaforo" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-weight:600">
+                    <option value="">Tutti i cantieri</option>
+                    <option value="ROSSO" {% if filtro_semaforo == 'ROSSO' %}selected{% endif %}>🔴 Solo In Perdita / Critici</option>
+                    <option value="GIALLO" {% if filtro_semaforo == 'GIALLO' %}selected{% endif %}>🟠 Solo Erosione Margine</option>
+                    <option value="VERDE" {% if filtro_semaforo == 'VERDE' %}selected{% endif %}>🟢 Solo Marginalità OK</option>
+                </select>
+            </div>
+            <div>
                 <button type="submit"
-                    style="padding:8px 20px;background:#2980b9;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">Analizza</button>
+                    style="padding:9px 20px;background:#2980b9;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700">🔍 Ricalcola MOL</button>
             </div>
-            <div style="align-self:flex-end">
+            <div>
                 <button type="submit" formaction="/analisi-contratti/pdf/"
-                    style="padding:8px 20px;background:#e74c3c;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600">PDF
-                    Sotto Soglia</button>
+                    style="padding:9px 16px;background:#dc2626;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700">📄 PDF Critici / Sotto Soglia</button>
+            </div>
+            <div>
+                <a href="/analisi-contratti/pdf/?mese={{ mese }}&anno={{ anno }}&soglia={{ soglia }}&tutti=1"
+                    style="display:inline-block;padding:9px 16px;background:#0f172a;color:#fff;text-decoration:none;border-radius:6px;font-weight:700;font-size:13px">📥 PDF Completo MOL</a>
             </div>
         </form>
     </div>
+
+    <!-- KPI Contabilità Industriale -->
+    <div class="mol-kpi-grid">
+        <div class="mol-kpi-card" style="border-top-color:#2563eb">
+            <div class="lbl">💰 Ricavi Totali ({{ mese_nome }})</div>
+            <div class="val" style="color:#1d4ed8">&euro;{{ contabilita.totale_ricavi_val|floatformat:2 }}</div>
+            <div class="sub">Canoni: &euro;{{ contabilita.totale_canoni_val|floatformat:2 }} | Extra: &euro;{{ contabilita.totale_extra_val|floatformat:2 }}</div>
+        </div>
+        <div class="mol-kpi-card" style="border-top-color:#ea580c">
+            <div class="lbl">👷 Costo Personale Reale</div>
+            <div class="val" style="color:#c2410c">&euro;{{ contabilita.totale_costo_personale_val|floatformat:2 }}</div>
+            <div class="sub">Calcolato per livello/costo orario dipendente</div>
+        </div>
+        <div class="mol-kpi-card" style="border-top-color:#0d9488">
+            <div class="lbl">🧴 Prodotti &amp; Materiali</div>
+            <div class="val" style="color:#0f766e">&euro;{{ contabilita.totale_costo_materiali_val|floatformat:2 }}</div>
+            <div class="sub">+ Mezzi/Trasferte: &euro;{{ contabilita.totale_costo_mezzi_val|floatformat:2 }}</div>
+        </div>
+        <div class="mol-kpi-card" style="border-top-color:{% if contabilita.totale_mol_val < 0 %}#dc2626{% elif contabilita.totale_mol_perc < 20 %}#d97706{% else %}#16a34a{% endif %}">
+            <div class="lbl">📈 Margine Operativo Lordo (MOL)</div>
+            <div class="val" style="color:{% if contabilita.totale_mol_val < 0 %}#dc2626{% elif contabilita.totale_mol_perc < 20 %}#d97706{% else %}#16a34a{% endif %}">
+                &euro;{{ contabilita.totale_mol_val|floatformat:2 }} ({{ contabilita.totale_mol_perc }}%)
+            </div>
+            <div class="sub">Marginalità industriale netta aziendale</div>
+        </div>
+    </div>
+
+    <!-- Semaforo Direzionale Rapido -->
+    <div class="semaforo-bar">
+        <a href="?mese={{ mese }}&anno={{ anno }}&soglia={{ soglia }}"
+           class="semaforo-pill {% if not filtro_semaforo %}active{% endif %}"
+           style="background:#f1f5f9;color:#0f172a">
+            📋 Tutti i Cantieri ({{ contabilita.totale_contratti }})
+        </a>
+        <a href="?mese={{ mese }}&anno={{ anno }}&soglia={{ soglia }}&semaforo=ROSSO"
+           class="semaforo-pill {% if filtro_semaforo == 'ROSSO' %}active{% endif %}"
+           style="background:#fef2f2;color:#b91c1c;border-color:#fecaca">
+            🔴 In Perdita / Sotto Soglia: {{ contabilita.cantieri_perdita|length }}
+        </a>
+        <a href="?mese={{ mese }}&anno={{ anno }}&soglia={{ soglia }}&semaforo=GIALLO"
+           class="semaforo-pill {% if filtro_semaforo == 'GIALLO' %}active{% endif %}"
+           style="background:#fffbeb;color:#b45309;border-color:#fde68a">
+            🟠 Erosione Margine (&lt;18%): {{ contabilita.cantieri_erosione|length }}
+        </a>
+        <a href="?mese={{ mese }}&anno={{ anno }}&soglia={{ soglia }}&semaforo=VERDE"
+           class="semaforo-pill {% if filtro_semaforo == 'VERDE' %}active{% endif %}"
+           style="background:#f0fdf4;color:#15803d;border-color:#bbf7d0">
+            🟢 Marginalità Ottima (&ge;18%): {{ contabilita.cantieri_ottimi|length }}
+        </a>
+    </div>
+
     {% if sotto_soglia %}
-    <div style="background:#fdf2f2;border:1px solid #e74c3c;border-radius:8px;padding:15px 20px;margin-bottom:20px">
-        <h3 style="color:#e74c3c;margin:0 0 10px 0">{{ sotto_soglia|length }} Contratti sotto soglia</h3>
-        <div style="display:flex;flex-wrap:wrap;gap:10px">{{ sotto_soglia_html|safe }}</div>
+    <div style="background:#fdf2f2;border:1px solid #ef4444;border-radius:10px;padding:14px 18px;margin-bottom:18px">
+        <h3 style="color:#b91c1c;margin:0 0 8px 0;font-size:14px">🚨 Attenzione Direzionale: {{ sotto_soglia|length }} Cantieri in perdita o sotto soglia</h3>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">{{ sotto_soglia_html|safe }}</div>
     </div>
     {% endif %}
-    <div style="background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08);overflow:hidden">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
+
+    <!-- Tabella Contabilità Industriale -->
+    <div style="background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);overflow-x:auto;border:1px solid #e2e8f0">
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
             <thead>
-                <tr style="background:#1a5276;color:#fff">
-                    <th style="padding:12px 10px;text-align:left">Cliente</th>
-                    <th style="padding:12px 10px;text-align:center">Importo Mensile</th>
-                    <th style="padding:12px 10px;text-align:center">Ore Contratto</th>
-                    <th style="padding:12px 10px;text-align:center">Ora Contratto</th>
-                    <th style="padding:12px 10px;text-align:center">{{ ore_header|safe }}</th>
-                    <th style="padding:12px 10px;text-align:center">Costo Effettivo/Ora</th>
-                    <th style="padding:12px 10px;text-align:center">Diff. Ore</th>
-                    <th style="padding:12px 10px;text-align:center">Stato</th>
+                <tr style="background:#0f172a;color:#fff">
+                    <th style="padding:12px 10px;text-align:left">Cliente / Cantiere</th>
+                    <th style="padding:12px 8px;text-align:right">Canone + Extra</th>
+                    <th style="padding:12px 8px;text-align:center">Ore Ctr.</th>
+                    <th style="padding:12px 8px;text-align:center">{{ ore_header|safe }}</th>
+                    <th style="padding:12px 8px;text-align:center">Diff. Ore</th>
+                    <th style="padding:12px 8px;text-align:right">Costo Personale</th>
+                    <th style="padding:12px 8px;text-align:right">Materiali</th>
+                    <th style="padding:12px 8px;text-align:right">Mezzi</th>
+                    <th style="padding:12px 8px;text-align:right">MOL (&euro;)</th>
+                    <th style="padding:12px 8px;text-align:center">MOL (%)</th>
+                    <th style="padding:12px 10px;text-align:center">Semaforo Direzionale</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in analisi %}
-                <tr style="border-bottom:1px solid #eee">
-                    <td style="padding:10px;font-weight:600"><a
-                            href="/admin/core/cliente/{{ row.cliente_id }}/change/">{{ row.cliente }}</a></td>
-                    <td style="padding:10px;text-align:center">{{ row.importo_mensile|safe }}</td>
-                    <td style="padding:10px;text-align:center">{{ row.ore_contratto }}</td>
-                    <td style="padding:10px;text-align:center">{{ row.importo_orario|safe }}</td>
-                    <td style="padding:10px;text-align:center">{{ row.ore_lavorate }}</td>
-                    <td style="padding:10px;text-align:center">{{ row.costo_effettivo_display|safe }}</td>
-                    <td style="padding:10px;text-align:center">{{ row.diff_ore_display|safe }}</td>
+                <tr style="border-bottom:1px solid #e2e8f0;{% if row.semaforo == 'ROSSO' %}background:#fff5f5{% elif row.semaforo == 'GIALLO' %}background:#fffdf5{% endif %}">
+                    <td style="padding:10px;font-weight:700">
+                        <a href="/admin/core/cliente/{{ row.cliente_id }}/change/" style="color:#1e3a8a;text-decoration:none">{{ row.cliente }}</a>
+                        <div style="font-size:11px;color:#64748b;font-weight:500;margin-top:2px">
+                            Contratto: {{ row.importo_orario|safe }}/h | Effettivo: {{ row.costo_effettivo_display|safe }}/h
+                            {% if row.dotazioni_attive > 0 %}
+                            &bull; <a href="/magazzino-dotazioni/?cliente_id={{ row.cliente_id }}" style="color:#0f766e;font-weight:700">🔧 {{ row.dotazioni_attive }} dotazioni</a>
+                            {% endif %}
+                            &bull; <a href="/qualita-ispezioni/qr/{{ row.cliente_id }}/" target="_blank" style="color:#6366f1;font-weight:700">📱 QR</a>
+                        </div>
+                    </td>
+                    <td style="padding:10px 8px;text-align:right;font-weight:700">
+                        &euro;{{ row.ricavi_totali_val|floatformat:2 }}
+                        {% if row.ricavi_extra_val > 0 %}
+                        <div style="font-size:10.5px;color:#7c3aed;font-weight:600">di cui +&euro;{{ row.ricavi_extra_val|floatformat:2 }} extra</div>
+                        {% endif %}
+                    </td>
+                    <td style="padding:10px 8px;text-align:center">{{ row.ore_contratto }}</td>
+                    <td style="padding:10px 8px;text-align:center;font-weight:700">{{ row.ore_lavorate }}</td>
+                    <td style="padding:10px 8px;text-align:center">{{ row.diff_ore_display|safe }}</td>
+                    <td style="padding:10px 8px;text-align:right">
+                        <span style="font-weight:700;color:#334155">&euro;{{ row.costo_personale_val|floatformat:2 }}</span>
+                        <div style="font-size:10.5px;color:#64748b">&empty; &euro;{{ row.costo_orario_medio_personale|floatformat:2 }}/h</div>
+                    </td>
+                    <td style="padding:10px 8px;text-align:right;color:#0f766e;font-weight:600">&euro;{{ row.costo_materiali_val|floatformat:2 }}</td>
+                    <td style="padding:10px 8px;text-align:right;color:#64748b">&euro;{{ row.costo_mezzi_val|floatformat:2 }}</td>
+                    <td style="padding:10px 8px;text-align:right;font-weight:800;font-size:13.5px;color:{% if row.mol_euro_val < 0 %}#dc2626{% elif row.mol_perc_val < 18 %}#d97706{% else %}#16a34a{% endif %}">
+                        &euro;{{ row.mol_euro_val|floatformat:2 }}
+                    </td>
+                    <td style="padding:10px 8px;text-align:center;font-weight:800;color:{% if row.mol_euro_val < 0 %}#dc2626{% elif row.mol_perc_val < 18 %}#d97706{% else %}#16a34a{% endif %}">
+                        {{ row.mol_perc_val }}%
+                    </td>
                     <td style="padding:10px;text-align:center">{{ row.stato_display|safe }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" style="padding:30px;text-align:center;color:#999">Nessun cliente con importo e ore
-                        configurati.</td>
+                    <td colspan="11" style="padding:30px;text-align:center;color:#94a3b8">Nessun cantiere trovato per i filtri selezionati.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-    </div>
-    {% if analisi %}
-    <div style="display:flex;gap:15px;margin-top:20px;flex-wrap:wrap">
-        <div
-            style="flex:1;min-width:200px;background:#fff;border-radius:8px;padding:15px 20px;box-shadow:0 2px 8px rgba(0,0,0,.08);border-top:3px solid #2980b9">
-            <div style="font-size:12px;color:#777;text-transform:uppercase">Totale Contratti</div>
-            <div style="font-size:28px;font-weight:700;color:#1a5276">{{ totale_contratti }}</div>
-        </div>
-        <div
-            style="flex:1;min-width:200px;background:#fff;border-radius:8px;padding:15px 20px;box-shadow:0 2px 8px rgba(0,0,0,.08);border-top:3px solid #27ae60">
-            <div style="font-size:12px;color:#777;text-transform:uppercase">Fatturato Mensile</div>
-            <div style="font-size:28px;font-weight:700;color:#27ae60">{{ totale_fatturato|safe }}</div>
-        </div>
-        <div
-            style="flex:1;min-width:200px;background:#fff;border-radius:8px;padding:15px 20px;box-shadow:0 2px 8px rgba(0,0,0,.08);border-top:3px solid #e74c3c">
-            <div style="font-size:12px;color:#777;text-transform:uppercase">Sotto Soglia</div>
-            <div style="font-size:28px;font-weight:700;color:#e74c3c">{{ sotto_soglia|length }}</div>
-        </div>
-        <div
-            style="flex:1;min-width:200px;background:#fff;border-radius:8px;padding:15px 20px;box-shadow:0 2px 8px rgba(0,0,0,.08);border-top:3px solid #8e44ad">
-            <div style="font-size:12px;color:#777;text-transform:uppercase">Ora Media</div>
-            <div style="font-size:28px;font-weight:700;color:#8e44ad">{{ media_oraria|safe }}</div>
-        </div>
-    </div>
-    {% endif %}
-    <div style="margin-top:20px;text-align:center">
-        <a href="/admin/"
-            style="background:#2980b9;color:#fff;padding:10px 25px;text-decoration:none;border-radius:4px;font-weight:bold">Torna
-            alla Dashboard</a>
     </div>
 </div>
 {% endblock %}

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>QR Code Cantiere — {{ cliente.ragione_sociale }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f1f5f9; margin: 0; padding: 30px; text-align: center; }
+        .sheet { max-width: 520px; margin: 0 auto; background: #fff; border: 3px solid #0f172a; border-radius: 20px; padding: 32px; box-shadow: 0 10px 25px rgba(0,0,0,.1); }
+        .badge { display: inline-block; background: #ff6f00; color: #fff; font-weight: 800; padding: 6px 16px; border-radius: 999px; font-size: 13px; letter-spacing: .05em; }
+        h1 { margin: 14px 0 4px 0; color: #0f172a; font-size: 26px; }
+        .addr { color: #475569; font-size: 15px; margin-bottom: 20px; }
+        .qr-box { border: 2px dashed #cbd5e1; border-radius: 16px; padding: 20px; display: inline-block; margin: 10px 0 20px 0; background: #fff; }
+        .steps { text-align: left; background: #f8fafc; border-radius: 12px; padding: 16px 20px; font-size: 14px; color: #1e293b; line-height: 1.6; }
+        .no-print { margin-top: 24px; }
+        @media print { body { background: #fff; padding: 0; } .no-print { display: none; } .sheet { box-shadow: none; } }
+    </style>
+</head>
+<body>
+    <div class="sheet">
+        <div class="badge">KANDOR ERP — POSTAZIONE CANTIERE CERTIFICATA</div>
+        <h1>{{ cliente.ragione_sociale }}</h1>
+        <div class="addr">📍 {{ cliente.indirizzo_sede|default:"Sede Operativa" }}</div>
+
+        <div class="qr-box">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=260x260&data={{ checkin_url_encoded }}"
+                 alt="QR Code Cantiere" width="260" height="260">
+        </div>
+
+        <div class="steps">
+            <strong>📲 Istruzioni per Operatori &amp; Responsabili d'Area:</strong>
+            <ol style="margin:8px 0 0 0;padding-left:20px">
+                <li>Inquadra questo <strong>QR Code</strong> con la fotocamera del cellulare.</li>
+                <li>Premi <strong>🟢 Check-In GPS</strong> all'arrivo e <strong>🔴 Check-Out GPS</strong> a fine turno.</li>
+                <li>Se stanno terminando detergenti, carta o sacchi, premi <strong>🧴 Richiedi Materiali</strong>.</li>
+            </ol>
+        </div>
+        <div style="margin-top:14px;font-size:11px;color:#94a3b8">{{ checkin_url }}</div>
+    </div>
+
+    <div class="no-print">
+        <button onclick="window.print()" style="background:#0f172a;color:#fff;border:none;padding:12px 26px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">🖨️ Stampa Cartello QR Cantiere</button>
+    </div>
+</body>
+</html>

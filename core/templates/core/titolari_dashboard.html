@@ -13,7 +13,7 @@
 
     .sup-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
         gap: 20px;
         margin-bottom: 32px;
     }
@@ -106,10 +106,10 @@
     .btn-link {
         background: #0F172A;
         color: #FFFFFF !important;
-        padding: 8px 20px;
+        padding: 8px 18px;
         text-decoration: none;
         border-radius: 8px;
-        font-size: 0.85rem;
+        font-size: 0.82rem;
         font-weight: 700;
         transition: var(--transition);
     }
@@ -133,12 +133,42 @@
 
 <div style="padding: 10px 0;">
     <div class="title-bar">
-        <h1>📊 Dashboard Supervisione — {{ oggi|date:"l d F Y" }}</h1>
-        <a href="/verifica-ore/" class="btn-link">📋 Report Mensile &rarr;</a>
+        <h1>📊 Dashboard Direzionale Titolari — {{ oggi|date:"l d F Y" }}</h1>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="/analisi-contratti/" class="btn-link" style="background:#1D4ED8">📈 Contabilità Industriale MOL</a>
+            <a href="/pre-fatturazione/" class="btn-link" style="background:#7C3AED">🧾 Pre-Fatturazione</a>
+            <a href="/preventivi-crm/" class="btn-link" style="background:#059669">📐 Preventivi CRM</a>
+            <a href="/verifica-ore/" class="btn-link">📋 Report Mensile &rarr;</a>
+        </div>
     </div>
 
+    <!-- Semaforo Direzionale Marginalità Cantieri (MOL) -->
+    {% if contabilita_industriale %}
+    <div class="section-divider">🚦 Semaforo Direzionale Marginalità Cantieri (MOL Mese Corrente)</div>
+    <div class="sup-grid">
+        <div class="sup-card {% if contabilita_industriale.totale_mol_val < 0 %}rosso{% else %}verde{% endif %}">
+            <h3>📈 Marginalità Operativa (MOL)</h3>
+            <div class="sup-stat"><span>Ricavi Totali Mese</span><span class="val">&euro;{{ contabilita_industriale.totale_ricavi_val|floatformat:2 }}</span></div>
+            <div class="sup-stat"><span>Costo Personale Reale</span><span class="val">&euro;{{ contabilita_industriale.totale_costo_personale_val|floatformat:2 }}</span></div>
+            <div class="sup-stat"><span>MOL Netto ({{ contabilita_industriale.totale_mol_perc }}%)</span><span class="val {% if contabilita_industriale.totale_mol_val < 0 %}err{% else %}ok{% endif %}">&euro;{{ contabilita_industriale.totale_mol_val|floatformat:2 }}</span></div>
+        </div>
+        <div class="sup-card rosso">
+            <h3>🚦 Semaforo Cantieri</h3>
+            <div class="sup-stat"><span>🔴 In Perdita / Sotto Soglia</span><span class="val {% if cantieri_perdita > 0 %}err{% else %}ok{% endif %}">{{ cantieri_perdita }}</span></div>
+            <div class="sup-stat"><span>🟠 Erosione Margine (&lt;18%)</span><span class="val {% if cantieri_erosione > 0 %}warn{% else %}ok{% endif %}">{{ cantieri_erosione }}</span></div>
+            <div class="sup-stat"><span>🟢 Marginalità Ottima (&ge;18%)</span><span class="val ok">{{ cantieri_ottimi }}</span></div>
+        </div>
+        <div class="sup-card viola">
+            <h3>🧴 Magazzino, Qualità &amp; Extra</h3>
+            <div class="sup-stat"><span><a href="/magazzino-dotazioni/" style="color:inherit;text-decoration:none">Richieste Materiali Aperte</a></span><span class="val {% if richieste_materiali_aperte > 0 %}warn{% else %}ok{% endif %}">{{ richieste_materiali_aperte }}</span></div>
+            <div class="sup-stat"><span><a href="/pre-fatturazione/" style="color:inherit;text-decoration:none">Lavori Extra Da Fatturare</a></span><span class="val {% if lavori_extra_da_fatturare > 0 %}warn{% else %}ok{% endif %}">{{ lavori_extra_da_fatturare }}</span></div>
+            <div class="sup-stat"><span><a href="/qualita-ispezioni/" style="color:inherit;text-decoration:none">Ispezioni Qualità nel mese</a></span><span class="val ok">{{ ispezioni_mese }}</span></div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Oggi -->
-    <div class="section-divider">📅 Situazione di Oggi</div>
+    <div class="section-divider">📅 Situazione Operativa di Oggi</div>
     <div class="sup-grid">
         <div class="sup-card">
             <h3>👥 Dipendenti</h3>
@@ -162,7 +192,7 @@
             <h3>⚠️ Alert Economici</h3>
             <div class="sup-stat"><span>Contratti sotto soglia</span><span class="val {% if n_sotto_soglia > 0 %}err{% else %}ok{% endif %}">{{ n_sotto_soglia }}</span></div>
             <div class="sup-stat"><span>Soglia €/ora usata</span><span class="val">{{ soglia_default }}€</span></div>
-            <div class="sup-stat"><span><a href="/analisi-contratti/" style="color:#DC2626; font-weight:700;">→ Analisi contratti</a></span><span></span></div>
+            <div class="sup-stat"><span><a href="/analisi-contratti/" style="color:#DC2626; font-weight:700;">→ Contabilità Industriale &amp; MOL</a></span><span></span></div>
         </div>
     </div>
 

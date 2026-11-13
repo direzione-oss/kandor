@@ -520,6 +520,31 @@
                 </form>
             </div>
 
+            {% if qr_cliente %}
+            <!-- BANNER QR CODE CANTIERE SCANSIONATO -->
+            <div class="card" style="background: linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%); border: 2px solid #10B981; margin-bottom: 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span class="badge badge-green">📲 QR Cantiere Rilevato</span>
+                    <span style="font-size:11.5px; font-weight:700; color:#047857;">Verifica GPS Attiva</span>
+                </div>
+                <div style="font-size:16px; font-weight:800; color:#064E3B; margin-bottom:4px;">🏢 {{ qr_cliente.ragione_sociale }}</div>
+                {% if qr_cliente.indirizzo_sede %}
+                <div style="font-size:12px; color:#047857; margin-bottom:10px;">📍 {{ qr_cliente.indirizzo_sede }}</div>
+                {% endif %}
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <button type="button" class="btn btn-success" onclick="timbraGeofenceGps('CHECK_IN', '', {{ qr_cliente.id }})">
+                        🟢 Check-In GPS
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="timbraGeofenceGps('CHECK_OUT', '', {{ qr_cliente.id }})">
+                        🔴 Check-Out GPS
+                    </button>
+                </div>
+                <button type="button" class="btn btn-outline btn-block" style="background:#FFF;" onclick="apriRichiestaMaterialeRapida({{ qr_cliente.id }})">
+                    🧴 Richiedi Prodotti / Sacchi per questo Cantiere
+                </button>
+            </div>
+            {% endif %}
+
             <!-- Richieste di Sostituzione per Sostituto / Jolly -->
             {% if richieste_sost_inviate %}
             <div class="section-title">
@@ -623,6 +648,34 @@
                         🛠️ <strong>Mansione:</strong> {{ t.mansione }}
                     </div>
                     {% endif %}
+
+                    <!-- Timbratura GPS Geofence & Richiesta Prodotti Cantiere -->
+                    <div style="margin-top:8px; padding:8px 10px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:11.5px; color:#475569;">
+                            <span>📍 <strong>Timbratura GPS Cantiere</strong></span>
+                            <span>
+                                {% if t.check_in_str %}🟢 In: <strong>{{ t.check_in_str }}</strong>{% endif %}
+                                {% if t.check_out_str %} &bull; 🔴 Out: <strong>{{ t.check_out_str }}</strong>{% endif %}
+                                {% if not t.check_in_str and not t.check_out_str %}Non timbrato{% endif %}
+                            </span>
+                        </div>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-outline" style="flex:1; padding:6px 8px; font-size:12px; border-color:#10B981; color:#047857;"
+                                onclick="timbraGeofenceGps('CHECK_IN', '{{ t.id }}', '{{ t.cliente_id|default:"" }}')">
+                                🟢 Check-In GPS
+                            </button>
+                            <button type="button" class="btn btn-outline" style="flex:1; padding:6px 8px; font-size:12px; border-color:#EF4444; color:#B91C1C;"
+                                onclick="timbraGeofenceGps('CHECK_OUT', '{{ t.id }}', '{{ t.cliente_id|default:"" }}')">
+                                🔴 Check-Out GPS
+                            </button>
+                            {% if t.cliente_id %}
+                            <button type="button" class="btn btn-outline" style="padding:6px 10px; font-size:12px;"
+                                onclick="apriRichiestaMaterialeRapida({{ t.cliente_id }})" title="Richiedi detergenti o sacchi per questo cantiere">
+                                🧴 Materiali
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
 
                     <div class="shift-actions">
                         {% if t.is_compilato %}
@@ -988,6 +1041,157 @@
                     <div id="chatFileBadge" style="font-size:12px; color:var(--orange); font-weight:700; margin-top:6px; display:none;"></div>
                 </form>
             </div>
+
+            <!-- Richiesta Rapida Materiali / Detergenti per Cantiere -->
+            <div class="section-title" id="sezioneRichiestaMateriali">🧴 Richiedi Prodotti / Materiali per Cantiere</div>
+            <div class="card" style="border-left:4px solid #10B981;">
+                <form id="formRichiestaMateriale" onsubmit="inviaRichiestaMateriale(event)">
+                    <div class="form-group">
+                        <label class="form-label">1. Cantiere / Cliente *</label>
+                        <select id="mat_cliente_id" class="form-control" required>
+                            <option value="">— Seleziona il Cantiere —</option>
+                            {% for c in clienti_dipendente %}
+                            <option value="{{ c.id }}" {% if qr_cliente and qr_cliente.id == c.id %}selected{% endif %}>{{ c.ragione_sociale }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">2. Prodotto a Catalogo (oppure scrivi sotto)</label>
+                        <select id="mat_prodotto_id" class="form-control">
+                            <option value="">— Scelta libera / Altro prodotto —</option>
+                            {% for p in prodotti_magazzino %}
+                            <option value="{{ p.id }}">{{ p.nome }} ({{ p.unita_misura }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:2fr 1fr; gap:8px;" class="form-group">
+                        <div>
+                            <label class="form-label">Dettaglio / Altro Prodotto</label>
+                            <input type="text" id="mat_prodotto_libero" class="form-control" placeholder="Es. Detergente pavimenti, sacchi neri...">
+                        </div>
+                        <div>
+                            <label class="form-label">Quantità</label>
+                            <input type="number" id="mat_quantita" step="1" min="1" value="1" class="form-control">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Urgenza</label>
+                        <select id="mat_urgenza" class="form-control">
+                            <option value="NORMALE">🟢 Normale (prossima consegna)</option>
+                            <option value="ALTA">🟠 Alta (sta finendo)</option>
+                            <option value="URGENTE">🔴 Urgente (scorta terminata)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-block">🧴 Invia Richiesta Materiali al Magazzino</button>
+                </form>
+
+                {% if richieste_materiali_recenti %}
+                <div style="margin-top:12px; padding-top:10px; border-top:1px solid #E2E8F0;">
+                    <div style="font-size:12px; font-weight:800; color:#475569; margin-bottom:6px;">📦 Ultime Richieste Materiali del Cantiere:</div>
+                    {% for rm in richieste_materiali_recenti %}
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:5px 0; border-bottom:1px dashed #E2E8F0;">
+                        <div>
+                            <strong>{{ rm.cliente.ragione_sociale }}</strong>:
+                            {% if rm.prodotto %}{{ rm.prodotto.nome }}{% else %}{{ rm.descrizione_libera }}{% endif %}
+                            (x{{ rm.quantita|floatformat:"-1" }})
+                        </div>
+                        {% if rm.stato == 'CONSEGNATO' %}
+                            <span class="badge badge-green">Consegnato</span>
+                        {% elif rm.stato == 'IN_CONSEGNA' %}
+                            <span class="badge badge-blue">In consegna</span>
+                        {% else %}
+                            <span class="badge badge-amber">Da evadere</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            {% if is_ispettore %}
+            <!-- Scheda Ispezione Qualità Cantiere (Mobile per Responsabili Area / Caposquadra) -->
+            <div class="section-title">⭐ Verbale Controllo Qualità Cantiere (SLA)</div>
+            <div class="card" style="border-left:4px solid #F59E0B; background:#FFFBEB;">
+                <form id="formIspezioneMobile" onsubmit="inviaIspezioneMobile(event)">
+                    <div class="form-group">
+                        <label class="form-label">Cantiere Ispezionato *</label>
+                        <select id="isp_cliente_id" class="form-control" required>
+                            <option value="">— Seleziona Cantiere —</option>
+                            {% for c in clienti_dipendente %}
+                            <option value="{{ c.id }}">{{ c.ragione_sociale }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;" class="form-group">
+                        <div>
+                            <label class="form-label">🏢 Uffici / Pavimenti</label>
+                            <select id="isp_voto_uffici" class="form-control">
+                                <option value="5">⭐⭐⭐⭐⭐ (5 - Ottimo)</option>
+                                <option value="4" selected>⭐⭐⭐⭐ (4 - Buono)</option>
+                                <option value="3">⭐⭐⭐ (3 - Sufficiente)</option>
+                                <option value="2">⭐⭐ (2 - Critico)</option>
+                                <option value="1">⭐ (1 - Insufficiente)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">🚿 Bagni & Sanitari</label>
+                            <select id="isp_voto_bagni" class="form-control">
+                                <option value="5">⭐⭐⭐⭐⭐ (5 - Ottimo)</option>
+                                <option value="4" selected>⭐⭐⭐⭐ (4 - Buono)</option>
+                                <option value="3">⭐⭐⭐ (3 - Sufficiente)</option>
+                                <option value="2">⭐⭐ (2 - Critico)</option>
+                                <option value="1">⭐ (1 - Insufficiente)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">🪟 Vetrate & Ingressi</label>
+                            <select id="isp_voto_vetri" class="form-control">
+                                <option value="5">⭐⭐⭐⭐⭐ (5 - Ottimo)</option>
+                                <option value="4" selected>⭐⭐⭐⭐ (4 - Buono)</option>
+                                <option value="3">⭐⭐⭐ (3 - Sufficiente)</option>
+                                <option value="2">⭐⭐ (2 - Critico)</option>
+                                <option value="1">⭐ (1 - Insufficiente)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">階段 Parti Comuni / Scale</label>
+                            <select id="isp_voto_comuni" class="form-control">
+                                <option value="5">⭐⭐⭐⭐⭐ (5 - Ottimo)</option>
+                                <option value="4" selected>⭐⭐⭐⭐ (4 - Buono)</option>
+                                <option value="3">⭐⭐⭐ (3 - Sufficiente)</option>
+                                <option value="2">⭐⭐ (2 - Critico)</option>
+                                <option value="1">⭐ (1 - Insufficiente)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">🧴 Ordine Ripostiglio & Dotazioni</label>
+                        <select id="isp_voto_dotazioni" class="form-control">
+                            <option value="5">⭐⭐⭐⭐⭐ (5 - Perfetto)</option>
+                            <option value="4" selected>⭐⭐⭐⭐ (4 - In ordine)</option>
+                            <option value="3">⭐⭐⭐ (3 - Da riordinare)</option>
+                            <option value="2">⭐⭐ (2 - Carente)</option>
+                            <option value="1">⭐ (1 - Critico)</option>
+                        </select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;" class="form-group">
+                        <div>
+                            <label class="form-label">📸 Foto 1 (Prima/Area)</label>
+                            <input type="file" id="isp_foto_prima" accept="image/*" class="form-control" style="font-size:12px;">
+                        </div>
+                        <div>
+                            <label class="form-label">📸 Foto 2 (Dopo/Dettaglio)</label>
+                            <input type="file" id="isp_foto_dopo" accept="image/*" class="form-control" style="font-size:12px;">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Note Verbale / Osservazioni</label>
+                        <textarea id="isp_note" rows="2" class="form-control" placeholder="Note sull'ispezione qualità..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-block">⭐ Registra Verbale Qualità Cantiere</button>
+                </form>
+            </div>
+            {% endif %}
 
             <!-- Segnalazioni -->
             <div class="section-title">🚨 Segnalazione Guasti / Materiali / Cantieri</div>
@@ -1575,6 +1779,96 @@
                 if (inp) inp.value = transcript;
             };
             rec.start();
+        }
+
+        function apriRichiestaMaterialeRapida(clienteId) {
+            switchTab('chat');
+            const sel = document.getElementById('mat_cliente_id');
+            if (sel && clienteId) sel.value = String(clienteId);
+            setTimeout(() => {
+                const box = document.getElementById('sezioneRichiestaMateriali');
+                if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+        }
+
+        async function timbraGeofenceGps(tipo, assignId, clienteId) {
+            showToast('🛰️ Rilevamento coordinate GPS in corso...', false);
+
+            const sendTimbratura = async (lat, lon, acc) => {
+                const fd = new FormData();
+                fd.append('action', 'timbra_geofence_gps');
+                fd.append('tipo_timbratura', tipo);
+                if (assignId) fd.append('assign_id', assignId);
+                if (clienteId) fd.append('cliente_id', clienteId);
+                if (lat !== null) fd.append('lat', String(lat));
+                if (lon !== null) fd.append('lon', String(lon));
+                if (acc !== null) fd.append('accuracy', String(acc));
+
+                const res = await postAppAction(fd);
+                if (res && res.ok) {
+                    showToast(res.message, true);
+                } else if (res) {
+                    alert(res.error || 'Errore durante la timbratura GPS.');
+                }
+            };
+
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        sendTimbratura(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+                    },
+                    () => {
+                        sendTimbratura(null, null, null);
+                    },
+                    { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+                );
+            } else {
+                sendTimbratura(null, null, null);
+            }
+        }
+
+        async function inviaRichiestaMateriale(e) {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('action', 'richiedi_materiale');
+            fd.append('cliente_id', document.getElementById('mat_cliente_id').value);
+            fd.append('prodotto_id', document.getElementById('mat_prodotto_id').value);
+            fd.append('prodotto_libero', document.getElementById('mat_prodotto_libero').value);
+            fd.append('quantita', document.getElementById('mat_quantita').value);
+            fd.append('urgenza', document.getElementById('mat_urgenza').value);
+
+            const res = await postAppAction(fd);
+            if (res && res.ok) {
+                document.getElementById('mat_prodotto_libero').value = '';
+                showToast(res.message, true);
+            } else if (res) {
+                alert(res.error || 'Errore durante l\'invio della richiesta materiali.');
+            }
+        }
+
+        async function inviaIspezioneMobile(e) {
+            e.preventDefault();
+            const fd = new FormData();
+            fd.append('action', 'salva_ispezione_mobile');
+            fd.append('cliente_id', document.getElementById('isp_cliente_id').value);
+            fd.append('voto_uffici', document.getElementById('isp_voto_uffici').value);
+            fd.append('voto_bagni', document.getElementById('isp_voto_bagni').value);
+            fd.append('voto_vetri', document.getElementById('isp_voto_vetri').value);
+            fd.append('voto_comuni', document.getElementById('isp_voto_comuni').value);
+            fd.append('voto_dotazioni', document.getElementById('isp_voto_dotazioni').value);
+            fd.append('note', document.getElementById('isp_note').value);
+
+            const f1 = document.getElementById('isp_foto_prima');
+            const f2 = document.getElementById('isp_foto_dopo');
+            if (f1 && f1.files && f1.files[0]) fd.append('foto_prima', f1.files[0]);
+            if (f2 && f2.files && f2.files[0]) fd.append('foto_dopo', f2.files[0]);
+
+            const res = await postAppAction(fd);
+            if (res && res.ok) {
+                showToast(res.message, true);
+            } else if (res) {
+                alert(res.error || 'Errore nel salvataggio del verbale qualità.');
+            }
         }
     </script>
 </body>

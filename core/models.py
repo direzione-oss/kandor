@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from django.db import models
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
@@ -72,6 +73,28 @@ class Dipendente(models.Model):
         null=True, blank=True,
         verbose_name="Ore Settimanali (Part-Time)",
         help_text="Facoltativo"
+    )
+    LIVELLO_CONTRATTUALE_CHOICES = [
+        ('TIROCINANTE', 'Tirocinante / Stage'),
+        ('1_LIVELLO', '1° Livello (Operaio Comune)'),
+        ('2_LIVELLO', '2° Livello (Operaio Qualificato)'),
+        ('3_LIVELLO', '3° Livello (Operaio Specializzato / Caposquadra)'),
+        ('4_LIVELLO', '4° Livello (Responsabile / Impiegato)'),
+        ('5_LIVELLO', '5° Livello / Quadro'),
+    ]
+    livello_contrattuale = models.CharField(
+        max_length=30,
+        choices=LIVELLO_CONTRATTUALE_CHOICES,
+        default='2_LIVELLO',
+        blank=True,
+        verbose_name="Livello Contrattuale CCNL",
+    )
+    costo_orario_aziendale = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=16.50,
+        verbose_name="Costo Orario Aziendale (€/h - Lordo/TFR/INAIL)",
+        help_text="Costo aziendale reale pieno (retribuzione lorda + contributi INPS/INAIL + TFR + ratei 13ª/14ª)",
     )
     data_ultima_visita_medica = models.DateField(null=True, blank=True, verbose_name="Prossima scadenza visita medica")
     
@@ -366,6 +389,12 @@ class ProgrammazioneRicorrente(models.Model):
 
 
 class RichiestaStraordinaria(models.Model):
+    STATO_FATTURAZIONE_CHOICES = [
+        ('DA_FATTURARE', '💰 Da Fatturare a parte'),
+        ('INCLUSO_NEL_CANONE', '🤝 Incluso nel Canone'),
+        ('FATTURATO', '✅ Fatturato'),
+    ]
+
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='richieste_straordinarie')
     data_inizio = models.DateField()
     data_fine = models.DateField(null=True, blank=True, help_text="Se il lavoro dura più giorni (opzionale)")
@@ -375,6 +404,27 @@ class RichiestaStraordinaria(models.Model):
     
     descrizione = models.TextField(verbose_name="Descrizione Attività")
     completata = models.BooleanField(default=False, verbose_name="Completata")
+
+    # Pre-Fatturazione Attiva (Miglioria 5)
+    stato_fatturazione = models.CharField(
+        max_length=25,
+        choices=STATO_FATTURAZIONE_CHOICES,
+        default='DA_FATTURARE',
+        verbose_name="Stato Fatturazione",
+    )
+    prezzo_concordato = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0.00,
+        verbose_name="Prezzo Concordato (€)",
+        help_text="Importo extra concordato col cliente per questo lavoro straordinario (escluso IVA)",
+    )
+    numero_fattura_rif = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        verbose_name="Rif. Fattura / Note Amministrative",
+    )
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -1047,6 +1097,19 @@ DEFAULT_PROCEDURE = [
             (6, 'Aggiornare il database', 'Impostare la data di fine contratto nelle programmazioni ricorrenti e aggiornare l\'anagrafica'),
         ],
     },
+    {
+        'nome': 'Attivazione Nuovo Cantiere',
+        'categoria': 'CONTRATTO_CLIENTE',
+        'descrizione': 'Procedura standard di avvio operativo per un nuovo cliente/cantiere acquisito.',
+        'ordine': 2,
+        'passaggi': [
+            (1, 'Sopralluogo tecnico e ritiro chiavi/codici allarme', 'Ritirare chiavi, badge, telecomandi e istruzioni di accesso/allarme dal referente'),
+            (2, 'Prima fornitura prodotti, materiali e dotazioni in cantiere', 'Consegnare detergenti, sacchi, panni, carrello e macchinari registrandoli in Magazzino & Dotazioni'),
+            (3, 'Assegnazione squadra abituale e briefing mansioni', 'Formare gli operatori sulle specifiche del capitolato e orari concordati'),
+            (4, 'Stampa ed esposizione QR Code Cantiere', 'Posizionare il QR Code nel locale tecnico/ripostiglio per timbrature e ispezioni qualità'),
+            (5, 'Controllo qualità 1ª settimana (Verbale Ispezione)', 'Effettuare la prima ispezione qualità Responsabile Area e verificare il feedback del cliente'),
+        ],
+    },
 ]
 
 
@@ -1215,14 +1278,35 @@ class ProceduraAvviata(models.Model):
         if self.passaggi.exists():
             return 0
         passi_modello = list(self.modello.passaggi.prefetch_related('incaricati_default').order_by('ordine', 'id'))
+        is_disdetta = 'disdetta' in (self.modello.nome or '').lower()
+        dotazioni_str = ''
+        if is_disdetta and self.cliente_id:
+            try:
+                dotazioni_qs = list(DotazioneCantiere.objects.filter(
+                    cliente_id=self.cliente_id,
+                    stato__in=['IN_CANTIERE', 'DA_RITIRARE', 'IN_MANUTENZIONE'],
+                ))
+                if dotazioni_qs:
+                    DotazioneCantiere.objects.filter(
+                        cliente_id=self.cliente_id,
+                        stato='IN_CANTIERE',
+                    ).update(stato='DA_RITIRARE')
+                    items_txt = ", ".join(f"{d.quantita}x {d.descrizione}" + (f" ({d.matricola_codice})" if d.matricola_codice else "") for d in dotazioni_qs)
+                    dotazioni_str = f" [📦 Dotazioni cantiere da ritirare: {items_txt}]"
+            except Exception:
+                pass
+
         creati = 0
         for idx, pm in enumerate(passi_modello, start=1):
             inc_list = list(pm.incaricati_default.all())
+            desc_passo = pm.descrizione or ''
+            if dotazioni_str and ('recupero oggetti' in (pm.titolo or '').lower() or idx == 3):
+                desc_passo = (desc_passo + dotazioni_str)[:500]
             passo_avviato = PassoProceduraAvviata.objects.create(
                 procedura=self,
                 ordine=idx,
                 titolo=pm.titolo,
-                descrizione=pm.descrizione,
+                descrizione=desc_passo,
                 completato=False,
                 richiede_avvallo=bool(inc_list),
                 bloccante=True,
@@ -1688,6 +1772,449 @@ class ProfiloAccessoPortale(models.Model):
     def __str__(self):
         label_dip = f"{self.dipendente.nome} {self.dipendente.cognome}" if self.dipendente else self.user.username
         return f"{label_dip} ({self.get_ruolo_display()}) — @{self.user.username}"
+
+
+# ==============================================================================
+# 1 & 2. MAGAZZINO PRODOTTI, DOTAZIONI MACCHINARI CANTIERE & CONSEGNE (MOL)
+# ==============================================================================
+
+class ProdottoMagazzino(models.Model):
+    CATEGORIA_CHOICES = [
+        ('DETERGENTE', '🧴 Detergente / Chimico'),
+        ('CONSUMABILE', '🧻 Carta / Sacchi / Consumabile'),
+        ('ATTREZZATURA', '🧹 Panni / Mop / Attrezzatura Minuta'),
+        ('DPI', '🧤 Guanti / DPI Sicurezza'),
+        ('MACCHINARIO', '⚙️ Macchinario / Ricambio'),
+    ]
+
+    nome = models.CharField(max_length=150, unique=True, verbose_name="Nome Prodotto / Articolo")
+    codice = models.CharField(max_length=50, blank=True, default='', verbose_name="Codice Articolo")
+    categoria = models.CharField(max_length=30, choices=CATEGORIA_CHOICES, default='DETERGENTE', verbose_name="Categoria")
+    unita_misura = models.CharField(max_length=30, default='pz', verbose_name="Unità di Misura (pz, flaconi, cartoni, taniche)")
+    costo_unitario = models.DecimalField(
+        max_digits=8, decimal_places=2, default=0.00,
+        verbose_name="Costo Unitario d'Acquisto (€)",
+        help_text="Utilizzato per calcolare automaticamente il costo materiali consegnati nel MOL Cantiere",
+    )
+    giacenza_attuale = models.DecimalField(max_digits=8, decimal_places=1, default=0.0, verbose_name="Giacenza in Magazzino")
+    scorta_minima = models.DecimalField(max_digits=8, decimal_places=1, default=5.0, verbose_name="Scorta Minima Alert")
+    fornitore_abituale = models.CharField(max_length=150, blank=True, default='', verbose_name="Fornitore Abituale")
+    attivo = models.BooleanField(default=True, verbose_name="Attivo")
+
+    class Meta:
+        verbose_name = "Prodotto di Magazzino"
+        verbose_name_plural = "Prodotti di Magazzino"
+        ordering = ['categoria', 'nome']
+
+    @property
+    def sotto_scorta(self):
+        return self.giacenza_attuale <= self.scorta_minima
+
+    def __str__(self):
+        return f"{self.nome} (€{self.costo_unitario}/{self.unita_misura})"
+
+
+DEFAULT_PRODOTTI_MAGAZZINO = [
+    ("Detergente Pavimenti Universale 5L", "DET-001", "DETERGENTE", "tanica", Decimal("12.50"), Decimal("20"), Decimal("5")),
+    ("Sgrassatore Multiuso Professionale 750ml", "DET-002", "DETERGENTE", "flacone", Decimal("2.80"), Decimal("36"), Decimal("10")),
+    ("Disincrostante Bagni / Anticalcare 1L", "DET-003", "DETERGENTE", "flacone", Decimal("3.20"), Decimal("24"), Decimal("8")),
+    ("Detergente Vetri e Specchi 750ml", "DET-004", "DETERGENTE", "flacone", Decimal("2.40"), Decimal("30"), Decimal("8")),
+    ("Sacchi Neri Condominio 70x110 (rotolo)", "CON-001", "CONSUMABILE", "rotolo", Decimal("3.50"), Decimal("50"), Decimal("15")),
+    ("Sacchi Cestini Ufficio 50x60 (rotolo)", "CON-002", "CONSUMABILE", "rotolo", Decimal("1.90"), Decimal("60"), Decimal("15")),
+    ("Bobina Carta Asciugatutto Industriale", "CON-003", "CONSUMABILE", "rotolo", Decimal("6.80"), Decimal("24"), Decimal("6")),
+    ("Carta Igienica Conf. 12 rotoli", "CON-004", "CONSUMABILE", "conf", Decimal("4.90"), Decimal("30"), Decimal("8")),
+    ("Sapone Mani Liquido 5L", "CON-005", "CONSUMABILE", "tanica", Decimal("9.50"), Decimal("12"), Decimal("4")),
+    ("Panni Microfibra Colorati (conf. 5 pz)", "ATT-001", "ATTREZZATURA", "conf", Decimal("5.50"), Decimal("25"), Decimal("6")),
+    ("Frangia Mop Cotone/Microfibra", "ATT-002", "ATTREZZATURA", "pz", Decimal("4.20"), Decimal("20"), Decimal("5")),
+    ("Guanti Nitrile Monouso (box 100 pz)", "DPI-001", "DPI", "box", Decimal("6.90"), Decimal("20"), Decimal("5")),
+]
+
+
+def ensure_default_prodotti_magazzino():
+    try:
+        if ProdottoMagazzino.objects.exists():
+            return
+        items = [
+            ProdottoMagazzino(
+                nome=n, codice=c, categoria=cat, unita_misura=um,
+                costo_unitario=cu, giacenza_attuale=giac, scorta_minima=scmin, attivo=True
+            )
+            for n, c, cat, um, cu, giac, scmin in DEFAULT_PRODOTTI_MAGAZZINO
+        ]
+        ProdottoMagazzino.objects.bulk_create(items, ignore_conflicts=True)
+    except Exception:
+        pass
+
+
+class DotazioneCantiere(models.Model):
+    """
+    Inventario di macchinari, attrezzature fisse, carrelli, chiavi e badge assegnati a uno specifico Cliente/Cantiere.
+    Collegato direttamente al Punto 3 ('Recupero oggetti presso il cliente') della procedura di Disdetta Contratto.
+    """
+    TIPO_CHOICES = [
+        ('MACCHINARIO', '⚙️ Macchinario (Lavasciuga, Monospazzola, Aspiratore)'),
+        ('CARRELLO', '🛒 Carrello Pulizie / Attrezzatura Fissa'),
+        ('SCALA', '🪜 Scala / Trabattello / Asta Telescopica'),
+        ('CHIAVI_BADGE', '🔑 Chiavi / Telecomando / Badge Accesso'),
+        ('DISPENSER', '🧻 Dispenser / Distributore in Comodato'),
+        ('ALTRO', '📦 Altra Dotazione Cantiere'),
+    ]
+    STATO_CHOICES = [
+        ('IN_CANTIERE', '🟢 Presente in Cantiere'),
+        ('IN_MANUTENZIONE', '🟠 In Riparazione / Manutenzione'),
+        ('DA_RITIRARE', '🔴 Da Recuperare (Fine Contratto / Disdetta)'),
+        ('RITIRATO', '✅ Recuperato in Sede'),
+    ]
+
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='dotazioni_cantiere', verbose_name="Cliente / Cantiere")
+    tipo = models.CharField(max_length=25, choices=TIPO_CHOICES, default='MACCHINARIO', verbose_name="Tipologia")
+    descrizione = models.CharField(max_length=200, verbose_name="Modello / Descrizione Oggetto")
+    matricola_codice = models.CharField(max_length=100, blank=True, default='', verbose_name="Matricola / Seriale / Rif.")
+    quantita = models.PositiveIntegerField(default=1, verbose_name="Quantità")
+    valore_stimato = models.DecimalField(max_digits=9, decimal_places=2, default=0.00, verbose_name="Valore Inventariale (€)")
+    data_consegna = models.DateField(null=True, blank=True, verbose_name="Data Consegna in Cantiere")
+    data_ritiro = models.DateField(null=True, blank=True, verbose_name="Data Ritiro da Cantiere")
+    stato = models.CharField(max_length=25, choices=STATO_CHOICES, default='IN_CANTIERE', verbose_name="Stato Attuale")
+    note = models.CharField(max_length=300, blank=True, default='', verbose_name="Note / Ubicazione (es. Sgabuzzino piano -1)")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Dotazione / Macchinario Cantiere"
+        verbose_name_plural = "Dotazioni & Macchinari Cantiere"
+        ordering = ['cliente__ragione_sociale', 'tipo', 'descrizione']
+
+    def __str__(self):
+        return f"{self.descrizione} ({self.cliente.ragione_sociale}) — {self.get_stato_display()}"
+
+
+class ConsegnaRichiestaMateriale(models.Model):
+    """
+    Traccia sia le Richieste di Materiali inviate dagli operatori (da App Dipendenti / Telegram)
+    sia le Consegne effettive in cantiere (che scaricano il magazzino e alimentano il costo materiali nel MOL).
+    """
+    STATO_CHOICES = [
+        ('RICHIESTA', '🔔 Richiesto da Operatore (Da Preparare)'),
+        ('IN_CONSEGNA', '🚐 In Consegna al Caposquadra'),
+        ('CONSEGNATO', '✅ Consegnato in Cantiere (Contabilizzato nel MOL)'),
+        ('ANNULLATO', '❌ Annullato'),
+    ]
+
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='consegne_materiali', verbose_name="Cliente / Cantiere")
+    prodotto = models.ForeignKey(
+        ProdottoMagazzino, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='consegne', verbose_name="Prodotto di Magazzino"
+    )
+    descrizione_libera = models.CharField(
+        max_length=200, blank=True, default='',
+        verbose_name="Articolo / Nota Prodotto (se fuori catalogo)",
+    )
+    quantita = models.DecimalField(max_digits=7, decimal_places=1, default=1.0, verbose_name="Quantità")
+    costo_unitario_applicato = models.DecimalField(max_digits=8, decimal_places=2, default=0.00, verbose_name="Costo Unitario (€)")
+    costo_totale = models.DecimalField(max_digits=9, decimal_places=2, default=0.00, verbose_name="Costo Totale (€)")
+    richiesto_da = models.ForeignKey(
+        Dipendente, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='richieste_materiali_inviate', verbose_name="Richiesto da (Operatore)"
+    )
+    consegnato_da = models.ForeignKey(
+        Dipendente, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='consegne_materiali_effettuate', verbose_name="Consegnato da"
+    )
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default='RICHIESTA', verbose_name="Stato")
+    urgenza = models.CharField(
+        max_length=15,
+        choices=[('NORMALE', 'Normale'), ('URGENTE', 'Urgente (Scorta Finita)')],
+        default='NORMALE',
+        verbose_name="Urgenza",
+    )
+    data_richiesta = models.DateField(verbose_name="Data Richiesta")
+    data_consegna = models.DateField(null=True, blank=True, verbose_name="Data Consegna Effettiva")
+    scaricato_magazzino = models.BooleanField(default=False, editable=False)
+    note = models.CharField(max_length=300, blank=True, default='', verbose_name="Note")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Richiesta / Consegna Materiale Cantiere"
+        verbose_name_plural = "Richieste & Consegne Materiali Cantiere"
+        ordering = ['-data_richiesta', '-id']
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+        if not self.data_richiesta:
+            self.data_richiesta = timezone.now().date()
+        if self.prodotto and (not self.costo_unitario_applicato or self.costo_unitario_applicato == 0):
+            self.costo_unitario_applicato = self.prodotto.costo_unitario
+        if self.prodotto and not self.descrizione_libera:
+            self.descrizione_libera = self.prodotto.nome
+        self.costo_totale = round(Decimal(str(self.quantita or 0)) * Decimal(str(self.costo_unitario_applicato or 0)), 2)
+        if self.stato == 'CONSEGNATO' and not self.data_consegna:
+            self.data_consegna = timezone.now().date()
+        if self.stato == 'CONSEGNATO' and not self.scaricato_magazzino and self.prodotto_id:
+            ProdottoMagazzino.objects.filter(pk=self.prodotto_id).update(
+                giacenza_attuale=models.F('giacenza_attuale') - Decimal(str(self.quantita or 0))
+            )
+            self.scaricato_magazzino = True
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        art = self.prodotto.nome if self.prodotto else self.descrizione_libera
+        return f"{art} x{self.quantita:g} → {self.cliente.ragione_sociale} [{self.get_stato_display()}]"
+
+
+# ==============================================================================
+# 3. QUALITÀ, ISPEZIONI CANTIERE (SLA CLIENTE) & TIMBRATURA GEOFENCE / QR
+# ==============================================================================
+
+class IspezioneQualitaCantiere(models.Model):
+    """
+    Verbale di Sopralluogo / Controllo Qualità compilato dal Responsabile Area o Titolare
+    con voti 1-5 stelle per ambiente, foto prima/dopo, firma e generazione PDF di cortesia per il cliente.
+    """
+    ESITO_CHOICES = [
+        ('ECCELLENTE', '🌟 Eccellente (SLA Pienamente Rispettato)'),
+        ('CONFORME', '✅ Conforme (Standard Regolare)'),
+        ('DA_MIGLIORARE', '🟠 Da Migliorare (Richiamo Operativo Squadra)'),
+        ('NON_CONFORME', '🔴 Non Conforme (Intervento Correttivo Urgente)'),
+    ]
+
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='ispezioni_qualita', verbose_name="Cliente / Cantiere")
+    ispettore = models.ForeignKey(
+        Dipendente, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ispezioni_effettuate', verbose_name="Responsabile / Ispettore"
+    )
+    squadra_valutata = models.ForeignKey(
+        Squadra, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ispezioni_qualita', verbose_name="Squadra Valutata"
+    )
+    data_ispezione = models.DateTimeField(verbose_name="Data e Ora Sopralluogo")
+    voto_ingressi_scale = models.PositiveSmallIntegerField(default=5, verbose_name="Voto Ingressi / Parti Comuni / Scale (1-5)")
+    voto_uffici_postazioni = models.PositiveSmallIntegerField(default=5, verbose_name="Voto Uffici / Pavimenti / Postazioni (1-5)")
+    voto_bagni_sanitari = models.PositiveSmallIntegerField(default=5, verbose_name="Voto Bagni e Sanitari (1-5)")
+    voto_vetrate_infissi = models.PositiveSmallIntegerField(default=5, verbose_name="Voto Vetrate / Specchi / Infissi (1-5)")
+    voto_riordino_dotazioni = models.PositiveSmallIntegerField(default=5, verbose_name="Voto Locale Tecnico / Prodotti / Macchinari (1-5)")
+    media_voto = models.DecimalField(max_digits=3, decimal_places=2, default=5.00, verbose_name="Media Qualità (su 5)")
+    esito = models.CharField(max_length=20, choices=ESITO_CHOICES, default='ECCELLENTE', verbose_name="Esito Complessivo")
+    note_interne_squadra = models.TextField(blank=True, default='', verbose_name="Note Tecniche per la Squadra (Interne)")
+    messaggio_cortesia_cliente = models.TextField(
+        blank=True, default='',
+        verbose_name="Note di Cortesia per il Report PDF Cliente",
+        help_text="Visibile nel verbale PDF inviabile al cliente per certificare il controllo qualità",
+    )
+    foto_1 = models.ImageField(upload_to='ispezioni/', null=True, blank=True, verbose_name="Foto Rilievo 1 (Prima / Ambiente)")
+    foto_2 = models.ImageField(upload_to='ispezioni/', null=True, blank=True, verbose_name="Foto Rilievo 2 (Dopo / Dettaglio)")
+    firma_referente_cliente = models.CharField(max_length=150, blank=True, default='', verbose_name="Referente Cliente Presente (Opzionale)")
+    latitudine_rilievo = models.FloatField(null=True, blank=True, verbose_name="Latitudine GPS Sopralluogo")
+    longitudine_rilievo = models.FloatField(null=True, blank=True, verbose_name="Longitudine GPS Sopralluogo")
+    inviato_al_cliente = models.BooleanField(default=False, verbose_name="Verbale Inviato al Cliente")
+    token_pubblico = models.CharField(max_length=48, unique=True, db_index=True, blank=True, verbose_name="Token Link Cortesia")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Ispezione Qualità & SLA Cantiere"
+        verbose_name_plural = "Ispezioni Qualità & SLA Cantieri"
+        ordering = ['-data_ispezione', '-id']
+
+    def save(self, *args, **kwargs):
+        import secrets
+        from django.utils import timezone
+        if not self.data_ispezione:
+            self.data_ispezione = timezone.now()
+        if not self.token_pubblico:
+            self.token_pubblico = secrets.token_urlsafe(18)
+        voti = [
+            int(self.voto_ingressi_scale or 5),
+            int(self.voto_uffici_postazioni or 5),
+            int(self.voto_bagni_sanitari or 5),
+            int(self.voto_vetrate_infissi or 5),
+            int(self.voto_riordino_dotazioni or 5),
+        ]
+        media = round(sum(voti) / len(voti), 2)
+        self.media_voto = Decimal(str(media))
+        if media >= 4.5:
+            self.esito = 'ECCELLENTE'
+        elif media >= 3.5:
+            self.esito = 'CONFORME'
+        elif media >= 2.5:
+            self.esito = 'DA_MIGLIORARE'
+        else:
+            self.esito = 'NON_CONFORME'
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Ispezione {self.cliente.ragione_sociale} ({self.data_ispezione.strftime('%d/%m/%Y')}) — ⭐ {self.media_voto}/5"
+
+
+# ==============================================================================
+# 4. MODULO PREVENTIVAZIONE RAPIDA (CRM COMMERCIALE) & CONVERSIONE 1-CLICK
+# ==============================================================================
+
+class PreventivoCommerciale(models.Model):
+    """
+    Configuratore Sopralluoghi & Preventivi per potenziali clienti (o nuove sedi):
+    calcola automaticamente monte ore mensile da m² e resa oraria (m²/h), costo vivo
+    (manodopera + prodotti + mezzi) e canone mensile consigliato col margine target,
+    con generazione PDF professionale e conversione '1-Click' in Cliente Attivo.
+    """
+    STATO_CHOICES = [
+        ('BOZZA', '📝 Bozza / Sopralluogo'),
+        ('INVIATO', '📨 Preventivo Inviato al Cliente'),
+        ('ACCETTATO', '✅ Accettato (Convertito in Cliente)'),
+        ('RIFIUTATO', '❌ Non Accettato / Archiviato'),
+    ]
+
+    numero_preventivo = models.CharField(max_length=40, unique=True, blank=True, verbose_name="N° Preventivo")
+    ragione_sociale_prospect = models.CharField(max_length=200, verbose_name="Ragione Sociale / Condominio")
+    partita_iva = models.CharField(max_length=20, blank=True, default='', verbose_name="Partita IVA")
+    codice_fiscale = models.CharField(max_length=16, blank=True, default='', verbose_name="Codice Fiscale")
+    indirizzo_cantiere = models.CharField(max_length=255, verbose_name="Indirizzo Sede / Cantiere")
+    referente_nome = models.CharField(max_length=120, blank=True, default='', verbose_name="Referente / Amministratore")
+    referente_contatto = models.CharField(max_length=120, blank=True, default='', verbose_name="Email / Telefono Referente")
+
+    # Parametri economici del configuratore
+    costo_orario_applicato = models.DecimalField(max_digits=6, decimal_places=2, default=16.50, verbose_name="Costo Orario Aziendale Stimato (€/h)")
+    incidenza_prodotti_perc = models.DecimalField(max_digits=5, decimal_places=2, default=6.00, verbose_name="Incidenza Prodotti/Attrezzature (%)")
+    quota_fissa_mezzi_mensile = models.DecimalField(max_digits=7, decimal_places=2, default=25.00, verbose_name="Quota Mensile Trasferta/Mezzi (€)")
+    margine_target_perc = models.DecimalField(max_digits=5, decimal_places=2, default=28.00, verbose_name="Margine Operativo Target (%)")
+
+    # Totali calcolati
+    totale_mq = models.DecimalField(max_digits=8, decimal_places=1, default=0.0, verbose_name="Totale Superficie (m²)")
+    ore_settimanali_stimate = models.DecimalField(max_digits=6, decimal_places=2, default=0.00, verbose_name="Ore Settimanali Stimate")
+    ore_mensili_stimate = models.DecimalField(max_digits=6, decimal_places=2, default=0.00, verbose_name="Monte Ore Mensile (h/mese)")
+    costo_vivo_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Costo Vivo Totale Mensile (€)")
+    canone_consigliato_mensile = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Canone Consigliato (€/mese)")
+    canone_finale_offerto = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, verbose_name="Canone Finale Offerto al Cliente (€/mese)")
+    importo_una_tantum_sgrosso = models.DecimalField(max_digits=9, decimal_places=2, default=0.00, verbose_name="Eventuale Sgrosso Iniziale Una Tantum (€)")
+
+    stato = models.CharField(max_length=20, choices=STATO_CHOICES, default='BOZZA', verbose_name="Stato Preventivo")
+    cliente_convertito = models.ForeignKey(
+        Cliente, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='preventivi_origine', verbose_name="Cliente Attivo Generato"
+    )
+    squadra_prevista = models.ForeignKey(
+        Squadra, on_delete=models.SET_NULL, null=True, blank=True,
+        verbose_name="Squadra Prevista (per attivazione)"
+    )
+    note_capitolato = models.TextField(blank=True, default='', verbose_name="Dettaglio Capitolato e Mansioni")
+    data_emissione = models.DateField(verbose_name="Data Preventivo")
+    validita_giorni = models.PositiveIntegerField(default=30, verbose_name="Validità Offerta (giorni)")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Preventivo Commerciale"
+        verbose_name_plural = "Preventivi Commerciali (CRM)"
+        ordering = ['-created_at']
+
+    def ricalcola_totali(self):
+        voci = list(self.voci_ambienti.all())
+        tot_mq = sum(float(v.metri_quadri or 0) for v in voci)
+        ore_sett = sum(float(v.ore_settimanali_ambiente or 0) for v in voci)
+        ore_mese = round(ore_sett * 4.33, 2)
+        costo_manodopera = ore_mese * float(self.costo_orario_applicato or 16.50)
+        costo_prodotti = costo_manodopera * (float(self.incidenza_prodotti_perc or 0) / 100.0)
+        costo_vivo = round(costo_manodopera + costo_prodotti + float(self.quota_fissa_mezzi_mensile or 0), 2)
+        margine_ratio = min(max(float(self.margine_target_perc or 25.0) / 100.0, 0.0), 0.85)
+        canone_cons = round(costo_vivo / (1.0 - margine_ratio), 2) if (1.0 - margine_ratio) > 0 else costo_vivo
+
+        self.totale_mq = Decimal(str(round(tot_mq, 1)))
+        self.ore_settimanali_stimate = Decimal(str(round(ore_sett, 2)))
+        self.ore_mensili_stimate = Decimal(str(ore_mese))
+        self.costo_vivo_mensile = Decimal(str(costo_vivo))
+        self.canone_consigliato_mensile = Decimal(str(canone_cons))
+        if not self.canone_finale_offerto or float(self.canone_finale_offerto) <= 0:
+            # Arrotonda ai 5 € più vicini per estetica commerciale
+            arrotondato = round(canone_cons / 5.0) * 5.0
+            self.canone_finale_offerto = Decimal(str(max(arrotondato, canone_cons)))
+        PreventivoCommerciale.objects.filter(pk=self.pk).update(
+            totale_mq=self.totale_mq,
+            ore_settimanali_stimate=self.ore_settimanali_stimate,
+            ore_mensili_stimate=self.ore_mensili_stimate,
+            costo_vivo_mensile=self.costo_vivo_mensile,
+            canone_consigliato_mensile=self.canone_consigliato_mensile,
+            canone_finale_offerto=self.canone_finale_offerto,
+        )
+
+    @property
+    def margine_euro_effettivo(self):
+        return round(float(self.canone_finale_offerto or 0) - float(self.costo_vivo_mensile or 0), 2)
+
+    @property
+    def margine_perc_effettivo(self):
+        canone = float(self.canone_finale_offerto or 0)
+        if canone <= 0:
+            return 0.0
+        return round(((canone - float(self.costo_vivo_mensile or 0)) / canone) * 100.0, 1)
+
+    @property
+    def tariffa_oraria_offerta(self):
+        ore = float(self.ore_mensili_stimate or 0)
+        if ore <= 0:
+            return 0.0
+        return round(float(self.canone_finale_offerto or 0) / ore, 2)
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+        if not self.data_emissione:
+            self.data_emissione = timezone.now().date()
+        if not self.numero_preventivo:
+            anno = self.data_emissione.year
+            count = PreventivoCommerciale.objects.filter(data_emissione__year=anno).count() + 1
+            self.numero_preventivo = f"PREV-{anno}-{count:03d}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.numero_preventivo} — {self.ragione_sociale_prospect} (€{self.canone_finale_offerto}/mese)"
+
+
+class VoceAmbientePreventivo(models.Model):
+    FREQUENZA_CHOICES = [
+        ('1_SETT', '1 volta a settimana', 1.0),
+        ('2_SETT', '2 volte a settimana', 2.0),
+        ('3_SETT', '3 volte a settimana', 3.0),
+        ('5_SETT', '5 volte a settimana (Lun-Ven)', 5.0),
+        ('6_SETT', '6 volte a settimana (Lun-Sab)', 6.0),
+        ('7_SETT', '7 volte a settimana (Tutti i giorni)', 7.0),
+        ('BISETT', 'Ogni 2 settimane (Quindicinale)', 0.5),
+        ('MENSILE', '1 volta al mese', 0.23),
+    ]
+
+    preventivo = models.ForeignKey(PreventivoCommerciale, on_delete=models.CASCADE, related_name='voci_ambienti')
+    nome_ambiente = models.CharField(max_length=150, verbose_name="Ambiente / Zona (es. Uffici, Bagni, Scale, Vetrate)")
+    metri_quadri = models.DecimalField(max_digits=7, decimal_places=1, default=100.0, verbose_name="Superficie (m²)")
+    resa_oraria_mq = models.DecimalField(
+        max_digits=6, decimal_places=1, default=150.0,
+        verbose_name="Resa Oraria Media (m²/h)",
+        help_text="Es: Bagni/Sanitari 60 m²/h, Uffici arredati 150 m²/h, Scale condominiali 120 m²/h, Capannoni/Corridoi 350 m²/h",
+    )
+    passaggi_settimanali = models.DecimalField(
+        max_digits=4, decimal_places=2, default=1.00,
+        verbose_name="Interventi a Settimana (es. 1, 2, 5, 0.5 per bisettimanale)",
+    )
+    giorni_preferiti = models.CharField(
+        max_length=50, blank=True, default='0',
+        verbose_name="Giorni Settimana (0=Lun .. 6=Dom separati da virgola)",
+    )
+    ora_inizio_suggerita = models.TimeField(default='07:00', verbose_name="Ora Inizio Suggerita")
+    ore_per_intervento = models.DecimalField(max_digits=5, decimal_places=2, default=1.00, verbose_name="Ore per singolo intervento")
+    ore_settimanali_ambiente = models.DecimalField(max_digits=6, decimal_places=2, default=1.00, verbose_name="Ore Settimanali Totali")
+
+    class Meta:
+        verbose_name = "Ambiente / Zona Preventivo"
+        verbose_name_plural = "Ambienti & Superfici del Preventivo"
+        ordering = ['id']
+
+    def save(self, *args, **kwargs):
+        mq = float(self.metri_quadri or 0)
+        resa = float(self.resa_oraria_mq or 150)
+        if resa <= 0:
+            resa = 150.0
+        ore_singolo = max(round(mq / resa, 2), 0.25)
+        self.ore_per_intervento = Decimal(str(ore_singolo))
+        self.ore_settimanali_ambiente = Decimal(str(round(ore_singolo * float(self.passaggi_settimanali or 1), 2)))
+        super().save(*args, **kwargs)
+        if self.preventivo_id:
+            self.preventivo.ricalcola_totali()
+
+    def __str__(self):
+        return f"{self.nome_ambiente} ({self.metri_quadri} m² @ {self.resa_oraria_mq} m²/h)"
 
 
 # --- Geocoding Signals ---

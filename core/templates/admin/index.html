@@ -371,17 +371,81 @@
         {% endif %}
 
         {% if 'analisi_contratti' in sezioni_abilitate_portale %}
-        <!-- Analisi Contratti -->
-        <div class="quick-card">
+        <!-- Contabilità Industriale & MOL Cantieri -->
+        <div class="quick-card" style="border: 1.5px solid #BFDBFE; background: linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%);">
             <div>
                 <div class="quick-card-header">
-                    <div class="quick-icon" style="background: #EFF6FF; color: #2563EB;">💰</div>
-                    <h3>Analisi Contratti</h3>
+                    <div class="quick-icon" style="background: #DBEAFE; color: #1D4ED8;">📈</div>
+                    <h3 style="color: #1E3A8A;">Contabilità &amp; MOL</h3>
                 </div>
-                <p>Verifica marginalità, costi e tariffe orarie €/ora</p>
+                <p>Marginalità reale per cantiere (Ricavi &minus; Costo Orario &minus; Materiali &minus; Mezzi) e Semaforo</p>
             </div>
             <div class="quick-card-actions">
-                <a href="{% url 'analisi_contratti' %}" class="quick-btn">Analizza &rarr;</a>
+                <a href="{% url 'analisi_contratti' %}" class="quick-btn" style="background:#1D4ED8;">Analizza MOL &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'magazzino_dotazioni' in sezioni_abilitate_portale %}
+        <!-- Magazzino Prodotti, Dotazioni & Consegne -->
+        <div class="quick-card" style="border: 1.5px solid #99F6E4; background: linear-gradient(135deg, #F0FDFA 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #CCFBF1; color: #0F766E;">🧴</div>
+                    <h3 style="color: #115E59;">Magazzino &amp; Dotazioni</h3>
+                </div>
+                <p>Scorte detergenti, richieste materiali da App/Telegram e macchinari in cantiere</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'magazzino_dotazioni' %}" class="quick-btn" style="background:#0F766E;">Apri Magazzino &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'qualita_ispezioni' in sezioni_abilitate_portale %}
+        <!-- Qualità, Ispezioni & QR Code Cantiere -->
+        <div class="quick-card" style="border: 1.5px solid #FDE68A; background: linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #FEF3C7; color: #B45309;">⭐</div>
+                    <h3 style="color: #92400E;">Qualità &amp; SLA</h3>
+                </div>
+                <p>Verbali sopralluogo 1–5 stelle, report PDF di cortesia al cliente e QR Code Geofence</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'qualita_ispezioni' %}" class="quick-btn" style="background:#B45309;">Ispezioni &amp; QR &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'preventivi_crm' in sezioni_abilitate_portale %}
+        <!-- Preventivazione Rapida CRM & Conversione 1-Click -->
+        <div class="quick-card" style="border: 1.5px solid #A7F3D0; background: linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #D1FAE5; color: #047857;">📐</div>
+                    <h3 style="color: #065F46;">Preventivi CRM</h3>
+                </div>
+                <p>Calcolo m²/resa oraria, PDF brandizzato e conversione 1-Click in Cliente Attivo</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'preventivi_crm' %}" class="quick-btn" style="background:#047857;">Configura Preventivi &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if 'pre_fatturazione' in sezioni_abilitate_portale %}
+        <!-- Pre-Fatturazione Attiva & Riconciliazione Lavori Extra -->
+        <div class="quick-card" style="border: 1.5px solid #DDD6FE; background: linear-gradient(135deg, #F5F3FF 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #EDE9FE; color: #6D28D9;">🧾</div>
+                    <h3 style="color: #5B21B6;">Pre-Fatturazione</h3>
+                </div>
+                <p>Tabellone mensile Canoni + Lavori Straordinari / Ore Extra da fatturare + Export CSV</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'pre_fatturazione' %}" class="quick-btn" style="background:#6D28D9;">Apri Prospetto &rarr;</a>
             </div>
         </div>
         {% endif %}

@@ -37,6 +37,20 @@ from .views_accessi import (
     gestione_accessi_view,
     gestione_accessi_api_view,
 )
+from .views_erp_pro import (
+    magazzino_dotazioni_view,
+    magazzino_dotazioni_api,
+    qualita_ispezioni_view,
+    qualita_ispezioni_api,
+    pdf_verbale_ispezione_view,
+    qr_code_cantiere_view,
+    preventivi_crm_view,
+    preventivi_crm_api,
+    pdf_preventivo_commerciale_view,
+    pre_fatturazione_view,
+    pre_fatturazione_api,
+    export_pre_fatturazione_csv,
+)
 from django.views.generic import RedirectView
 
 urlpatterns = [
@@ -142,4 +156,18 @@ urlpatterns = [
     # Console Programmatore (Serra Gian Carlo) — Gestione Accessi & Sezioni Responsabili
     path('gestione-accessi/', gestione_accessi_view, name='gestione_accessi'),
     path('api/gestione-accessi/action/', gestione_accessi_api_view, name='gestione_accessi_api'),
+
+    # 1-5 Migliorie ERP PRO (Magazzino & Dotazioni, Qualità & SLA, Preventivi CRM, Pre-Fatturazione)
+    path('magazzino-dotazioni/', magazzino_dotazioni_view, name='magazzino_dotazioni'),
+    path('api/magazzino-dotazioni/action/', magazzino_dotazioni_api, name='magazzino_dotazioni_api'),
+    path('qualita-ispezioni/', qualita_ispezioni_view, name='qualita_ispezioni'),
+    path('api/qualita-ispezioni/action/', qualita_ispezioni_api, name='qualita_ispezioni_api'),
+    path('qualita-ispezioni/pdf/<int:ispezione_id>/', pdf_verbale_ispezione_view, name='pdf_verbale_ispezione'),
+    path('qualita-ispezioni/qr/<int:cliente_id>/', qr_code_cantiere_view, name='qr_code_cantiere'),
+    path('preventivi-crm/', preventivi_crm_view, name='preventivi_crm'),
+    path('api/preventivi-crm/action/', preventivi_crm_api, name='preventivi_crm_api'),
+    path('preventivi-crm/pdf/<int:prev_id>/', pdf_preventivo_commerciale_view, name='pdf_preventivo_commerciale'),
+    path('pre-fatturazione/', pre_fatturazione_view, name='pre_fatturazione'),
+    path('api/pre-fatturazione/action/', pre_fatturazione_api, name='pre_fatturazione_api'),
+    path('pre-fatturazione/csv/', export_pre_fatturazione_csv, name='export_pre_fatturazione_csv'),
 ]

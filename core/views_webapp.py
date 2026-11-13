@@ -10,8 +10,10 @@ from django.db.models import Q
 
 from .models import (
     Dipendente,
+    Cliente,
     AssegnazioneTurno,
     TimeTracking,
+    ProximityLog,
     Assenza,
     Segnalazione,
     MessaggioChat,
@@ -20,6 +22,10 @@ from .models import (
     CorsoDipendente,
     ensure_corsi_per_dipendente,
     CedolinoDipendente,
+    ProdottoMagazzino,
+    ConsegnaRichiestaMateriale,
+    IspezioneQualitaCantiere,
+    ensure_default_prodotti_magazzino,
 )
 
 
@@ -120,6 +126,7 @@ def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None):
 
     return {
         'id': assign.id,
+        'cliente_id': assign.cliente_id,
         'data_iso': d.strftime('%Y-%m-%d'),
         'data_str': f"{giorno_nome} {d.strftime('%d/%m/%Y')}",
         'data_breve': f"{GIORNI_SETT[d.weekday()][:3]} {d.strftime('%d/%m')}",
@@ -138,6 +145,10 @@ def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None):
         'ore_dichiarate_str': str(round(float(tt.ore_dichiarate), 1)) if (tt and tt.ore_dichiarate is not None) else str(ore_prev),
         'ore_previste_str': str(ore_prev),
         'note_dichiarate': (tt.note or '') if tt else '',
+        'has_check_in': bool(tt and tt.check_in),
+        'has_check_out': bool(tt and tt.check_out),
+        'check_in_str': timezone.localtime(tt.check_in).strftime('%H:%M') if (tt and tt.check_in) else '',
+        'check_out_str': timezone.localtime(tt.check_out).strftime('%H:%M') if (tt and tt.check_out) else '',
         'compagni': compagni,
         'compagni_json': json.dumps(compagni),
     }
@@ -353,6 +364,40 @@ def dipendente_app_view(request):
         ).select_related('lotto').order_by('-created_at')[:24]
     )
 
+    # 10. Prodotti Magazzino, Richieste Materiali, QR Code Geofence e Ispezioni Mobile
+    try:
+        ensure_default_prodotti_magazzino()
+    except Exception:
+        pass
+    prodotti_magazzino = list(ProdottoMagazzino.objects.filter(attivo=True).order_by('categoria', 'nome'))
+    is_ispettore = bool(ra or dip.squadre_capitanate.exists() or dip.livello_contrattuale in ('CAPOSQUADRA', 'RESPONSABILE'))
+    if is_ispettore:
+        clienti_dipendente = list(Cliente.objects.all().order_by('ragione_sociale'))
+    else:
+        c_ids = {t['cliente_id'] for t in turni_31gg if t.get('cliente_id')}
+        if c_ids:
+            clienti_dipendente = list(Cliente.objects.filter(pk__in=c_ids).order_by('ragione_sociale'))
+        else:
+            clienti_dipendente = list(Cliente.objects.all().order_by('ragione_sociale')[:50])
+
+    richieste_materiali_recenti = list(
+        ConsegnaRichiestaMateriale.objects.filter(richiesto_da=dip)
+        .select_related('cliente', 'prodotto')
+        .order_by('-data_richiesta', '-id')[:15]
+    )
+    ispezioni_recenti = []
+    if is_ispettore:
+        ispezioni_recenti = list(
+            IspezioneQualitaCantiere.objects.filter(ispettore=dip)
+            .select_related('cliente')
+            .order_by('-data_ispezione', '-id')[:10]
+        )
+
+    qr_cliente = None
+    qr_cliente_id = request.GET.get('qr_cliente_id')
+    if qr_cliente_id and str(qr_cliente_id).isdigit():
+        qr_cliente = Cliente.objects.filter(pk=int(qr_cliente_id)).first()
+
     GIORNI_SETT_FULL = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 
     context = {
@@ -382,6 +427,12 @@ def dipendente_app_view(request):
         'scadenza_visita_medica': scadenza_visita_medica,
         'stato_visita_medica': stato_visita_medica,
         'buste_paga': buste_paga,
+        'prodotti_magazzino': prodotti_magazzino,
+        'clienti_dipendente': clienti_dipendente,
+        'richieste_materiali_recenti': richieste_materiali_recenti,
+        'is_ispettore': is_ispettore,
+        'ispezioni_recenti': ispezioni_recenti,
+        'qr_cliente': qr_cliente,
     }
     response = render(request, 'core/dipendente_app.html', context)
     response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
@@ -766,6 +817,224 @@ def dipendente_app_action_view(request):
         return JsonResponse({
             'ok': False,
             'error': '🤖 Non sono riuscito ad associare automaticamente un turno o un\'assenza. Prova a specificare le ore e il cantiere (es. "Oggi 4 ore da Rossi") oppure "Domani malattia".',
+        })
+
+    # 10. RICHIESTA MATERIALI DI CONSUMO DAL CANTIERE (vers. Magazzino & Dotazioni)
+    elif action == 'richiedi_materiale':
+        cliente_id = request.POST.get('cliente_id')
+        prodotto_id = request.POST.get('prodotto_id')
+        prodotto_libero = (request.POST.get('prodotto_libero') or '').strip()
+        quantita_raw = (request.POST.get('quantita') or '1').strip().replace(',', '.')
+        note = (request.POST.get('note') or '').strip()
+
+        if not cliente_id or not str(cliente_id).isdigit():
+            return JsonResponse({'ok': False, 'error': 'Seleziona il cantiere / cliente per cui servono i materiali.'})
+        cliente = Cliente.objects.filter(pk=int(cliente_id)).first()
+        if not cliente:
+            return JsonResponse({'ok': False, 'error': 'Cantiere non trovato.'})
+
+        prod = None
+        if prodotto_id and str(prodotto_id).isdigit():
+            prod = ProdottoMagazzino.objects.filter(pk=int(prodotto_id)).first()
+        if not prod and not prodotto_libero:
+            return JsonResponse({'ok': False, 'error': 'Seleziona un prodotto dal catalogo o scrivi cosa sta finendo.'})
+
+        try:
+            q_dec = Decimal(str(max(0.5, float(quantita_raw))))
+        except Exception:
+            q_dec = Decimal('1.0')
+
+        costo_u = prod.costo_unitario if prod else Decimal('0.00')
+        req_mat = ConsegnaRichiestaMateriale.objects.create(
+            cliente=cliente,
+            prodotto=prod,
+            descrizione_libera=prodotto_libero or (prod.nome if prod else ''),
+            quantita=q_dec,
+            costo_unitario_applicato=costo_u,
+            stato='RICHIESTA',
+            richiesto_da=dip,
+            urgenza=(request.POST.get('urgenza') or 'NORMALE').strip(),
+            data_richiesta=timezone.localdate(),
+            note=note,
+        )
+        nome_mat = prod.nome if prod else prodotto_libero
+        try:
+            from .services import notifica_nuovo_messaggio
+            notifica_nuovo_messaggio(
+                dip,
+                f"🧴 RICHIESTA MATERIALE CANTIERE [{cliente.ragione_sociale}]: {q_dec:g}x {nome_mat}" + (f" ({note})" if note else ""),
+            )
+        except Exception:
+            pass
+        return JsonResponse({
+            'ok': True,
+            'message': f"🧴 Richiesta inviata al Magazzino: {q_dec:g}x {nome_mat} per {cliente.ragione_sociale}!",
+            'id': req_mat.id,
+        })
+
+    # 11. TIMBRATURA GEOFENCE GPS / QR CODE IN CANTIERE (Check-In / Check-Out reale + ProximityLog)
+    elif action == 'timbra_geofence_gps':
+        assign_id = request.POST.get('assign_id')
+        cliente_id = request.POST.get('cliente_id')
+        tipo_timbratura = (request.POST.get('tipo_timbratura') or 'CHECK_IN').strip().upper()
+        lat_raw = request.POST.get('latitudine')
+        lon_raw = request.POST.get('longitudine')
+
+        now = timezone.now()
+        today = timezone.localdate()
+
+        assign = None
+        if assign_id and str(assign_id).isdigit():
+            assign = AssegnazioneTurno.objects.select_related('cliente', 'turno').filter(pk=int(assign_id)).first()
+        if not assign and cliente_id and str(cliente_id).isdigit():
+            assign = (
+                AssegnazioneTurno.objects.select_related('cliente', 'turno')
+                .filter(cliente_id=int(cliente_id), turno__data=today)
+                .filter(
+                    Q(turno__squadra__componenti=dip)
+                    | Q(turno__squadra__caposquadra=dip)
+                    | Q(timetracks__dipendente=dip)
+                )
+                .first()
+            )
+            if not assign:
+                assign = (
+                    AssegnazioneTurno.objects.select_related('cliente', 'turno')
+                    .filter(cliente_id=int(cliente_id), turno__data=today)
+                    .first()
+                )
+
+        if not assign:
+            return JsonResponse({
+                'ok': False,
+                'error': 'Nessun turno programmato oggi per questo cantiere. Usa la compilazione ore standard o contatta l\'ufficio.',
+            })
+
+        cliente = assign.cliente
+        lat_val = None
+        lon_val = None
+        distanza_m = None
+        is_near = True
+        try:
+            if lat_raw and lon_raw:
+                lat_val = float(lat_raw)
+                lon_val = float(lon_raw)
+                if cliente and cliente.latitudine and cliente.longitudine:
+                    from geopy.distance import geodesic
+                    distanza_m = int(round(geodesic((lat_val, lon_val), (cliente.latitudine, cliente.longitudine)).meters))
+                    is_near = distanza_m <= 300
+        except Exception:
+            pass
+
+        # Registra/aggiorna ProximityLog per tracciabilità Geofence (unique_together dipendente+cliente)
+        if cliente:
+            try:
+                if tipo_timbratura == 'CHECK_IN':
+                    ProximityLog.objects.update_or_create(
+                        dipendente=dip,
+                        cliente=cliente,
+                        defaults={
+                            'is_near': is_near,
+                            'entered_at': now,
+                            'exited_at': None,
+                        },
+                    )
+                else:
+                    prox_obj, _ = ProximityLog.objects.get_or_create(
+                        dipendente=dip,
+                        cliente=cliente,
+                        defaults={'is_near': is_near, 'entered_at': now},
+                    )
+                    prox_obj.is_near = False
+                    prox_obj.exited_at = now
+                    prox_obj.save()
+            except Exception:
+                pass
+
+        tt, _ = TimeTracking.objects.get_or_create(
+            dipendente=dip,
+            assegnazione=assign,
+            defaults={'source': 'WEBAPP'},
+        )
+        if lat_val is not None and lon_val is not None:
+            tt.latitudine = lat_val
+            tt.longitudine = lon_val
+
+        gps_badge = f" (📍 GPS verificato a {distanza_m}m dal cantiere)" if distanza_m is not None else " (📍 Timbratura registrata)"
+        ora_locale = timezone.localtime(now).strftime('%H:%M')
+
+        if tipo_timbratura == 'CHECK_IN':
+            tt.check_in = now
+            tt.source = 'WEBAPP'
+            tt.save()
+            return JsonResponse({
+                'ok': True,
+                'message': f"🟢 Check-In registrato alle {ora_locale} presso {cliente.ragione_sociale}{gps_badge}!",
+                'ora': ora_locale,
+                'distanza_m': distanza_m,
+            })
+        else:
+            tt.check_out = now
+            if not tt.check_in:
+                tt.check_in = now - timedelta(hours=float(_calcola_ore_previste(assign)))
+            delta_h = max(0.5, round((tt.check_out - tt.check_in).total_seconds() / 3600.0, 1))
+            if tt.ore_dichiarate is None:
+                tt.ore_dichiarate = Decimal(str(delta_h))
+            nota_gps = f"[Geofence {ora_locale}" + (f" - {distanza_m}m]" if distanza_m is not None else "]")
+            if nota_gps not in (tt.note or ''):
+                tt.note = ((tt.note or '') + ' ' + nota_gps).strip()
+            tt.source = 'WEBAPP'
+            tt.save()
+            assign.dipendenti_esclusi.remove(dip)
+            return JsonResponse({
+                'ok': True,
+                'message': f"🔴 Check-Out registrato alle {ora_locale} presso {cliente.ragione_sociale} ({tt.ore_dichiarate}h calcolate){gps_badge}!",
+                'ora': ora_locale,
+                'ore_calcolate': float(tt.ore_dichiarate),
+                'distanza_m': distanza_m,
+            })
+
+    # 12. SALVA SCHEDA ISPEZIONE QUALITÀ CANTIERE DA MOBILE (Responsabili Area / Capisquadra)
+    elif action == 'salva_ispezione_mobile':
+        ra = ResponsabileArea.objects.filter(dipendente=dip).first()
+        if not (ra or dip.is_caposquadra):
+            return JsonResponse({'ok': False, 'error': 'Funzione riservata ai Responsabili d\'Area e Capisquadra.'}, status=403)
+
+        cliente_id = request.POST.get('cliente_id')
+        if not cliente_id or not str(cliente_id).isdigit():
+            return JsonResponse({'ok': False, 'error': 'Seleziona il cantiere ispezionato.'})
+        cliente = Cliente.objects.filter(pk=int(cliente_id)).first()
+        if not cliente:
+            return JsonResponse({'ok': False, 'error': 'Cantiere non trovato.'})
+
+        def _v(key):
+            try:
+                return max(1, min(5, int(request.POST.get(key) or 5)))
+            except Exception:
+                return 5
+
+        isp = IspezioneQualitaCantiere(
+            cliente=cliente,
+            ispettore=dip,
+            data_ispezione=timezone.now(),
+            voto_ingressi_scale=_v('voto_ingressi_scale'),
+            voto_uffici_postazioni=_v('voto_uffici_postazioni'),
+            voto_bagni_sanitari=_v('voto_bagni_sanitari'),
+            voto_vetrate_infissi=_v('voto_vetrate_infissi'),
+            voto_riordino_dotazioni=_v('voto_riordino_dotazioni'),
+            note_interne_squadra=(request.POST.get('note_interne_squadra') or '').strip(),
+            messaggio_cortesia_cliente=(request.POST.get('messaggio_cortesia_cliente') or '').strip(),
+            firma_referente_cliente=(request.POST.get('firma_referente_cliente') or '').strip(),
+        )
+        if request.FILES.get('foto_1'):
+            isp.foto_1 = request.FILES['foto_1']
+        if request.FILES.get('foto_2'):
+            isp.foto_2 = request.FILES['foto_2']
+        isp.save()
+        return JsonResponse({
+            'ok': True,
+            'message': f"⭐ Verbale Ispezione registrato per {cliente.ragione_sociale} (Media {isp.media_voto}/5 - {isp.get_esito_display()})!",
+            'pdf_url': f"/qualita-ispezioni/pdf/{isp.id}/",
         })
 
     return JsonResponse({'ok': False, 'error': f'Azione non riconosciuta: {action}'}, status=400)
