@@ -300,6 +300,87 @@
     </div>
     {% endif %}
 
+    <!-- SEZIONE GESTIONE DEI 3 MANUALI UFFICIALI (FILE WORD .DOCX MODIFICABILI + UPLOAD PDF) -->
+    <div id="sezione-manuali" style="background:#ffffff; border:2px solid #3b82f6; border-radius:16px; padding:22px 24px; margin-bottom:26px; box-shadow:0 8px 24px rgba(37, 99, 235, 0.08);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:14px; margin-bottom:16px; border-bottom:1.5px solid #e2e8f0; padding-bottom:14px;">
+            <div>
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+                    <span style="background:#dbeafe; color:#1e40af; font-weight:800; font-size:0.76rem; padding:4px 10px; border-radius:999px; text-transform:uppercase;">
+                        📘 Gestione Documentazione &amp; Impaginazione
+                    </span>
+                    <h2 style="margin:0; font-size:1.22rem; font-weight:800; color:#0f172a;">
+                        Gestione dei 3 Manuali del Portale — Scarica Word (.DOCX) Modificabile &amp; Carica PDF
+                    </h2>
+                </div>
+                <p style="margin:0; font-size:0.84rem; color:#475569; line-height:1.45;">
+                    Per ciascuno dei <strong>3 manuali ufficiali</strong> puoi scaricare il <strong>file Word (<code>.docx</code>) completamente modificabile</strong>, personalizzare l'impaginazione o i contenuti in Microsoft Word, salvarlo in PDF e <strong>caricare qui il file PDF definitivo</strong>: tutti i collegamenti del portale si aggiorneranno all'istante.
+                </p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="ga-btn ga-btn-slate" onclick="rigeneraDocxBase('')">
+                    🔄 Rigenera i 3 File Word (.DOCX) Base
+                </button>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:16px;">
+            {% for man in manuali_portale %}
+            <div style="border:2px solid {{ man.border_color }}; background:{{ man.bg_light }}; border-radius:14px; padding:16px 18px; display:flex; flex-direction:column; justify-content:space-between; gap:12px;">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px;">
+                        <h3 style="margin:0; font-size:1.02rem; font-weight:800; color:{{ man.colore }};">
+                            {{ man.icona }} {{ man.titolo }}
+                        </h3>
+                        <span id="man-badge-{{ man.codice }}" style="font-size:0.72rem; font-weight:800; padding:3px 9px; border-radius:999px; white-space:nowrap; {% if man.is_custom_pdf %}background:#dcfce7; color:#166534; border:1px solid #86efac;{% else %}background:#f1f5f9; color:#334155; border:1px solid #cbd5e1;{% endif %}">
+                            {% if man.is_custom_pdf %}📌 PDF Personalizzato Caricato{% else %}⚙️ PDF Predefinito Attivo{% endif %}
+                        </span>
+                    </div>
+                    <p style="margin:0 0 8px 0; font-size:0.79rem; color:#334155; line-height:1.35;">
+                        {{ man.sottotitolo }}
+                    </p>
+                    <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:8px 11px; font-size:0.76rem; color:#475569; margin-bottom:10px;">
+                        <div><strong>Destinatari:</strong> {{ man.destinatari }}</div>
+                        <div id="man-meta-pdf-{{ man.codice }}">
+                            <strong>File PDF attivo:</strong> <code>{{ man.pdf_filename }}</code> ({{ man.pdf_size_human }} — agg. {{ man.pdf_updated_at }})
+                        </div>
+                        <div id="man-meta-docx-{{ man.codice }}">
+                            <strong>File Word modificabile:</strong> <code>{{ man.docx_filename }}</code> ({{ man.docx_size_human }})
+                        </div>
+                    </div>
+
+                    <!-- STEP 1: SCARICA WORD MODIFICABILE E VISUALIZZA PDF ATTUALE -->
+                    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+                        <a href="{{ man.url_docx }}" class="ga-btn ga-btn-primary" style="flex:1; justify-content:center;">
+                            📝 1. Scarica Word (.DOCX) Modificabile
+                        </a>
+                        <a href="{{ man.url_pdf }}" target="_blank" class="ga-btn ga-btn-slate" style="justify-content:center;">
+                            📄 Apri PDF Attuale
+                        </a>
+                    </div>
+                </div>
+
+                <!-- STEP 2: CARICA IL NUOVO PDF IMPAGINATO (E OPZIONALMENTE IL .DOCX) -->
+                <div style="background:#ffffff; border:1.5px dashed #94a3b8; border-radius:10px; padding:11px 12px;">
+                    <div style="font-size:0.78rem; font-weight:800; color:#0f172a; margin-bottom:6px;">
+                        📤 2. Carica il tuo PDF impaginato (sostituisce subito il manuale online):
+                    </div>
+                    <div style="margin-bottom:7px;">
+                        <label style="display:block; font-size:0.71rem; font-weight:700; color:#475569; margin-bottom:2px;">File PDF definitivo (<code>.pdf</code>):</label>
+                        <input type="file" id="file-pdf-{{ man.codice }}" accept=".pdf,application/pdf" style="width:100%; font-size:0.76rem; padding:4px; border:1px solid #cbd5e1; border-radius:6px; background:#f8fafc;">
+                    </div>
+                    <div style="margin-bottom:9px;">
+                        <label style="display:block; font-size:0.71rem; font-weight:700; color:#64748b; margin-bottom:2px;">Aggiorna anche copia Word (<code>.docx</code> — opzionale):</label>
+                        <input type="file" id="file-docx-{{ man.codice }}" accept=".docx,.doc" style="width:100%; font-size:0.75rem; padding:3px; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;">
+                    </div>
+                    <button type="button" id="btn-upload-man-{{ man.codice }}" class="ga-btn ga-btn-success" style="width:100%; justify-content:center;" onclick="caricaManualePersonalizzato('{{ man.codice }}')">
+                        🚀 Carica e Pubblica PDF per {{ man.titolo|truncatechars:28 }}
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
     <!-- BARRA SELEZIONE RESPONSABILE + AGGIUNGI NUOVO RESPONSABILE -->
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:10px;">
         <h2 style="margin:0; font-size:1.15rem; font-weight:800; color:#0f172a;">
@@ -578,6 +659,99 @@ function aggiungiNuovoResponsabile() {
             window.location.reload();
         } else {
             mostraToast('❌ ' + (data.error || 'Errore creazione profilo'), true);
+        }
+    });
+}
+
+function caricaManualePersonalizzato(tipoManuale) {
+    const pdfInput = document.getElementById('file-pdf-' + tipoManuale);
+    const docxInput = document.getElementById('file-docx-' + tipoManuale);
+    const btn = document.getElementById('btn-upload-man-' + tipoManuale);
+
+    const hasPdf = pdfInput && pdfInput.files && pdfInput.files.length > 0;
+    const hasDocx = docxInput && docxInput.files && docxInput.files.length > 0;
+
+    if (!hasPdf && !hasDocx) {
+        mostraToast('⚠️ Seleziona prima il file PDF (o il file Word .docx) da caricare!', true);
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append('action', 'upload_manuale');
+    fd.append('tipo_manuale', tipoManuale);
+    if (hasPdf) fd.append('file_pdf', pdfInput.files[0]);
+    if (hasDocx) fd.append('file_docx', docxInput.files[0]);
+
+    const origText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Caricamento e pubblicazione in corso...';
+    }
+
+    fetch('{% url "gestione_accessi_api" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+        }
+        if (data.ok) {
+            mostraToast(data.message || '✅ Manuale caricato e pubblicato con successo!');
+            if (pdfInput) pdfInput.value = '';
+            if (docxInput) docxInput.value = '';
+            if (data.stato) {
+                const st = data.stato;
+                const metaPdf = document.getElementById('man-meta-pdf-' + tipoManuale);
+                if (metaPdf) {
+                    metaPdf.innerHTML = `<strong>File PDF attivo:</strong> <code>${st.pdf_filename}</code> (${st.pdf_size_human} — agg. ${st.pdf_updated_at})`;
+                }
+                const metaDocx = document.getElementById('man-meta-docx-' + tipoManuale);
+                if (metaDocx) {
+                    metaDocx.innerHTML = `<strong>File Word modificabile:</strong> <code>${st.docx_filename}</code> (${st.docx_size_human})`;
+                }
+                const badge = document.getElementById('man-badge-' + tipoManuale);
+                if (badge && st.is_custom_pdf) {
+                    badge.textContent = '📌 PDF Personalizzato Caricato';
+                    badge.style.background = '#dcfce7';
+                    badge.style.color = '#166534';
+                    badge.style.borderColor = '#86efac';
+                }
+            }
+        } else {
+            mostraToast('❌ ' + (data.error || 'Errore durante il caricamento del manuale'), true);
+        }
+    })
+    .catch(() => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+        }
+        mostraToast('❌ Errore di rete durante il caricamento', true);
+    });
+}
+
+function rigeneraDocxBase(tipoManuale) {
+    const fd = new FormData();
+    fd.append('action', 'rigenera_docx_manuali');
+    if (tipoManuale) fd.append('tipo_manuale', tipoManuale);
+
+    mostraToast('⏳ Rigenerazione file Word (.DOCX) modificabili in corso...');
+    fetch('{% url "gestione_accessi_api" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            mostraToast(data.message || '✅ File Word (.DOCX) rigenerati!');
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            mostraToast('❌ ' + (data.error || 'Errore rigenerazione DOCX'), true);
         }
     });
 }

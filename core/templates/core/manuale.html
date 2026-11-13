@@ -140,6 +140,14 @@
             <p>Manuale passo-passo con introduzione esaustiva a tutte le funzioni del programma (Accessi Programmatore & Sezioni Responsabili, Procedure con Avvallo, Buste Paga PDF, MOL, Magazzino, Qualita SLA, Preventivi CRM, Pre-Fatturazione, Calendario, Centro IA, Web App & Bot Telegram).</p>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            {% if is_programmatore_user %}
+            <a href="/gestione-accessi/#sezione-manuali" class="btn-download-pdf" style="background:#38bdf8; color:#0f172a;">
+                📝 Word (.DOCX) &amp; Carica PDF
+            </a>
+            <a href="{% url 'manuale_programmatore_pdf' %}" target="_blank" class="btn-download-pdf" style="background:#0f172a; color:#ffffff; border:1px solid #93c5fd;">
+                💻 PDF Programmatore
+            </a>
+            {% endif %}
             <a href="/manuale-dipendente/" target="_blank" class="btn-download-pdf" style="background:#10b981; color:#ffffff;">
                 📲 Guida Dipendenti (Web)
             </a>
@@ -147,7 +155,7 @@
                 📄 PDF Dipendenti
             </a>
             <a href="{% url 'manuale_pdf' %}" target="_blank" class="btn-download-pdf">
-                ⬇️ Scarica PDF Completo (v3.3)
+                ⬇️ PDF Responsabili/Admin
             </a>
         </div>
     </div>

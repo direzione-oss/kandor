@@ -36,6 +36,8 @@ from .views_buste_paga import (
 from .views_accessi import (
     gestione_accessi_view,
     gestione_accessi_api_view,
+    scarica_manuale_docx_view,
+    manuale_programmatore_pdf_view,
 )
 from .views_erp_pro import (
     magazzino_dotazioni_view,
@@ -156,6 +158,8 @@ urlpatterns = [
     # Console Programmatore (Serra Gian Carlo) — Gestione Accessi & Sezioni Responsabili
     path('gestione-accessi/', gestione_accessi_view, name='gestione_accessi'),
     path('api/gestione-accessi/action/', gestione_accessi_api_view, name='gestione_accessi_api'),
+    path('gestione-accessi/manuale/<str:tipo>/docx/', scarica_manuale_docx_view, name='scarica_manuale_docx'),
+    path('manuale-programmatore/pdf/', manuale_programmatore_pdf_view, name='manuale_programmatore_pdf'),
 
     # 1-5 Migliorie ERP PRO (Magazzino & Dotazioni, Qualità & SLA, Preventivi CRM, Pre-Fatturazione)
     path('magazzino-dotazioni/', magazzino_dotazioni_view, name='magazzino_dotazioni'),

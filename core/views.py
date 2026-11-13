@@ -1386,22 +1386,30 @@ def toggle_telegram_status(request, model_name, item_id):
 
 @staff_or_titolare_required
 def manuale_pdf_view(request):
-    """Restituisce il file PDF completo con screenshot del Manuale Utente Kandor (v3.3)."""
+    """Restituisce il file PDF del Manuale Responsabili/Admin (caricato dal Programmatore o predefinito)."""
     import os
     from django.http import FileResponse, Http404
-    pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_UTENTE_KANDOR.pdf')
-    if os.path.exists(pdf_path):
-        return FileResponse(open(pdf_path, 'rb'), content_type='application/pdf', filename='MANUALE_UTENTE_KANDOR.pdf')
+    from .views_accessi import resolve_manuale_file
+    pdf_path, filename, _ = resolve_manuale_file('admin', 'pdf')
+    if pdf_path and os.path.exists(pdf_path):
+        as_dl = request.GET.get('download') == '1'
+        resp = FileResponse(open(pdf_path, 'rb'), as_attachment=as_dl, content_type='application/pdf', filename=filename)
+        resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
     raise Http404("File PDF del manuale non trovato.")
 
 
 def manuale_dipendente_pdf_view(request):
-    """Restituisce il file PDF della Guida Operativa Dipendente Kandor (v3.3)."""
+    """Restituisce il file PDF della Guida Operativa Dipendente (caricato dal Programmatore o predefinito)."""
     import os
     from django.http import FileResponse, Http404
-    pdf_path = os.path.join(settings.BASE_DIR, 'MANUALE_DIPENDENTE_KANDOR.pdf')
-    if os.path.exists(pdf_path):
-        return FileResponse(open(pdf_path, 'rb'), content_type='application/pdf', filename='MANUALE_DIPENDENTE_KANDOR.pdf')
+    from .views_accessi import resolve_manuale_file
+    pdf_path, filename, _ = resolve_manuale_file('dipendente', 'pdf')
+    if pdf_path and os.path.exists(pdf_path):
+        as_dl = request.GET.get('download') == '1'
+        resp = FileResponse(open(pdf_path, 'rb'), as_attachment=as_dl, content_type='application/pdf', filename=filename)
+        resp['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return resp
     raise Http404("File PDF del manuale dipendente non trovato.")
 
 
