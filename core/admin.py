@@ -430,14 +430,14 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     list_editable = ('costo_orario_aziendale',)
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
-    list_filter = (StatoDipendenteDefaultAttiviFilter, 'livello_contrattuale', 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
+    list_filter = (StatoDipendenteDefaultAttiviFilter, 'privacy_accettata', 'livello_contrattuale', 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
     actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action']
-    readonly_fields = ('anteprima_foto_telegram', 'condivisione_whatsapp_box')
+    readonly_fields = ('anteprima_foto_telegram', 'condivisione_whatsapp_box', 'privacy_accettata_il', 'privacy_versione', 'privacy_ip')
     fieldsets = (
         ('Dati Anagrafici & Accesso App', {
             'fields': (
@@ -468,6 +468,13 @@ class DipendenteAdmin(KandorBaseAdmin):
         ('Integrazione Telegram & Foto', {
             'fields': ('telegram_chat_id', 'foto_profilo_url', 'foto', 'foto_url'),
             'classes': ('collapse',)
+        }),
+        ('Privacy & Consensi GDPR', {
+            'fields': (
+                ('privacy_accettata', 'privacy_versione'),
+                ('privacy_accettata_il', 'privacy_ip'),
+            ),
+            'description': 'Tracciamento dell’accettazione una tantum dell’Informativa Privacy nella Web App Dipendenti. Deselezionare "Informativa Privacy Accettata" solo se si desidera richiedere una nuova accettazione.',
         }),
     )
 
@@ -596,6 +603,21 @@ class DipendenteAdmin(KandorBaseAdmin):
             checked_attr,
             js_call,
             lbl,
+        )
+
+    @admin.display(description='Privacy')
+    def privacy_badge(self, obj):
+        if obj.privacy_accettata:
+            dt_str = obj.privacy_accettata_il.strftime('%d/%m/%Y %H:%M') if obj.privacy_accettata_il else ''
+            ver = obj.privacy_versione or '1.0'
+            title = f"Accettata v{ver} il {dt_str}" + (f" (IP {obj.privacy_ip})" if obj.privacy_ip else "")
+            return format_html(
+                '<span title="{}" style="display:inline-block; padding:2px 8px; border-radius:6px; background:#DCFCE7; color:#166534; border:1px solid #86EFAC; font-size:11px; font-weight:700; white-space:nowrap;">✅ v{}</span>',
+                title,
+                ver,
+            )
+        return format_html(
+            '<span title="Informativa privacy non ancora accettata" style="display:inline-block; padding:2px 8px; border-radius:6px; background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; font-size:11px; font-weight:700; white-space:nowrap;">⏳ In attesa</span>'
         )
 
     def _build_whatsapp_invite_data(self, obj):
@@ -772,6 +794,21 @@ class DipendenteAdmin(KandorBaseAdmin):
             dip = Dipendente.objects.filter(pk=object_id).first()
             if dip:
                 ensure_corsi_per_dipendente(dip)
+        if object_id is None and request.method == 'POST':
+            cf_post = (request.POST.get('codice_fiscale') or '').strip().upper()
+            if cf_post:
+                from django.db import transaction
+                existing_dip = Dipendente.objects.filter(codice_fiscale__iexact=cf_post).first()
+                if existing_dip and not existing_dip.timetracks.exists() and not existing_dip.assenze.exists():
+                    with transaction.atomic():
+                        sid = transaction.savepoint()
+                        existing_dip.delete()
+                        resp = super().changeform_view(request, object_id, form_url, extra_context)
+                        if getattr(resp, 'status_code', 200) == 302:
+                            transaction.savepoint_commit(sid)
+                        else:
+                            transaction.savepoint_rollback(sid)
+                        return resp
         return super().changeform_view(request, object_id, form_url, extra_context)
 
     def save_related(self, request, form, formsets, change):

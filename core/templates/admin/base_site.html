@@ -25,4 +25,35 @@
 {% block footer %}
 {{ block.super }}
 {% include "admin/includes/sostituti_modal.html" %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var errorNote = document.querySelector('.errornote');
+    if (!errorNote) return;
+    var details = [];
+    var firstErrorEl = null;
+    document.querySelectorAll('.form-row.errors, tr.errors, .fieldBox.errors').forEach(function(row) {
+        if (!firstErrorEl) firstErrorEl = row;
+        var errItems = row.querySelectorAll('ul.errorlist li');
+        if (!errItems.length) return;
+        var lblEl = row.querySelector('label');
+        var lbl = lblEl ? lblEl.textContent.replace(/:\s*$/, '').trim() : 'Campo';
+        errItems.forEach(function(li) {
+            details.push('<strong>' + lbl + ':</strong> ' + li.textContent.trim());
+        });
+    });
+    if (details.length) {
+        var box = document.createElement('div');
+        box.style.marginTop = '8px';
+        box.style.fontSize = '13px';
+        box.style.fontWeight = 'normal';
+        box.innerHTML = details.map(function(d) { return '• ' + d; }).join('<br>');
+        errorNote.appendChild(box);
+    }
+    if (firstErrorEl) {
+        setTimeout(function() {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 250);
+    }
+});
+</script>
 {% endblock %}
