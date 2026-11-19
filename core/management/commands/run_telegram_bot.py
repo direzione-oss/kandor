@@ -191,15 +191,22 @@ class Command(BaseCommand):
                             payload['text'] = reply_text.get('text', '')
                             if reply_text.get('reply_markup'):
                                 payload['reply_markup'] = reply_text['reply_markup']
+                            if reply_text.get('parse_mode'):
+                                payload['parse_mode'] = reply_text['parse_mode']
                             testo_out = reply_text.get('text', '')
                         else:
                             payload['text'] = str(reply_text)
                             testo_out = str(reply_text)
 
-                        requests.post(
+                        res = requests.post(
                             f"{base_url}/sendMessage",
-                            json=payload
+                            json=payload,
+                            timeout=8
                         )
+                        if res.status_code != 200 and 'parse_mode' in payload:
+                            fb = dict(payload)
+                            fb.pop('parse_mode', None)
+                            requests.post(f"{base_url}/sendMessage", json=fb, timeout=8)
                         if dip and testo_out:
                             try:
                                 MessaggioChat.objects.create(

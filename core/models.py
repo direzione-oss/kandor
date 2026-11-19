@@ -137,8 +137,9 @@ class Dipendente(models.Model):
     # Stato
     stato = models.CharField(max_length=20, choices=STATO_CHOICES, default='ATTIVO')
     
-    # Sostituto
+    # Sostituto & Jolly
     is_sostituto = models.BooleanField(default=False, verbose_name="Disponibile come Sostituto", help_text="Se attivo, questo dipendente può essere chiamato per sostituzioni")
+    is_jolly = models.BooleanField(default=False, verbose_name="Jolly", help_text="Se attivo, contrassegna il dipendente come Jolly aziendale")
 
     # Notifiche messaggi
     riceve_notifiche_messaggi = models.BooleanField(
@@ -157,6 +158,14 @@ class Dipendente(models.Model):
     privacy_accettata_il = models.DateTimeField(null=True, blank=True, verbose_name="Data/Ora Accettazione Privacy")
     privacy_versione = models.CharField(max_length=20, blank=True, default='', verbose_name="Versione Informativa Privacy")
     privacy_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP Accettazione Privacy")
+
+    @property
+    def jolly(self):
+        return self.is_jolly
+
+    @jolly.setter
+    def jolly(self, value):
+        self.is_jolly = bool(value)
 
     def clean(self):
         from django.core.exceptions import ValidationError

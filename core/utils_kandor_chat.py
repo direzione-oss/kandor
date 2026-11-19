@@ -120,6 +120,221 @@ def get_calendario_giornaliero(dipendente, data_calendario):
         return {'text': f'Errore calendario: {str(e)}', 'reply_markup': get_main_menu(dipendente)}
 
 
+def is_responsabile(dipendente):
+    """
+    Verifica se il dipendente riveste un ruolo di Responsabile, Titolare o Programmatore/Admin:
+    - riceve_notifiche_messaggi == True (impostato per i responsabili abilitati)
+    - legato a ResponsabileArea
+    - legato a ProfiloAccessoPortale (ruolo RESPONSABILE o PROGRAMMATORE)
+    - legato a Titolare
+    """
+    if not dipendente:
+        return False
+    if getattr(dipendente, 'riceve_notifiche_messaggi', False):
+        return True
+    try:
+        from .models import ResponsabileArea, ProfiloAccessoPortale, Titolare
+        if ResponsabileArea.objects.filter(dipendente=dipendente).exists():
+            return True
+        if ProfiloAccessoPortale.objects.filter(dipendente=dipendente, attivo=True).exists():
+            return True
+        chat_id_val = str(getattr(dipendente, 'telegram_chat_id', '') or '').strip()
+        tit_filter = Q(dipendente=dipendente)
+        if chat_id_val:
+            tit_filter |= Q(telegram_chat_id=chat_id_val)
+        if Titolare.objects.filter(tit_filter).exists():
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _estrai_dati_nuovo_cliente(text):
+    """
+    Estrae i campi anagrafici dal messaggio inviato dall'utente Telegram.
+    Supporta:
+    1) Formato con etichette esplicite (Ragione Sociale/Nome, Indirizzo/Sede, P.IVA, CF, Referente, Note)
+    2) Formato separato da virgola / punto e virgola / righe (Nome, Indirizzo, P.IVA/CF, Referente)
+    3) Formato essenziale (solo nome cliente)
+    """
+    text = (text or '').strip()
+    if not text:
+        return {}
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    dati = {
+        'ragione_sociale': '',
+        'indirizzo_sede': '',
+        'partita_iva': '',
+        'codice_fiscale': '',
+        'referente_nome': '',
+        'note_mansioni': '',
+    }
+
+    unprocessed_lines = []
+    label_pattern = re.compile(
+        r'^(ragione\s+sociale|nome(?:\s+cliente)?|azienda|societ[aà]|cliente|indirizzo(?:\s+sede)?|sede|via|p\.?\s*iva|partita\s+iva|c\.?\s*f\.?|codice\s+fiscale|referente|contatto|titolare|note|mansioni)\s*[:=-]\s*(.*)$',
+        re.IGNORECASE
+    )
+
+    for line in lines:
+        match = label_pattern.match(line)
+        if match:
+            chiave = match.group(1).lower().strip()
+            valore = match.group(2).strip()
+            if not valore:
+                continue
+            if any(k in chiave for k in ('ragione', 'nome', 'azienda', 'societ', 'cliente')):
+                dati['ragione_sociale'] = valore
+            elif any(k in chiave for k in ('indirizzo', 'sede', 'via')):
+                dati['indirizzo_sede'] = valore
+            elif any(k in chiave for k in ('p.iva', 'piva', 'partita iva', 'iva')):
+                dati['partita_iva'] = valore
+            elif any(k in chiave for k in ('c.f', 'cf', 'codice fiscale')):
+                dati['codice_fiscale'] = valore
+            elif any(k in chiave for k in ('referente', 'contatto', 'titolare')):
+                dati['referente_nome'] = valore
+            elif any(k in chiave for k in ('note', 'mansioni')):
+                dati['note_mansioni'] = valore
+        else:
+            unprocessed_lines.append(line)
+
+    if not dati['ragione_sociale'] and unprocessed_lines:
+        first = unprocessed_lines.pop(0)
+        pezzi_first = [p.strip() for p in re.split(r'[,;]+', first) if p.strip()]
+        if pezzi_first:
+            dati['ragione_sociale'] = pezzi_first[0]
+            for pf in reversed(pezzi_first[1:]):
+                unprocessed_lines.insert(0, pf)
+
+    tokens = []
+    for line in unprocessed_lines:
+        tokens.extend([p.strip() for p in re.split(r'[,;]+', line) if p.strip()])
+
+    for token in tokens:
+        clean_tok = token.strip()
+        pref_m = re.match(r'^(?:c\.?f\.?|codice\s+fiscale|p\.?\s*iva|partita\s+iva)\s*[:=-]?\s*(.*)$', clean_tok, re.IGNORECASE)
+        val = pref_m.group(1).strip() if pref_m else clean_tok
+
+        if re.fullmatch(r'\d{11}', val):
+            dati['partita_iva'] = val
+            continue
+        if re.fullmatch(r'[A-Z]{6}[0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{2}[A-Z][0-9LMNPQRSTUV]{3}[A-Z]', val.upper()):
+            dati['codice_fiscale'] = val.upper()
+            continue
+        if re.search(r'\b(via|viale|piazza|p\.zza|corso|c\.so|strada|str\.|vicolo|largo|loc\.|localit[aà]|frazione)\b', clean_tok, re.IGNORECASE) or (re.search(r'\d+', clean_tok) and not dati['indirizzo_sede']):
+            if not dati['indirizzo_sede']:
+                dati['indirizzo_sede'] = clean_tok
+            else:
+                dati['indirizzo_sede'] += f", {clean_tok}"
+            continue
+        if not dati['indirizzo_sede']:
+            dati['indirizzo_sede'] = clean_tok
+        elif not dati['referente_nome']:
+            dati['referente_nome'] = clean_tok
+        else:
+            if dati['note_mansioni']:
+                dati['note_mansioni'] += f", {clean_tok}"
+            else:
+                dati['note_mansioni'] = clean_tok
+
+    return dati
+
+
+def _salva_nuovo_cliente_da_telegram(dipendente, telegram_chat_id, raw_input):
+    """Elabora e registra un nuovo cliente in anagrafica a partire dal testo inviato su Telegram."""
+    clean_in = normalize_text(raw_input)
+    if clean_in in ('/annulla', 'annulla', 'esci', 'indietro', '/cancel', 'cancel', 'no'):
+        _TELEGRAM_STATE.pop(telegram_chat_id, None)
+        return {
+            'text': "❌ Registrazione nuovo cliente annullata.",
+            'reply_markup': get_main_menu(dipendente)
+        }
+
+    dati = _estrai_dati_nuovo_cliente(raw_input)
+    ragione_sociale = (dati.get('ragione_sociale') or '').strip()
+
+    if not ragione_sociale or len(ragione_sociale) < 2:
+        return {
+            'text': (
+                "⚠️ *Attenzione:* Il nome o la ragione sociale è obbligatorio (almeno 2 caratteri).\n\n"
+                "Riprova scrivendo almeno il nome del cliente (es: `Pasticceria Rossi`), oppure digita /annulla per uscire."
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '❌ Annulla', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
+        }
+
+    # Controllo se il cliente esiste già
+    esistente = Cliente.objects.filter(ragione_sociale__iexact=ragione_sociale).first()
+    if esistente:
+        return {
+            'text': (
+                f"⚠️ In anagrafica è già presente un cliente registrato come:\n"
+                f"🏢 *{esistente.ragione_sociale}* (ID #{esistente.pk})\n"
+                f"📍 Sede: {esistente.indirizzo_sede or 'N/D'}\n\n"
+                f"Se desideri registrare una nuova sede, specifica una dicitura differente (es. `{ragione_sociale} - Sede 2`), oppure digita /annulla."
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '❌ Annulla', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
+        }
+
+    _TELEGRAM_STATE.pop(telegram_chat_id, None)
+
+    note_auto = (dati.get('note_mansioni') or '').strip()
+    if not note_auto:
+        note_auto = f"Registrato via Bot Telegram da {dipendente.nome} {dipendente.cognome}"
+
+    cliente = Cliente.objects.create(
+        ragione_sociale=ragione_sociale[:200],
+        indirizzo_sede=(dati.get('indirizzo_sede') or '')[:255].strip(),
+        partita_iva=dati.get('partita_iva')[:20].strip() if dati.get('partita_iva') else None,
+        codice_fiscale=dati.get('codice_fiscale')[:16].strip().upper() if dati.get('codice_fiscale') else None,
+        referente_nome=(dati.get('referente_nome') or '')[:100].strip(),
+        note_mansioni=note_auto[:500],
+    )
+
+    if cliente.indirizzo_sede:
+        try:
+            from .utils_geocoding import schedule_async_geocode
+            schedule_async_geocode(Cliente, cliente.pk, 'indirizzo_sede', cliente.indirizzo_sede)
+        except Exception:
+            pass
+
+    testo_ok = (
+        f"✅ *Nuovo Cliente Registrato con Successo!*\n\n"
+        f"🏢 *Ragione Sociale:* {cliente.ragione_sociale}\n"
+    )
+    if cliente.indirizzo_sede:
+        testo_ok += f"📍 *Sede:* {cliente.indirizzo_sede}\n"
+    else:
+        testo_ok += f"📍 *Sede:* _Non specificata_\n"
+    if cliente.partita_iva:
+        testo_ok += f"💳 *P.IVA:* {cliente.partita_iva}\n"
+    if cliente.codice_fiscale:
+        testo_ok += f"🆔 *C.F.:* {cliente.codice_fiscale}\n"
+    if cliente.referente_nome:
+        testo_ok += f"👤 *Referente:* {cliente.referente_nome}\n"
+
+    testo_ok += (
+        f"\n📁 L'anagrafica di Kandor è stata aggiornata (ID #{cliente.pk}).\n"
+        f"👤 Registrato da: *{dipendente.nome} {dipendente.cognome}*"
+    )
+
+    return {
+        'text': testo_ok,
+        'reply_markup': get_main_menu(dipendente),
+        'parse_mode': 'Markdown'
+    }
+
+
 def get_main_menu(dipendente=None):
     """Ritorna il menu principale con bottoni inline."""
     keyboard = [
@@ -139,10 +354,18 @@ def get_main_menu(dipendente=None):
                          {'text': '🚨 Segnalazione', 'callback_data': 'menu_segnalazione'}])
         keyboard.append([{'text': '🧴 Richiedi Materiali Cantiere', 'callback_data': 'menu_materiali'}])
     
-    keyboard.extend([
-        [{'text': '📄 Buste Paga', 'callback_data': 'menu_buste_paga'},
-         {'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}],
-        [{'text': '📖 Guida', 'url': 'https://kandor.187.126.30.207.sslip.io/manuale-dipendente/'}],
+    keyboard.append([
+        {'text': '📄 Buste Paga', 'callback_data': 'menu_buste_paga'},
+        {'text': '📸 Foto Profilo', 'callback_data': 'menu_foto_profilo'}
+    ])
+
+    # Sezione Responsabili & Direzione
+    if dipendente and is_responsabile(dipendente):
+        keyboard.append([{'text': '🏢 Registra Nuovo Cliente', 'callback_data': 'menu_nuovo_cliente'}])
+        keyboard.append([{'text': '📅 Assegna Turno', 'callback_data': 'menu_assegna_turno'}])
+
+    keyboard.append([
+        [{'text': '📖 Guida', 'url': 'https://kandor.187.126.30.207.sslip.io/manuale-dipendente/'}]
     ])
     return {'inline_keyboard': keyboard}
 
@@ -535,11 +758,79 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             ),
             'reply_markup': get_main_menu(dipendente)
         }
+
+    # COMANDO REGISTRA NUOVO CLIENTE (Solo Responsabili)
+    if clean_text.startswith(('/nuovocliente', '/nuovo_cliente', '/registra_cliente', '/cliente', 'registra nuovo cliente', 'nuovo cliente')):
+        if not is_responsabile(dipendente):
+            return {
+                'text': "⛔ Questa funzionalità è riservata ai Responsabili e alla Direzione.",
+                'reply_markup': get_main_menu(dipendente)
+            }
+
+        arg_text = ""
+        for prefix in ('/nuovocliente', '/nuovo_cliente', '/registra_cliente', '/cliente', 'registra nuovo cliente', 'nuovo cliente'):
+            if clean_text.startswith(prefix):
+                arg_text = text[len(prefix):].strip()
+                break
+
+        if arg_text:
+            return _salva_nuovo_cliente_da_telegram(dipendente, telegram_chat_id, arg_text)
+
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_dati_nuovo_cliente'}
+        return {
+            'text': (
+                "🏢 *Registrazione Nuovo Cliente*\n\n"
+                "Inserisci i dati del nuovo cliente da salvare in anagrafica.\n"
+                "Il **Nome o Ragione Sociale** è l'unico dato obbligatorio.\n\n"
+                "Puoi scrivere:\n"
+                "• *Solo il nome:* es. `Bar Centrale`\n"
+                "• *Con indirizzo:* es. `Bar Centrale, Via Roma 15 Bergamo`\n"
+                "• *Completo:* es.\n"
+                "  `Nome: Bar Centrale`\n"
+                "  `Indirizzo: Via Roma 15 Bergamo`\n"
+                "  `P.IVA: 01234567890`\n"
+                "  `Referente: Mario Rossi`\n\n"
+                "✍️ *Invia ora i dati del cliente (o digita /annulla):*"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '❌ Annulla', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
+        }
+
+    # COMANDO ASSEGNA TURNO (Solo Responsabili)
+    if clean_text in ('/assegna_turno', '/assegnaturno', '/assegna-turno', '/assegnaturni', '/turni', 'assegna turno'):
+        if not is_responsabile(dipendente):
+            return {
+                'text': "⛔ Questa funzionalità è riservata ai Responsabili e alla Direzione.",
+                'reply_markup': get_main_menu(dipendente)
+            }
+        return {
+            'text': (
+                "📅 *Assegna Turno — Area Responsabili*\n\n"
+                "La gestione dell'assegnazione turni e squadre via bot Telegram è in fase di arrivo!\n\n"
+                "💡 *Nel frattempo puoi gestire e assegnare i turni da:*\n"
+                "• **Portale Gestionale**: https://kandor.187.126.30.207.sslip.io/admin/\n"
+                "• **Web App**: https://kandor.187.126.30.207.sslip.io/app/"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
+        }
     
     # Controlla stato conversazione (attesa input)
     state = _TELEGRAM_STATE.get(telegram_chat_id)
     if state:
         action = state.get('action')
+
+        # Attesa dati nuovo cliente (Responsabile)
+        if action == 'attesa_dati_nuovo_cliente':
+            return _salva_nuovo_cliente_da_telegram(dipendente, telegram_chat_id, text)
 
         # Attesa motivazione opzionale per ore diverse da quelle previste
         if action == 'attesa_motivo_ore':
@@ -1031,6 +1322,60 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         return {
             'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
             'reply_markup': get_main_menu(dipendente)
+        }
+
+    # Registra Nuovo Cliente (Solo Responsabili)
+    if callback_data == 'menu_nuovo_cliente':
+        if not is_responsabile(dipendente):
+            return {
+                'text': "⛔ Questa funzionalità è riservata ai Responsabili e alla Direzione.",
+                'reply_markup': get_main_menu(dipendente)
+            }
+        _TELEGRAM_STATE[telegram_chat_id] = {'action': 'attesa_dati_nuovo_cliente'}
+        return {
+            'text': (
+                "🏢 *Registrazione Nuovo Cliente*\n\n"
+                "Inserisci i dati del nuovo cliente da salvare in anagrafica.\n"
+                "Il **Nome o Ragione Sociale** è l'unico dato obbligatorio.\n\n"
+                "Puoi scrivere:\n"
+                "• *Solo il nome:* es. `Bar Centrale`\n"
+                "• *Con indirizzo:* es. `Bar Centrale, Via Roma 15 Bergamo`\n"
+                "• *Completo:* es.\n"
+                "  `Nome: Bar Centrale`\n"
+                "  `Indirizzo: Via Roma 15 Bergamo`\n"
+                "  `P.IVA: 01234567890`\n"
+                "  `Referente: Mario Rossi`\n\n"
+                "✍️ *Invia ora i dati del cliente (o digita /annulla):*"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '❌ Annulla', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
+        }
+
+    # Assegna Turno (Solo Responsabili)
+    if callback_data == 'menu_assegna_turno':
+        if not is_responsabile(dipendente):
+            return {
+                'text': "⛔ Questa funzionalità è riservata ai Responsabili e alla Direzione.",
+                'reply_markup': get_main_menu(dipendente)
+            }
+        return {
+            'text': (
+                "📅 *Assegna Turno — Area Responsabili*\n\n"
+                "La gestione dell'assegnazione turni e squadre via bot Telegram è in fase di arrivo!\n\n"
+                "💡 *Nel frattempo puoi gestire e assegnare i turni da:*\n"
+                "• **Portale Gestionale**: https://kandor.187.126.30.207.sslip.io/admin/\n"
+                "• **Web App**: https://kandor.187.126.30.207.sslip.io/app/"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
         }
     
     # Registra Ore -> mostra lista clienti

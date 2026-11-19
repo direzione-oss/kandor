@@ -430,13 +430,13 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'jolly_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     list_editable = ('costo_orario_aziendale',)
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
-    list_filter = (StatoDipendenteDefaultAttiviFilter, 'privacy_accettata', 'livello_contrattuale', 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
+    list_filter = (StatoDipendenteDefaultAttiviFilter, 'privacy_accettata', 'is_jolly', 'livello_contrattuale', 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
-    actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action']
+    actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action', 'imposta_jolly_action', 'rimuovi_jolly_action']
     readonly_fields = ('anteprima_foto_telegram', 'condivisione_whatsapp_box', 'privacy_accettata_il', 'privacy_versione', 'privacy_ip')
     fieldsets = (
         ('Dati Anagrafici & Accesso App', {
@@ -462,8 +462,8 @@ class DipendenteAdmin(KandorBaseAdmin):
             ),
             'description': 'Inserire il Livello Contrattuale e il Costo Orario Aziendale pieno (Lordo + TFR + INAIL/INPS) per il calcolo reale del MOL per Cantiere.',
         }),
-        ('Qualifiche, Sostituto & Ruolo Responsabile', {
-            'fields': ('qualifiche', 'is_sostituto', 'riceve_notifiche_messaggi')
+        ('Qualifiche, Sostituto, Jolly & Ruolo Responsabile', {
+            'fields': ('qualifiche', 'is_sostituto', 'is_jolly', 'riceve_notifiche_messaggi')
         }),
         ('Integrazione Telegram & Foto', {
             'fields': ('telegram_chat_id', 'foto_profilo_url', 'foto', 'foto_url'),
@@ -488,6 +488,11 @@ class DipendenteAdmin(KandorBaseAdmin):
                 name='core_dipendente_toggle_sostituto',
             ),
             path(
+                'toggle-jolly/<int:dip_id>/',
+                self.admin_site.admin_view(self.toggle_jolly_view),
+                name='core_dipendente_toggle_jolly',
+            ),
+            path(
                 'toggle-riceve-notifiche/<int:dip_id>/',
                 self.admin_site.admin_view(self.toggle_riceve_notifiche_view),
                 name='core_dipendente_toggle_riceve_notifiche',
@@ -507,6 +512,19 @@ class DipendenteAdmin(KandorBaseAdmin):
             new_val = not dip.is_sostituto
         Dipendente.objects.filter(pk=dip.pk).update(is_sostituto=new_val)
         return JsonResponse({'ok': True, 'id': dip.pk, 'is_sostituto': new_val})
+
+    def toggle_jolly_view(self, request, dip_id):
+        from django.http import JsonResponse
+        dip = Dipendente.objects.filter(pk=dip_id).first()
+        if not dip:
+            return JsonResponse({'ok': False, 'error': 'Dipendente non trovato'}, status=404)
+        val_raw = request.GET.get('val') or request.POST.get('val')
+        if val_raw is not None:
+            new_val = str(val_raw).lower() in ('1', 'true', 'yes', 'on')
+        else:
+            new_val = not dip.is_jolly
+        Dipendente.objects.filter(pk=dip.pk).update(is_jolly=new_val)
+        return JsonResponse({'ok': True, 'id': dip.pk, 'is_jolly': new_val})
 
     def toggle_riceve_notifiche_view(self, request, dip_id):
         from django.http import JsonResponse
@@ -530,6 +548,16 @@ class DipendenteAdmin(KandorBaseAdmin):
     def disabilita_notifiche_messaggi_action(self, request, queryset):
         updated = queryset.update(riceve_notifiche_messaggi=False)
         self.message_user(request, f'🔕 Flag "Riceve notifiche messaggi (Solo Responsabili)" disabilitato per {updated} dipendenti.', messages.SUCCESS)
+
+    @admin.action(description='🃏 Imposta come Jolly sui dipendenti selezionati')
+    def imposta_jolly_action(self, request, queryset):
+        updated = queryset.update(is_jolly=True)
+        self.message_user(request, f'✅ Flag "Jolly" abilitato per {updated} dipendenti.', messages.SUCCESS)
+
+    @admin.action(description='🚫 Rimuovi flag Jolly sui dipendenti selezionati')
+    def rimuovi_jolly_action(self, request, queryset):
+        updated = queryset.update(is_jolly=False)
+        self.message_user(request, f'🚫 Flag "Jolly" rimosso per {updated} dipendenti.', messages.SUCCESS)
 
     @admin.display(description='RIC.NOT.', ordering='riceve_notifiche_messaggi')
     def riceve_notifiche_toggle_badge(self, obj):
@@ -595,6 +623,43 @@ class DipendenteAdmin(KandorBaseAdmin):
             '<label style="display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; border:1px solid {}; background:{}; color:{}; font-size:11.5px; font-weight:700; cursor:pointer; user-select:none; white-space:nowrap;" title="Spunta o rimuovi per attivare/disattivare la disponibilità come Sostituto (salvataggio automatico)">'
             '<input type="checkbox" data-dip-id="{}" {} onchange="{}" style="cursor:pointer; width:14px; height:14px; margin:0; accent-color:#16A34A;" />'
             '<span class="sost-lbl">{}</span>'
+            '</label>',
+            border,
+            bg,
+            fg,
+            obj.pk,
+            checked_attr,
+            js_call,
+            lbl,
+        )
+
+    @admin.display(description='🃏 Jolly', ordering='is_jolly')
+    def jolly_toggle_badge(self, obj):
+        checked_attr = 'checked' if obj.is_jolly else ''
+        bg = '#FEF3C7' if obj.is_jolly else '#F1F5F9'
+        fg = '#B45309' if obj.is_jolly else '#64748B'
+        border = '#FCD34D' if obj.is_jolly else '#CBD5E1'
+        lbl = 'Jolly' if obj.is_jolly else 'No'
+        js_call = (
+            "var cb=this; var wrap=cb.closest('label'); var sp=wrap.querySelector('.jolly-lbl');"
+            "cb.disabled=true; sp.textContent='⏳...';"
+            "fetch('/admin/core/dipendente/toggle-jolly/' + cb.getAttribute('data-dip-id') + '/?val=' + (cb.checked ? '1' : '0'), {credentials:'same-origin'})"
+            ".then(function(r){return r.json();})"
+            ".then(function(d){"
+            "  cb.disabled=false;"
+            "  if(d && d.ok){"
+            "    wrap.style.background = d.is_jolly ? '#FEF3C7' : '#F1F5F9';"
+            "    wrap.style.color = d.is_jolly ? '#B45309' : '#64748B';"
+            "    wrap.style.borderColor = d.is_jolly ? '#FCD34D' : '#CBD5E1';"
+            "    sp.textContent = '✓ Salvato';"
+            "    setTimeout(function(){ sp.textContent = d.is_jolly ? 'Jolly' : 'No'; }, 900);"
+            "  } else { cb.checked = !cb.checked; sp.textContent = 'Errore'; }"
+            "}).catch(function(){ cb.disabled=false; cb.checked = !cb.checked; sp.textContent='Errore'; });"
+        )
+        return format_html(
+            '<label style="display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:6px; border:1px solid {}; background:{}; color:{}; font-size:11.5px; font-weight:700; cursor:pointer; user-select:none; white-space:nowrap;" title="Spunta o rimuovi per contrassegnare come Jolly (salvataggio automatico)">'
+            '<input type="checkbox" data-dip-id="{}" {} onchange="{}" style="cursor:pointer; width:14px; height:14px; margin:0; accent-color:#D97706;" />'
+            '<span class="jolly-lbl">{}</span>'
             '</label>',
             border,
             bg,

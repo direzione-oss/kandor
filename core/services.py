@@ -54,11 +54,15 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
     """
     from .models import Assenza, RichiestaSostituzione
 
-    # 1. Filtro Dipendenti Attivi (se includi_tutti_attivi=True mostra anche chi non ha il flag is_sostituto in anagrafica)
+    # 1. Filtro Dipendenti Attivi (se includi_tutti_attivi=True mostra anche chi non ha il flag is_sostituto o is_jolly in anagrafica)
     if includi_tutti_attivi:
         candidati = Dipendente.objects.filter(stato='ATTIVO').prefetch_related('qualifiche')
     else:
-        candidati = Dipendente.objects.filter(stato='ATTIVO', is_sostituto=True).prefetch_related('qualifiche')
+        candidati = Dipendente.objects.filter(
+            stato='ATTIVO'
+        ).filter(
+            Q(is_sostituto=True) | Q(is_jolly=True)
+        ).prefetch_related('qualifiche')
 
     escludi_set = set(escludi_dipendenti_ids or [])
 
@@ -248,12 +252,13 @@ def trova_sostituti(cliente, data, ora_inizio, ora_fine, escludi_dipendenti_ids=
             'conformita_ok': idoneita_ok,
             'occupato_fascia': bool(impegni_dip),
             'impegni_concomitanti': impegni_dip,
-            'is_sostituto_anagrafica': bool(dip.is_sostituto),
+            'is_sostituto_anagrafica': bool(dip.is_sostituto or getattr(dip, 'is_jolly', False)),
+            'is_jolly': bool(getattr(dip, 'is_jolly', False)),
         })
 
-    # Ordina: prima chi ha flag is_sostituto, poi qualifica compatibile, poi AI Smart Score decrescente, distanza crescente e cognome/nome
+    # Ordina: prima chi ha flag is_jolly o is_sostituto, poi qualifica compatibile, poi AI Smart Score decrescente, distanza crescente e cognome/nome
     risultati.sort(key=lambda x: (
-        0 if x['is_sostituto_anagrafica'] else 1,
+        0 if x.get('is_jolly') else (1 if x['is_sostituto_anagrafica'] else 2),
         0 if x['qualifica_compatibile'] else 1,
         -x['ai_score'],
         x['distanza_km'],

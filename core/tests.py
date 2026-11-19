@@ -1882,6 +1882,230 @@ class DipendentePrivacyAcceptanceTestCase(TestCase):
         self.assertNotContains(resp_after, 'Accetta e accedi all\'App')
 
 
+class TelegramResponsabiliMenuTestCase(TestCase):
+    """
+    Test delle funzionalità per Responsabili nel Bot Telegram:
+    - Riconoscimento ruoli Responsabile (is_responsabile)
+    - Visualizzazione tasti 'Registra Nuovo Cliente' e 'Assegna Turno' nel Menu Principale
+    - Blocco accessi per dipendenti non responsabili
+    - Flusso interattivo di registrazione nuovo cliente (solo nome o con dati completi)
+    - Gestione duplicati e annullamento
+    - Risposta placeholder per 'Assegna Turno'
+    """
+    def setUp(self):
+        from core.models import Dipendente, ResponsabileArea, ProfiloAccessoPortale, Cliente
+        from django.contrib.auth.models import User
+        from core.utils_kandor_chat import _TELEGRAM_STATE
+        _TELEGRAM_STATE.clear()
+
+        # Dipendente normale (operativo)
+        self.dip_normale = Dipendente.objects.create(
+            nome="MARIO",
+            cognome="ROSSI",
+            codice_fiscale="RSSMRA80A01L219K",
+            telegram_chat_id="11111111",
+            stato="ATTIVO",
+            riceve_notifiche_messaggi=False
+        )
+
+        # Dipendente responsabile (con notifica attiva)
+        self.dip_resp = Dipendente.objects.create(
+            nome="SIMONE",
+            cognome="CORTINOVIS",
+            codice_fiscale="CRTSMN85M15A794X",
+            telegram_chat_id="22222222",
+            stato="ATTIVO",
+            riceve_notifiche_messaggi=True
+        )
+
+        # Creiamo un cliente pre-esistente per il test duplicati
+        self.cliente_esistente = Cliente.objects.create(
+            ragione_sociale="BAR CENTRALE SNC",
+            indirizzo_sede="VIA VITTORIO EMANUELE 10 BERGAMO"
+        )
+
+    def test_is_responsabile_detection(self):
+        from core.utils_kandor_chat import is_responsabile
+        from core.models import Dipendente, ResponsabileArea, ProfiloAccessoPortale, Titolare
+        from django.contrib.auth.models import User
+
+        self.assertFalse(is_responsabile(self.dip_normale))
+        self.assertTrue(is_responsabile(self.dip_resp))
+
+        # Test tramite ResponsabileArea
+        dip_ra = Dipendente.objects.create(
+            nome="CONSUELO", cognome="PINA", codice_fiscale="PNACNS88T50A794Y",
+            telegram_chat_id="33333333", stato="ATTIVO", riceve_notifiche_messaggi=False
+        )
+        self.assertFalse(is_responsabile(dip_ra))
+        ResponsabileArea.objects.create(dipendente=dip_ra, nome_area="Area Test")
+        self.assertTrue(is_responsabile(dip_ra))
+
+        # Test tramite ProfiloAccessoPortale
+        dip_pap = Dipendente.objects.create(
+            nome="CARLA", cognome="BORDONI", codice_fiscale="BRDCRL82A41A794Z",
+            telegram_chat_id="44444444", stato="ATTIVO", riceve_notifiche_messaggi=False
+        )
+        user_pap = User.objects.create_user(username="carla_test", password="pwd")
+        ProfiloAccessoPortale.objects.create(user=user_pap, dipendente=dip_pap, ruolo='RESPONSABILE', attivo=True)
+        self.assertTrue(is_responsabile(dip_pap))
+
+    def test_get_main_menu_buttons(self):
+        from core.utils_kandor_chat import get_main_menu
+
+        # Menu per dipendente normale: NON deve contenere i tasti da responsabile
+        menu_normale = get_main_menu(self.dip_normale)
+        all_cb_normale = [
+            btn['callback_data']
+            for row in menu_normale.get('inline_keyboard', [])
+            for btn in row if 'callback_data' in btn
+        ]
+        self.assertNotIn('menu_nuovo_cliente', all_cb_normale)
+        self.assertNotIn('menu_assegna_turno', all_cb_normale)
+
+        # Menu per responsabile: DEVE contenere i tasti
+        menu_resp = get_main_menu(self.dip_resp)
+        all_cb_resp = [
+            btn['callback_data']
+            for row in menu_resp.get('inline_keyboard', [])
+            for btn in row if 'callback_data' in btn
+        ]
+        self.assertIn('menu_nuovo_cliente', all_cb_resp)
+        self.assertIn('menu_assegna_turno', all_cb_resp)
+
+    def test_non_responsabile_is_blocked(self):
+        from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message
+
+        # Tentativo via callback
+        res_cb = handle_telegram_callback("11111111", "menu_nuovo_cliente")
+        self.assertIn("riservata ai Responsabili", res_cb['text'])
+
+        res_turni_cb = handle_telegram_callback("11111111", "menu_assegna_turno")
+        self.assertIn("riservata ai Responsabili", res_turni_cb['text'])
+
+        # Tentativo via comando
+        res_cmd = handle_telegram_message("11111111", "/nuovocliente")
+        self.assertIn("riservata ai Responsabili", res_cmd['text'])
+
+    def test_responsabile_registra_nuovo_cliente_solo_nome(self):
+        from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message, _TELEGRAM_STATE
+        from core.models import Cliente
+
+        # 1. Responsabile clicca il bottone nel menu
+        res_btn = handle_telegram_callback("22222222", "menu_nuovo_cliente")
+        self.assertIn("Registrazione Nuovo Cliente", res_btn['text'])
+        self.assertEqual(_TELEGRAM_STATE.get("22222222", {}).get('action'), 'attesa_dati_nuovo_cliente')
+
+        # 2. Invia solo il nome obbligatorio
+        nome_nuovo = "PASTICCERIA LA MIMOSA"
+        res_msg = handle_telegram_message("22222222", nome_nuovo)
+        self.assertIn("Cliente Registrato con Successo", res_msg['text'])
+        self.assertIn(nome_nuovo, res_msg['text'])
+        self.assertIsNone(_TELEGRAM_STATE.get("22222222"))
+
+        # Verifica che il cliente sia salvato nel DB
+        nuovo = Cliente.objects.filter(ragione_sociale__iexact=nome_nuovo).first()
+        self.assertIsNotNone(nuovo)
+        self.assertEqual(nuovo.ragione_sociale, nome_nuovo)
+        self.assertEqual(nuovo.indirizzo_sede, "")
+
+    def test_responsabile_registra_nuovo_cliente_completo(self):
+        from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message, _TELEGRAM_STATE
+        from core.models import Cliente
+
+        handle_telegram_callback("22222222", "menu_nuovo_cliente")
+
+        # Testo con nome, indirizzo, P.IVA e referente
+        input_testo = (
+            "Nome: SUPERMERCATO ALFA\n"
+            "Indirizzo: Via Garibaldi 45, 24040 Stezzano BG\n"
+            "P.IVA: 01234567890\n"
+            "Referente: Mario Rossi"
+        )
+        res_msg = handle_telegram_message("22222222", input_testo)
+        self.assertIn("Cliente Registrato con Successo", res_msg['text'])
+        self.assertIn("SUPERMERCATO ALFA", res_msg['text'])
+        self.assertIn("Via Garibaldi 45", res_msg['text'])
+
+        nuovo = Cliente.objects.filter(ragione_sociale__iexact="SUPERMERCATO ALFA").first()
+        self.assertIsNotNone(nuovo)
+        self.assertEqual(nuovo.indirizzo_sede, "Via Garibaldi 45, 24040 Stezzano BG")
+        self.assertEqual(nuovo.partita_iva, "01234567890")
+        self.assertEqual(nuovo.referente_nome, "Mario Rossi")
+
+    def test_responsabile_duplicato_e_annulla(self):
+        from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message, _TELEGRAM_STATE
+
+        handle_telegram_callback("22222222", "menu_nuovo_cliente")
+
+        # Prova ad inserire un cliente già esistente
+        res_dup = handle_telegram_message("22222222", "BAR CENTRALE SNC")
+        self.assertIn("è già presente", res_dup['text'])
+        self.assertEqual(_TELEGRAM_STATE.get("22222222", {}).get('action'), 'attesa_dati_nuovo_cliente')
+
+        # Invia /annulla
+        res_annulla = handle_telegram_message("22222222", "/annulla")
+        self.assertIn("annullata", res_annulla['text'])
+        self.assertIsNone(_TELEGRAM_STATE.get("22222222"))
+
+    def test_responsabile_assegna_turno_placeholder(self):
+        from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message
+
+        res_cb = handle_telegram_callback("22222222", "menu_assegna_turno")
+        self.assertIn("Assegna Turno", res_cb['text'])
+        self.assertIn("in fase di arrivo", res_cb['text'])
+
+        res_msg = handle_telegram_message("22222222", "/turni")
+        self.assertIn("Assegna Turno", res_msg['text'])
+
+
+class DipendenteJollyTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='admin_jolly',
+            email='admin_jolly@example.com',
+            password='adminpassword'
+        )
+        self.dip = Dipendente.objects.create(
+            nome='Mario',
+            cognome='Rossi',
+            codice_fiscale='RSSMRA80A01L219Z',
+            is_jolly=False
+        )
+
+    def test_campo_jolly_default_e_proprieta(self):
+        self.assertFalse(self.dip.is_jolly)
+        self.assertFalse(self.dip.jolly)
+        self.dip.jolly = True
+        self.dip.save()
+        self.dip.refresh_from_db()
+        self.assertTrue(self.dip.is_jolly)
+        self.assertTrue(self.dip.jolly)
+
+    def test_toggle_jolly_admin_view(self):
+        self.client.login(username='admin_jolly', password='adminpassword')
+        url = f'/admin/core/dipendente/toggle-jolly/{self.dip.id}/?val=1'
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data.get('ok'))
+        self.assertTrue(data.get('is_jolly'))
+        self.dip.refresh_from_db()
+        self.assertTrue(self.dip.is_jolly)
+
+        # Toggle off
+        url_off = f'/admin/core/dipendente/toggle-jolly/{self.dip.id}/?val=0'
+        resp_off = self.client.get(url_off)
+        self.assertEqual(resp_off.status_code, 200)
+        data_off = resp_off.json()
+        self.assertTrue(data_off.get('ok'))
+        self.assertFalse(data_off.get('is_jolly'))
+        self.dip.refresh_from_db()
+        self.assertFalse(self.dip.is_jolly)
+
+
+
 
 
 

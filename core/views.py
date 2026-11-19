@@ -1184,8 +1184,14 @@ def telegram_webhook_view(request):
                     payload = {'chat_id': chat_id, 'text': response['text']}
                     if response.get('reply_markup'):
                         payload['reply_markup'] = response['reply_markup']
+                    if response.get('parse_mode'):
+                        payload['parse_mode'] = response['parse_mode']
                     try:
-                        req.post(send_url, json=payload)
+                        res = req.post(send_url, json=payload, timeout=8)
+                        if res.status_code != 200 and 'parse_mode' in payload:
+                            fb = dict(payload)
+                            fb.pop('parse_mode', None)
+                            req.post(send_url, json=fb, timeout=8)
                     except Exception as e:
                         print(f"[Telegram Error] Callback Send: {e}")
                 
@@ -1305,13 +1311,19 @@ def telegram_webhook_view(request):
                         payload = {'chat_id': chat_id, 'text': response['text']}
                         if response.get('reply_markup'):
                             payload['reply_markup'] = response['reply_markup']
+                        if response.get('parse_mode'):
+                            payload['parse_mode'] = response['parse_mode']
                         testo_out = response['text']
                     else:
                         payload = {'chat_id': chat_id, 'text': response}
                         testo_out = str(response)
                     
                     try:
-                        req.post(send_url, json=payload)
+                        res = req.post(send_url, json=payload, timeout=8)
+                        if res.status_code != 200 and 'parse_mode' in payload:
+                            fb = dict(payload)
+                            fb.pop('parse_mode', None)
+                            req.post(send_url, json=fb, timeout=8)
                         # Salva risposta bot nello storico (anche se il dipendente si è appena accreditato)
                         if not dip:
                             from .models import Dipendente
@@ -1992,6 +2004,7 @@ def trova_sostituti_api(request):
             'occupato_fascia': r.get('occupato_fascia', False),
             'impegni_concomitanti': r.get('impegni_concomitanti', []),
             'is_sostituto_anagrafica': r.get('is_sostituto_anagrafica', True),
+            'is_jolly': r.get('is_jolly', False),
         })
     
     return JsonResponse({'ok': True, 'sostituti': sostituti_list})
@@ -2077,6 +2090,7 @@ def get_sostituti_richiesta_api(request, richiesta_id):
             'occupato_fascia': r.get('occupato_fascia', False),
             'impegni_concomitanti': r.get('impegni_concomitanti', []),
             'is_sostituto_anagrafica': r.get('is_sostituto_anagrafica', True),
+            'is_jolly': r.get('is_jolly', False),
         })
 
     trovati_ids = {item['id'] for item in list_data}
@@ -2104,6 +2118,7 @@ def get_sostituti_richiesta_api(request, richiesta_id):
                     'occupato_fascia': False,
                     'impegni_concomitanti': [],
                     'is_sostituto_anagrafica': bool(dip.is_sostituto),
+                    'is_jolly': bool(getattr(dip, 'is_jolly', False)),
                 })
                 trovati_ids.add(dip.id)
             except Dipendente.DoesNotExist:
