@@ -2457,8 +2457,18 @@ class PropostaTurnoJolly(models.Model):
     operatore = models.ForeignKey(
         'Dipendente',
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='proposte_jolly_ricevute',
         verbose_name="Operatore Jolly"
+    )
+    squadra = models.ForeignKey(
+        'Squadra',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='proposte_turno_squadra',
+        verbose_name="Squadra Assegnata"
     )
     cliente = models.ForeignKey(
         'Cliente',
@@ -2479,6 +2489,12 @@ class PropostaTurnoJolly(models.Model):
         blank=True,
         related_name='turni_jolly_rifiutati',
         verbose_name="Operatori che hanno rifiutato"
+    )
+    squadre_rifiutate = models.ManyToManyField(
+        'Squadra',
+        blank=True,
+        related_name='turni_squadra_rifiutati',
+        verbose_name="Squadre che hanno rifiutato"
     )
 
     turno_creato = models.ForeignKey(
@@ -2507,7 +2523,8 @@ class PropostaTurnoJolly(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"Proposta Turno {self.cliente} ({self.data}) → {self.operatore} [{self.stato}]"
+        dest = self.squadra.nome if self.squadra else (str(self.operatore) if self.operatore else 'N/D')
+        return f"Proposta Turno {self.cliente} ({self.data}) → {dest} [{self.stato}]"
 
 
 # --- Geocoding Signals (Non-blocking Post-Commit + Cache) ---

@@ -1696,11 +1696,19 @@ class RichiestaSostituzioneAdmin(KandorBaseAdmin):
 
 @admin.register(PropostaTurnoJolly)
 class PropostaTurnoJollyAdmin(KandorBaseAdmin):
-    list_display = ('id', 'data', 'cliente', 'operatore', 'responsabile', 'ora_inizio', 'durata_ore', 'stato_badge', 'created_at')
+    list_display = ('id', 'data', 'cliente', 'destinatario_display', 'responsabile', 'ora_inizio', 'durata_ore', 'stato_badge', 'created_at')
     list_filter = ('stato', 'data')
-    search_fields = ('cliente__ragione_sociale', 'operatore__cognome', 'operatore__nome', 'responsabile__cognome', 'responsabile__nome')
+    search_fields = ('cliente__ragione_sociale', 'operatore__cognome', 'operatore__nome', 'squadra__nome', 'responsabile__cognome', 'responsabile__nome')
     date_hierarchy = 'data'
     readonly_fields = ('created_at', 'updated_at', 'turno_creato', 'assegnazione_creata')
+
+    def destinatario_display(self, obj):
+        if obj.squadra:
+            return f"👥 Squadra: {obj.squadra.nome}"
+        if obj.operatore:
+            return f"👤 {obj.operatore.cognome} {obj.operatore.nome}"
+        return "N/D"
+    destinatario_display.short_description = 'Destinatario'
 
     def stato_badge(self, obj):
         color_map = {

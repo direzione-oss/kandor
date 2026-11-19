@@ -481,6 +481,91 @@ def trova_jolly_disponibili(data_check, ora_inizio=None, ora_fine=None, escludi_
     return disponibili
 
 
+def trova_squadre_disponibili(data_check, ora_inizio=None, ora_fine=None, escludi_squadre_ids=None):
+    """
+    Restituisce l'elenco delle Squadre operative libere nella data ed eventuale fascia oraria.
+    Esclude le squadre fittizie (SINGOLO) e quelle già impegnate in turni o con assenze.
+    """
+    from .models import Squadra, Turno, AssegnazioneTurno, Assenza, PropostaTurnoJolly
+    if isinstance(data_check, datetime):
+        data_check = data_check.date()
+
+    escludi_set = set(escludi_squadre_ids or [])
+    squadre_qs = Squadra.objects.exclude(
+        nome__startswith='SINGOLO'
+    ).exclude(
+        nome__startswith='Singolo'
+    ).prefetch_related('componenti', 'caposquadra')
+
+    if escludi_set:
+        squadre_qs = squadre_qs.exclude(id__in=escludi_set)
+
+    squadre = list(squadre_qs)
+    if not squadre:
+        return []
+
+    libere = []
+    for sq in squadre:
+        # 1. Controlla turni già assegnati
+        turni_sq = Turno.objects.filter(data=data_check, squadra=sq)
+        ha_turno_bloccante = False
+        for t in turni_sq:
+            for a in t.assegnazioni.all():
+                if a.orario_inizio_previsto and a.orario_fine_previsto and ora_inizio and ora_fine:
+                    if a.orario_fine_previsto <= ora_inizio or a.orario_inizio_previsto >= ora_fine:
+                        continue
+                ha_turno_bloccante = True
+                break
+            if ha_turno_bloccante:
+                break
+        if ha_turno_bloccante:
+            continue
+
+        # 2. Controlla proposte attive
+        proposte_sq = PropostaTurnoJolly.objects.filter(
+            squadra=sq,
+            data=data_check,
+            stato__in=['IN_ATTESA', 'ACCETTATO']
+        )
+        ha_prop = False
+        for p in proposte_sq:
+            if p.ora_inizio and p.ora_fine and ora_inizio and ora_fine:
+                if p.ora_fine <= ora_inizio or p.ora_inizio >= ora_fine:
+                    continue
+            ha_prop = True
+            break
+        if ha_prop:
+            continue
+
+        # 3. Controlla assenze di caposquadra o componenti
+        membri_ids = list(sq.componenti.values_list('id', flat=True))
+        if sq.caposquadra_id and sq.caposquadra_id not in membri_ids:
+            membri_ids.append(sq.caposquadra_id)
+
+        ha_assenza_bloccante = False
+        if membri_ids:
+            assenze_membri = Assenza.objects.filter(
+                dipendente_id__in=membri_ids,
+                data_inizio__lte=data_check,
+                data_fine__gte=data_check
+            ).exclude(stato_approvazione='RIFIUTATA')
+
+            for ass in assenze_membri:
+                if ass.ora_inizio and ass.ora_fine and ora_inizio and ora_fine:
+                    if ass.ora_fine <= ora_inizio or ass.ora_inizio >= ora_fine:
+                        continue
+                ha_assenza_bloccante = True
+                break
+
+        if ha_assenza_bloccante:
+            continue
+
+        libere.append(sq)
+
+    libere.sort(key=lambda s: (s.nome or '').upper())
+    return libere
+
+
 def get_or_create_squadra_singolo(dipendente):
     """Trova o crea la squadra Singolo adatta per il dipendente Jolly."""
     from .models import Squadra
@@ -498,21 +583,27 @@ def get_or_create_squadra_singolo(dipendente):
 
 def accetta_proposta_turno_jolly(proposta_id, operatore_dipendente):
     """
-    L'operatore Jolly accetta la proposta di turno:
+    L'operatore Jolly (o referente squadra) accetta la proposta di turno:
     - aggiorna PropostaTurnoJolly a ACCETTATO
     - registra automaticamente Turno e AssegnazioneTurno sul calendario gestionale
     - notifica il responsabile via Telegram
     """
     from .models import PropostaTurnoJolly, Turno, AssegnazioneTurno
     try:
-        proposta = PropostaTurnoJolly.objects.select_related('cliente', 'responsabile', 'operatore').get(pk=proposta_id)
+        proposta = PropostaTurnoJolly.objects.select_related('cliente', 'responsabile', 'operatore', 'squadra').get(pk=proposta_id)
     except PropostaTurnoJolly.DoesNotExist:
         return False, "Richiesta di turno non trovata."
 
     if proposta.stato != 'IN_ATTESA':
         return False, f"Questa proposta è già stata gestita (Stato: {proposta.get_stato_display()})."
 
-    squadra = get_or_create_squadra_singolo(proposta.operatore)
+    if proposta.squadra:
+        squadra = proposta.squadra
+        tipo_lbl = f"dalla squadra *{squadra.nome}*"
+    else:
+        squadra = get_or_create_squadra_singolo(proposta.operatore)
+        tipo_lbl = f"dall'operatore Jolly *{proposta.operatore.nome} {proposta.operatore.cognome}*"
+
     turno, _ = Turno.objects.get_or_create(
         data=proposta.data,
         squadra=squadra
@@ -552,7 +643,7 @@ def accetta_proposta_turno_jolly(proposta_id, operatore_dipendente):
     if proposta.responsabile and proposta.responsabile.telegram_chat_id:
         testo_resp = (
             f"🎉 *Turno Accettato!*\n\n"
-            f"L'operatore Jolly *{proposta.operatore.nome} {proposta.operatore.cognome}* ha **accettato** il turno assegnato:\n\n"
+            f"Il turno assegnato è stato **accettato** {tipo_lbl}:\n\n"
             f"🏢 **Azienda:** {proposta.cliente.ragione_sociale}\n"
             f"📅 **Data:** {proposta.data.strftime('%d/%m/%Y')}\n"
         )
@@ -570,19 +661,19 @@ def accetta_proposta_turno_jolly(proposta_id, operatore_dipendente):
             parse_mode='Markdown'
         )
 
-    return True, "Turno confermato e registrato nel tuo calendario lavorativo!"
+    conferma_dest = f"Turno confermato per la squadra {squadra.nome} e registrato nel calendario!" if proposta.squadra else "Turno confermato e registrato nel tuo calendario lavorativo!"
+    return True, conferma_dest
 
 
 def rifiuta_proposta_turno_jolly(proposta_id, operatore_dipendente):
     """
-    L'operatore Jolly rifiuta la proposta di turno:
+    L'operatore Jolly (o referente squadra) rifiuta la proposta di turno:
     - aggiorna PropostaTurnoJolly a RIFIUTATO
-    - aggiunge l'operatore alla lista dei candidati che hanno rifiutato
-    - notifica il responsabile aprendo l'elenco degli altri Jolly disponibili
+    - notifica il responsabile riaprendo l'elenco dei sostituti disponibili (Jolly o Squadre)
     """
     from .models import PropostaTurnoJolly
     try:
-        proposta = PropostaTurnoJolly.objects.select_related('cliente', 'responsabile', 'operatore').get(pk=proposta_id)
+        proposta = PropostaTurnoJolly.objects.select_related('cliente', 'responsabile', 'operatore', 'squadra').get(pk=proposta_id)
     except PropostaTurnoJolly.DoesNotExist:
         return False, "Richiesta di turno non trovata."
 
@@ -591,12 +682,68 @@ def rifiuta_proposta_turno_jolly(proposta_id, operatore_dipendente):
 
     proposta.stato = 'RIFIUTATO'
     proposta.save(update_fields=['stato', 'updated_at'])
+
+    if proposta.squadra:
+        proposta.squadre_rifiutate.add(proposta.squadra)
+
+        if proposta.responsabile and proposta.responsabile.telegram_chat_id:
+            esclusi = set(proposta.squadre_rifiutate.values_list('id', flat=True))
+            altre_squadre = trova_squadre_disponibili(
+                proposta.data,
+                ora_inizio=proposta.ora_inizio,
+                ora_fine=proposta.ora_fine,
+                escludi_squadre_ids=list(esclusi)
+            )
+
+            testo_resp = (
+                f"❌ *Turno Rifiutato!*\n\n"
+                f"La squadra *{proposta.squadra.nome}* ha **rifiutato** il turno assegnato:\n\n"
+                f"🏢 **Azienda:** {proposta.cliente.ragione_sociale}\n"
+                f"📅 **Data:** {proposta.data.strftime('%d/%m/%Y')}\n"
+            )
+            if proposta.ora_inizio:
+                testo_resp += f"⏰ **Inizio:** {proposta.ora_inizio.strftime('%H:%M')}\n"
+            if proposta.durata_ore:
+                testo_resp += f"⏱ **Durata:** {proposta.durata_ore} ore\n"
+            if proposta.note:
+                testo_resp += f"📝 **Note:** {proposta.note}\n"
+
+            if altre_squadre:
+                testo_resp += "\n👥 *Seleziona un'altra Squadra libera per questo turno:*"
+                kb = []
+                for sq in altre_squadre:
+                    num_op = sq.componenti.count()
+                    kb.append([{
+                        'text': f"👥 {sq.nome[:28]} [{num_op} op.]",
+                        'callback_data': f"rias_sq_{proposta.id}_{sq.id}"
+                    }])
+                kb.append([{'text': '❌ Annulla Assegnazione', 'callback_data': f'annulla_prop_{proposta.id}'}])
+                reply_markup = {'inline_keyboard': kb}
+            else:
+                testo_resp += "\n⚠️ *Non risultano altre Squadre libere per questa data/orario.*"
+                reply_markup = {
+                    'inline_keyboard': [
+                        [{'text': '📅 Assegna in altra data', 'callback_data': 'menu_assegna_turno'}],
+                        [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}],
+                    ]
+                }
+
+            send_telegram_message(
+                proposta.responsabile.telegram_chat_id,
+                testo_resp,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+
+        return True, f"Hai rifiutato il turno per la squadra {proposta.squadra.nome}. Il responsabile è stato avvisato."
+
+    # Rifiuto da singolo Jolly
     proposta.operatori_rifiutati.add(proposta.operatore)
 
-    # Notifica il responsabile riaprendo l'elenco degli altri Jolly liberi
     if proposta.responsabile and proposta.responsabile.telegram_chat_id:
         esclusi = set(proposta.operatori_rifiutati.values_list('id', flat=True))
-        esclusi.add(proposta.operatore_id)
+        if proposta.operatore_id:
+            esclusi.add(proposta.operatore_id)
 
         altri_jolly = trova_jolly_disponibili(
             proposta.data,
@@ -842,94 +989,11 @@ def _mostra_selezione_note(dipendente, telegram_chat_id, st):
     }
 
 
-def _mostra_selezione_jolly(dipendente, telegram_chat_id, st):
-    """Cerca e visualizza gli operatori Jolly liberi per la data/orario selezionati."""
-    st['step'] = 'jolly'
-    _TELEGRAM_STATE[telegram_chat_id] = st
-
-    from .models import Dipendente, Cliente
-    dt_str = st.get('data')
-    try:
-        data_check = datetime.strptime(dt_str, '%Y-%m-%d').date()
-    except Exception:
-        data_check = timezone.localdate()
-
-    ora_inizio_obj = None
-    if st.get('ora_inizio'):
-        try:
-            p = st['ora_inizio'].split(':')
-            ora_inizio_obj = time(int(p[0]), int(p[1]))
-        except Exception:
-            pass
-
-    ora_fine_obj = None
-    if ora_inizio_obj and st.get('durata_ore'):
-        try:
-            start_dt = datetime.combine(data_check, ora_inizio_obj)
-            end_dt = start_dt + timedelta(minutes=int(round(float(st['durata_ore']) * 60)))
-            ora_fine_obj = end_dt.time()
-        except Exception:
-            pass
-
-    jolly_liberi = trova_jolly_disponibili(data_check, ora_inizio=ora_inizio_obj, ora_fine=ora_fine_obj)
-
-    ora_lbl = st.get('ora_inizio') or 'Non specificato'
-    dur_lbl = f"{st.get('durata_ore')} ore" if st.get('durata_ore') else 'Non specificata'
-    note_lbl = st.get('note') or 'Nessuna'
-
-    if not jolly_liberi:
-        kb = [
-            [{'text': '📅 Cambia Data', 'callback_data': f"asst_cli_{st.get('cliente_id')}"}],
-            [{'text': '❌ Annulla', 'callback_data': 'menu_start'}],
-        ]
-        return {
-            'text': (
-                f"📋 *Riepilogo Turno:*\n"
-                f"🏢 Azienda: *{st.get('cliente_nome')}*\n"
-                f"📅 Data: *{data_check.strftime('%d/%m/%Y')}*\n"
-                f"⏰ Orario: *{ora_lbl}*\n"
-                f"⏱ Durata: *{dur_lbl}*\n"
-                f"📝 Note: *{note_lbl}*\n\n"
-                f"⚠️ *Nessun operatore Jolly risulta libero* per questa data ed orario.\n"
-                f"Tutti gli operatori Jolly risultano già impegnati in altri turni o assenti."
-            ),
-            'reply_markup': {'inline_keyboard': kb},
-            'parse_mode': 'Markdown'
-        }
-
-    kb = []
-    for j in jolly_liberi:
-        tg_ico = "📱 " if j.telegram_chat_id else "⚠️ "
-        kb.append([{
-            'text': f"{tg_ico}{j.cognome} {j.nome}",
-            'callback_data': f"asst_jolly_{j.id}"
-        }])
-    kb.append([{'text': '❌ Annulla Assegnazione', 'callback_data': 'menu_start'}])
-
-    return {
-        'text': (
-            f"📋 *Riepilogo Turno da Assegnare:*\n"
-            f"🏢 Azienda: *{st.get('cliente_nome')}*\n"
-            f"📅 Data: *{data_check.strftime('%d/%m/%Y')}*\n"
-            f"⏰ Orario: *{ora_lbl}*\n"
-            f"⏱ Durata: *{dur_lbl}*\n"
-            f"📝 Note: *{note_lbl}*\n\n"
-            f"👷 *Operatori Jolly Disponibili ({len(jolly_liberi)}):*\n"
-            f"Seleziona l'operatore a cui inviare la proposta di turno:"
-        ),
-        'reply_markup': {'inline_keyboard': kb},
-        'parse_mode': 'Markdown'
-    }
-
-
-def _invia_proposta_a_jolly(dipendente, telegram_chat_id, st, jolly_id):
-    """Invia la proposta di turno all'operatore Jolly via Telegram."""
+def _crea_e_invia_proposta_singolo(dipendente, st, jolly_id):
+    """Crea una PropostaTurnoJolly per un singolo operatore e invia il messaggio Telegram se abilitato."""
     from .models import Dipendente, Cliente, PropostaTurnoJolly
-    try:
-        jolly = Dipendente.objects.get(pk=jolly_id)
-        cliente = Cliente.objects.get(pk=st['cliente_id'])
-    except Exception as e:
-        return {'text': f"⚠️ Errore nel recupero dati: {e}", 'reply_markup': get_main_menu(dipendente)}
+    jolly = Dipendente.objects.get(pk=jolly_id)
+    cliente = Cliente.objects.get(pk=st['cliente_id'])
 
     dt_str = st.get('data')
     try:
@@ -973,9 +1037,6 @@ def _invia_proposta_a_jolly(dipendente, telegram_chat_id, st, jolly_id):
         stato='IN_ATTESA'
     )
 
-    _TELEGRAM_STATE.pop(telegram_chat_id, None)
-
-    # Invia notifica Telegram all'operatore Jolly
     inviato_tg = False
     if jolly.telegram_chat_id:
         msg_jolly = (
@@ -1002,19 +1063,357 @@ def _invia_proposta_a_jolly(dipendente, telegram_chat_id, st, jolly_id):
         }
         inviato_tg = send_telegram_message(jolly.telegram_chat_id, msg_jolly, reply_markup=kb_jolly, parse_mode='Markdown')
 
+    return proposta, inviato_tg
+
+
+def _invia_proposte_multi_jolly(dipendente, telegram_chat_id, st):
+    """Invia proposte di turno a tutti gli operatori Jolly selezionati nella lista."""
+    selected_ids = list(st.get('selected_jolly_ids', []))
+    if not selected_ids:
+        return {'text': "⚠️ Seleziona almeno un operatore Jolly prima di inviare.", 'reply_markup': get_main_menu(dipendente)}
+
+    from .models import Cliente
+    cliente = Cliente.objects.get(pk=st['cliente_id'])
+
+    inviati = []
+    senza_tg = []
+
+    for jid in selected_ids:
+        prop, ok_tg = _crea_e_invia_proposta_singolo(dipendente, st, jid)
+        nome_op = f"{prop.operatore.cognome} {prop.operatore.nome}"
+        inviati.append(nome_op)
+        if not prop.operatore.telegram_chat_id:
+            senza_tg.append(nome_op)
+
+    _TELEGRAM_STATE.pop(telegram_chat_id, None)
+
+    elenco_txt = "\n".join([f"• *{n}*" for n in inviati])
     avviso = ""
-    if not jolly.telegram_chat_id:
-        avviso = "\n\n⚠️ *Attenzione:* Questo operatore non ha un account Telegram associato. Contattalo telefonicamente."
-    elif not inviato_tg:
-        avviso = "\n\n⚠️ *Nota:* Non è stato possibile recapitare la notifica Telegram all'operatore."
+    if senza_tg:
+        avviso = f"\n\n⚠️ *Attenzione:* I seguenti operatori non hanno Telegram associato (contattali telefonicamente):\n" + "\n".join([f"• {n}" for n in senza_tg])
+
+    dt_str = st.get('data', '')
+    try:
+        dt_fmt = datetime.strptime(dt_str, '%Y-%m-%d').strftime('%d/%m/%Y')
+    except Exception:
+        dt_fmt = dt_str
+
+    num_txt = f"{len(inviati)} Operatori" if len(inviati) > 1 else "1 Operatore"
+    return {
+        'text': (
+            f"✅ *Proposta di Turno Inviata con Successo!*\n\n"
+            f"🏢 **Azienda:** {cliente.ragione_sociale}\n"
+            f"📅 **Data:** {dt_fmt}\n"
+            f"👥 **Destinatari ({num_txt}):**\n{elenco_txt}\n\n"
+            f"Non appena ciascun operatore accetterà o rifiuterà, riceverai una notifica qui in chat.{avviso}"
+        ),
+        'reply_markup': get_main_menu(dipendente),
+        'parse_mode': 'Markdown'
+    }
+
+
+def _invia_proposta_a_jolly(dipendente, telegram_chat_id, st, jolly_id):
+    """Wrapper di invio per singolo operatore (retrocompatibile)."""
+    st['selected_jolly_ids'] = [jolly_id]
+    return _invia_proposte_multi_jolly(dipendente, telegram_chat_id, st)
+
+
+def _mostra_selezione_jolly(dipendente, telegram_chat_id, st):
+    """Visualizza gli operatori Jolly liberi con supporto selezione multipla e passaggio alle squadre."""
+    st['step'] = 'jolly'
+    _TELEGRAM_STATE[telegram_chat_id] = st
+
+    from .models import Dipendente, Cliente
+    dt_str = st.get('data')
+    try:
+        data_check = datetime.strptime(dt_str, '%Y-%m-%d').date()
+    except Exception:
+        data_check = timezone.localdate()
+
+    ora_inizio_obj = None
+    if st.get('ora_inizio'):
+        try:
+            p = st['ora_inizio'].split(':')
+            ora_inizio_obj = time(int(p[0]), int(p[1]))
+        except Exception:
+            pass
+
+    ora_fine_obj = None
+    if ora_inizio_obj and st.get('durata_ore'):
+        try:
+            start_dt = datetime.combine(data_check, ora_inizio_obj)
+            end_dt = start_dt + timedelta(minutes=int(round(float(st['durata_ore']) * 60)))
+            ora_fine_obj = end_dt.time()
+        except Exception:
+            pass
+
+    jolly_liberi = trova_jolly_disponibili(data_check, ora_inizio=ora_inizio_obj, ora_fine=ora_fine_obj)
+
+    ora_lbl = st.get('ora_inizio') or 'Non specificato'
+    dur_lbl = f"{st.get('durata_ore')} ore" if st.get('durata_ore') else 'Non specificata'
+    note_lbl = st.get('note') or 'Nessuna'
+
+    selected_ids = set(st.get('selected_jolly_ids', []))
+
+    if not jolly_liberi:
+        kb = [
+            [{'text': '👥 Mostra Squadre Libere', 'callback_data': 'asst_mode_squadre'}],
+            [{'text': '📅 Cambia Data', 'callback_data': f"asst_cli_{st.get('cliente_id')}"}],
+            [{'text': '❌ Annulla', 'callback_data': 'menu_start'}],
+        ]
+        return {
+            'text': (
+                f"📋 *Riepilogo Turno:*\n"
+                f"🏢 Azienda: *{st.get('cliente_nome')}*\n"
+                f"📅 Data: *{data_check.strftime('%d/%m/%Y')}*\n"
+                f"⏰ Orario: *{ora_lbl}*\n"
+                f"⏱ Durata: *{dur_lbl}*\n"
+                f"📝 Note: *{note_lbl}*\n\n"
+                f"⚠️ *Nessun operatore Jolly risulta libero* per questa data ed orario.\n"
+                f"Puoi consultare l'elenco delle **Squadre Libere** con il pulsante qui sotto:"
+            ),
+            'reply_markup': {'inline_keyboard': kb},
+            'parse_mode': 'Markdown'
+        }
+
+    kb = []
+    for j in jolly_liberi:
+        sel_ico = "✅ " if j.id in selected_ids else "⬜ "
+        tg_ico = "📱 " if j.telegram_chat_id else "⚠️ "
+        kb.append([{
+            'text': f"{sel_ico}{tg_ico}{j.cognome} {j.nome}",
+            'callback_data': f"asst_jtoggle_{j.id}"
+        }])
+
+    if selected_ids:
+        plur = "e" if len(selected_ids) == 1 else "i"
+        kb.append([{
+            'text': f"🚀 Invia Proposta a {len(selected_ids)} Operator{plur}",
+            'callback_data': 'asst_jinvia_multi'
+        }])
+
+    kb.append([{'text': '👥 Mostra Squadre Libere', 'callback_data': 'asst_mode_squadre'}])
+    kb.append([
+        {'text': '📅 Cambia Data', 'callback_data': f"asst_cli_{st.get('cliente_id')}"},
+        {'text': '❌ Annulla Assegnazione', 'callback_data': 'menu_start'}
+    ])
+
+    sel_count_txt = f"\n\n👉 *Operatori selezionati:* {len(selected_ids)}" if selected_ids else ""
 
     return {
         'text': (
-            f"✅ *Proposta di Turno Inviata!*\n\n"
-            f"👤 **Operatore:** {jolly.cognome} {jolly.nome}\n"
+            f"📋 *Riepilogo Turno da Assegnare:*\n"
+            f"🏢 Azienda: *{st.get('cliente_nome')}*\n"
+            f"📅 Data: *{data_check.strftime('%d/%m/%Y')}*\n"
+            f"⏰ Orario: *{ora_lbl}*\n"
+            f"⏱ Durata: *{dur_lbl}*\n"
+            f"📝 Note: *{note_lbl}*\n\n"
+            f"👷 *Operatori Jolly Disponibili ({len(jolly_liberi)}):*\n"
+            f"Tocca uno o più operatori per selezionarli (✅), poi premi **Invia Proposta**:\n"
+            f"_(Oppure tocca **Mostra Squadre Libere** se il lavoro richiede una squadra)_{sel_count_txt}"
+        ),
+        'reply_markup': {'inline_keyboard': kb},
+        'parse_mode': 'Markdown'
+    }
+
+
+def _mostra_selezione_squadre(dipendente, telegram_chat_id, st):
+    """Mostra l'elenco delle squadre operative libere in quella data/orario."""
+    st['step'] = 'squadra'
+    _TELEGRAM_STATE[telegram_chat_id] = st
+
+    from .models import Squadra, Cliente
+    dt_str = st.get('data')
+    try:
+        data_check = datetime.strptime(dt_str, '%Y-%m-%d').date()
+    except Exception:
+        data_check = timezone.localdate()
+
+    ora_inizio_obj = None
+    if st.get('ora_inizio'):
+        try:
+            p = st['ora_inizio'].split(':')
+            ora_inizio_obj = time(int(p[0]), int(p[1]))
+        except Exception:
+            pass
+
+    ora_fine_obj = None
+    if ora_inizio_obj and st.get('durata_ore'):
+        try:
+            start_dt = datetime.combine(data_check, ora_inizio_obj)
+            end_dt = start_dt + timedelta(minutes=int(round(float(st['durata_ore']) * 60)))
+            ora_fine_obj = end_dt.time()
+        except Exception:
+            pass
+
+    squadre_libere = trova_squadre_disponibili(data_check, ora_inizio=ora_inizio_obj, ora_fine=ora_fine_obj)
+
+    ora_lbl = st.get('ora_inizio') or 'Non specificato'
+    dur_lbl = f"{st.get('durata_ore')} ore" if st.get('durata_ore') else 'Non specificata'
+    note_lbl = st.get('note') or 'Nessuna'
+
+    if not squadre_libere:
+        kb = [
+            [{'text': '👷 Torna a Singoli Jolly', 'callback_data': 'asst_mode_jolly'}],
+            [{'text': '📅 Cambia Data', 'callback_data': f"asst_cli_{st.get('cliente_id')}"}],
+            [{'text': '❌ Annulla', 'callback_data': 'menu_start'}],
+        ]
+        return {
+            'text': (
+                f"📋 *Riepilogo Turno:*\n"
+                f"🏢 Azienda: *{st.get('cliente_nome')}*\n"
+                f"📅 Data: *{data_check.strftime('%d/%m/%Y')}*\n"
+                f"⏰ Orario: *{ora_lbl}*\n"
+                f"⏱ Durata: *{dur_lbl}*\n"
+                f"📝 Note: *{note_lbl}*\n\n"
+                f"⚠️ *Nessuna Squadra risulta libera* per questa data ed orario.\n"
+                f"Puoi tornare all'elenco dei singoli Jolly con il pulsante qui sotto:"
+            ),
+            'reply_markup': {'inline_keyboard': kb},
+            'parse_mode': 'Markdown'
+        }
+
+    kb = []
+    for sq in squadre_libere:
+        num_op = sq.componenti.count()
+        capo_lbl = f" (Capo: {sq.caposquadra.cognome})" if sq.caposquadra else ""
+        kb.append([{
+            'text': f"👥 {sq.nome[:28]}{capo_lbl} [{num_op} op.]",
+            'callback_data': f"asst_sq_{sq.id}"
+        }])
+
+    kb.append([{'text': '👷 Torna a Singoli Jolly', 'callback_data': 'asst_mode_jolly'}])
+    kb.append([
+        {'text': '📅 Cambia Data', 'callback_data': f"asst_cli_{st.get('cliente_id')}"},
+        {'text': '❌ Annulla Assegnazione', 'callback_data': 'menu_start'}
+    ])
+
+    return {
+        'text': (
+            f"📋 *Riepilogo Turno da Assegnare:*\n"
+            f"🏢 Azienda: *{st.get('cliente_nome')}*\n"
+            f"📅 Data: *{data_check.strftime('%d/%m/%Y')}*\n"
+            f"⏰ Orario: *{ora_lbl}*\n"
+            f"⏱ Durata: *{dur_lbl}*\n"
+            f"📝 Note: *{note_lbl}*\n\n"
+            f"👥 *Squadre Libere Disponibili ({len(squadre_libere)}):*\n"
+            f"Tocca una squadra per inviarle la proposta di turno:"
+        ),
+        'reply_markup': {'inline_keyboard': kb},
+        'parse_mode': 'Markdown'
+    }
+
+
+def _invia_proposta_a_squadra(dipendente, telegram_chat_id, st, sq_id):
+    """Invia la proposta di turno alla Squadra selezionata via Telegram."""
+    from .models import Squadra, Cliente, PropostaTurnoJolly
+    try:
+        squadra = Squadra.objects.select_related('caposquadra').prefetch_related('componenti').get(pk=sq_id)
+        cliente = Cliente.objects.get(pk=st['cliente_id'])
+    except Exception as e:
+        return {'text': f"⚠️ Errore nel recupero dati: {e}", 'reply_markup': get_main_menu(dipendente)}
+
+    dt_str = st.get('data')
+    try:
+        data_check = datetime.strptime(dt_str, '%Y-%m-%d').date()
+    except Exception:
+        data_check = timezone.localdate()
+
+    ora_inizio_obj = None
+    if st.get('ora_inizio'):
+        try:
+            p = st['ora_inizio'].split(':')
+            ora_inizio_obj = time(int(p[0]), int(p[1]))
+        except Exception:
+            pass
+
+    durata_val = None
+    if st.get('durata_ore'):
+        try:
+            durata_val = float(st['durata_ore'])
+        except Exception:
+            pass
+
+    ora_fine_obj = None
+    if ora_inizio_obj and durata_val:
+        try:
+            start_dt = datetime.combine(data_check, ora_inizio_obj)
+            end_dt = start_dt + timedelta(minutes=int(round(durata_val * 60)))
+            ora_fine_obj = end_dt.time()
+        except Exception:
+            pass
+
+    destinatario_dip = squadra.caposquadra or squadra.componenti.first()
+
+    proposta = PropostaTurnoJolly.objects.create(
+        responsabile=dipendente,
+        squadra=squadra,
+        operatore=destinatario_dip,
+        cliente=cliente,
+        data=data_check,
+        ora_inizio=ora_inizio_obj,
+        ora_fine=ora_fine_obj,
+        durata_ore=durata_val,
+        note=st.get('note', ''),
+        stato='IN_ATTESA'
+    )
+
+    _TELEGRAM_STATE.pop(telegram_chat_id, None)
+
+    destinatari_da_notificare = []
+    if squadra.caposquadra and squadra.caposquadra.telegram_chat_id:
+        destinatari_da_notificare.append(squadra.caposquadra)
+    else:
+        for comp in squadra.componenti.all():
+            if comp.telegram_chat_id:
+                destinatari_da_notificare.append(comp)
+                break
+
+    msg_squadra = (
+        f"🔔 *Nuova Proposta di Turno per la Squadra {squadra.nome}*\n"
+        f"👤 Assegnato da: *{dipendente.nome} {dipendente.cognome}*\n\n"
+        f"🏢 **Azienda:** {cliente.ragione_sociale}\n"
+        f"📍 **Indirizzo:** {cliente.indirizzo_sede or 'Vedi scheda'}\n"
+        f"📅 **Data:** {proposta.data.strftime('%d/%m/%Y')}\n"
+    )
+    if proposta.ora_inizio:
+        msg_squadra += f"⏰ **Inizio:** {proposta.ora_inizio.strftime('%H:%M')}\n"
+    if proposta.durata_ore:
+        msg_squadra += f"⏱ **Durata:** {proposta.durata_ore} ore\n"
+    if proposta.note:
+        msg_squadra += f"📝 **Note:** {proposta.note}\n"
+    msg_squadra += f"\nTi viene assegnato questo turno per la tua squadra ({squadra.nome}). Confermi la disponibilità?"
+
+    kb_sq = {
+        'inline_keyboard': [
+            [
+                {'text': '✅ Accetta Turno Squadra', 'callback_data': f"jolly_accetta_{proposta.id}"},
+                {'text': '❌ Rifiuta Turno Squadra', 'callback_data': f"jolly_rifiuta_{proposta.id}"},
+            ]
+        ]
+    }
+
+    inviato_tg = False
+    for d in destinatari_da_notificare:
+        if send_telegram_message(d.telegram_chat_id, msg_squadra, reply_markup=kb_sq, parse_mode='Markdown'):
+            inviato_tg = True
+
+    avviso = ""
+    if not destinatari_da_notificare:
+        avviso = "\n\n⚠️ *Attenzione:* Nessun componente della squadra ha un account Telegram associato. Contattali telefonicamente."
+    elif not inviato_tg:
+        avviso = "\n\n⚠️ *Nota:* Non è stato possibile recapitare la notifica Telegram al referente della squadra."
+
+    capo_txt = f"{squadra.caposquadra.cognome} {squadra.caposquadra.nome}" if squadra.caposquadra else "N/D"
+
+    return {
+        'text': (
+            f"✅ *Proposta di Turno Inviata alla Squadra!*\n\n"
+            f"👥 **Squadra:** {squadra.nome}\n"
+            f"👤 **Referente:** {capo_txt}\n"
             f"🏢 **Azienda:** {cliente.ragione_sociale}\n"
             f"📅 **Data:** {proposta.data.strftime('%d/%m/%Y')}\n\n"
-            f"Non appena l'operatore accetterà o rifiuterà, riceverai una notifica qui in chat.{avviso}"
+            f"Non appena la squadra risponderà, riceverai una notifica qui in chat.{avviso}"
         ),
         'reply_markup': get_main_menu(dipendente),
         'parse_mode': 'Markdown'

@@ -39,18 +39,16 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(self.style.ERROR(f"HTTP ERROR: {response.status_code} - {response.text}"))
 
-            # Configura il tasto Menu in basso a sinistra per aprire la Scheda Web App
+            # Configura il tasto Menu in basso a sinistra per mostrare i comandi del bot ("Menu")
             menu_btn_url = f"https://api.telegram.org/bot{token}/setChatMenuButton"
             try:
                 btn_resp = requests.post(menu_btn_url, json={
                     "menu_button": {
-                        "type": "web_app",
-                        "text": "📱 Scheda",
-                        "web_app": {"url": f"{public_url}/app/"}
+                        "type": "commands"
                     }
                 }, timeout=8)
                 if btn_resp.status_code == 200 and btn_resp.json().get('ok'):
-                    self.stdout.write(self.style.SUCCESS("SUCCESS: Tasto Menu configurato per aprire la Scheda Web App!"))
+                    self.stdout.write(self.style.SUCCESS("SUCCESS: Tasto Menu configurato per mostrare i comandi del bot!"))
                 else:
                     self.stdout.write(self.style.WARNING(f"WARN: Impossibile impostare menu_button: {btn_resp.text}"))
             except Exception as e:
