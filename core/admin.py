@@ -616,7 +616,7 @@ class DipendenteAdmin(KandorBaseAdmin):
                 title,
                 ver,
             )
-        return format_html(
+        return mark_safe(
             '<span title="Informativa privacy non ancora accettata" style="display:inline-block; padding:2px 8px; border-radius:6px; background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; font-size:11px; font-weight:700; white-space:nowrap;">⏳ In attesa</span>'
         )
 
