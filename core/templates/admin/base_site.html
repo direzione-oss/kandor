@@ -4,7 +4,7 @@
 {% block title %}{{ title }} | KANDOR ERP  -   Enterprise Resource Planning{% endblock %}
 
 {% block extrastyle %}{{ block.super }}
-<link rel="stylesheet" href="{% static 'core/css/kandor_theme.css' %}?v=2.2">{% endblock %}
+<link rel="stylesheet" href="{% static 'core/css/kandor_theme.css' %}?v=2.3">{% endblock %}
 
 {% block branding %}
 <div id="branding">
@@ -25,6 +25,7 @@
 {% block footer %}
 {{ block.super }}
 {% include "admin/includes/sostituti_modal.html" %}
+{% include "admin/includes/table_scroll_helper.html" %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var errorNote = document.querySelector('.errornote');

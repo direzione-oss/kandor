@@ -506,3 +506,90 @@ table tr.form-row > td {
     overflow-x: auto !important;
 }
 
+/* --- OTTIMIZZAZIONE SCORRIMENTO ORIZZONTALE & STICKY COLUMNS KANDOR --- */
+.results {
+    position: relative;
+    overflow-x: auto !important;
+    border: 1px solid #CBD5E1 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+}
+
+/* Scrollbar orizzontale comoda e ben visibile */
+.results::-webkit-scrollbar {
+    width: 10px;
+    height: 12px;
+}
+.results::-webkit-scrollbar-track {
+    background: #F1F5F9;
+    border-radius: 6px;
+}
+.results::-webkit-scrollbar-thumb {
+    background: #64748B;
+    border-radius: 6px;
+    border: 2px solid #F1F5F9;
+}
+.results::-webkit-scrollbar-thumb:hover {
+    background: #2563EB;
+}
+
+/* Intestazioni tabella fisse in alto durante lo scroll verticale */
+#result_list thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #F8FAFC !important;
+    border-bottom: 2px solid #CBD5E1 !important;
+}
+
+/* Colonne fisse a sinistra (Checkbox, Foto e Cognome) */
+#result_list th.action-checkbox-column,
+#result_list td.action-checkbox {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #FFFFFF;
+}
+#result_list th.column-foto_avatar,
+#result_list td.field-foto_avatar {
+    position: sticky;
+    left: 36px;
+    z-index: 2;
+    background: #FFFFFF;
+}
+#result_list th.column-cognome,
+#result_list td.field-cognome {
+    position: sticky;
+    left: 82px;
+    z-index: 2;
+    background: #FFFFFF;
+    box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.08);
+}
+
+/* Intersezione Sticky Top + Sticky Left */
+#result_list thead th.action-checkbox-column {
+    z-index: 10 !important;
+    background: #F1F5F9 !important;
+}
+#result_list thead th.column-foto_avatar {
+    z-index: 10 !important;
+    background: #F1F5F9 !important;
+}
+#result_list thead th.column-cognome {
+    z-index: 10 !important;
+    background: #F1F5F9 !important;
+}
+
+/* Sfondo su righe alternate e hover per celle sticky */
+#result_list tbody tr:nth-child(even) td.action-checkbox,
+#result_list tbody tr:nth-child(even) td.field-foto_avatar,
+#result_list tbody tr:nth-child(even) td.field-cognome {
+    background: #F8FAFC;
+}
+#result_list tbody tr:hover td.action-checkbox,
+#result_list tbody tr:hover td.field-foto_avatar,
+#result_list tbody tr:hover td.field-cognome {
+    background: #E2E8F0 !important;
+}
+
+
