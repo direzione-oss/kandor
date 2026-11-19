@@ -238,7 +238,7 @@ def weekly_schedule_widget(context):
     import calendar
     import json
     from datetime import date as _date, datetime as _dt
-    from core.models import Turno, Squadra, AssegnazioneTurno
+    from core.models import Cliente, Turno, Squadra, AssegnazioneTurno
 
     request = context.get('request')
     today = timezone.now().date()
