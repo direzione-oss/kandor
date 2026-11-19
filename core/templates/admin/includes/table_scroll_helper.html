@@ -1,12 +1,22 @@
-<!-- Assistente di Scorrimento Orizzontale per Tabelle Ampie Kandor ERP (Dipendenti, Clienti, Turni, Timetrack) -->
+<!-- Assistente di Scorrimento & Testata Bloccata per Tabelle Ampie Kandor ERP -->
 <style>
-  /* Cursore grab per scorrimento orizzontale tramite trascinamento */
+  /* 1. CONTENITORE DATI DIPENDENTI: SCORRE SOLO L'INTERNO, LA TESTATA RESTA IMMOBILE */
   .results {
+    position: relative;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    border: 1px solid #CBD5E1 !important;
+    border-top: none !important;
+    border-radius: 0 0 10px 10px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
     cursor: grab;
     user-select: none;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: #94A3B8 #F1F5F9;
+    scrollbar-color: #64748B #F1F5F9;
+    /* L'altezza esatta viene calcolata e aggiornata via JS per riempire la finestra */
+    max-height: calc(100vh - 350px);
+    background: #FFFFFF;
   }
   .results.is-dragging {
     cursor: grabbing !important;
@@ -16,7 +26,87 @@
     cursor: auto;
   }
 
-  /* Barra di Scorrimento Superiore Sincronizzata */
+  /* Scrollbar interna verticale & orizzontale */
+  .results::-webkit-scrollbar {
+    width: 10px;
+    height: 12px;
+  }
+  .results::-webkit-scrollbar-track {
+    background: #F1F5F9;
+    border-radius: 6px;
+  }
+  .results::-webkit-scrollbar-thumb {
+    background: #64748B;
+    border-radius: 6px;
+    border: 2px solid #F1F5F9;
+  }
+  .results::-webkit-scrollbar-thumb:hover {
+    background: #2563EB;
+  }
+
+  /* 2. INTESTAZIONI COLONNE: SEMPRE BLOCCATE IN CIMA ALLA TABELLA QUANDO SCORRONO I DATI */
+  #result_list thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    background: #F1F5F9 !important;
+    color: #0F172A !important;
+    font-weight: 800 !important;
+    border-bottom: 2px solid #94A3B8 !important;
+    box-shadow: 0 3px 6px -1px rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Colonne fisse a sinistra (Checkbox, Foto, Cognome) */
+  #result_list th.action-checkbox-column,
+  #result_list td.action-checkbox {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 10 !important;
+    background: #FFFFFF;
+  }
+  #result_list th.column-foto_avatar,
+  #result_list td.field-foto_avatar {
+    position: sticky !important;
+    left: 36px !important;
+    z-index: 10 !important;
+    background: #FFFFFF;
+  }
+  #result_list th.column-cognome,
+  #result_list td.field-cognome {
+    position: sticky !important;
+    left: 82px !important;
+    z-index: 10 !important;
+    background: #FFFFFF;
+    box-shadow: 3px 0 6px -2px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Intersezione Intestazione + Colonne Fisse a Sinistra */
+  #result_list thead th.action-checkbox-column {
+    z-index: 30 !important;
+    background: #E2E8F0 !important;
+  }
+  #result_list thead th.column-foto_avatar {
+    z-index: 30 !important;
+    background: #E2E8F0 !important;
+  }
+  #result_list thead th.column-cognome {
+    z-index: 30 !important;
+    background: #E2E8F0 !important;
+  }
+
+  /* Sfondi alternati e hover per celle fisse */
+  #result_list tbody tr:nth-child(even) td.action-checkbox,
+  #result_list tbody tr:nth-child(even) td.field-foto_avatar,
+  #result_list tbody tr:nth-child(even) td.field-cognome {
+    background: #F8FAFC !important;
+  }
+  #result_list tbody tr:hover td.action-checkbox,
+  #result_list tbody tr:hover td.field-foto_avatar,
+  #result_list tbody tr:hover td.field-cognome {
+    background: #E2E8F0 !important;
+  }
+
+  /* 3. BARRA SUPERIORE DI SCORRIMENTO ORIZZONTALE (INTEGRATA E FERMA) */
   .kandor-top-scroll-container {
     background: #FFFFFF;
     border: 1px solid #CBD5E1;
@@ -26,7 +116,7 @@
     margin-top: 14px;
     margin-bottom: 0;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    display: none; /* attivato via JS solo se overflow */
+    display: none;
   }
 
   .kandor-top-scroll-header {
@@ -43,7 +133,7 @@
     align-items: center;
     gap: 6px;
     font-size: 0.82rem;
-    font-weight: 700;
+    font-weight: 800;
     color: #1E40AF;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -77,11 +167,8 @@
     transform: translateY(-1px);
     box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
   }
-  .kandor-scroll-btn:active {
-    transform: translateY(0);
-  }
 
-  /* Traccia scrollbar superiore fittizia sincronizzata */
+  /* Traccia scrollbar orizzontale superiore sincronizzata */
   .kandor-top-scrollbar-track {
     width: 100%;
     overflow-x: auto;
@@ -110,104 +197,10 @@
     display: block;
   }
 
-  /* BARRA FLOTTANTE INFERIORE (Sticky Floating Bottom Scrollbar) */
-  .kandor-floating-scrollbar-bar {
-    position: fixed;
-    bottom: 18px;
-    left: 50%;
-    transform: translateX(-50%) translateY(120%);
-    z-index: 1050;
-    background: rgba(15, 23, 42, 0.92);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 999px;
-    padding: 8px 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
-    opacity: 0;
-    pointer-events: none;
-    max-width: 90vw;
-    width: 580px;
-    color: #FFFFFF;
-  }
-  .kandor-floating-scrollbar-bar.is-visible {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .kandor-floating-scrollbar-bar .kandor-fl-btn {
-    background: rgba(255, 255, 255, 0.12);
-    color: #FFFFFF;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 6px 13px;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    white-space: nowrap;
-  }
-  .kandor-floating-scrollbar-bar .kandor-fl-btn:hover {
-    background: #2563EB;
-    border-color: #60A5FA;
-    transform: scale(1.04);
-  }
-
-  .kandor-floating-range {
-    flex: 1;
-    -webkit-appearance: none;
-    appearance: none;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: 999px;
-    outline: none;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .kandor-floating-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #60A5FA;
-    border: 2px solid #FFFFFF;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    cursor: pointer;
-    transition: transform 0.15s ease, background 0.15s ease;
-  }
-  .kandor-floating-range::-webkit-slider-thumb:hover {
-    transform: scale(1.15);
-    background: #3B82F6;
-  }
-  .kandor-floating-range::-moz-range-thumb {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #60A5FA;
-    border: 2px solid #FFFFFF;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    cursor: pointer;
-  }
-
-  .kandor-floating-badge {
-    font-size: 0.74rem;
-    font-weight: 700;
-    color: #93C5FD;
-    min-width: 42px;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  /* PULSANTI FLOTTANTI LATERALI SCHERMO (Fissi a bordo pagina per scorrimento con 1 clic) */
+  /* 4. PULSANTI FLOTTANTI LATERALI AI BORDI DELLO SCHERMO */
   .kandor-edge-nav-btn {
     position: fixed;
-    top: 50%;
+    top: 55%;
     transform: translateY(-50%);
     width: 44px;
     height: 52px;
@@ -228,7 +221,7 @@
     pointer-events: none;
   }
   .kandor-edge-nav-btn.is-active {
-    opacity: 0.82;
+    opacity: 0.85;
     pointer-events: auto;
   }
   .kandor-edge-nav-btn:hover {
@@ -244,11 +237,14 @@
     right: 14px;
   }
 
-  /* Suggerimento visivo leggero */
-  .kandor-scroll-hint {
-    font-size: 0.74rem;
-    color: #64748B;
-    font-weight: normal;
+  /* 5. PANNELLO FILTRI A DESTRA (Sticky e scrollabile in modo indipendente) */
+  #changelist-filter {
+    position: sticky !important;
+    top: 15px !important;
+    max-height: calc(100vh - 120px) !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #94A3B8 #F1F5F9;
   }
 </style>
 
@@ -259,284 +255,193 @@
     var tableEl = resultsEl ? resultsEl.querySelector('table#result_list, table') : null;
     if (!resultsEl || !tableEl) return;
 
-    // Verifica se la tabella fuoriesce orizzontalmente
-    function checkOverflow() {
-      return (resultsEl.scrollWidth - resultsEl.clientWidth) > 15;
+    // CALCOLA E IMPOSTA L'ALTEZZA OTTIMALE DI .results PER NON FAR SCROLLARE LA PAGINA
+    function updateResultsHeight() {
+      if (!resultsEl) return;
+      var rect = resultsEl.getBoundingClientRect();
+      var winHeight = window.innerHeight || document.documentElement.clientHeight;
+      var paginator = document.querySelector('.paginator, .changelist-footer');
+      var bottomMargin = paginator ? (paginator.offsetHeight + 18) : 50;
+
+      // Spazio rimanente dalla posizione attuale di .results fino al fondo finestra
+      var available = winHeight - rect.top - bottomMargin;
+      var finalHeight = Math.max(available, 380);
+
+      resultsEl.style.height = finalHeight + 'px';
+      resultsEl.style.maxHeight = finalHeight + 'px';
     }
 
-    if (!checkOverflow()) {
-      // Se non c'è overflow al momento, riprova dopo breve ritardo (nel caso di immagini o font in caricamento)
-      setTimeout(function() {
-        if (checkOverflow()) setupEnhancer();
-      }, 350);
-      return;
+    // 1. CREA LA BARRA SUPERIORE DI SCORRIMENTO SINCRONIZZATA
+    if (!document.getElementById('kandor-top-scroll-wrap')) {
+      var topWrap = document.createElement('div');
+      topWrap.id = 'kandor-top-scroll-wrap';
+      topWrap.className = 'kandor-top-scroll-container';
+      topWrap.innerHTML = `
+        <div class="kandor-top-scroll-header">
+          <div class="kandor-top-scroll-title">
+            <span>↔️ Scorrimento Orizzontale Tabella</span>
+            <span style="font-size:0.74rem; color:#64748B; font-weight:normal;">(Trascina con il mouse o usa i pulsanti)</span>
+          </div>
+          <div class="kandor-scroll-btn-group">
+            <button type="button" class="kandor-scroll-btn" id="kandor-btn-start" title="Vai all'inizio (sinistra)">⏮️ Inizio</button>
+            <button type="button" class="kandor-scroll-btn" id="kandor-btn-left" title="Scorri a sinistra">◀️ Sinistra</button>
+            <button type="button" class="kandor-scroll-btn" id="kandor-btn-right" title="Scorri a destra">Destra ▶️</button>
+            <button type="button" class="kandor-scroll-btn" id="kandor-btn-end" title="Vai alla fine (destra)">Fine ⏭️</button>
+          </div>
+        </div>
+        <div class="kandor-top-scrollbar-track" id="kandor-top-track">
+          <div class="kandor-top-scrollbar-dummy" id="kandor-top-dummy"></div>
+        </div>
+      `;
+      resultsEl.parentNode.insertBefore(topWrap, resultsEl);
     }
 
-    setupEnhancer();
+    var topWrapEl = document.getElementById('kandor-top-scroll-wrap');
+    var topTrack = document.getElementById('kandor-top-track');
+    var topDummy = document.getElementById('kandor-top-dummy');
 
-    function setupEnhancer() {
-      // 1. CREA LA BARRA SUPERIORE DI SCORRIMENTO SINCRONIZZATA
-      if (!document.getElementById('kandor-top-scroll-wrap')) {
-        var topWrap = document.createElement('div');
-        topWrap.id = 'kandor-top-scroll-wrap';
-        topWrap.className = 'kandor-top-scroll-container';
-        topWrap.innerHTML = `
-          <div class="kandor-top-scroll-header">
-            <div class="kandor-top-scroll-title">
-              <span>↔️ Scorrimento Orizzontale Tabella</span>
-              <span class="kandor-scroll-hint">(Usa la barra, i pulsanti o trascina con il mouse)</span>
-            </div>
-            <div class="kandor-scroll-btn-group">
-              <button type="button" class="kandor-scroll-btn" id="kandor-btn-start" title="Vai all'inizio (sinistra)">⏮️ Inizio</button>
-              <button type="button" class="kandor-scroll-btn" id="kandor-btn-left" title="Scorri a sinistra">◀️ Sinistra</button>
-              <button type="button" class="kandor-scroll-btn" id="kandor-btn-right" title="Scorri a destra">Destra ▶️</button>
-              <button type="button" class="kandor-scroll-btn" id="kandor-btn-end" title="Vai alla fine (destra)">Fine ⏭️</button>
-            </div>
-          </div>
-          <div class="kandor-top-scrollbar-track" id="kandor-top-track">
-            <div class="kandor-top-scrollbar-dummy" id="kandor-top-dummy"></div>
-          </div>
-        `;
-        resultsEl.parentNode.insertBefore(topWrap, resultsEl);
-      }
+    // 2. CREA I PULSANTI FLOTTANTI LATERALI DELLO SCHERMO
+    if (!document.getElementById('kandor-edge-btn-left')) {
+      var edgeLeft = document.createElement('button');
+      edgeLeft.id = 'kandor-edge-btn-left';
+      edgeLeft.className = 'kandor-edge-nav-btn kandor-edge-left';
+      edgeLeft.innerHTML = '‹';
+      edgeLeft.title = 'Scorri tabella a sinistra';
+      document.body.appendChild(edgeLeft);
 
-      var topWrapEl = document.getElementById('kandor-top-scroll-wrap');
-      var topTrack = document.getElementById('kandor-top-track');
-      var topDummy = document.getElementById('kandor-top-dummy');
+      var edgeRight = document.createElement('button');
+      edgeRight.id = 'kandor-edge-btn-right';
+      edgeRight.className = 'kandor-edge-nav-btn kandor-edge-right';
+      edgeRight.innerHTML = '›';
+      edgeRight.title = 'Scorri tabella a destra';
+      document.body.appendChild(edgeRight);
+    }
 
-      // 2. CREA LA BARRA FLOTTANTE INFERIORE (Sticky Floating Bottom Scrollbar)
-      if (!document.getElementById('kandor-floating-bar')) {
-        var floatBar = document.createElement('div');
-        floatBar.id = 'kandor-floating-bar';
-        floatBar.className = 'kandor-floating-scrollbar-bar';
-        floatBar.innerHTML = `
-          <button type="button" class="kandor-fl-btn" id="kandor-fl-left">◀ Sinistra</button>
-          <input type="range" class="kandor-floating-range" id="kandor-fl-range" min="0" max="100" value="0" step="1" title="Trascina per scorrere orizzontalmente">
-          <span class="kandor-floating-badge" id="kandor-fl-badge">0%</span>
-          <button type="button" class="kandor-fl-btn" id="kandor-fl-right">Destra ▶</button>
-        `;
-        document.body.appendChild(floatBar);
-      }
+    var edgeLeftBtn = document.getElementById('kandor-edge-btn-left');
+    var edgeRightBtn = document.getElementById('kandor-edge-btn-right');
 
-      var floatBarEl = document.getElementById('kandor-floating-bar');
-      var floatRange = document.getElementById('kandor-fl-range');
-      var floatBadge = document.getElementById('kandor-fl-badge');
-      var floatLeftBtn = document.getElementById('kandor-fl-left');
-      var floatRightBtn = document.getElementById('kandor-fl-right');
-
-      // 3. CREA I PULSANTI FLOTTANTI LATERALI DELLO SCHERMO
-      if (!document.getElementById('kandor-edge-btn-left')) {
-        var edgeLeft = document.createElement('button');
-        edgeLeft.id = 'kandor-edge-btn-left';
-        edgeLeft.className = 'kandor-edge-nav-btn kandor-edge-left';
-        edgeLeft.innerHTML = '‹';
-        edgeLeft.title = 'Scorri tabella a sinistra';
-        document.body.appendChild(edgeLeft);
-
-        var edgeRight = document.createElement('button');
-        edgeRight.id = 'kandor-edge-btn-right';
-        edgeRight.className = 'kandor-edge-nav-btn kandor-edge-right';
-        edgeRight.innerHTML = '›';
-        edgeRight.title = 'Scorri tabella a destra';
-        document.body.appendChild(edgeRight);
-      }
-
-      var edgeLeftBtn = document.getElementById('kandor-edge-btn-left');
-      var edgeRightBtn = document.getElementById('kandor-edge-btn-right');
-
-      // SINCRONIZZAZIONE LARGHEZZE E STATO
-      function syncDimensions() {
-        var maxScroll = resultsEl.scrollWidth - resultsEl.clientWidth;
-        if (maxScroll > 10) {
-          topWrapEl.style.display = 'block';
-          topDummy.style.width = resultsEl.scrollWidth + 'px';
-          updateScrollPosition();
-        } else {
-          topWrapEl.style.display = 'none';
-          floatBarEl.classList.remove('is-visible');
-          edgeLeftBtn.classList.remove('is-active');
-          edgeRightBtn.classList.remove('is-active');
-        }
-      }
-
-      var isSyncingFromTop = false;
-      var isSyncingFromResults = false;
-
-      function updateScrollPosition() {
-        var maxScroll = resultsEl.scrollWidth - resultsEl.clientWidth;
-        if (maxScroll <= 0) return;
-        var ratio = resultsEl.scrollLeft / maxScroll;
-        var pct = Math.round(ratio * 100);
-
-        if (!isSyncingFromTop && topTrack) {
-          topTrack.scrollLeft = resultsEl.scrollLeft;
-        }
-
-        if (floatRange) floatRange.value = pct;
-        if (floatBadge) floatBadge.textContent = pct + '%';
-
-        // Aggiorna stato pulsanti bordo
-        if (edgeLeftBtn && edgeRightBtn) {
-          edgeLeftBtn.style.opacity = resultsEl.scrollLeft > 10 ? '0.85' : '0.25';
-          edgeRightBtn.style.opacity = resultsEl.scrollLeft < (maxScroll - 10) ? '0.85' : '0.25';
-        }
-      }
-
-      // Scroll della tabella verso Top Track
-      resultsEl.addEventListener('scroll', function() {
-        if (isSyncingFromTop) return;
-        isSyncingFromResults = true;
+    // SINCRONIZZAZIONE LARGHEZZE E SCORRIMENTO ORIZZONTALE
+    function syncDimensions() {
+      updateResultsHeight();
+      var maxScroll = resultsEl.scrollWidth - resultsEl.clientWidth;
+      if (maxScroll > 10) {
+        topWrapEl.style.display = 'block';
+        topDummy.style.width = resultsEl.scrollWidth + 'px';
         updateScrollPosition();
-        isSyncingFromResults = false;
-      }, { passive: true });
+        edgeLeftBtn.classList.add('is-active');
+        edgeRightBtn.classList.add('is-active');
+      } else {
+        topWrapEl.style.display = 'none';
+        edgeLeftBtn.classList.remove('is-active');
+        edgeRightBtn.classList.remove('is-active');
+      }
+    }
 
-      // Scroll del Top Track verso Tabella
-      topTrack.addEventListener('scroll', function() {
-        if (isSyncingFromResults) return;
-        isSyncingFromTop = true;
-        resultsEl.scrollLeft = topTrack.scrollLeft;
-        updateScrollPosition();
-        isSyncingFromTop = false;
-      }, { passive: true });
+    var isSyncingFromTop = false;
+    var isSyncingFromResults = false;
 
-      // Range slider flottante
-      floatRange.addEventListener('input', function() {
-        var maxScroll = resultsEl.scrollWidth - resultsEl.clientWidth;
-        var targetLeft = (parseFloat(floatRange.value) / 100) * maxScroll;
-        resultsEl.scrollLeft = targetLeft;
-        updateScrollPosition();
-      });
+    function updateScrollPosition() {
+      var maxScroll = resultsEl.scrollWidth - resultsEl.clientWidth;
+      if (maxScroll <= 0) return;
 
-      // Funzione di scorrimento graduale
-      function scrollByDelta(delta) {
-        resultsEl.scrollBy({ left: delta, behavior: 'smooth' });
+      if (!isSyncingFromTop && topTrack) {
+        topTrack.scrollLeft = resultsEl.scrollLeft;
       }
 
-      // Eventi pulsanti barra superiore
-      document.getElementById('kandor-btn-start').addEventListener('click', function() {
-        resultsEl.scrollTo({ left: 0, behavior: 'smooth' });
-      });
-      document.getElementById('kandor-btn-end').addEventListener('click', function() {
-        resultsEl.scrollTo({ left: resultsEl.scrollWidth, behavior: 'smooth' });
-      });
-      document.getElementById('kandor-btn-left').addEventListener('click', function() {
-        scrollByDelta(-380);
-      });
-      document.getElementById('kandor-btn-right').addEventListener('click', function() {
-        scrollByDelta(380);
-      });
-
-      // Eventi pulsanti barra flottante
-      floatLeftBtn.addEventListener('click', function() {
-        scrollByDelta(-380);
-      });
-      floatRightBtn.addEventListener('click', function() {
-        scrollByDelta(380);
-      });
-
-      // Eventi pulsanti bordi schermo
-      edgeLeftBtn.addEventListener('click', function() {
-        scrollByDelta(-450);
-      });
-      edgeRightBtn.addEventListener('click', function() {
-        scrollByDelta(450);
-      });
-
-      // VISIBILITÀ BARRA FLOTTANTE & PULSANTI BORDO IN BASE AL VERTICAL SCROLL
-      function handleWindowScroll() {
-        var maxScroll = resultsEl.scrollWidth - resultsEl.clientWidth;
-        if (maxScroll <= 10) {
-          floatBarEl.classList.remove('is-visible');
-          edgeLeftBtn.classList.remove('is-active');
-          edgeRightBtn.classList.remove('is-active');
-          return;
-        }
-
-        var rect = resultsEl.getBoundingClientRect();
-        var winHeight = window.innerHeight || document.documentElement.clientHeight;
-
-        // La tabella è parzialmente visibile nello schermo
-        var isTableInView = rect.top < (winHeight - 60) && rect.bottom > 120;
-        // Il fondo della tabella è ancora fuori dallo schermo (più in basso)
-        var bottomIsOffscreen = rect.bottom > winHeight;
-
-        if (isTableInView && bottomIsOffscreen) {
-          floatBarEl.classList.add('is-visible');
-        } else {
-          floatBarEl.classList.remove('is-visible');
-        }
-
-        if (isTableInView) {
-          edgeLeftBtn.classList.add('is-active');
-          edgeRightBtn.classList.add('is-active');
-        } else {
-          edgeLeftBtn.classList.remove('is-active');
-          edgeRightBtn.classList.remove('is-active');
-        }
+      if (edgeLeftBtn && edgeRightBtn) {
+        edgeLeftBtn.style.opacity = resultsEl.scrollLeft > 10 ? '0.85' : '0.25';
+        edgeRightBtn.style.opacity = resultsEl.scrollLeft < (maxScroll - 10) ? '0.85' : '0.25';
       }
+    }
 
-      window.addEventListener('scroll', handleWindowScroll, { passive: true });
-      window.addEventListener('resize', function() {
-        syncDimensions();
-        handleWindowScroll();
-      }, { passive: true });
+    // Scroll della tabella verso Top Track
+    resultsEl.addEventListener('scroll', function() {
+      if (isSyncingFromTop) return;
+      isSyncingFromResults = true;
+      updateScrollPosition();
+      isSyncingFromResults = false;
+    }, { passive: true });
 
-      // DRAG TO SCROLL (Trascina con il mouse)
-      var isDown = false;
-      var startX = 0;
-      var scrollLeftStart = 0;
-      var hasMoved = false;
+    // Scroll del Top Track verso Tabella
+    topTrack.addEventListener('scroll', function() {
+      if (isSyncingFromResults) return;
+      isSyncingFromTop = true;
+      resultsEl.scrollLeft = topTrack.scrollLeft;
+      updateScrollPosition();
+      isSyncingFromTop = false;
+    }, { passive: true });
 
-      resultsEl.addEventListener('mousedown', function(e) {
-        // Ignora clic su elementi interattivi
-        if (e.target.closest('a, button, input, select, label, textarea, .action-checkbox')) {
-          return;
-        }
-        isDown = true;
-        hasMoved = false;
-        resultsEl.classList.add('is-dragging');
-        startX = e.pageX - resultsEl.offsetLeft;
-        scrollLeftStart = resultsEl.scrollLeft;
-      });
+    function scrollByDelta(delta) {
+      resultsEl.scrollBy({ left: delta, behavior: 'smooth' });
+    }
 
-      window.addEventListener('mouseup', function() {
-        if (!isDown) return;
-        isDown = false;
-        resultsEl.classList.remove('is-dragging');
-      });
+    // Pulsanti barra superiore
+    document.getElementById('kandor-btn-start').addEventListener('click', function() {
+      resultsEl.scrollTo({ left: 0, behavior: 'smooth' });
+    });
+    document.getElementById('kandor-btn-end').addEventListener('click', function() {
+      resultsEl.scrollTo({ left: resultsEl.scrollWidth, behavior: 'smooth' });
+    });
+    document.getElementById('kandor-btn-left').addEventListener('click', function() {
+      scrollByDelta(-380);
+    });
+    document.getElementById('kandor-btn-right').addEventListener('click', function() {
+      scrollByDelta(380);
+    });
 
-      window.addEventListener('mousemove', function(e) {
-        if (!isDown) return;
+    // Pulsanti bordi laterali
+    edgeLeftBtn.addEventListener('click', function() {
+      scrollByDelta(-450);
+    });
+    edgeRightBtn.addEventListener('click', function() {
+      scrollByDelta(450);
+    });
+
+    window.addEventListener('resize', syncDimensions, { passive: true });
+
+    // DRAG TO SCROLL (Trascina orizzontalmente con il mouse)
+    var isDown = false;
+    var startX = 0;
+    var scrollLeftStart = 0;
+
+    resultsEl.addEventListener('mousedown', function(e) {
+      if (e.target.closest('a, button, input, select, label, textarea, .action-checkbox')) {
+        return;
+      }
+      isDown = true;
+      resultsEl.classList.add('is-dragging');
+      startX = e.pageX - resultsEl.offsetLeft;
+      scrollLeftStart = resultsEl.scrollLeft;
+    });
+
+    window.addEventListener('mouseup', function() {
+      if (!isDown) return;
+      isDown = false;
+      resultsEl.classList.remove('is-dragging');
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!isDown) return;
+      e.preventDefault();
+      var x = e.pageX - resultsEl.offsetLeft;
+      var walk = (x - startX) * 1.35;
+      resultsEl.scrollLeft = scrollLeftStart - walk;
+    });
+
+    // SCROLL ROTTA MOUSE ORIZZONTALE CON SHIFT O ALT
+    resultsEl.addEventListener('wheel', function(e) {
+      if (e.shiftKey) return;
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      if (e.altKey && e.deltaY !== 0) {
         e.preventDefault();
-        var x = e.pageX - resultsEl.offsetLeft;
-        var walk = (x - startX) * 1.35; // moltiplicatore velocità drag
-        if (Math.abs(walk) > 4) {
-          hasMoved = true;
-        }
-        resultsEl.scrollLeft = scrollLeftStart - walk;
-      });
+        resultsEl.scrollLeft += e.deltaY * 1.5;
+      }
+    }, { passive: false });
 
-      // SCROLL ROTTA MOUSE ORIZZONTALE CON SHIFT O NATIVO
-      resultsEl.addEventListener('wheel', function(e) {
-        if (e.shiftKey) {
-          // Gestito nativamente dal browser con shift
-          return;
-        }
-        // Se c'è solo movimento orizzontale
-        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-          return;
-        }
-        // Se l'utente preme Alt mentre scrolla con la rotellina, scorre orizzontalmente
-        if (e.altKey && e.deltaY !== 0) {
-          e.preventDefault();
-          resultsEl.scrollLeft += e.deltaY * 1.5;
-        }
-      }, { passive: false });
-
-      // Inizializza
-      syncDimensions();
-      handleWindowScroll();
-    }
+    // Inizializza subito e dopo caricamento immagini/font
+    syncDimensions();
+    setTimeout(syncDimensions, 250);
+    setTimeout(syncDimensions, 750);
   }
 
   if (document.readyState === 'loading') {
