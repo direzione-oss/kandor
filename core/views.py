@@ -1188,10 +1188,19 @@ def telegram_webhook_view(request):
                         payload['parse_mode'] = response['parse_mode']
                     try:
                         res = req.post(send_url, json=payload, timeout=8)
-                        if res.status_code != 200 and 'parse_mode' in payload:
-                            fb = dict(payload)
-                            fb.pop('parse_mode', None)
-                            req.post(send_url, json=fb, timeout=8)
+                        if res.status_code != 200:
+                            print(f"[Telegram Send Error] Callback: {res.status_code} - {res.text}")
+                            if 'parse_mode' in payload:
+                                fb = dict(payload)
+                                fb.pop('parse_mode', None)
+                                res2 = req.post(send_url, json=fb, timeout=8)
+                                if res2.status_code != 200 and 'reply_markup' in fb:
+                                    fb.pop('reply_markup', None)
+                                    req.post(send_url, json=fb, timeout=8)
+                            elif 'reply_markup' in payload:
+                                fb = dict(payload)
+                                fb.pop('reply_markup', None)
+                                req.post(send_url, json=fb, timeout=8)
                     except Exception as e:
                         print(f"[Telegram Error] Callback Send: {e}")
                 
@@ -1320,10 +1329,19 @@ def telegram_webhook_view(request):
                     
                     try:
                         res = req.post(send_url, json=payload, timeout=8)
-                        if res.status_code != 200 and 'parse_mode' in payload:
-                            fb = dict(payload)
-                            fb.pop('parse_mode', None)
-                            req.post(send_url, json=fb, timeout=8)
+                        if res.status_code != 200:
+                            print(f"[Telegram Send Error] Message: {res.status_code} - {res.text}")
+                            if 'parse_mode' in payload:
+                                fb = dict(payload)
+                                fb.pop('parse_mode', None)
+                                res2 = req.post(send_url, json=fb, timeout=8)
+                                if res2.status_code != 200 and 'reply_markup' in fb:
+                                    fb.pop('reply_markup', None)
+                                    req.post(send_url, json=fb, timeout=8)
+                            elif 'reply_markup' in payload:
+                                fb = dict(payload)
+                                fb.pop('reply_markup', None)
+                                req.post(send_url, json=fb, timeout=8)
                         # Salva risposta bot nello storico (anche se il dipendente si è appena accreditato)
                         if not dip:
                             from .models import Dipendente

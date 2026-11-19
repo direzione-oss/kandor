@@ -38,6 +38,45 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.ERROR(f"TELEGRAM ERROR: {result.get('description')}"))
             else:
                 self.stdout.write(self.style.ERROR(f"HTTP ERROR: {response.status_code} - {response.text}"))
+
+            # Configura il tasto Menu in basso a sinistra per aprire la Scheda Web App
+            menu_btn_url = f"https://api.telegram.org/bot{token}/setChatMenuButton"
+            try:
+                btn_resp = requests.post(menu_btn_url, json={
+                    "menu_button": {
+                        "type": "web_app",
+                        "text": "📱 Scheda",
+                        "web_app": {"url": f"{public_url}/app/"}
+                    }
+                }, timeout=8)
+                if btn_resp.status_code == 200 and btn_resp.json().get('ok'):
+                    self.stdout.write(self.style.SUCCESS("SUCCESS: Tasto Menu configurato per aprire la Scheda Web App!"))
+                else:
+                    self.stdout.write(self.style.WARNING(f"WARN: Impossibile impostare menu_button: {btn_resp.text}"))
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f"WARN: Eccezione menu_button: {e}"))
+
+            # Configura l'elenco dei comandi bot
+            cmd_url = f"https://api.telegram.org/bot{token}/setMyCommands"
+            try:
+                cmd_resp = requests.post(cmd_url, json={
+                    "commands": [
+                        {"command": "start", "description": "Menu principale"},
+                        {"command": "scheda", "description": "Apri la tua Scheda Web App"},
+                        {"command": "ore", "description": "Registra ore lavorate"},
+                        {"command": "calendario", "description": "Visualizza il tuo calendario turni"},
+                        {"command": "malattia", "description": "Comunica assenza per malattia"},
+                        {"command": "ferie", "description": "Richiedi ferie"},
+                        {"command": "permesso", "description": "Richiedi permesso"},
+                        {"command": "buste_paga", "description": "Consulta le tue buste paga"},
+                        {"command": "segnalazione", "description": "Invia una segnalazione"},
+                        {"command": "nuovocliente", "description": "Registra nuovo cliente (Solo Responsabili)"},
+                    ]
+                }, timeout=8)
+                if cmd_resp.status_code == 200 and cmd_resp.json().get('ok'):
+                    self.stdout.write(self.style.SUCCESS("SUCCESS: Comandi bot Telegram aggiornati!"))
+            except Exception as e:
+                self.stdout.write(self.style.WARNING(f"WARN: Eccezione setMyCommands: {e}"))
                 
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"EXCEPTION: {str(e)}"))

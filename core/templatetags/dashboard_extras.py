@@ -938,3 +938,95 @@ def expiring_contracts_widget():
         'contracts': contracts,
         'has_expiring': bool(contracts),
     }
+
+
+@register.inclusion_tag('admin/widgets/alert_clienti_dati_mancanti_widget.html', takes_context=True)
+def alert_clienti_dati_mancanti_widget(context):
+    """
+    Widget di notifica in evidenza sulla Home del Portale:
+    ricorda all'amministrazione e ai responsabili di recuperare i dati mancanti dei clienti
+    (P.IVA/CF, indirizzo sede, canone contrattuale) per poter fatturare a fine mese.
+    """
+    from core.models import Cliente, AssegnazioneTurno, ProgrammazioneRicorrente, RichiestaStraordinaria
+    import datetime, re
+
+    today = timezone.now().date()
+    inizio_mese = datetime.date(today.year, today.month, 1)
+
+    try:
+        con_turni = set(AssegnazioneTurno.objects.filter(turno__data__gte=inizio_mese).values_list('cliente_id', flat=True))
+        con_prog = set(ProgrammazioneRicorrente.objects.values_list('cliente_id', flat=True))
+        con_straord = set(RichiestaStraordinaria.objects.filter(data_inizio__gte=inizio_mese).values_list('cliente_id', flat=True))
+        operativi_ids = con_turni | con_prog | con_straord
+
+        critici = []
+        altri_senza_canone = []
+
+        for c in Cliente.objects.all().order_by('ragione_sociale'):
+            note_lower = (c.note_mansioni or '').lower()
+            is_tg = 'telegram' in note_lower
+            is_operativo = c.id in operativi_ids
+
+            has_piva_cf = bool((c.partita_iva and c.partita_iva.strip()) or (c.codice_fiscale and c.codice_fiscale.strip()))
+            has_indirizzo = bool(c.indirizzo_sede and len(c.indirizzo_sede.strip()) >= 3)
+            has_canone = bool((c.importo_mensile_contratto and c.importo_mensile_contratto > 0) or (c.ore_mensili_contratto and c.ore_mensili_contratto > 0))
+
+            mancanti = []
+            if not has_piva_cf:
+                mancanti.append("Partita IVA / Codice Fiscale")
+            if not has_indirizzo:
+                mancanti.append("Indirizzo sede legale")
+            if not has_canone:
+                mancanti.append("Canone mensile o Ore contratto")
+
+            if not mancanti:
+                continue
+
+            resp_tg = None
+            if is_tg:
+                m_resp = re.search(r'registrato via bot telegram da (.*?)(?:$|\.|\n)', c.note_mansioni or '', re.IGNORECASE)
+                if m_resp:
+                    resp_tg = m_resp.group(1).strip()
+
+            if is_tg:
+                critici.append({
+                    'cliente': c,
+                    'mancanti': mancanti,
+                    'is_telegram': True,
+                    'is_operativo': is_operativo,
+                    'responsabile_registrazione': resp_tg,
+                    'priorita': 1,
+                    'motivo': "Registrato da Telegram (da completare)",
+                })
+            elif is_operativo and (not has_piva_cf or not has_indirizzo):
+                critici.append({
+                    'cliente': c,
+                    'mancanti': mancanti,
+                    'is_telegram': False,
+                    'is_operativo': True,
+                    'responsabile_registrazione': None,
+                    'priorita': 2,
+                    'motivo': "Cliente Operativo con dati fiscali mancanti",
+                })
+            elif is_operativo and not has_canone:
+                altri_senza_canone.append({
+                    'cliente': c,
+                    'mancanti': mancanti,
+                    'is_telegram': False,
+                    'is_operativo': True,
+                })
+
+        critici.sort(key=lambda x: (x['priorita'], x['cliente'].ragione_sociale.lower()))
+        return {
+            'clienti_critici': critici,
+            'totale_critici': len(critici),
+            'altri_senza_canone': altri_senza_canone,
+            'totale_altri_senza_canone': len(altri_senza_canone),
+        }
+    except Exception:
+        return {
+            'clienti_critici': [],
+            'totale_critici': 0,
+            'altri_senza_canone': [],
+            'totale_altri_senza_canone': 0,
+        }

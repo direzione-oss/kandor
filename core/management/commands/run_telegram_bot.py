@@ -203,10 +203,19 @@ class Command(BaseCommand):
                             json=payload,
                             timeout=8
                         )
-                        if res.status_code != 200 and 'parse_mode' in payload:
-                            fb = dict(payload)
-                            fb.pop('parse_mode', None)
-                            requests.post(f"{base_url}/sendMessage", json=fb, timeout=8)
+                        if res.status_code != 200:
+                            self.stderr.write(f"[Telegram Bot Error] {res.status_code}: {res.text}")
+                            if 'parse_mode' in payload:
+                                fb = dict(payload)
+                                fb.pop('parse_mode', None)
+                                res2 = requests.post(f"{base_url}/sendMessage", json=fb, timeout=8)
+                                if res2.status_code != 200 and 'reply_markup' in fb:
+                                    fb.pop('reply_markup', None)
+                                    requests.post(f"{base_url}/sendMessage", json=fb, timeout=8)
+                            elif 'reply_markup' in payload:
+                                fb = dict(payload)
+                                fb.pop('reply_markup', None)
+                                requests.post(f"{base_url}/sendMessage", json=fb, timeout=8)
                         if dip and testo_out:
                             try:
                                 MessaggioChat.objects.create(

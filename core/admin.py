@@ -1155,12 +1155,81 @@ class RichiestaStraordinariaAdmin(KandorBaseAdmin):
     search_fields = ('cliente__ragione_sociale', 'descrizione', 'numero_fattura_rif')
     autocomplete_fields = ('cliente',)
 
+class DatiFatturazioneFilter(admin.SimpleListFilter):
+    title = 'Dati per Fatturazione'
+    parameter_name = 'dati_fatturazione'
+
+    def __init__(self, request, params, model, model_admin):
+        if params and isinstance(params, dict) and self.parameter_name in params:
+            val = params[self.parameter_name]
+            if isinstance(val, str):
+                params = dict(params)
+                params[self.parameter_name] = [val]
+        super().__init__(request, params, model, model_admin)
+
+    def lookups(self, request, model_admin):
+        return (
+            ('incompleti', '⚠️ Dati mancanti (Critici)'),
+            ('telegram', '🤖 Registrati da Bot Telegram'),
+            ('completi', '✅ Dati completi per fatturazione'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'incompleti':
+            from django.db.models import Q
+            return queryset.filter(
+                ((Q(partita_iva__isnull=True) | Q(partita_iva='')) &
+                 (Q(codice_fiscale__isnull=True) | Q(codice_fiscale=''))) |
+                Q(indirizzo_sede='') | Q(indirizzo_sede__isnull=True) |
+                Q(note_mansioni__icontains='telegram')
+            )
+        elif self.value() == 'telegram':
+            return queryset.filter(note_mansioni__icontains='telegram')
+        elif self.value() == 'completi':
+            from django.db.models import Q
+            return queryset.filter(
+                (Q(partita_iva__isnull=False) & ~Q(partita_iva='')) |
+                (Q(codice_fiscale__isnull=False) & ~Q(codice_fiscale=''))
+            ).filter(
+                indirizzo_sede__isnull=False
+            ).exclude(indirizzo_sede='')
+        return queryset
+
+
 @admin.register(Cliente)
 class ClienteAdmin(KandorBaseAdmin):
-    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge', 'pdf_turni_badge')
-    search_fields = ('ragione_sociale', 'partita_iva')
+    list_display = ('ragione_sociale', 'fatturazione_badge', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge', 'pdf_turni_badge')
+    list_filter = (DatiFatturazioneFilter,)
+    search_fields = ('ragione_sociale', 'partita_iva', 'codice_fiscale')
     inlines = [ProgrammazioneInline, StraordinarioInline, DotazioneCantiereInline, StoricoContrattoClienteInline]
     actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action', 'scarica_pdf_turni_settimana_action', 'scarica_pdf_turni_mese_action']
+
+    @admin.display(description="🧾 Fatturazione")
+    def fatturazione_badge(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        has_piva_cf = bool((obj.partita_iva and obj.partita_iva.strip()) or (obj.codice_fiscale and obj.codice_fiscale.strip()))
+        has_indirizzo = bool(obj.indirizzo_sede and len(obj.indirizzo_sede.strip()) >= 3)
+        has_canone = bool((obj.importo_mensile_contratto and obj.importo_mensile_contratto > 0) or (obj.ore_mensili_contratto and obj.ore_mensili_contratto > 0))
+
+        mancanti = []
+        if not has_piva_cf:
+            mancanti.append("P.IVA/CF")
+        if not has_indirizzo:
+            mancanti.append("Sede")
+        if not has_canone:
+            mancanti.append("Canone/Ore")
+
+        if not mancanti:
+            return mark_safe(
+                '<span style="background:#ECFDF5; color:#065F46; border:1px solid #A7F3D0; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;">✅ Pronta</span>'
+            )
+
+        lbl = ", ".join(mancanti)
+        return format_html(
+            '<span style="background:#FFF1F2; color:#E11D48; border:1px solid #FECDD3; padding:2px 7px; border-radius:6px; font-size:11px; font-weight:700;" title="Mancano: {}">⚠️ Mancano: {}</span>',
+            lbl, lbl
+        )
 
     @admin.display(description="📄 PDF Turni")
     def pdf_turni_badge(self, obj):

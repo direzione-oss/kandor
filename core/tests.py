@@ -1973,6 +1973,28 @@ class TelegramResponsabiliMenuTestCase(TestCase):
         self.assertIn('menu_nuovo_cliente', all_cb_resp)
         self.assertIn('menu_assegna_turno', all_cb_resp)
 
+    def test_tasto_scheda_e_menu_structure(self):
+        from core.utils_kandor_chat import get_main_menu, handle_telegram_message
+        menu = get_main_menu(self.dip_normale)
+        ik = menu['inline_keyboard']
+        # Ogni riga deve essere una lista di bottoni (dizionari), MAI una lista di liste
+        for row in ik:
+            self.assertIsInstance(row, list)
+            for btn in row:
+                self.assertIsInstance(btn, dict)
+                self.assertIn('text', btn)
+
+        # Il primo bottone deve essere la Scheda Web App
+        primo_btn = ik[0][0]
+        self.assertIn('Scheda Web App', primo_btn['text'])
+        self.assertIn('web_app', primo_btn)
+        self.assertIn(self.dip_normale.codice_fiscale, primo_btn['web_app']['url'])
+
+        # Comando /scheda
+        res_scheda = handle_telegram_message("11111111", "/scheda")
+        self.assertIn("Scheda Web App", res_scheda['text'])
+        self.assertIn('web_app', res_scheda['reply_markup']['inline_keyboard'][0][0])
+
     def test_non_responsabile_is_blocked(self):
         from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message
 
@@ -2119,6 +2141,111 @@ class DipendenteJollyTestCase(TestCase):
         self.assertFalse(data_off.get('is_jolly'))
         self.dip.refresh_from_db()
         self.assertFalse(self.dip.is_jolly)
+
+
+class AlertClientiFatturazioneTestCase(TestCase):
+    """
+    Test per la notifica e promemoria di recupero dati clienti mancanti per fatturazione fine mese:
+    - Rilevazione clienti creati da Telegram incompleti (Priorità 1)
+    - Rilevazione clienti operativi senza dati fiscali o sede (Priorità 2)
+    - Esclusione clienti con anagrafica completa
+    - Render del widget HTML
+    - Filtro e badge in admin Cliente
+    """
+    def setUp(self):
+        from core.models import Cliente, Dipendente, Turno, Squadra, AssegnazioneTurno
+        from django.utils import timezone
+        import datetime
+        from decimal import Decimal
+
+        today = timezone.now().date()
+
+        # 1. Cliente completo (non deve apparire tra i critici)
+        self.cli_completo = Cliente.objects.create(
+            ragione_sociale="CLIENTE PERFETTO SRL",
+            partita_iva="01234567890",
+            indirizzo_sede="VIA ROMA 10, BERGAMO",
+            ore_mensili_contratto=Decimal('20.00'),
+            importo_mensile_contratto=Decimal('500.00'),
+        )
+
+        # 2. Cliente registrato da Bot Telegram (mancano dati -> Priorità 1)
+        self.cli_telegram = Cliente.objects.create(
+            ragione_sociale="BAR DA GIANNI",
+            indirizzo_sede="",
+            partita_iva="",
+            codice_fiscale="",
+            note_mansioni="Registrato via Bot Telegram da Simone Cortinovis",
+        )
+
+        # 3. Cliente operativo (con turno questo mese) ma senza P.IVA/CF (Priorità 2)
+        self.cli_operativo_incompleto = Cliente.objects.create(
+            ragione_sociale="STUDIO DENTISTICO ALFA",
+            partita_iva="",
+            codice_fiscale="",
+            indirizzo_sede="CORSO ITALIA 5, BERGAMO",
+            ore_mensili_contratto=Decimal('10.00'),
+            importo_mensile_contratto=Decimal('250.00'),
+        )
+        squadra = Squadra.objects.create(nome="Squadra Test Alert")
+        turno = Turno.objects.create(data=today, squadra=squadra)
+        AssegnazioneTurno.objects.create(
+            turno=turno,
+            cliente=self.cli_operativo_incompleto,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(10, 0),
+        )
+
+    def test_alert_clienti_dati_mancanti_logic(self):
+        from core.templatetags.dashboard_extras import alert_clienti_dati_mancanti_widget
+
+        data = alert_clienti_dati_mancanti_widget({})
+        critici = data['clienti_critici']
+        critici_ids = [c['cliente'].id for c in critici]
+
+        # Il cliente completo NON deve essere tra i critici
+        self.assertNotIn(self.cli_completo.id, critici_ids)
+
+        # Il cliente Telegram DEVE essere presente con Priorità 1
+        self.assertIn(self.cli_telegram.id, critici_ids)
+        tg_item = next(c for c in critici if c['cliente'].id == self.cli_telegram.id)
+        self.assertTrue(tg_item['is_telegram'])
+        self.assertEqual(tg_item['priorita'], 1)
+        self.assertIn("Simone Cortinovis", tg_item['responsabile_registrazione'])
+        self.assertIn("Partita IVA / Codice Fiscale", tg_item['mancanti'])
+        self.assertIn("Indirizzo sede legale", tg_item['mancanti'])
+
+        # Il cliente operativo senza dati fiscali DEVE essere presente con Priorità 2
+        self.assertIn(self.cli_operativo_incompleto.id, critici_ids)
+        op_item = next(c for c in critici if c['cliente'].id == self.cli_operativo_incompleto.id)
+        self.assertEqual(op_item['priorita'], 2)
+        self.assertIn("Partita IVA / Codice Fiscale", op_item['mancanti'])
+
+    def test_admin_fatturazione_badge_and_filter(self):
+        from core.admin import ClienteAdmin, DatiFatturazioneFilter
+        from core.models import Cliente
+        from django.contrib.admin.sites import AdminSite
+
+        site = AdminSite()
+        ca = ClienteAdmin(Cliente, site)
+
+        # Badge per cliente completo
+        badge_ok = ca.fatturazione_badge(self.cli_completo)
+        self.assertIn("Pronta", badge_ok)
+
+        # Badge per cliente telegram incompleto
+        badge_err = ca.fatturazione_badge(self.cli_telegram)
+        self.assertIn("Mancano", badge_err)
+
+        # Filtro admin
+        filt = DatiFatturazioneFilter(None, {'dati_fatturazione': 'incompleti'}, Cliente, ca)
+        qs_incompleti = filt.queryset(None, Cliente.objects.all())
+        self.assertIn(self.cli_telegram, qs_incompleti)
+
+        filt_tg = DatiFatturazioneFilter(None, {'dati_fatturazione': 'telegram'}, Cliente, ca)
+        qs_tg = filt_tg.queryset(None, Cliente.objects.all())
+        self.assertIn(self.cli_telegram, qs_tg)
+        self.assertNotIn(self.cli_completo, qs_tg)
 
 
 

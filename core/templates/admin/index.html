@@ -249,6 +249,11 @@
         </div>
     </div>
 
+    <!-- Alert Clienti con Dati Mancanti per Fatturazione Fine Mese -->
+    {% if not sezioni_abilitate_portale or 'widget_alert_clienti_mancanti' in sezioni_abilitate_portale or 'pre_fatturazione' in sezioni_abilitate_portale or 'mod_Cliente' in sezioni_abilitate_portale %}
+    {% alert_clienti_dati_mancanti_widget %}
+    {% endif %}
+
     <!-- Alert Procedure & Richieste di Avvallo in Evidenza -->
     {% if 'widget_procedure_evidenza' in sezioni_abilitate_portale %}
     {% procedure_dashboard_alerts_widget %}

@@ -1,0 +1,103 @@
+{% if totale_critici > 0 %}
+<div class="alert-clienti-fatturazione" style="
+    background: linear-gradient(135deg, #FFF1F2 0%, #FFFFFF 100%);
+    border: 2px solid #F43F5E;
+    border-left: 8px solid #E11D48;
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 6px 20px rgba(225, 29, 72, 0.12);
+">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 14px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: #FFE4E6; color: #E11D48; display: flex; align-items: center; justify-content: center; font-size: 1.45rem; flex-shrink: 0; box-shadow: 0 2px 8px rgba(225,29,72,0.2);">
+                🧾
+            </div>
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #881337;">
+                        Promemoria Fatturazione Fine Mese: Dati Clienti Mancanti
+                    </h3>
+                    <span style="background: #E11D48; color: #FFFFFF; font-size: 0.76rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;">
+                        {{ totale_critici }} {% if totale_critici == 1 %}Cliente da completare{% else %}Clienti da completare{% endif %}
+                    </span>
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 0.86rem; color: #4C0519;">
+                    Recupera i dati obbligatori (Partita IVA / Codice Fiscale, Sede legale o Condizioni contrattuali) prima della chiusura contabile per poter emettere le fatture di fine mese.
+                </p>
+            </div>
+        </div>
+        <div>
+            <a href="{% url 'admin:core_cliente_changelist' %}?dati_fatturazione=incompleti" style="background: #E11D48; color: #FFFFFF !important; font-size: 0.8rem; font-weight: 700; padding: 7px 14px; border-radius: 8px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(225,29,72,0.3);">
+                📁 Gestisci in Anagrafica &rarr;
+            </a>
+        </div>
+    </div>
+
+    <!-- Lista Clienti Critici -->
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for item in clienti_critici %}
+        <div style="background: #FFFFFF; border: 1.5px solid #FECDD3; border-radius: 10px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="flex: 1; min-width: 260px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 5px;">
+                    <a href="{% url 'admin:core_cliente_change' item.cliente.pk %}" style="font-size: 1rem; font-weight: 800; color: #0F172A; text-decoration: none;">
+                        🏢 {{ item.cliente.ragione_sociale }}
+                    </a>
+                    <span style="font-size: 0.72rem; font-weight: 700; color: #64748B; background: #F1F5F9; padding: 2px 7px; border-radius: 6px;">
+                        ID #{{ item.cliente.pk }}
+                    </span>
+                    {% if item.is_telegram %}
+                    <span style="background: #E0F2FE; color: #0369A1; border: 1px solid #BAE6FD; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                        🤖 Registrato da Bot Telegram
+                    </span>
+                    {% if item.responsabile_registrazione %}
+                    <span style="font-size: 0.74rem; color: #475569;">
+                        (da: <strong>{{ item.responsabile_registrazione }}</strong>)
+                    </span>
+                    {% endif %}
+                    {% else %}
+                    <span style="background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px;">
+                        🏢 Servizi / Turni Attivi
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.8rem;">
+                    <span style="color: #9F1239; font-weight: 700;">Dati mancanti:</span>
+                    {% for m in item.mancanti %}
+                    <span style="background: #FFE4E6; color: #9F1239; border: 1px solid #FECDD3; padding: 2px 8px; border-radius: 4px; font-weight: 700; font-size: 0.74rem;">
+                        ❌ {{ m }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <a href="{% url 'admin:core_cliente_change' item.cliente.pk %}" style="background: #0F172A; color: #FFFFFF !important; font-size: 0.8rem; font-weight: 700; padding: 6px 14px; border-radius: 6px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
+                    ✏️ Completa Dati &rarr;
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if totale_altri_senza_canone > 0 %}
+    <details style="margin-top: 14px; font-size: 0.82rem; color: #64748B;">
+        <summary style="cursor: pointer; font-weight: 700; color: #9F1239;">
+            ℹ️ Ci sono anche {{ totale_altri_senza_canone }} clienti operativi con importo canone mensile a 0€ (clicca per visualizzare)
+        </summary>
+        <div style="margin-top: 8px; max-height: 160px; overflow-y: auto; background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 12px;">
+            <ul style="margin: 0; padding-left: 20px;">
+                {% for sc in altri_senza_canone %}
+                <li style="margin-bottom: 4px;">
+                    <a href="{% url 'admin:core_cliente_change' sc.cliente.pk %}" style="font-weight: 600; color: #1E293B; text-decoration: none;">
+                        {{ sc.cliente.ragione_sociale }}
+                    </a> (ID #{{ sc.cliente.pk }}) &mdash; <span style="color: #64748B;">Canone da concordare o fatturazione a ore consuntivo</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </details>
+    {% endif %}
+</div>
+{% endif %}

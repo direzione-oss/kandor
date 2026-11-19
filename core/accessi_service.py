@@ -147,6 +147,15 @@ CATALOGO_SEZIONI_PORTALE = [
 
     # --- GRUPPO 2: WIDGET & PANNELLI DASHBOARD ---
     {
+        'codice': 'widget_alert_clienti_mancanti',
+        'gruppo': 'WIDGET',
+        'gruppo_label': '📊 Widget, Scadenze & Calendario in Dashboard',
+        'icona': '🧾',
+        'titolo': 'Notifica Clienti Dati Mancanti per Fatturazione',
+        'descrizione': 'Promemoria in evidenza per recuperare dati fiscali, sede e canone prima di fine mese',
+        'default_responsabile': True,
+    },
+    {
         'codice': 'widget_procedure_evidenza',
         'gruppo': 'WIDGET',
         'gruppo_label': '📊 Widget, Scadenze & Calendario in Dashboard',

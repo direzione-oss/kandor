@@ -337,7 +337,16 @@ def _salva_nuovo_cliente_da_telegram(dipendente, telegram_chat_id, raw_input):
 
 def get_main_menu(dipendente=None):
     """Ritorna il menu principale con bottoni inline."""
+    from django.conf import settings
+    from urllib.parse import quote
+    base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
+    if dipendente and getattr(dipendente, 'codice_fiscale', None) and getattr(dipendente, 'pin_accesso', None):
+        app_url = f"{base_url}/app/login/?cf={quote(dipendente.codice_fiscale)}&pin={quote(dipendente.pin_accesso)}"
+    else:
+        app_url = f"{base_url}/app/"
+
     keyboard = [
+        [{'text': '📲 Apri Scheda Web App', 'web_app': {'url': app_url}}],
         [{'text': '⏱ Registra Ore', 'callback_data': 'menu_ore'}],
         [{'text': '📅 Calendario', 'callback_data': 'menu_calendario'}],
         [{'text': '📋 Turni da compilare', 'callback_data': 'menu_turni_mancanti'}],
@@ -365,7 +374,7 @@ def get_main_menu(dipendente=None):
         keyboard.append([{'text': '📅 Assegna Turno', 'callback_data': 'menu_assegna_turno'}])
 
     keyboard.append([
-        [{'text': '📖 Guida', 'url': 'https://kandor.187.126.30.207.sslip.io/manuale-dipendente/'}]
+        {'text': '📖 Guida', 'url': f'{base_url}/manuale-dipendente/'}
     ])
     return {'inline_keyboard': keyboard}
 
@@ -709,6 +718,31 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
         return {
             'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
             'reply_markup': get_main_menu(dipendente)
+        }
+
+    # COMANDO /scheda o /app
+    if clean_text in ('/scheda', '/app', 'scheda', 'app'):
+        _TELEGRAM_STATE.pop(telegram_chat_id, None)
+        from django.conf import settings
+        from urllib.parse import quote
+        base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
+        if dipendente and getattr(dipendente, 'codice_fiscale', None) and getattr(dipendente, 'pin_accesso', None):
+            app_url = f"{base_url}/app/login/?cf={quote(dipendente.codice_fiscale)}&pin={quote(dipendente.pin_accesso)}"
+        else:
+            app_url = f"{base_url}/app/"
+        return {
+            'text': (
+                f"📱 *Scheda Web App Dipendenti*\n\n"
+                f"Tocca il pulsante qui sotto per aprire la tua Scheda personale:\n"
+                f"{app_url}"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '📲 Apri Scheda Web App', 'web_app': {'url': app_url}}],
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
         }
     
     # COMANDO /ore
