@@ -2545,6 +2545,167 @@ class TelegramAssegnaTurnoTestCase(TestCase):
         self.assertEqual(prop2.stato, 'IN_ATTESA')
         self.assertIn(self.jolly1, prop2.operatori_rifiutati.all())
 
+    def test_selezione_multipla_jolly(self):
+        """Verifica la selezione multipla di operatori Jolly e invio in blocco."""
+        from core.models import PropostaTurnoJolly
+        from core.utils_kandor_chat import handle_telegram_callback, _TELEGRAM_STATE
+        import datetime
+
+        # Prepariamo lo stato conversazionale
+        _TELEGRAM_STATE[self.resp.telegram_chat_id] = {
+            'action': 'wizard_assegna_turno',
+            'step': 'jolly',
+            'cliente_id': self.cliente.id,
+            'cliente_nome': self.cliente.ragione_sociale,
+            'data': '2026-11-28',
+            'ora_inizio': '08:00',
+            'durata_ore': 4.0,
+            'note': 'Pulizia straordinaria fine cantiere',
+            'selected_jolly_ids': []
+        }
+
+        # 1. Toggle su Jolly 1
+        res1 = handle_telegram_callback(self.resp.telegram_chat_id, f"asst_jtoggle_{self.jolly1.id}")
+        st1 = _TELEGRAM_STATE.get(self.resp.telegram_chat_id, {})
+        self.assertIn(self.jolly1.id, st1.get('selected_jolly_ids', []))
+        self.assertIn("Operatori selezionati:* 1", res1['text'])
+
+        # 2. Toggle su Jolly 2
+        res2 = handle_telegram_callback(self.resp.telegram_chat_id, f"asst_jtoggle_{self.jolly2.id}")
+        st2 = _TELEGRAM_STATE.get(self.resp.telegram_chat_id, {})
+        self.assertEqual(set(st2.get('selected_jolly_ids', [])), {self.jolly1.id, self.jolly2.id})
+        self.assertIn("Operatori selezionati:* 2", res2['text'])
+
+        # 3. Invio collettivo
+        res3 = handle_telegram_callback(self.resp.telegram_chat_id, "asst_jinvia_multi")
+        self.assertIn("Proposta di Turno Inviata con Successo", res3['text'])
+        self.assertIn(self.jolly1.cognome, res3['text'])
+        self.assertIn(self.jolly2.cognome, res3['text'])
+
+        # 4. Verifica record creati nel DB
+        proposte = PropostaTurnoJolly.objects.filter(
+            responsabile=self.resp,
+            cliente=self.cliente,
+            data=datetime.date(2026, 11, 28)
+        )
+        self.assertEqual(proposte.count(), 2)
+        jolly_dest = set(p.operatore.id for p in proposte)
+        self.assertEqual(jolly_dest, {self.jolly1.id, self.jolly2.id})
+
+    def test_flusso_assegna_turno_squadra(self):
+        """Verifica il passaggio all'elenco squadre, selezione squadra e accettazione."""
+        from core.models import Squadra, Dipendente, PropostaTurnoJolly
+        from core.utils_kandor_chat import handle_telegram_callback, _TELEGRAM_STATE
+        import datetime
+
+        capo = Dipendente.objects.create(
+            nome="Mario",
+            cognome="Caposquadra",
+            codice_fiscale="CPOMRA80A01B157A",
+            telegram_chat_id="11223344",
+            stato="ATTIVO"
+        )
+        comp = Dipendente.objects.create(
+            nome="Luca",
+            cognome="Operatore",
+            codice_fiscale="PRTLCA85A01B157B",
+            telegram_chat_id="22334455",
+            stato="ATTIVO"
+        )
+        sq = Squadra.objects.create(
+            nome="Squadra Gamma",
+            caposquadra=capo
+        )
+        sq.componenti.add(capo, comp)
+
+        # Stato pronto per la selezione
+        _TELEGRAM_STATE[self.resp.telegram_chat_id] = {
+            'action': 'wizard_assegna_turno',
+            'step': 'jolly',
+            'cliente_id': self.cliente.id,
+            'cliente_nome': self.cliente.ragione_sociale,
+            'data': '2026-11-29',
+            'ora_inizio': '09:00',
+            'durata_ore': 3.0,
+            'note': 'Lavoro di squadra',
+            'selected_jolly_ids': []
+        }
+
+        # 1. Passaggio alla visualizzazione delle Squadre Libere
+        res_sq = handle_telegram_callback(self.resp.telegram_chat_id, "asst_mode_squadre")
+        self.assertIn("Squadre Libere Disponibili", res_sq['text'])
+        button_texts = [btn['text'] for row in res_sq['reply_markup']['inline_keyboard'] for btn in row]
+        self.assertTrue(any("Squadra Gamma" in t for t in button_texts))
+
+        # 2. Selezione della Squadra
+        res_invia = handle_telegram_callback(self.resp.telegram_chat_id, f"asst_sq_{sq.id}")
+        self.assertIn("Proposta di Turno Inviata alla Squadra", res_invia['text'])
+        self.assertIn("Squadra Gamma", res_invia['text'])
+
+        prop = PropostaTurnoJolly.objects.filter(squadra=sq, cliente=self.cliente).first()
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop.stato, 'IN_ATTESA')
+        self.assertEqual(prop.operatore, capo)
+
+        # 3. Il caposquadra accetta il turno
+        res_acc = handle_telegram_callback(capo.telegram_chat_id, f"jolly_accetta_{prop.id}")
+        self.assertIn("registrato nel calendario", res_acc['text'].lower())
+
+        prop.refresh_from_db()
+        self.assertEqual(prop.stato, 'ACCETTATO')
+        self.assertIsNotNone(prop.turno_creato)
+        self.assertEqual(prop.turno_creato.squadra, sq)
+
+    def test_rifiuto_squadra_e_riassegnazione(self):
+        """Verifica il rifiuto di una squadra e la riassegnazione ad altra squadra."""
+        from core.models import Squadra, Dipendente, PropostaTurnoJolly
+        from core.utils_kandor_chat import handle_telegram_callback
+        import datetime
+
+        capo1 = Dipendente.objects.create(
+            nome="Marco", cognome="CapoUno", codice_fiscale="CPOMRC80A01B157A",
+            telegram_chat_id="33445566", stato="ATTIVO"
+        )
+        sq1 = Squadra.objects.create(nome="Squadra 1", caposquadra=capo1)
+        sq1.componenti.add(capo1)
+
+        capo2 = Dipendente.objects.create(
+            nome="Giuseppe", cognome="CapoDue", codice_fiscale="CPOGPP80A01B157B",
+            telegram_chat_id="44556677", stato="ATTIVO"
+        )
+        sq2 = Squadra.objects.create(nome="Squadra 2", caposquadra=capo2)
+        sq2.componenti.add(capo2)
+
+        prop = PropostaTurnoJolly.objects.create(
+            responsabile=self.resp,
+            squadra=sq1,
+            operatore=capo1,
+            cliente=self.cliente,
+            data=datetime.date(2026, 11, 30),
+            ora_inizio=datetime.time(10, 0),
+            durata_ore=2.0,
+            note="Intervento urgente squadra",
+            stato='IN_ATTESA'
+        )
+
+        # Squadra 1 rifiuta
+        res_rif = handle_telegram_callback(capo1.telegram_chat_id, f"jolly_rifiuta_{prop.id}")
+        self.assertIn("rifiutato", res_rif['text'].lower())
+
+        prop.refresh_from_db()
+        self.assertEqual(prop.stato, 'RIFIUTATO')
+        self.assertIn(sq1, prop.squadre_rifiutate.all())
+
+        # Riassegnazione a Squadra 2
+        res_rias = handle_telegram_callback(self.resp.telegram_chat_id, f"rias_sq_{prop.id}_{sq2.id}")
+        self.assertIn("Squadra 2", res_rias['text'])
+
+        prop2 = PropostaTurnoJolly.objects.filter(squadra=sq2, cliente=self.cliente).first()
+        self.assertIsNotNone(prop2)
+        self.assertEqual(prop2.stato, 'IN_ATTESA')
+        self.assertIn(sq1, prop2.squadre_rifiutate.all())
+
+
 
 
 

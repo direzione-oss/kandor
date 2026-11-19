@@ -2613,6 +2613,40 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         st = _TELEGRAM_STATE.get(telegram_chat_id, {})
         return _invia_proposta_a_jolly(dipendente, telegram_chat_id, st, jid)
 
+    # Toggle selezione singolo Jolly nella schermata multi-selezione
+    if callback_data.startswith('asst_jtoggle_'):
+        jid = int(callback_data.replace('asst_jtoggle_', ''))
+        st = _TELEGRAM_STATE.get(telegram_chat_id, {})
+        selected = set(st.get('selected_jolly_ids', []))
+        if jid in selected:
+            selected.remove(jid)
+        else:
+            selected.add(jid)
+        st['selected_jolly_ids'] = list(selected)
+        _TELEGRAM_STATE[telegram_chat_id] = st
+        return _mostra_selezione_jolly(dipendente, telegram_chat_id, st)
+
+    # Invio collettivo a tutti i Jolly selezionati
+    if callback_data == 'asst_jinvia_multi':
+        st = _TELEGRAM_STATE.get(telegram_chat_id, {})
+        return _invia_proposte_multi_jolly(dipendente, telegram_chat_id, st)
+
+    # Passaggio a vista Squadre Libere
+    if callback_data == 'asst_mode_squadre':
+        st = _TELEGRAM_STATE.get(telegram_chat_id, {})
+        return _mostra_selezione_squadre(dipendente, telegram_chat_id, st)
+
+    # Ritorno a vista Singoli Jolly
+    if callback_data == 'asst_mode_jolly':
+        st = _TELEGRAM_STATE.get(telegram_chat_id, {})
+        return _mostra_selezione_jolly(dipendente, telegram_chat_id, st)
+
+    # Selezione di una Squadra Libera
+    if callback_data.startswith('asst_sq_'):
+        sq_id = int(callback_data.replace('asst_sq_', ''))
+        st = _TELEGRAM_STATE.get(telegram_chat_id, {})
+        return _invia_proposta_a_squadra(dipendente, telegram_chat_id, st, sq_id)
+
     # Risposta Jolly (Accetta / Rifiuta)
     if callback_data.startswith('jolly_accetta_'):
         prop_id = int(callback_data.replace('jolly_accetta_', ''))
@@ -2688,6 +2722,85 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
                     f"🏢 **Azienda:** {nuova_prop.cliente.ragione_sociale}\n"
                     f"📅 **Data:** {nuova_prop.data.strftime('%d/%m/%Y')}\n\n"
                     f"Riceverai una notifica qui in chat non appena l'operatore risponderà."
+                ),
+                'reply_markup': get_main_menu(dipendente),
+                'parse_mode': 'Markdown'
+            }
+
+    # Riassegnazione turno rifiutato a un'altra Squadra
+    if callback_data.startswith('rias_sq_'):
+        parts = callback_data.replace('rias_sq_', '').split('_')
+        if len(parts) == 2:
+            prop_id = int(parts[0])
+            new_sq_id = int(parts[1])
+            try:
+                vecchia_prop = PropostaTurnoJolly.objects.select_related('cliente', 'responsabile', 'squadra').get(pk=prop_id)
+                nuova_squadra = Squadra.objects.select_related('caposquadra').prefetch_related('componenti').get(pk=new_sq_id)
+            except Exception as e:
+                return {'text': f"⚠️ Errore nel recupero della richiesta: {e}", 'reply_markup': get_main_menu(dipendente)}
+
+            destinatario_dip = nuova_squadra.caposquadra or nuova_squadra.componenti.first()
+
+            nuova_prop = PropostaTurnoJolly.objects.create(
+                responsabile=dipendente,
+                squadra=nuova_squadra,
+                operatore=destinatario_dip,
+                cliente=vecchia_prop.cliente,
+                data=vecchia_prop.data,
+                ora_inizio=vecchia_prop.ora_inizio,
+                ora_fine=vecchia_prop.ora_fine,
+                durata_ore=vecchia_prop.durata_ore,
+                note=vecchia_prop.note,
+                stato='IN_ATTESA'
+            )
+            for sq in vecchia_prop.squadre_rifiutate.all():
+                nuova_prop.squadre_rifiutate.add(sq)
+            if vecchia_prop.squadra:
+                nuova_prop.squadre_rifiutate.add(vecchia_prop.squadra)
+
+            destinatari_da_notificare = []
+            if nuova_squadra.caposquadra and nuova_squadra.caposquadra.telegram_chat_id:
+                destinatari_da_notificare.append(nuova_squadra.caposquadra)
+            else:
+                for comp in nuova_squadra.componenti.all():
+                    if comp.telegram_chat_id:
+                        destinatari_da_notificare.append(comp)
+                        break
+
+            msg_squadra = (
+                f"🔔 *Nuova Proposta di Turno per la Squadra {nuova_squadra.nome}*\n"
+                f"👤 Assegnato da: *{dipendente.nome} {dipendente.cognome}*\n\n"
+                f"🏢 **Azienda:** {nuova_prop.cliente.ragione_sociale}\n"
+                f"📍 **Indirizzo:** {nuova_prop.cliente.indirizzo_sede or 'Vedi scheda'}\n"
+                f"📅 **Data:** {nuova_prop.data.strftime('%d/%m/%Y')}\n"
+            )
+            if nuova_prop.ora_inizio:
+                msg_squadra += f"⏰ **Inizio:** {nuova_prop.ora_inizio.strftime('%H:%M')}\n"
+            if nuova_prop.durata_ore:
+                msg_squadra += f"⏱ **Durata:** {nuova_prop.durata_ore} ore\n"
+            if nuova_prop.note:
+                msg_squadra += f"📝 **Note:** {nuova_prop.note}\n"
+            msg_squadra += f"\nTi viene assegnato questo turno per la tua squadra ({nuova_squadra.nome}). Confermi la disponibilità?"
+
+            kb_sq = {
+                'inline_keyboard': [
+                    [
+                        {'text': '✅ Accetta Turno Squadra', 'callback_data': f"jolly_accetta_{nuova_prop.id}"},
+                        {'text': '❌ Rifiuta Turno Squadra', 'callback_data': f"jolly_rifiuta_{nuova_prop.id}"},
+                    ]
+                ]
+            }
+
+            for d in destinatari_da_notificare:
+                send_telegram_message(d.telegram_chat_id, msg_squadra, reply_markup=kb_sq, parse_mode='Markdown')
+
+            capo_txt = f"{nuova_squadra.caposquadra.cognome} {nuova_squadra.caposquadra.nome}" if nuova_squadra.caposquadra else "N/D"
+            return {
+                'text': (
+                    f"✅ *Proposta inoltrata alla Squadra {nuova_squadra.nome}!* (Referente: {capo_txt})\n\n"
+                    f"🏢 **Azienda:** {nuova_prop.cliente.ragione_sociale}\n"
+                    f"📅 **Data:** {nuova_prop.data.strftime('%d/%m/%Y')}\n\n"
+                    f"Riceverai una notifica qui in chat non appena la squadra risponderà."
                 ),
                 'reply_markup': get_main_menu(dipendente),
                 'parse_mode': 'Markdown'
@@ -2935,7 +3048,6 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
             assign = AssegnazioneTurno.objects.select_related('cliente', 'turno__squadra__caposquadra').get(pk=assign_id)
             squadra = (assign.turno.squadra if (assign.turno and assign.turno.squadra) else None)
             if not squadra:
-                from .models import Squadra
                 squadra = Squadra.objects.filter(Q(componenti=dipendente) | Q(caposquadra=dipendente)).first()
 
             esclusi_ids = set(assign.dipendenti_esclusi.values_list('pk', flat=True))
