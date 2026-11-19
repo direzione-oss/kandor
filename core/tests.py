@@ -2077,11 +2077,27 @@ class DipendenteJollyTestCase(TestCase):
     def test_campo_jolly_default_e_proprieta(self):
         self.assertFalse(self.dip.is_jolly)
         self.assertFalse(self.dip.jolly)
+        self.assertFalse(self.dip.is_sostituto)
+        # Attivando Jolly, Sostituto rimane False (ruoli indipendenti)
         self.dip.jolly = True
         self.dip.save()
         self.dip.refresh_from_db()
         self.assertTrue(self.dip.is_jolly)
         self.assertTrue(self.dip.jolly)
+        self.assertFalse(self.dip.is_sostituto)
+
+        # Attivando Sostituto, rimangono entrambi indipendenti
+        self.dip.is_sostituto = True
+        self.dip.save()
+        self.dip.refresh_from_db()
+        self.assertTrue(self.dip.is_jolly)
+        self.assertTrue(self.dip.is_sostituto)
+
+        self.dip.is_jolly = False
+        self.dip.save()
+        self.dip.refresh_from_db()
+        self.assertFalse(self.dip.is_jolly)
+        self.assertTrue(self.dip.is_sostituto)
 
     def test_toggle_jolly_admin_view(self):
         self.client.login(username='admin_jolly', password='adminpassword')

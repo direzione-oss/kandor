@@ -462,8 +462,13 @@ class DipendenteAdmin(KandorBaseAdmin):
             ),
             'description': 'Inserire il Livello Contrattuale e il Costo Orario Aziendale pieno (Lordo + TFR + INAIL/INPS) per il calcolo reale del MOL per Cantiere.',
         }),
-        ('Qualifiche, Sostituto, Jolly & Ruolo Responsabile', {
-            'fields': ('qualifiche', 'is_sostituto', 'is_jolly', 'riceve_notifiche_messaggi')
+        ('Ruoli Operativi: Sostituto & Jolly (Indipendenti)', {
+            'fields': (
+                ('is_sostituto', 'is_jolly'),
+                'riceve_notifiche_messaggi',
+                'qualifiche',
+            ),
+            'description': 'Essere Sostituto (disponibile per coprire turni in caso di assenze) ed essere Jolly sono due opzioni distinte e totalmente indipendenti.',
         }),
         ('Integrazione Telegram & Foto', {
             'fields': ('telegram_chat_id', 'foto_profilo_url', 'foto', 'foto_url'),

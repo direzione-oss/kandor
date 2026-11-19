@@ -2004,7 +2004,6 @@ def trova_sostituti_api(request):
             'occupato_fascia': r.get('occupato_fascia', False),
             'impegni_concomitanti': r.get('impegni_concomitanti', []),
             'is_sostituto_anagrafica': r.get('is_sostituto_anagrafica', True),
-            'is_jolly': r.get('is_jolly', False),
         })
     
     return JsonResponse({'ok': True, 'sostituti': sostituti_list})
@@ -2090,7 +2089,6 @@ def get_sostituti_richiesta_api(request, richiesta_id):
             'occupato_fascia': r.get('occupato_fascia', False),
             'impegni_concomitanti': r.get('impegni_concomitanti', []),
             'is_sostituto_anagrafica': r.get('is_sostituto_anagrafica', True),
-            'is_jolly': r.get('is_jolly', False),
         })
 
     trovati_ids = {item['id'] for item in list_data}
@@ -2118,7 +2116,6 @@ def get_sostituti_richiesta_api(request, richiesta_id):
                     'occupato_fascia': False,
                     'impegni_concomitanti': [],
                     'is_sostituto_anagrafica': bool(dip.is_sostituto),
-                    'is_jolly': bool(getattr(dip, 'is_jolly', False)),
                 })
                 trovati_ids.add(dip.id)
             except Dipendente.DoesNotExist:
