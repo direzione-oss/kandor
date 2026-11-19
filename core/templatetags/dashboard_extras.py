@@ -660,6 +660,8 @@ def weekly_schedule_widget(context):
     hours_with_top = [{'hour': h, 'top_px': (h - grid_start) * 80} for h in hours_range]
     total_height = (grid_end - grid_start) * 80
         
+    clienti_dropdown = list(Cliente.objects.all().order_by('ragione_sociale').values('id', 'ragione_sociale'))
+
     return {
         'schedule': schedule,
         'hours_range': hours_range,
@@ -669,6 +671,9 @@ def weekly_schedule_widget(context):
         'overlaps': overlaps,
         'squadre': squadre,
         'squadra_filter': squadra_filter,
+        'clienti_list': clienti_dropdown,
+        'current_month_val': ref_thursday.month,
+        'current_year_val': ref_thursday.year,
         'current_week_offset': week_offset,
         'prev_week_offset': week_offset - 1,
         'next_week_offset': week_offset + 1,

@@ -2647,6 +2647,545 @@ def settimana_pdf_view(request):
     return resp
 
 
+@staff_or_titolare_required
+def turni_clienti_pdf_view(request):
+    """
+    Genera un prospetto PDF (A4 Landscape) per la visualizzazione e verifica dei turni cliente per cliente.
+    Consente di controllare la pianificazione, la conformità contrattuale e tutte le variazioni/modifiche:
+    - orari modificati rispetto alla programmazione feriale concordata
+    - interventi straordinari o fuori routine
+    - cambi squadra e sostituzioni operatori (con indicazione operatore assente e sostituto)
+    - operatori esclusi dalla squadra
+    - confronto ore previste vs ore effettive dichiarate/validate
+
+    Parametri GET:
+    - cliente_id: ID del cliente singolo, elenco separato da virgole (es. '1,3,7'), o vuoto/'all' per tutti i clienti
+    - week: offset settimana (default 0 per la settimana corrente se non è impostato mese o intervallo)
+    - mese & anno: mese (1-12) e anno (es. 2026) per l'intero mese
+    - dal / data_inizio & al / data_fine: date inizio e fine personalizzate (YYYY-MM-DD o DD/MM/YYYY)
+    - solo_modifiche: se '1' o 'true', mostra solo i turni che presentano variazioni o anomalie
+    """
+    import io
+    import calendar
+    from datetime import date, datetime, timedelta
+    from decimal import Decimal
+    from collections import defaultdict
+    from xml.sax.saxutils import escape as xml_escape
+
+    from django.http import HttpResponse
+    from django.utils import timezone
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.pdfgen import canvas
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    from .models import (
+        Cliente, Turno, AssegnazioneTurno, ProgrammazioneRicorrente,
+        Squadra, Dipendente, TimeTracking, RichiestaSostituzione
+    )
+
+    class NumberedCanvas(canvas.Canvas):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._saved_page_states = []
+
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            num_pages = len(self._saved_page_states)
+            for state in self._saved_page_states:
+                self.__dict__.update(state)
+                self.draw_page_decorations(num_pages)
+                super().showPage()
+            super().save()
+
+        def draw_page_decorations(self, page_count):
+            self.saveState()
+            self.setFont("Helvetica", 7.5)
+            self.setFillColor(colors.HexColor("#64748B"))
+            self.setStrokeColor(colors.HexColor("#CBD5E1"))
+            self.setLineWidth(0.5)
+            self.line(12 * mm, 12 * mm, 285 * mm, 12 * mm)
+            now_str = timezone.localtime(timezone.now()).strftime('%d/%m/%Y ore %H:%M')
+            self.drawString(12 * mm, 7.5 * mm, f"KANDOR ERP — Prospetto Turni Clienti e Controllo Modifiche — Generato il {now_str}")
+            self.drawRightString(285 * mm, 7.5 * mm, f"Pagina {self._pageNumber} di {page_count}")
+            self.restoreState()
+
+    def _parse_date(val):
+        if not val:
+            return None
+        val = str(val).strip()
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+            try:
+                return datetime.strptime(val, fmt).date()
+            except ValueError:
+                pass
+        return None
+
+    def _safe(txt):
+        return xml_escape(str(txt or ''))
+
+    today = timezone.now().date()
+    GIORNI_MAP = {0: 'Lunedì', 1: 'Martedì', 2: 'Mercoledì', 3: 'Giovedì', 4: 'Venerdì', 5: 'Sabato', 6: 'Domenica'}
+    MESI_MAP = {1: 'Gennaio', 2: 'Febbraio', 3: 'Marzo', 4: 'Aprile', 5: 'Maggio', 6: 'Giugno',
+                7: 'Luglio', 8: 'Agosto', 9: 'Settembre', 10: 'Ottobre', 11: 'Novembre', 12: 'Dicembre'}
+
+    # 1. Determinazione periodo
+    param_dal = request.GET.get('dal') or request.GET.get('data_inizio') or ''
+    param_al = request.GET.get('al') or request.GET.get('data_fine') or ''
+    d_dal = _parse_date(param_dal)
+    d_al = _parse_date(param_al)
+
+    param_mese = request.GET.get('mese')
+    param_anno = request.GET.get('anno')
+
+    if d_dal and d_al:
+        start_date = min(d_dal, d_al)
+        end_date = max(d_dal, d_al)
+        periodo_label = f"Intervallo dal {start_date.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')}"
+        tipo_periodo = 'custom'
+    elif param_mese:
+        try:
+            m_val = int(param_mese)
+            y_val = int(param_anno) if param_anno else today.year
+            start_date = date(y_val, m_val, 1)
+            last_day = calendar.monthrange(y_val, m_val)[1]
+            end_date = date(y_val, m_val, last_day)
+            periodo_label = f"Mese di {MESI_MAP.get(m_val, '')} {y_val}"
+            tipo_periodo = 'mese'
+        except (ValueError, TypeError):
+            start_date = today - timedelta(days=today.weekday())
+            end_date = start_date + timedelta(days=6)
+            periodo_label = f"Settimana dal {start_date.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')}"
+            tipo_periodo = 'settimana'
+    else:
+        try:
+            week_offset = int(request.GET.get('week', 0))
+        except (ValueError, TypeError):
+            week_offset = 0
+        current_monday = today - timedelta(days=today.weekday())
+        start_date = current_monday + timedelta(weeks=week_offset)
+        end_date = start_date + timedelta(days=6)
+        periodo_label = f"Settimana dal {start_date.strftime('%d/%m/%Y')} al {end_date.strftime('%d/%m/%Y')}"
+        tipo_periodo = 'settimana'
+
+    solo_modifiche = request.GET.get('solo_modifiche', '').lower() in ('1', 'true', 'yes', 'si')
+
+    # 2. Selezione clienti
+    param_cliente = (request.GET.get('cliente_id') or request.GET.get('cliente') or '').strip()
+    clienti_qs = Cliente.objects.all().order_by('ragione_sociale')
+
+    if param_cliente and param_cliente != 'all':
+        if ',' in param_cliente:
+            c_pks = [int(p.strip()) for p in param_cliente.split(',') if p.strip().isdigit()]
+            clienti_qs = clienti_qs.filter(pk__in=c_pks)
+        elif param_cliente.isdigit():
+            clienti_qs = clienti_qs.filter(pk=int(param_cliente))
+    else:
+        # Trova clienti che hanno turni o programmazione attiva nel periodo
+        clienti_con_turni = set(AssegnazioneTurno.objects.filter(
+            turno__data__range=(start_date, end_date)
+        ).values_list('cliente_id', flat=True))
+        if clienti_con_turni:
+            clienti_qs = clienti_qs.filter(pk__in=clienti_con_turni)
+
+    clienti_list = list(clienti_qs)
+    if not clienti_list and param_cliente and param_cliente.isdigit():
+        c_obj = Cliente.objects.filter(pk=int(param_cliente)).first()
+        if c_obj:
+            clienti_list = [c_obj]
+
+    # Pre-carica tutte le assegnazioni del periodo per i clienti selezionati
+    clienti_ids = [c.pk for c in clienti_list]
+    all_assigns = list(
+        AssegnazioneTurno.objects.filter(
+            cliente_id__in=clienti_ids,
+            turno__data__range=(start_date, end_date)
+        ).select_related(
+            'turno', 'turno__squadra', 'turno__squadra__caposquadra',
+            'turno__mezzo', 'cliente', 'programmazione_feriale',
+            'programmazione_feriale__squadra_abituale', 'richiesta_straordinaria'
+        ).prefetch_related(
+            'dipendenti_esclusi',
+            'timetracks__dipendente',
+            'turno__squadra__componenti',
+            'richieste_sostituzione__sostituto',
+            'richieste_sostituzione__dipendente_assente'
+        ).order_by('turno__data', 'orario_inizio_previsto')
+    )
+
+    assigns_by_cliente = defaultdict(list)
+    for a in all_assigns:
+        assigns_by_cliente[a.cliente_id].append(a)
+
+    # Pre-carica programmazioni contrattuali ricorrenti
+    prog_qs = list(
+        ProgrammazioneRicorrente.objects.filter(
+            cliente_id__in=clienti_ids
+        ).select_related('squadra_abituale').order_by('giorno_settimana', 'ora_inizio')
+    )
+    prog_by_cliente = defaultdict(list)
+    for p in prog_qs:
+        prog_by_cliente[p.cliente_id].append(p)
+
+    # Inizializza Documento PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=12 * mm,
+        rightMargin=12 * mm,
+        topMargin=10 * mm,
+        bottomMargin=16 * mm
+    )
+    styles = getSampleStyleSheet()
+
+    title_cli_style = ParagraphStyle(
+        'TitleCli', parent=styles['Normal'],
+        fontSize=12, fontName='Helvetica-Bold',
+        textColor=colors.HexColor('#0F172A'), leading=15
+    )
+    meta_cli_style = ParagraphStyle(
+        'MetaCli', parent=styles['Normal'],
+        fontSize=7.5, fontName='Helvetica',
+        textColor=colors.HexColor('#475569'), leading=10
+    )
+    box_right_style = ParagraphStyle(
+        'BoxRight', parent=styles['Normal'],
+        fontSize=8, fontName='Helvetica',
+        textColor=colors.HexColor('#1E293B'), leading=11
+    )
+    body_style = ParagraphStyle(
+        'BodyTurno', parent=styles['Normal'],
+        fontSize=8, fontName='Helvetica',
+        textColor=colors.HexColor('#1E293B'), leading=10
+    )
+    body_bold_style = ParagraphStyle(
+        'BodyTurnoBold', parent=styles['Normal'],
+        fontSize=8, fontName='Helvetica-Bold',
+        textColor=colors.HexColor('#0F172A'), leading=10
+    )
+    hdr_table_style = ParagraphStyle(
+        'HdrTable', parent=styles['Normal'],
+        fontSize=8, fontName='Helvetica-Bold',
+        textColor=colors.white, leading=10
+    )
+    kpi_style = ParagraphStyle(
+        'KPIStyle', parent=styles['Normal'],
+        fontSize=8, fontName='Helvetica',
+        textColor=colors.HexColor('#1E293B'), leading=11
+    )
+
+    story = []
+
+    if not clienti_list:
+        story.append(Spacer(1, 20 * mm))
+        story.append(Paragraph("<b>Nessun cliente trovato o nessun turno pianificato nel periodo selezionato.</b>", title_cli_style))
+        story.append(Spacer(1, 5 * mm))
+        story.append(Paragraph(f"Periodo verificato: {periodo_label}", meta_cli_style))
+        doc.build(story, canvasmaker=NumberedCanvas)
+        buffer.seek(0)
+        resp = HttpResponse(buffer, content_type='application/pdf')
+        resp['Content-Disposition'] = 'inline; filename="turni_clienti_vuoto.pdf"'
+        return resp
+
+    for idx, c in enumerate(clienti_list):
+        c_assigns = assigns_by_cliente.get(c.pk, [])
+        c_progs = prog_by_cliente.get(c.pk, [])
+
+        # Dati contrattuali
+        ore_contr = float(c.ore_mensili_contratto or 0)
+        imp_contr = float(c.importo_mensile_contratto or 0)
+        tariffa = f"€ {float(c.importo_orario_decimal):.2f}/h" if ore_contr > 0 else "—"
+
+        ref_str = _safe(c.referente_nome)
+        if c.referente_ruolo:
+            ref_str += f" ({_safe(c.referente_ruolo)})"
+
+        # 1. Header Cliente (2 colonne, larghezza 273mm)
+        left_html = (
+            f"<b>{_safe(c.ragione_sociale)}</b><br/>"
+            f"<font size='7.5' color='#475569'>📍 Sede: {_safe(c.indirizzo_sede or 'Non specificato')} "
+            f"| Referente: {ref_str or '—'}</font>"
+        )
+        if c.note_mansioni:
+            left_html += f"<br/><font size='7' color='#0284C7'><i>Note mansioni: {_safe(c.note_mansioni[:110])}</i></font>"
+
+        right_html = (
+            f"<b>Contratto Mensile:</b> {ore_contr:.1f}h | € {imp_contr:.2f} ({tariffa})<br/>"
+            f"<b>Periodo Analisi:</b> {periodo_label}"
+        )
+
+        t_head = Table([
+            [Paragraph(left_html, title_cli_style), Paragraph(right_html, box_right_style)]
+        ], colWidths=[173 * mm, 100 * mm])
+        t_head.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#F8FAFC')),
+            ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#F1F5F9')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('PADDING', (0, 0), (-1, -1), 5),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(t_head)
+        story.append(Spacer(1, 2.5 * mm))
+
+        # 2. Sintesi Routine Contrattuale Standard
+        if c_progs:
+            routines = []
+            for p in c_progs:
+                g_nome = GIORNI_MAP.get(p.giorno_settimana, f"Giorno {p.giorno_settimana}")
+                sq_n = _safe(p.squadra_abituale.nome) if p.squadra_abituale else "Qualsiasi Squadra"
+                h_i = p.ora_inizio.strftime('%H:%M') if p.ora_inizio else ''
+                h_f = p.ora_fine.strftime('%H:%M') if p.ora_fine else ''
+                routines.append(f"<b>{g_nome}</b> {h_i}-{h_f} ({sq_n})")
+            routine_text = "📅 <b>Routine Contrattuale Concordata:</b> " + " | ".join(routines)
+        else:
+            routine_text = "📅 <b>Routine Contrattuale:</b> Nessuna programmazione fissa ricorrente (interventi su richiesta/straordinari)."
+
+        t_rbox = Table([[Paragraph(routine_text, meta_cli_style)]], colWidths=[273 * mm])
+        t_rbox.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#EFF6FF')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#BFDBFE')),
+            ('PADDING', (0, 0), (-1, -1), 3.5),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(t_rbox)
+        story.append(Spacer(1, 2.5 * mm))
+
+        # 3. Analisi turni ed elaborazione modifiche
+        rows_turni = [
+            [
+                Paragraph('Data / Giorno', hdr_table_style),
+                Paragraph('Orario & Durata', hdr_table_style),
+                Paragraph('Squadra & Personale Effettivo', hdr_table_style),
+                Paragraph('Mansione / Note Turno', hdr_table_style),
+                Paragraph('Stato & Controllo Modifiche', hdr_table_style),
+                Paragraph('Consuntivo / Validazione', hdr_table_style),
+            ]
+        ]
+        col_w = [28 * mm, 26 * mm, 62 * mm, 55 * mm, 64 * mm, 38 * mm]
+
+        tot_interventi = 0
+        tot_ore_pianificate = 0.0
+        tot_ore_consuntivate = 0.0
+        tot_modifiche = 0
+
+        for a in c_assigns:
+            t_obj = a.turno
+            data_t = t_obj.data if t_obj else None
+            giorno_sett = GIORNI_MAP.get(data_t.weekday(), '') if data_t else ''
+            data_str = data_t.strftime('%d/%m/%Y') if data_t else '—'
+
+            # Orari e durata
+            sh = a.orario_inizio_previsto
+            ef = a.orario_fine_previsto
+            sh_str = sh.strftime('%H:%M') if sh else '—'
+            ef_str = ef.strftime('%H:%M') if ef else '—'
+            if sh and ef:
+                dur_m = (ef.hour * 60 + ef.minute) - (sh.hour * 60 + sh.minute)
+                durata_h = max(0.0, dur_m / 60.0)
+            elif a.ore_previste_contratto:
+                durata_h = float(a.ore_previste_contratto)
+            else:
+                durata_h = 0.0
+
+            # Squadra e Personale
+            squadra_nome = t_obj.squadra.nome if (t_obj and t_obj.squadra) else (t_obj.nome_squadra if t_obj else '—')
+            esclusi_pks = {d.pk for d in a.dipendenti_esclusi.all()}
+
+            membri = []
+            if t_obj and t_obj.squadra:
+                if t_obj.squadra.caposquadra and t_obj.squadra.caposquadra.pk not in esclusi_pks:
+                    membri.append(f"{t_obj.squadra.caposquadra.nome} {t_obj.squadra.caposquadra.cognome} [Capo]")
+                for comp in t_obj.squadra.componenti.all():
+                    if comp.pk not in esclusi_pks and comp != t_obj.squadra.caposquadra:
+                        membri.append(f"{comp.nome} {comp.cognome}")
+
+            # Sostituzioni collegate
+            sostituzioni = list(a.richieste_sostituzione.filter(
+                stato__in=['ACCETTATA', 'COMPLETATA', 'APPROVATA_RA', 'INVIATA']
+            ))
+
+            # Timetracking
+            tts = list(a.timetracks.all())
+            ore_tt_tot = sum(float(x.durata_ore or 0) for x in tts)
+            has_validato = any(x.is_validated for x in tts)
+
+            # Rilevamento Modifiche e Variazioni
+            modifiche_turno = []
+            is_modificato = False
+
+            # A) Straordinario
+            if a.richiesta_straordinaria:
+                is_modificato = True
+                modifiche_turno.append("<font color='#DC2626'><b>⚡ Straordinario Concordato</b></font>")
+            elif not a.programmazione_feriale:
+                is_modificato = True
+                modifiche_turno.append("<font color='#EA580C'><b>⚡ Turno Fuori Routine</b></font>")
+
+            # B) Orario modificato rispetto alla programmazione feriale
+            if a.programmazione_feriale:
+                prog = a.programmazione_feriale
+                if prog.ora_inizio and sh and (prog.ora_inizio != sh or prog.ora_fine != ef):
+                    is_modificato = True
+                    p_i = prog.ora_inizio.strftime('%H:%M') if prog.ora_inizio else ''
+                    p_f = prog.ora_fine.strftime('%H:%M') if prog.ora_fine else ''
+                    modifiche_turno.append(f"<font color='#D97706'><b>⚠️ Orario Variato</b></font> <font size='7' color='#64748B'>(Std: {p_i}-{p_f})</font>")
+
+                # C) Squadra diversa rispetto a quella abituale
+                if prog.squadra_abituale and t_obj and t_obj.squadra and t_obj.squadra != prog.squadra_abituale:
+                    is_modificato = True
+                    modifiche_turno.append(f"<font color='#2563EB'><b>👥 Squadra Diversa</b></font> <font size='7' color='#64748B'>(Abituale: {_safe(prog.squadra_abituale.nome)})</font>")
+
+            # D) Sostituzioni Operatori
+            if sostituzioni:
+                is_modificato = True
+                for sost in sostituzioni:
+                    s_nome = f"{sost.sostituto.nome} {sost.sostituto.cognome}" if sost.sostituto else "Non assegnato"
+                    a_nome = f"{sost.dipendente_assente.nome} {sost.dipendente_assente.cognome}" if sost.dipendente_assente else "Assente"
+                    modifiche_turno.append(f"<font color='#7C3AED'><b>🔄 Sostituzione:</b> {s_nome} (per {a_nome})</font>")
+
+            # E) Componenti esclusi
+            if esclusi_pks:
+                is_modificato = True
+                escl_nomi = ", ".join(f"{d.nome} {d.cognome}" for d in a.dipendenti_esclusi.all())
+                modifiche_turno.append(f"<font color='#475569'><b>⛔ Esclusi da turno:</b> {_safe(escl_nomi)}</font>")
+
+            # F) Discrepanza ore timbrate vs previste
+            if tts and abs(ore_tt_tot - durata_h) > 0.15:
+                is_modificato = True
+                diff = ore_tt_tot - durata_h
+                diff_str = f"+{diff:.2f}h" if diff > 0 else f"{diff:.2f}h"
+                modifiche_turno.append(f"<font color='#B45309'><b>⏱ Diff. Ore:</b> {diff_str} (timbrate {ore_tt_tot:.2f}h vs prev. {durata_h:.2f}h)</font>")
+
+            if not modifiche_turno:
+                stato_html = "<font color='#059669'><b>✓ Regolare (Conforme routine)</b></font>"
+            else:
+                stato_html = "<br/>".join(modifiche_turno)
+
+            if solo_modifiche and not is_modificato:
+                continue
+
+            tot_interventi += 1
+            tot_ore_pianificate += durata_h
+            tot_ore_consuntivate += (ore_tt_tot if tts else durata_h)
+            if is_modificato:
+                tot_modifiche += 1
+
+            # Costruzione riga tabella
+            dt_html = f"<b>{giorno_sett}</b><br/><font size='7' color='#475569'>{data_str}</font>"
+            orario_html = f"<b>{sh_str} - {ef_str}</b><br/><font size='7' color='#64748B'>{durata_h:.2f} ore</font>"
+
+            pers_items = [f"<b>{_safe(squadra_nome)}</b>"]
+            if membri:
+                pers_items.append(f"<font size='7' color='#475569'>{_safe(', '.join(membri))}</font>")
+            if sostituzioni:
+                for s in sostituzioni:
+                    sn = f"{s.sostituto.nome} {s.sostituto.cognome}" if s.sostituto else '—'
+                    an = f"{s.dipendente_assente.nome} {s.dipendente_assente.cognome}" if s.dipendente_assente else '—'
+                    pers_items.append(f"<font size='7' color='#7C3AED'><b>🔄 Sost:</b> {_safe(sn)} (per {_safe(an)})</font>")
+            pers_html = "<br/>".join(pers_items)
+
+            note_html = _safe(a.mansione_svolta or '—')
+            if len(note_html) > 130:
+                note_html = note_html[:130] + '…'
+
+            # Validazione / consuntivo
+            if tts:
+                val_badge = "<font color='#059669'><b>✓ Validato</b></font>" if has_validato else "<font color='#D97706'><b>⏳ Da validare</b></font>"
+                cons_html = f"<b>{ore_tt_tot:.2f}h</b><br/>{val_badge}"
+            else:
+                cons_html = f"<b>{durata_h:.2f}h (prev.)</b><br/><font size='7' color='#64748B'>Nessun timetrack</font>"
+
+            rows_turni.append([
+                Paragraph(dt_html, body_style),
+                Paragraph(orario_html, body_style),
+                Paragraph(pers_html, body_style),
+                Paragraph(note_html, body_style),
+                Paragraph(stato_html, body_style),
+                Paragraph(cons_html, body_style),
+            ])
+
+        # Se non ci sono turni (o nessun turno modificato con solo_modifiche=True)
+        if len(rows_turni) == 1:
+            if solo_modifiche:
+                msg_vuoto = "<i>Nessuna anomalia o variazione riscontrata: tutti i turni del periodo sono pienamente conformi.</i>"
+            else:
+                msg_vuoto = "<i>Nessun turno programmato per questo cliente nel periodo selezionato.</i>"
+            rows_turni.append([
+                Paragraph(msg_vuoto, body_style),
+                Paragraph("—", body_style),
+                Paragraph("—", body_style),
+                Paragraph("—", body_style),
+                Paragraph("—", body_style),
+                Paragraph("—", body_style),
+            ])
+
+        t_turni = Table(rows_turni, colWidths=col_w, repeatRows=1)
+        t_turni.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F172A')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('PADDING', (0, 0), (-1, -1), 4),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8FAFC')]),
+        ]))
+        story.append(t_turni)
+        story.append(Spacer(1, 2.5 * mm))
+
+        # 4. Box Riepilogo KPI del Cliente
+        diff_h = tot_ore_consuntivate - tot_ore_pianificate
+        diff_str = f"+{diff_h:.2f}h" if diff_h > 0 else f"{diff_h:.2f}h"
+        kpi_mod_html = (
+            f"<b>Modifiche / Variazioni:</b> <font color='#D97706'><b>{tot_modifiche} rilevate</b></font>"
+            if tot_modifiche > 0 else
+            "<b>Modifiche / Variazioni:</b> <font color='#059669'><b>0 (Pienamente regolare)</b></font>"
+        )
+
+        kpi_data = [
+            [
+                Paragraph(f"<b>Interventi Totali:</b> {tot_interventi}", kpi_style),
+                Paragraph(f"<b>Ore Pianificate:</b> {tot_ore_pianificate:.2f}h", kpi_style),
+                Paragraph(f"<b>Ore Consuntivate:</b> {tot_ore_consuntivate:.2f}h", kpi_style),
+                Paragraph(f"<b>Differenza Ore:</b> {diff_str}", kpi_style),
+                Paragraph(kpi_mod_html, kpi_style)
+            ]
+        ]
+        t_kpi = Table(kpi_data, colWidths=[38 * mm, 45 * mm, 45 * mm, 40 * mm, 105 * mm])
+        t_kpi.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F1F5F9')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+            ('PADDING', (0, 0), (-1, -1), 4.5),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(t_kpi)
+
+        # Se ci sono altri clienti, inserisci salto pagina
+        if idx < len(clienti_list) - 1:
+            story.append(PageBreak())
+
+    # Build PDF
+    doc.build(story, canvasmaker=NumberedCanvas)
+    buffer.seek(0)
+
+    # Nome file personalizzato
+    if len(clienti_list) == 1:
+        c_slug = "".join(c for c in clienti_list[0].ragione_sociale if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')[:25]
+        nome_file = f"turni_{c_slug}_{start_date.strftime('%d%m%Y')}_{end_date.strftime('%d%m%Y')}.pdf"
+    else:
+        nome_file = f"turni_clienti_{start_date.strftime('%d%m%Y')}_{end_date.strftime('%d%m%Y')}.pdf"
+
+    resp = HttpResponse(buffer, content_type='application/pdf')
+    resp['Content-Disposition'] = f'inline; filename="{nome_file}"'
+    return resp
+
+
+
 # ─────────────────────────────────────────────────────────────
 #  INSTALLA LOCALE — pagina di download per nuovi utenti
 #  Accessibile anche dalla produzione (Render)

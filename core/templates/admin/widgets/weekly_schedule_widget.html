@@ -102,15 +102,16 @@
   </div>
 </div>
 </div>
-<div style="display:flex;align-items:center;gap:12px">
+<div style="display:flex;align-items:center;gap:10px">
 <select id="squadra-filter" onchange="window.location.href='?week={{ current_week_offset }}&squadra='+this.value" style="padding:6px 12px;border-radius:6px;border:none;font-size:13px;background:rgba(255,255,255,.95);color:#0F172A;font-weight:600;cursor:pointer;min-width:170px">
 <option value="">Tutte le Squadre</option>
 {% for sq in squadre %}
 <option value="{{ sq.id }}" {{ sq.selected }}>{{ sq.nome }}</option>
 {% endfor %}
 </select>
-<a href="/settimana-pdf/?week={{ current_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" target="_blank" style="color:#fff;font-size:12px;text-decoration:none;background:#DC2626;padding:6px 14px;border-radius:20px;font-weight:700">🖨 PDF</a>
-<a href="/admin/core/turno/" style="color:#fff;font-size:12px;text-decoration:none;background:rgba(255,255,255,.18);padding:6px 14px;border-radius:20px;font-weight:700">Gestisci Turni &rarr;</a>
+<a href="/settimana-pdf/?week={{ current_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" target="_blank" style="color:#fff;font-size:12px;text-decoration:none;background:#DC2626;padding:6px 12px;border-radius:20px;font-weight:700" title="PDF Griglia Settimanale Oraria">🖨 PDF</a>
+<button type="button" onclick="openPdfClientiModal()" style="color:#fff;font-size:12px;background:#0d9488;border:none;padding:6px 14px;border-radius:20px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Scarica prospetto PDF turni e verifica modifiche per cliente">🏢 PDF Turni Clienti</button>
+<a href="/admin/core/turno/" style="color:#fff;font-size:12px;text-decoration:none;background:rgba(255,255,255,.18);padding:6px 12px;border-radius:20px;font-weight:700">Gestisci Turni &rarr;</a>
 </div>
 </h3>
 <div style="overflow-x:auto;background:#fff">
@@ -316,6 +317,84 @@
 <button class="btn-save-turno" onclick="saveEditTurno()">💾 Salva</button>
 </div>
 </div>
+</div>
+
+<!-- MODAL ESTRAZIONE PDF TURNI CLIENTI -->
+<div id="pdf-clienti-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(3px);">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:540px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);overflow:hidden;">
+    <div style="background:#0F172A;color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:22px;">🏢</span>
+        <div>
+          <h4 style="margin:0;font-size:16px;font-weight:700;color:#F8FAFC;">Estrai PDF Turni Clienti</h4>
+          <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8;">Prospetto turni cliente per cliente con controllo modifiche e conformità</p>
+        </div>
+      </div>
+      <button type="button" onclick="closePdfClientiModal()" style="background:transparent;border:none;color:#94A3B8;font-size:22px;cursor:pointer;line-height:1;" title="Chiudi">&times;</button>
+    </div>
+    
+    <div style="padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <!-- Selettore Cliente -->
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">Seleziona Cliente</label>
+        <select id="pdf-cli-select" style="width:100%;padding:9px 12px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;color:#0F172A;background:#F8FAFC;font-weight:600;">
+          <option value="all">🏢 TUTTI I CLIENTI CON TURNI (Controllo Globale - 1 pagina per cliente)</option>
+          {% for cli in clienti_list %}
+          <option value="{{ cli.id }}">{{ cli.ragione_sociale }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Selettore Periodo -->
+      <div>
+        <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">Periodo di Riferimento</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:6px;cursor:pointer;font-size:12.5px;">
+            <input type="radio" name="pdf_periodo_tipo" value="settimana" checked>
+            <span><b>Settimana visualizzata</b><br/><small style="color:#64748B;">{{ week_range }}</small></span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#F8FAFC;border:1px solid #CBD5E1;border-radius:6px;cursor:pointer;font-size:12.5px;">
+            <input type="radio" name="pdf_periodo_tipo" value="mese">
+            <span><b>Intero Mese</b><br/><small style="color:#64748B;">{{ active_month_label }}</small></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Date Range Custom Opzionale -->
+      <div id="pdf-custom-dates-wrap" style="display:none;background:#F1F5F9;padding:12px;border-radius:8px;border:1px dashed #CBD5E1;">
+        <div style="font-size:11.5px;font-weight:700;color:#475569;margin-bottom:8px;">Oppure intervallo date personalizzato:</div>
+        <div style="display:flex;gap:10px;">
+          <div style="flex:1;">
+            <label style="font-size:11px;color:#64748B;display:block;margin-bottom:2px;">Dal</label>
+            <input type="date" id="pdf-cli-dal" style="width:100%;padding:6px 10px;border:1px solid #CBD5E1;border-radius:4px;font-size:12px;">
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:11px;color:#64748B;display:block;margin-bottom:2px;">Al</label>
+            <input type="date" id="pdf-cli-al" style="width:100%;padding:6px 10px;border:1px solid #CBD5E1;border-radius:4px;font-size:12px;">
+          </div>
+        </div>
+      </div>
+      <div>
+        <a href="javascript:void(0)" onclick="toggleCustomDatesPdf()" style="font-size:11.5px;color:#0D9488;text-decoration:none;font-weight:700;">⚙️ Imposta intervallo date personalizzato (Dal - Al)</a>
+      </div>
+
+      <!-- Filtro modifiche -->
+      <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;padding:10px 14px;">
+        <label style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:#92400E;cursor:pointer;user-select:none;font-weight:700;">
+          <input type="checkbox" id="pdf-cli-solo-modifiche" style="width:16px;height:16px;">
+          <span>Evidenzia e includi SOLO turni con modifiche / anomalie</span>
+        </label>
+        <p style="margin:4px 0 0 25px;font-size:11px;color:#B45309;line-height:1.35;">Esclude i turni conformi alla routine feriale standard, mostrando solo straordinari, variazioni di orario/squadra, sostituzioni operatori e discrepanze ore.</p>
+      </div>
+    </div>
+
+    <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:14px 20px;display:flex;justify-content:flex-end;gap:10px;">
+      <button type="button" onclick="closePdfClientiModal()" style="padding:8px 16px;border:1px solid #CBD5E1;background:#fff;border-radius:6px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;">Annulla</button>
+      <button type="button" onclick="submitPdfClienti()" style="padding:8px 20px;border:none;background:#0D9488;border-radius:6px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(13,148,136,0.3);">
+        <span>📄 Scarica PDF Turni</span>
+      </button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1120,4 +1199,51 @@ document.addEventListener('click', function(e){
     pop.classList.remove('open');
   }
 });
+
+/* Funzioni Gestione PDF Turni Clienti */
+function openPdfClientiModal() {
+  var modal = document.getElementById('pdf-clienti-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closePdfClientiModal() {
+  var modal = document.getElementById('pdf-clienti-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function toggleCustomDatesPdf() {
+  var wrap = document.getElementById('pdf-custom-dates-wrap');
+  if (wrap) {
+    wrap.style.display = (wrap.style.display === 'none' || wrap.style.display === '') ? 'block' : 'none';
+  }
+}
+
+function submitPdfClienti() {
+  var cliEl = document.getElementById('pdf-cli-select');
+  var cliId = cliEl ? cliEl.value : 'all';
+  var soloModEl = document.getElementById('pdf-cli-solo-modifiche');
+  var soloMod = (soloModEl && soloModEl.checked) ? '1' : '0';
+
+  var rPeriodo = document.querySelector('input[name="pdf_periodo_tipo"]:checked');
+  var tipoPeriodo = rPeriodo ? rPeriodo.value : 'settimana';
+
+  var dal = document.getElementById('pdf-cli-dal') ? document.getElementById('pdf-cli-dal').value : '';
+  var al = document.getElementById('pdf-cli-al') ? document.getElementById('pdf-cli-al').value : '';
+
+  var url = '/turni-clienti/pdf/?cliente_id=' + encodeURIComponent(cliId);
+  if (soloMod === '1') {
+    url += '&solo_modifiche=1';
+  }
+
+  if (dal && al) {
+    url += '&dal=' + encodeURIComponent(dal) + '&al=' + encodeURIComponent(al);
+  } else if (tipoPeriodo === 'mese') {
+    url += '&mese={{ current_month_val }}&anno={{ current_year_val }}';
+  } else {
+    url += '&week={{ current_week_offset }}';
+  }
+
+  window.open(url, '_blank');
+  closePdfClientiModal();
+}
 </script>

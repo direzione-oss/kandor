@@ -1087,10 +1087,41 @@ class RichiestaStraordinariaAdmin(KandorBaseAdmin):
 
 @admin.register(Cliente)
 class ClienteAdmin(KandorBaseAdmin):
-    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge')
+    list_display = ('ragione_sociale', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge', 'pdf_turni_badge')
     search_fields = ('ragione_sociale', 'partita_iva')
     inlines = [ProgrammazioneInline, StraordinarioInline, DotazioneCantiereInline, StoricoContrattoClienteInline]
-    actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action']
+    actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action', 'scarica_pdf_turni_settimana_action', 'scarica_pdf_turni_mese_action']
+
+    @admin.display(description="📄 PDF Turni")
+    def pdf_turni_badge(self, obj):
+        if not obj or not obj.pk:
+            return "—"
+        from django.utils import timezone
+        now = timezone.now()
+        return format_html(
+            '<div style="display:inline-flex; gap:4px; align-items:center;">'
+            '<a href="/turni-clienti/pdf/?cliente_id={}&week=0" target="_blank" title="Verifica e scarica PDF turni settimana corrente" style="background:#0F172A; color:#F8FAFC; border:1px solid #334155; padding:2px 7px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none;">📄 Sett.</a>'
+            '<a href="/turni-clienti/pdf/?cliente_id={}&mese={}&anno={}" target="_blank" title="Verifica e scarica PDF turni intero mese corrente" style="background:#0D9488; color:#FFFFFF; border:1px solid #0F766E; padding:2px 7px; border-radius:5px; font-size:10.5px; font-weight:700; text-decoration:none;">Mese</a>'
+            '</div>',
+            obj.pk, obj.pk, now.month, now.year
+        )
+
+    @admin.action(description="📄 Esporta PDF Turni dei clienti selezionati (Settimana Corrente)")
+    def scarica_pdf_turni_settimana_action(self, request, queryset):
+        pks = [str(c.pk) for c in queryset]
+        if not pks:
+            return
+        from django.shortcuts import redirect
+        return redirect(f"/turni-clienti/pdf/?cliente_id={','.join(pks)}&week=0")
+
+    @admin.action(description="📄 Esporta PDF Turni dei clienti selezionati (Mese Corrente)")
+    def scarica_pdf_turni_mese_action(self, request, queryset):
+        pks = [str(c.pk) for c in queryset]
+        if not pks:
+            return
+        from django.shortcuts import redirect
+        now = timezone.now()
+        return redirect(f"/turni-clienti/pdf/?cliente_id={','.join(pks)}&mese={now.month}&anno={now.year}")
 
     @admin.display(description="⚙️ Dotazioni Cantiere")
     def dotazioni_badge(self, obj):

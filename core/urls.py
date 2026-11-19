@@ -13,7 +13,7 @@ from .views import (
     get_sostituti_richiesta_api, invia_notifiche_sostituti_api,
     valida_assenza_api, conferma_sostituto_ufficio_api,
     titolari_dashboard_view, titolari_riepilogo_view,
-    settimana_pdf_view,
+    settimana_pdf_view, turni_clienti_pdf_view,
     dev_tools_view, dev_tools_pull, dev_tools_push, dev_tools_push_status, dev_tools_backup, dev_tools_publish_code,
     installa_locale_view, installa_locale_download, debug_db_view,
     ia_hub_view, ia_auto_valida_ore_api, ia_invia_briefing_api, ia_mezzo_manutenzione_api, ia_analizza_documento_api,
@@ -104,6 +104,7 @@ urlpatterns = [
     path('report-paghe/salva-modifica/', salva_modifica_cedolino_ajax, name='salva_modifica_cedolino'),
     path('pdf-verifica-ore/', pdf_verifica_ore, name='pdf_verifica_ore'),
     path('settimana-pdf/', settimana_pdf_view, name='settimana_pdf'),
+    path('turni-clienti/pdf/', turni_clienti_pdf_view, name='turni_clienti_pdf'),
     
     # Gestione Sostituti
     path('api/richiesta-sostituzione/', richiesta_sostituzione_api, name='richiesta_sostituzione'),
