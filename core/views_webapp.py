@@ -30,6 +30,20 @@ from .models import (
 
 
 SESSION_KEY_DIP_ID = 'dipendente_app_id'
+PRIVACY_POLICY_VERSION = '1.0'
+
+
+def _has_accepted_privacy(dip):
+    if not dip:
+        return False
+    return bool(dip.privacy_accettata and dip.privacy_versione == PRIVACY_POLICY_VERSION)
+
+
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return (request.META.get('REMOTE_ADDR') or '').strip() or None
 
 
 def _get_photo_url(dip):
@@ -271,6 +285,37 @@ def dipendente_app_view(request):
     if not dip:
         return HttpResponseRedirect('/app/login/')
 
+    # Verifica accettazione una tantum dell'Informativa Privacy iniziale
+    if not _has_accepted_privacy(dip):
+        privacy_error = None
+        if request.method == 'POST' and request.POST.get('action') == 'accetta_privacy':
+            if request.POST.get('accetto_privacy') == 'on':
+                dip.privacy_accettata = True
+                dip.privacy_accettata_il = timezone.now()
+                dip.privacy_versione = PRIVACY_POLICY_VERSION
+                dip.privacy_ip = _get_client_ip(request)
+                dip.save(update_fields=[
+                    'privacy_accettata',
+                    'privacy_accettata_il',
+                    'privacy_versione',
+                    'privacy_ip',
+                ])
+                redirect_url = '/app/'
+                qr_cid = request.GET.get('qr_cliente_id')
+                if qr_cid and str(qr_cid).isdigit():
+                    redirect_url = f'/app/?qr_cliente_id={qr_cid}'
+                return HttpResponseRedirect(redirect_url)
+            privacy_error = "Per accedere all'App devi spuntare la casella di presa visione e accettazione."
+
+        response = render(request, 'core/dipendente_privacy.html', {
+            'dipendente': dip,
+            'privacy_versione': PRIVACY_POLICY_VERSION,
+            'error': privacy_error,
+        })
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response['Pragma'] = 'no-cache'
+        return response
+
     today = timezone.now().date()
     active_tab = request.GET.get('tab', 'home')
 
@@ -472,6 +517,9 @@ def dipendente_app_action_view(request):
     dip = _get_logged_dipendente(request)
     if not dip:
         return JsonResponse({'ok': False, 'error': 'Sessione scaduta. Effettua nuovamente il login.', 'redirect': '/app/login/'}, status=401)
+
+    if not _has_accepted_privacy(dip):
+        return JsonResponse({'ok': False, 'error': "Devi prima accettare l'Informativa Privacy iniziale.", 'redirect': '/app/'}, status=403)
 
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': 'Metodo non consentito.'}, status=405)

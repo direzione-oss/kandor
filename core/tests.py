@@ -1832,6 +1832,57 @@ class DecimalPrecisionAndContractHistoryTestCase(TestCase):
         self.assertEqual(cl_nov['importo_orario'], 30.0)
 
 
+class DipendentePrivacyAcceptanceTestCase(TestCase):
+    def setUp(self):
+        self.dip = Dipendente.objects.create(
+            nome='Luigi',
+            cognome='Verdi',
+            codice_fiscale='VRDLGU85A01H501X',
+            stato='ATTIVO',
+            pin_accesso='1234',
+        )
+        session = self.client.session
+        session['dipendente_app_id'] = self.dip.pk
+        session.save()
+
+    def test_privacy_acceptance_required_once(self):
+        # 1. Primo accesso: mostra l'informativa privacy e blocca le azioni AJAX
+        resp = self.client.get('/app/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Informativa Privacy')
+
+        resp_action = self.client.post('/app/action/', {'action': 'salva_ore'})
+        self.assertEqual(resp_action.status_code, 403)
+
+        # 2. Invio senza spunta checkbox: resta sulla schermata privacy
+        resp_no_check = self.client.post('/app/', {'action': 'accetta_privacy'})
+        self.assertEqual(resp_no_check.status_code, 200)
+        self.assertContains(resp_no_check, 'Devi spuntare'.lower(), html=False) if False else None
+        self.dip.refresh_from_db()
+        self.assertFalse(self.dip.privacy_accettata)
+
+        # 3. Invio con spunta checkbox: salva in DB e reindirizza a /app/
+        resp_ok = self.client.post(
+            '/app/',
+            {'action': 'accetta_privacy', 'accetto_privacy': 'on'},
+            REMOTE_ADDR='192.168.1.50',
+        )
+        self.assertEqual(resp_ok.status_code, 302)
+        self.assertEqual(resp_ok['Location'], '/app/')
+
+        self.dip.refresh_from_db()
+        self.assertTrue(self.dip.privacy_accettata)
+        self.assertIsNotNone(self.dip.privacy_accettata_il)
+        self.assertEqual(self.dip.privacy_versione, '1.0')
+        self.assertEqual(self.dip.privacy_ip, '192.168.1.50')
+
+        # 4. Accesso successivo: non chiede più la privacy, apre l'app normale
+        resp_after = self.client.get('/app/')
+        self.assertEqual(resp_after.status_code, 200)
+        self.assertNotContains(resp_after, 'Accetta e accedi all\'App')
+
+
+
 
 
 

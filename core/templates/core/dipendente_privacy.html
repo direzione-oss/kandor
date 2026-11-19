@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0F172A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kandor">
+    <link rel="manifest" href="/app/manifest.json">
+    <link rel="icon" type="image/svg+xml" href="/app/icon.svg">
+    <link rel="apple-touch-icon" href="/app/icon.svg">
+    <title>Kandor - Informativa Privacy Dipendenti</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(160deg, #0F172A 0%, #1E293B 100%);
+            color: #F8FAFC;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+        }
+        .privacy-card {
+            width: 100%;
+            max-width: 520px;
+            background: #FFFFFF;
+            color: #0F172A;
+            border-radius: 22px;
+            padding: 24px 22px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+        }
+        .brand-header {
+            text-align: center;
+            margin-bottom: 18px;
+        }
+        .brand-badge {
+            display: inline-block;
+            background: #FFF7ED;
+            color: #C2410C;
+            border: 1px solid #FDBA74;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            margin-bottom: 8px;
+        }
+        .brand-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0F172A;
+            margin: 0;
+        }
+        .brand-sub {
+            font-size: 13px;
+            color: #64748B;
+            margin: 4px 0 0 0;
+        }
+        .error-box {
+            background: #FEE2E2;
+            border: 1.5px solid #FCA5A5;
+            color: #991B1B;
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+        .policy-box {
+            background: #F8FAFC;
+            border: 1.5px solid #E2E8F0;
+            border-radius: 14px;
+            padding: 14px 15px;
+            max-height: 52vh;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.52;
+            color: #334155;
+            margin-bottom: 16px;
+        }
+        .policy-box h3 {
+            font-size: 13.5px;
+            font-weight: 800;
+            color: #0F172A;
+            margin: 14px 0 4px 0;
+        }
+        .policy-box h3:first-child {
+            margin-top: 0;
+        }
+        .policy-box p, .policy-box ul {
+            margin: 0 0 8px 0;
+        }
+        .policy-box ul {
+            padding-left: 18px;
+        }
+        .policy-box li {
+            margin-bottom: 4px;
+        }
+        .check-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #F1F5F9;
+            border: 1.5px solid #CBD5E1;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 16px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #0F172A;
+            line-height: 1.4;
+        }
+        .check-row input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-top: 1px;
+            accent-color: #FF6F00;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .btn-accept {
+            width: 100%;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #FF6F00 0%, #EA580C 100%);
+            color: #FFFFFF;
+            font-size: 15px;
+            font-weight: 800;
+            padding: 14px 18px;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(234, 88, 12, 0.3);
+        }
+        .btn-accept:active {
+            transform: scale(0.99);
+        }
+        .footer-links {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 12.5px;
+        }
+        .footer-links a {
+            color: #64748B;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="privacy-card">
+        <div class="brand-header">
+            <div class="brand-badge">Informativa Privacy v{{ privacy_versione }}</div>
+            <h1 class="brand-title">Benvenuto, {{ dipendente.nome }} {{ dipendente.cognome }}</h1>
+            <p class="brand-sub">Prima di iniziare, leggi e accetta l'informativa sul trattamento dei dati (richiesta una sola volta).</p>
+        </div>
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+
+        <div class="policy-box">
+            <h3>1. Titolare del Trattamento</h3>
+            <p>
+                Il Titolare del trattamento dei dati personali è il tuo Datore di Lavoro (l'Azienda titolare del portale gestionale <strong>Kandor</strong>),
+                contattabile tramite i recapiti dell'Amministrazione aziendale.
+            </p>
+
+            <h3>2. Dati Personali Trattati</h3>
+            <p>Attraverso l'App Dipendenti e il gestionale aziendale vengono trattati:</p>
+            <ul>
+                <li><strong>Dati anagrafici e di contatto:</strong> nome, cognome, codice fiscale, indirizzo, email, telefono e foto profilo.</li>
+                <li><strong>Dati contrattuali e retributivi:</strong> inquadramento, turni assegnati, ore lavorate, ferie/permessi e cedolini paga (buste paga).</li>
+                <li><strong>Dati particolari (art. 9 GDPR):</strong> esclusivamente quelli strettamente necessari per legge o contratto (es. assenze per malattia, permessi Legge 104, idoneità/visite mediche, infortuni).</li>
+                <li><strong>Timbrature e Geolocalizzazione puntuale (GPS):</strong> rilevazione della posizione geografica <em>esclusivamente nel momento volontario del Check-In / Check-Out</em> sul cantiere, per verificare la presenza presso la sede assegnata. <strong>Non viene effettuato alcun tracciamento continuo in background.</strong></li>
+                <li><strong>Comunicazioni e segnalazioni:</strong> messaggi in chat con l'ufficio, notifiche tramite Telegram (se collegato) e segnalazioni operative/foto cantiere.</li>
+            </ul>
+
+            <h3>3. Finalità e Base Giuridica</h3>
+            <p>
+                I dati sono trattati per l'esecuzione del rapporto di lavoro (art. 6, par. 1, lett. b GDPR), per l'adempimento di obblighi legali, fiscali, previdenziali e di sicurezza sul lavoro (art. 6, par. 1, lett. c e art. 9, par. 2, lett. b GDPR), nonché per esigenze organizzative e di rendicontazione verso i cantieri/clienti nel rispetto dell'art. 4 della Legge 300/1970 (Statuto dei Lavoratori).
+            </p>
+
+            <h3>4. Conservazione e Destinatari</h3>
+            <p>
+                I dati sono conservati su server sicuri in ambito UE/SEE per la durata del rapporto di lavoro e per i termini di legge successivi (es. 10 anni per documenti contabili e paghe). Possono essere comunicati solo a soggetti autorizzati (consulente del lavoro, medico competente, enti previdenziali/fiscali e responsabili interni). I dati non sono ceduti a terzi per finalità commerciali.
+            </p>
+
+            <h3>5. Diritti dell'Interessato</h3>
+            <p>
+                In qualsiasi momento puoi esercitare i diritti previsti dagli artt. 15-22 del GDPR (accesso, rettifica, cancellazione nei limiti di legge, limitazione, opposizione) rivolgendoti all'Amministrazione aziendale, nonché proporre reclamo al Garante per la Protezione dei Dati Personali.
+            </p>
+        </div>
+
+        <form method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="accetta_privacy">
+            <label class="check-row">
+                <input type="checkbox" name="accetto_privacy" required>
+                <span>Dichiaro di aver letto e compreso l'Informativa sul trattamento dei dati personali (v{{ privacy_versione }}) e ne prendo atto per l'utilizzo dell'App Dipendenti.</span>
+            </label>
+            <button type="submit" class="btn-accept">✅ Accetta e accedi all'App</button>
+        </form>
+
+        <div class="footer-links">
+            <a href="/app/logout/">Esci dall'account</a>
+        </div>
+    </div>
+</body>
+</html>

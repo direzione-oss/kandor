@@ -152,6 +152,12 @@ class Dipendente(models.Model):
     foto_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="URL Foto (Supabase)")
     foto_profilo_url = models.URLField(max_length=500, blank=True, null=True, verbose_name="URL Foto Profilo (Telegram/Supabase)")
 
+    # Informativa Privacy / GDPR (accettazione una tantum in Web App)
+    privacy_accettata = models.BooleanField(default=False, verbose_name="Informativa Privacy Accettata")
+    privacy_accettata_il = models.DateTimeField(null=True, blank=True, verbose_name="Data/Ora Accettazione Privacy")
+    privacy_versione = models.CharField(max_length=20, blank=True, default='', verbose_name="Versione Informativa Privacy")
+    privacy_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP Accettazione Privacy")
+
     def clean(self):
         from django.core.exceptions import ValidationError
         if self.codice_fiscale:
