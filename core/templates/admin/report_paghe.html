@@ -266,6 +266,73 @@
         background: #1D4ED8;
     }
 
+    /* Stili per celle e interattività del Calendario Cedolini */
+    .cal-day-cell {
+        border: 1px solid #CBD5E1;
+        height: 86px;
+        vertical-align: top;
+        position: relative;
+        padding: 0;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+    }
+
+    .cal-day-cell:hover {
+        background-color: #EFF6FF !important;
+        box-shadow: inset 0 0 0 2px #2563EB;
+    }
+
+    .cal-day-edit-btn {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        background: #F1F5F9;
+        border: 1px solid #CBD5E1;
+        border-radius: 4px;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s;
+        z-index: 2;
+        padding: 0;
+        line-height: 1;
+    }
+
+    .cal-day-cell:hover .cal-day-edit-btn {
+        opacity: 1;
+        background: #2563EB;
+        color: white;
+        border-color: #2563EB;
+    }
+
+    .cal-val-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-left: 4px;
+    }
+    .cal-val-dot.green { background: #059669; }
+    .cal-val-dot.orange { background: #D97706; }
+
+    .cal-empty-hint {
+        font-size: 0.72rem;
+        color: #94A3B8;
+        opacity: 0;
+        transition: opacity 0.15s;
+    }
+
+    .cal-day-cell:hover .cal-empty-hint {
+        opacity: 1;
+        color: #2563EB;
+        font-weight: 600;
+    }
+
     /* Modal Overlay & Card */
     .modal-overlay {
         position: fixed;
@@ -573,12 +640,22 @@
                                     {% for week in item.calendario_weeks %}
                                     <tr>
                                         {% for day in week %}
-                                        <td style="border: 1px solid #CBD5E1; height: 86px; vertical-align: top; position: relative; padding: 0;">
+                                        <td class="{% if day.date %}cal-day-cell{% endif %}" {% if day.date %}onclick="apriModalModificaGiorno('{{ item.dip_id }}', '{{ item.cognome_nome|escapejs }}', '{{ day.date }}')" title="Clicca per modificare o inserire le ore del {{ day.day }}"{% endif %} style="border: 1px solid #CBD5E1; height: 86px; vertical-align: top; position: relative; padding: 0;">
                                             {% if day.date %}
+                                                <button type="button" class="cal-day-edit-btn" onclick="apriModalModificaGiorno('{{ item.dip_id }}', '{{ item.cognome_nome|escapejs }}', '{{ day.date }}'); event.stopPropagation();" title="Modifica ore del {{ day.day }}">✏️</button>
                                                 <span style="position: absolute; top: 4px; right: 6px; font-size: 0.8rem; color: #94A3B8;">{{ day.day }}</span>
                                                 <div style="min-height: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 14px 4px 6px 4px; box-sizing: border-box;">
                                                     {% if day.ore %}
-                                                    <div style="font-size: 1.2rem; font-weight: bold; color: #0F172A;">{{ day.ore }}</div>
+                                                    <div style="font-size: 1.2rem; font-weight: bold; color: #0F172A; display: inline-flex; align-items: center; gap: 4px;">
+                                                        <span>{{ day.ore }}</span>
+                                                        {% if day.is_validated %}
+                                                        <span class="cal-val-dot green" title="Ore validate"></span>
+                                                        {% elif day.has_pending %}
+                                                        <span class="cal-val-dot orange" title="Ore in attesa di validazione"></span>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% else %}
+                                                    <div class="cal-empty-hint">+ Ore</div>
                                                     {% endif %}
                                                     
                                                     {% if day.assenze %}
@@ -702,45 +779,389 @@
     </div>
 </div>
 
+<!-- Modal Modifica Ore Giornaliere (da Calendario) -->
+<div id="modalModificaOreGiorno" class="modal-overlay">
+    <div class="modal-card" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <div>
+                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #0F172A;">🕒 Modifica Ore Giornaliere</h3>
+                <div style="font-size: 0.85rem; color: #64748B; margin-top: 4px;">
+                    <b id="mog_dipendente_nome" style="color: #1E293B;"></b> — <span id="mog_data_formatted" style="color: #2563EB; font-weight: 600;"></span>
+                </div>
+            </div>
+            <button type="button" class="modal-close-btn" onclick="chiudiModalModificaGiorno()">&times;</button>
+        </div>
 
-    <script>
-        function toggleCalendario(dipId) {
-            var row = document.getElementById('cal-row-' + dipId);
-            if (row.style.display === 'none') {
-                row.style.display = 'table-row';
-            } else {
-                row.style.display = 'none';
+        <!-- Alert Assenze -->
+        <div id="mog_alert_assenze" style="display: none; background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.82rem; color: #92400E;">
+            🏖️ <b>Nota Assenza:</b> in questa data risulta registrata: <span id="mog_assenze_str" style="font-weight: 700;"></span>
+        </div>
+
+        <!-- Loading spinner -->
+        <div id="mog_loading" style="text-align: center; padding: 30px; color: #64748B;">
+            <div style="font-size: 1.5rem; margin-bottom: 8px;">⏳</div>
+            Caricamento dati della giornata...
+        </div>
+
+        <!-- Contenuto del form -->
+        <div id="mog_content" style="display: none;">
+            <input type="hidden" id="mog_dipendente_id">
+            <input type="hidden" id="mog_data">
+
+            <!-- Sezione Registrazioni Esistenti -->
+            <div id="mog_records_container" style="margin-bottom: 16px;">
+                <label style="font-size: 0.78rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 8px;">
+                    📋 Ore Registrate per questa giornata
+                </label>
+                <div id="mog_records_list">
+                    <!-- Popolato dinamicamente -->
+                </div>
+                <div id="mog_no_records" style="display: none; padding: 14px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; text-align: center; color: #64748B; font-size: 0.82rem; margin-bottom: 10px;">
+                    Nessuna ora registrata per questa data. Usa la sezione sottostante per aggiungere le ore lavorate.
+                </div>
+            </div>
+
+            <!-- Sezione Aggiungi Nuovo Turno / Cantiere -->
+            <div id="mog_nuovo_container" style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-size: 0.82rem; font-weight: 700; color: #0F172A;">➕ Aggiungi Ore / Altro Cantiere</span>
+                    <label style="font-size: 0.75rem; color: #059669; cursor: pointer; display: flex; align-items: center; gap: 4px; font-weight: 600;">
+                        <input type="checkbox" id="mog_nuovo_valida" checked> Convalida subito
+                    </label>
+                </div>
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 8px;">
+                    <div>
+                        <label style="font-size: 0.72rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Cantiere / Cliente</label>
+                        <select id="mog_nuovo_cliente" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.82rem; margin-top: 4px; box-sizing: border-box;">
+                            <!-- Popolato dinamicamente -->
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 0.72rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Ore Lavorate (h)</label>
+                        <input type="number" step="0.5" min="0" max="24" id="mog_nuovo_ore" placeholder="es. 8.0" oninput="aggiornaTotalePreview()" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 4px; box-sizing: border-box;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size: 0.72rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Note / Motivazione (opzionale)</label>
+                    <input type="text" id="mog_nuovo_note" placeholder="es. Inserite da amministrazione o cantiere straordinario" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.82rem; margin-top: 4px; box-sizing: border-box;">
+                </div>
+            </div>
+
+            <!-- Info Riepilogo Calcoli -->
+            <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 10px 14px; font-size: 0.8rem; color: #1E40AF; display: flex; justify-content: space-between; align-items: center;">
+                <span>💡 Il salvataggio aggiornerà automaticamente ore totali, convalidate e cedolini.</span>
+                <span id="mog_totale_preview" style="font-weight: 800; font-size: 0.95rem; color: #0F172A;"></span>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" onclick="chiudiModalModificaGiorno()" style="background: #E2E8F0; color: #475569; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                Annulla
+            </button>
+            <button type="button" id="btn_salva_ore_giorno" onclick="salvaOreGiorno()" style="background: #2563EB; color: white; border: none; padding: 8px 18px; border-radius: 6px; font-weight: 700; cursor: pointer;">
+                💾 Salva Modifiche Ore
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function toggleCalendario(dipId) {
+        var row = document.getElementById('cal-row-' + dipId);
+        if (row.style.display === 'none') {
+            row.style.display = 'table-row';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+
+    // =========================================================================
+    // MODIFICA ORE GIORNALIERE DA CALENDARIO
+    // =========================================================================
+    function apriModalModificaGiorno(dipId, dipNome, dataStr) {
+        const modal = document.getElementById('modalModificaOreGiorno');
+        const loading = document.getElementById('mog_loading');
+        const content = document.getElementById('mog_content');
+        const alertAss = document.getElementById('mog_alert_assenze');
+
+        document.getElementById('mog_dipendente_id').value = dipId;
+        document.getElementById('mog_data').value = dataStr;
+        document.getElementById('mog_dipendente_nome').innerText = dipNome;
+        document.getElementById('mog_data_formatted').innerText = 'Caricamento...';
+        
+        loading.style.display = 'block';
+        content.style.display = 'none';
+        alertAss.style.display = 'none';
+        modal.style.display = 'flex';
+
+        fetch('{% url "dettaglio_ore_giorno_ajax" %}?dipendente_id=' + encodeURIComponent(dipId) + '&data=' + encodeURIComponent(dataStr))
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Errore: ' + (data.error || 'Impossibile recuperare i dati.'));
+                    chiudiModalModificaGiorno();
+                    return;
+                }
+
+                document.getElementById('mog_data_formatted').innerText = data.giorno_settimana + ' ' + data.data_formatted;
+
+                if (data.assenze && data.assenze.length > 0) {
+                    document.getElementById('mog_assenze_str').innerText = data.assenze.join(', ');
+                    alertAss.style.display = 'block';
+                } else {
+                    alertAss.style.display = 'none';
+                }
+
+                // Popola clienti disponibili
+                const selCliente = document.getElementById('mog_nuovo_cliente');
+                selCliente.innerHTML = '';
+                if (data.clienti && data.clienti.length > 0) {
+                    data.clienti.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.nome;
+                        selCliente.appendChild(opt);
+                    });
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'Nessun cliente registrato';
+                    selCliente.appendChild(opt);
+                }
+
+                // Popola records esistenti
+                const recordsList = document.getElementById('mog_records_list');
+                const noRecords = document.getElementById('mog_no_records');
+                recordsList.innerHTML = '';
+
+                if (data.records && data.records.length > 0) {
+                    noRecords.style.display = 'none';
+                    data.records.forEach(rec => {
+                        recordsList.insertAdjacentHTML('beforeend', renderRecordRow(rec));
+                    });
+                } else {
+                    noRecords.style.display = 'block';
+                }
+
+                // Reset campi nuovo record
+                document.getElementById('mog_nuovo_ore').value = '';
+                document.getElementById('mog_nuovo_note').value = '';
+                document.getElementById('mog_nuovo_valida').checked = true;
+
+                aggiornaTotalePreview();
+
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Errore di comunicazione di rete.');
+                chiudiModalModificaGiorno();
+            });
+    }
+
+    function renderRecordRow(rec) {
+        return `
+        <div class="mog-record-card" data-rec-id="${rec.id}" style="background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px; padding: 12px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: opacity 0.2s;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                <div>
+                    <strong style="color: #0F172A; font-size: 0.88rem;">${escapeHtml(rec.cliente_nome)}</strong>
+                    <span style="font-size: 0.75rem; color: #64748B; margin-left: 6px; background: #F1F5F9; padding: 2px 6px; border-radius: 4px;">${escapeHtml(rec.squadra_nome)}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label style="font-size: 0.75rem; color: ${rec.is_validated ? '#059669' : '#D97706'}; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <input type="checkbox" class="rec-is-val" ${rec.is_validated ? 'checked' : ''}> Validato
+                    </label>
+                    <button type="button" onclick="segnaEliminaRecord(this)" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; border-radius: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer; font-weight: 600;" title="Rimuovi questa registrazione">🗑️ Rimuovi</button>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 130px 1fr; gap: 10px;">
+                <div>
+                    <label style="font-size: 0.7rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Ore Lavorate (h)</label>
+                    <input type="number" step="0.5" min="0" max="24" class="rec-ore" value="${rec.ore}" oninput="aggiornaTotalePreview()" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.9rem; font-weight: bold; margin-top: 3px; box-sizing: border-box;">
+                </div>
+                <div>
+                    <label style="font-size: 0.7rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Note / Mansione</label>
+                    <input type="text" class="rec-note" value="${escapeHtml(rec.note || '')}" placeholder="Note opzionali" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.85rem; margin-top: 3px; box-sizing: border-box;">
+                </div>
+            </div>
+        </div>
+        `;
+    }
+
+    function segnaEliminaRecord(btn) {
+        const card = btn.closest('.mog-record-card');
+        if (card.dataset.eliminato === 'true') {
+            card.dataset.eliminato = 'false';
+            card.style.opacity = '1';
+            card.style.textDecoration = 'none';
+            btn.innerText = '🗑️ Rimuovi';
+            btn.style.background = '#FEE2E2';
+            btn.style.color = '#DC2626';
+        } else {
+            card.dataset.eliminato = 'true';
+            card.style.opacity = '0.4';
+            card.style.textDecoration = 'line-through';
+            btn.innerText = '↩️ Annulla';
+            btn.style.background = '#E2E8F0';
+            btn.style.color = '#475569';
+        }
+        aggiornaTotalePreview();
+    }
+
+    function aggiornaTotalePreview() {
+        let tot = 0.0;
+        const cards = document.querySelectorAll('.mog-record-card');
+        cards.forEach(c => {
+            if (c.dataset.eliminato !== 'true') {
+                const inp = c.querySelector('.rec-ore');
+                if (inp && inp.value) {
+                    const val = parseFloat(inp.value.replace(',', '.'));
+                    if (!isNaN(val) && val > 0) tot += val;
+                }
+            }
+        });
+
+        const nuovoInp = document.getElementById('mog_nuovo_ore');
+        if (nuovoInp && nuovoInp.value) {
+            const valN = parseFloat(nuovoInp.value.replace(',', '.'));
+            if (!isNaN(valN) && valN > 0) tot += valN;
+        }
+
+        document.getElementById('mog_totale_preview').innerText = 'Totale Giorno: ' + (Math.round(tot * 100) / 100).toFixed(1) + ' h';
+    }
+
+    function chiudiModalModificaGiorno() {
+        document.getElementById('modalModificaOreGiorno').style.display = 'none';
+    }
+
+    function salvaOreGiorno() {
+        const dipId = document.getElementById('mog_dipendente_id').value;
+        const dataStr = document.getElementById('mog_data').value;
+        const btnSalva = document.getElementById('btn_salva_ore_giorno');
+
+        const records = [];
+        const cards = document.querySelectorAll('.mog-record-card');
+        cards.forEach(c => {
+            const recId = c.dataset.recId;
+            const eliminato = (c.dataset.eliminato === 'true');
+            const oreVal = c.querySelector('.rec-ore') ? c.querySelector('.rec-ore').value : '';
+            const isVal = c.querySelector('.rec-is-val') ? c.querySelector('.rec-is-val').checked : false;
+            const noteVal = c.querySelector('.rec-note') ? c.querySelector('.rec-note').value : '';
+
+            records.push({
+                id: recId,
+                ore: oreVal,
+                is_validated: isVal,
+                note: noteVal,
+                elimina: eliminato
+            });
+        });
+
+        let nuovoRecord = null;
+        const nuovoOre = document.getElementById('mog_nuovo_ore').value.trim();
+        if (nuovoOre) {
+            const nOre = parseFloat(nuovoOre.replace(',', '.'));
+            if (!isNaN(nOre) && nOre > 0) {
+                nuovoRecord = {
+                    cliente_id: document.getElementById('mog_nuovo_cliente').value,
+                    ore: nOre,
+                    is_validated: document.getElementById('mog_nuovo_valida').checked,
+                    note: document.getElementById('mog_nuovo_note').value.trim()
+                };
             }
         }
 
-        function validaOreDipendenteReport(dipId, dipNome) {
-            if (!confirm('Vuoi convalidare subito tutte le ore in attesa di ' + dipNome + ' nel periodo selezionato?')) return;
-            fetch('/api/ia/auto-valida-ore/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    data_inizio: '{{ data_inizio }}',
-                    data_fine: '{{ data_fine }}',
-                    dipendente_id: dipId,
-                    forza_tutte_dipendente: true
-                })
+        btnSalva.disabled = true;
+        btnSalva.innerText = 'Salvataggio in corso...';
+
+        fetch('{% url "salva_ore_giorno_ajax" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                dipendente_id: dipId,
+                data: dataStr,
+                records: records,
+                nuovo_record: nuovoRecord
             })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.ok) {
-                    alert(data.message);
-                    window.location.reload();
-                } else {
-                    alert('Errore: ' + (data.error || 'Impossibile validare le ore.'));
-                }
-            })
-            .catch(function() {
-                alert('Errore di connessione.');
-            });
+        })
+        .then(res => res.json())
+        .then(data => {
+            btnSalva.disabled = false;
+            btnSalva.innerText = '💾 Salva Modifiche Ore';
+
+            if (data.success) {
+                // Conserva il calendario aperto per questo dipendente dopo il ricaricamento
+                sessionStorage.setItem('apri_calendario_dip', dipId);
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Errore nel salvataggio: ' + (data.error || 'Operazione non riuscita.'));
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            btnSalva.disabled = false;
+            btnSalva.innerText = '💾 Salva Modifiche Ore';
+            alert('Errore di connessione durante il salvataggio.');
+        });
+    }
+
+    // All'avvio della pagina: riapri il calendario se era aperto prima del reload
+    document.addEventListener('DOMContentLoaded', function() {
+        const dipIdToOpen = sessionStorage.getItem('apri_calendario_dip');
+        if (dipIdToOpen) {
+            sessionStorage.removeItem('apri_calendario_dip');
+            const row = document.getElementById('cal-row-' + dipIdToOpen);
+            if (row) {
+                row.style.display = 'table-row';
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
+    });
+
+    function validaOreDipendenteReport(dipId, dipNome) {
+        if (!confirm('Vuoi convalidare subito tutte le ore in attesa di ' + dipNome + ' nel periodo selezionato?')) return;
+        fetch('/api/ia/auto-valida-ore/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                data_inizio: '{{ data_inizio }}',
+                data_fine: '{{ data_fine }}',
+                dipendente_id: dipId,
+                forza_tutte_dipendente: true
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                alert(data.message);
+                sessionStorage.setItem('apri_calendario_dip', dipId);
+                window.location.reload();
+            } else {
+                alert('Errore: ' + (data.error || 'Impossibile validare le ore.'));
+            }
+        })
+        .catch(function() {
+            alert('Errore di connessione.');
+        });
+    }
 
     function apriModalModifica(dipId, dipNome, glOrig, oreLavOrig, oreValOrig, ferieOrig, permOrig, malOrig, l104Orig, glOv, oreLavOv, oreValOv, ferieOv, permOv, malOv, l104Ov, note, isRett) {
         document.getElementById('modal_dipendente_id').value = dipId;
@@ -826,9 +1247,13 @@
 
     // Chiudi modal cliccando fuori
     window.onclick = function(event) {
-        const modal = document.getElementById('modalModificaCedolino');
-        if (event.target === modal) {
+        const modalCed = document.getElementById('modalModificaCedolino');
+        if (event.target === modalCed) {
             chiudiModalModifica();
+        }
+        const modalGiorno = document.getElementById('modalModificaOreGiorno');
+        if (event.target === modalGiorno) {
+            chiudiModalModificaGiorno();
         }
     };
 </script>

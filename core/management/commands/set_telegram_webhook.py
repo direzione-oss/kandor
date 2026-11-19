@@ -71,6 +71,7 @@ class Command(BaseCommand):
                         {"command": "buste_paga", "description": "Consulta le tue buste paga"},
                         {"command": "segnalazione", "description": "Invia una segnalazione"},
                         {"command": "nuovocliente", "description": "Registra nuovo cliente (Solo Responsabili)"},
+                        {"command": "assegnaturno", "description": "Assegna turno a operatore Jolly (Solo Responsabili)"},
                     ]
                 }, timeout=8)
                 if cmd_resp.status_code == 200 and cmd_resp.json().get('ok'):

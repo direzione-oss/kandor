@@ -104,7 +104,33 @@ class Command(BaseCommand):
                     update_id = update['update_id']
                     if update_id > offset:
                         offset = update_id
-                        
+
+                    # --- HANDLE CALLBACK QUERY (Inline buttons) ---
+                    if 'callback_query' in update:
+                        cb = update['callback_query']
+                        cb_data = cb.get('data', '')
+                        chat_id = cb['message']['chat']['id']
+                        first_name = cb.get('from', {}).get('first_name', 'Utente')
+                        cb_id = cb.get('id')
+                        try:
+                            requests.post(f"{base_url}/answerCallbackQuery", json={'callback_query_id': cb_id}, timeout=5)
+                        except Exception:
+                            pass
+                        from core.utils_kandor_chat import handle_telegram_callback
+                        res_cb = handle_telegram_callback(str(chat_id), cb_data, sender_name=first_name)
+                        if res_cb:
+                            payload = {'chat_id': chat_id, 'text': res_cb.get('text', '') if isinstance(res_cb, dict) else str(res_cb)}
+                            if isinstance(res_cb, dict):
+                                if res_cb.get('reply_markup'):
+                                    payload['reply_markup'] = res_cb['reply_markup']
+                                if res_cb.get('parse_mode'):
+                                    payload['parse_mode'] = res_cb['parse_mode']
+                            try:
+                                requests.post(f"{base_url}/sendMessage", json=payload, timeout=8)
+                            except Exception:
+                                pass
+                        continue
+
                     if 'message' not in update:
                         continue
                         

@@ -2434,6 +2434,82 @@ class SchedulerExecutionLog(models.Model):
         return f"{self.job_name} ({self.execution_date})"
 
 
+class PropostaTurnoJolly(models.Model):
+    """
+    Rappresenta una proposta di assegnazione turno inviata a un operatore Jolly via Bot Telegram.
+    L'operatore può accettare o rifiutare tramite pulsanti interattivi.
+    Se accetta: registra automaticamente il turno su Turno e AssegnazioneTurno e notifica il responsabile.
+    Se rifiuta: notifica il responsabile e riapre la lista degli altri Jolly disponibili.
+    """
+    STATI = [
+        ('IN_ATTESA', 'In Attesa di Risposta'),
+        ('ACCETTATO', 'Accettato'),
+        ('RIFIUTATO', 'Rifiutato'),
+        ('ANNULLATO', 'Annullato'),
+    ]
+
+    responsabile = models.ForeignKey(
+        'Dipendente',
+        on_delete=models.CASCADE,
+        related_name='proposte_jolly_inviate',
+        verbose_name="Responsabile che assegna"
+    )
+    operatore = models.ForeignKey(
+        'Dipendente',
+        on_delete=models.CASCADE,
+        related_name='proposte_jolly_ricevute',
+        verbose_name="Operatore Jolly"
+    )
+    cliente = models.ForeignKey(
+        'Cliente',
+        on_delete=models.CASCADE,
+        related_name='proposte_jolly',
+        verbose_name="Cliente / Cantiere"
+    )
+    data = models.DateField(verbose_name="Data Turno")
+    ora_inizio = models.TimeField(null=True, blank=True, verbose_name="Ora Inizio")
+    ora_fine = models.TimeField(null=True, blank=True, verbose_name="Ora Fine")
+    durata_ore = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name="Durata Prevista (Ore)")
+    note = models.TextField(blank=True, verbose_name="Note Operatore")
+
+    stato = models.CharField(max_length=20, choices=STATI, default='IN_ATTESA', verbose_name="Stato")
+
+    operatori_rifiutati = models.ManyToManyField(
+        'Dipendente',
+        blank=True,
+        related_name='turni_jolly_rifiutati',
+        verbose_name="Operatori che hanno rifiutato"
+    )
+
+    turno_creato = models.ForeignKey(
+        'Turno',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='proposte_jolly_generate',
+        verbose_name="Turno Creato"
+    )
+    assegnazione_creata = models.ForeignKey(
+        'AssegnazioneTurno',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='proposte_jolly_generate',
+        verbose_name="Assegnazione Creata"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Data Creazione")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Ultimo Aggiornamento")
+
+    class Meta:
+        verbose_name = "Proposta Turno Jolly"
+        verbose_name_plural = "Proposte Turni Jolly"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Proposta Turno {self.cliente} ({self.data}) → {self.operatore} [{self.stato}]"
+
+
 # --- Geocoding Signals (Non-blocking Post-Commit + Cache) ---
 @receiver(pre_save, sender=Dipendente)
 def geocode_dipendente_address(sender, instance, **kwargs):

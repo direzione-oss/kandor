@@ -38,6 +38,7 @@ from .models import (
     ensure_default_prodotti_magazzino,
     TelegramConversationState, SchedulerExecutionLog,
     StoricoContrattoCliente,
+    PropostaTurnoJolly,
 )
 
 @admin.register(ModificaCedolino)
@@ -1691,6 +1692,29 @@ class RichiestaSostituzioneAdmin(KandorBaseAdmin):
         if errori > 0:
             self.message_user(request, f"⚠️ {errori} richieste non avevano ancora un sostituto selezionato (usa il pulsante '👥 Scegli / Conferma Sostituto').", messages.WARNING)
     conferma_ufficio_selezionate.short_description = "🏢 Conferma dall'Ufficio il sostituto indicato"
+
+
+@admin.register(PropostaTurnoJolly)
+class PropostaTurnoJollyAdmin(KandorBaseAdmin):
+    list_display = ('id', 'data', 'cliente', 'operatore', 'responsabile', 'ora_inizio', 'durata_ore', 'stato_badge', 'created_at')
+    list_filter = ('stato', 'data')
+    search_fields = ('cliente__ragione_sociale', 'operatore__cognome', 'operatore__nome', 'responsabile__cognome', 'responsabile__nome')
+    date_hierarchy = 'data'
+    readonly_fields = ('created_at', 'updated_at', 'turno_creato', 'assegnazione_creata')
+
+    def stato_badge(self, obj):
+        color_map = {
+            'IN_ATTESA': '#EAB308',  # Giallo
+            'ACCETTATO': '#16A34A',  # Verde
+            'RIFIUTATO': '#DC2626',  # Rosso
+            'ANNULLATO': '#64748B',  # Grigio
+        }
+        color = color_map.get(obj.stato, '#64748B')
+        return format_html(
+            '<span style="background:{}; color:#fff; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:11px;">{}</span>',
+            color, obj.get_stato_display()
+        )
+    stato_badge.short_description = 'Stato'
 
 
 # ==============================================================================

@@ -580,6 +580,115 @@ class ModificaCedolinoTestCase(TestCase):
             ).exists()
         )
 
+    def test_modifica_ore_calendario_giornaliero(self):
+        from core.models import Cliente, Squadra, Turno, AssegnazioneTurno, TimeTracking
+        from datetime import time
+
+        cliente = Cliente.objects.create(ragione_sociale='Condominio Sole', partita_iva='12345678901')
+        squadra = Squadra.objects.create(nome='Squadra Test')
+        squadra.componenti.add(self.dip)
+
+        giorno = self.today
+        turno = Turno.objects.create(data=giorno, squadra=squadra)
+        assign = AssegnazioneTurno.objects.create(
+            turno=turno,
+            cliente=cliente,
+            orario_inizio_previsto=time(8, 0),
+            orario_fine_previsto=time(16, 0)
+        )
+        tt = TimeTracking.objects.create(
+            dipendente=self.dip,
+            assegnazione=assign,
+            ore_dichiarate=6.0,
+            is_validated=False,
+            note='Ore iniziali'
+        )
+
+        # 1. Chiama dettaglio_ore_giorno_ajax
+        url_det = f'/report-paghe/dettaglio-giorno-ore/?dipendente_id={self.dip.id}&data={giorno.isoformat()}'
+        res_det = self.client.get(url_det)
+        self.assertEqual(res_det.status_code, 200)
+        det_data = res_det.json()
+        self.assertTrue(det_data['success'])
+        self.assertEqual(det_data['totale_ore'], 6.0)
+        self.assertEqual(len(det_data['records']), 1)
+        self.assertEqual(det_data['records'][0]['id'], tt.id)
+
+        # 2. Modifica le ore del record esistente da 6.0 a 8.5 e valida
+        payload_update = {
+            'dipendente_id': self.dip.id,
+            'data': giorno.isoformat(),
+            'records': [
+                {
+                    'id': tt.id,
+                    'ore': 8.5,
+                    'is_validated': True,
+                    'note': 'Ore corrette da calendario admin',
+                    'elimina': False
+                }
+            ]
+        }
+        res_save = self.client.post(
+            '/report-paghe/salva-ore-giorno/',
+            data=json.dumps(payload_update),
+            content_type='application/json'
+        )
+        self.assertEqual(res_save.status_code, 200)
+        self.assertTrue(res_save.json()['success'])
+
+        tt.refresh_from_db()
+        self.assertEqual(float(tt.ore_dichiarate), 8.5)
+        self.assertTrue(tt.is_validated)
+        self.assertEqual(tt.note, 'Ore corrette da calendario admin')
+
+        # 3. Aggiungi ore su un nuovo giorno vuoto (domani o giorno precedente)
+        giorno_nuovo = giorno - timedelta(days=2)
+        payload_nuovo = {
+            'dipendente_id': self.dip.id,
+            'data': giorno_nuovo.isoformat(),
+            'records': [],
+            'nuovo_record': {
+                'cliente_id': cliente.id,
+                'ore': 4.0,
+                'is_validated': True,
+                'note': 'Straordinario inserito da calendario'
+            }
+        }
+        res_nuovo = self.client.post(
+            '/report-paghe/salva-ore-giorno/',
+            data=json.dumps(payload_nuovo),
+            content_type='application/json'
+        )
+        self.assertEqual(res_nuovo.status_code, 200)
+        self.assertTrue(res_nuovo.json()['success'])
+
+        tt_nuovo = TimeTracking.objects.filter(
+            dipendente=self.dip,
+            assegnazione__turno__data=giorno_nuovo
+        ).first()
+        self.assertIsNotNone(tt_nuovo)
+        self.assertEqual(float(tt_nuovo.ore_dichiarate), 4.0)
+        self.assertTrue(tt_nuovo.is_validated)
+
+        # 4. Elimina la prima registrazione ore
+        payload_delete = {
+            'dipendente_id': self.dip.id,
+            'data': giorno.isoformat(),
+            'records': [
+                {
+                    'id': tt.id,
+                    'elimina': True
+                }
+            ]
+        }
+        res_del = self.client.post(
+            '/report-paghe/salva-ore-giorno/',
+            data=json.dumps(payload_delete),
+            content_type='application/json'
+        )
+        self.assertEqual(res_del.status_code, 200)
+        self.assertFalse(TimeTracking.objects.filter(pk=tt.id).exists())
+
 
 
 
@@ -2075,10 +2184,11 @@ class TelegramResponsabiliMenuTestCase(TestCase):
 
         res_cb = handle_telegram_callback("22222222", "menu_assegna_turno")
         self.assertIn("Assegna Turno", res_cb['text'])
-        self.assertIn("in fase di arrivo", res_cb['text'])
+        self.assertIn("Selezione Azienda", res_cb['text'])
 
         res_msg = handle_telegram_message("22222222", "/turni")
         self.assertIn("Assegna Turno", res_msg['text'])
+        self.assertIn("Selezione Azienda", res_msg['text'])
 
 
 class DipendenteJollyTestCase(TestCase):
@@ -2246,6 +2356,195 @@ class AlertClientiFatturazioneTestCase(TestCase):
         qs_tg = filt_tg.queryset(None, Cliente.objects.all())
         self.assertIn(self.cli_telegram, qs_tg)
         self.assertNotIn(self.cli_completo, qs_tg)
+
+
+class TelegramAssegnaTurnoTestCase(TestCase):
+    """Test unitari completi per il flusso Assegna Turno a Jolly via Bot Telegram."""
+
+    def setUp(self):
+        from core.models import Dipendente, Cliente, Turno, AssegnazioneTurno, Assenza, PropostaTurnoJolly
+        from core.utils_kandor_chat import _TELEGRAM_STATE
+
+        _TELEGRAM_STATE.clear()
+
+        # Responsabile
+        self.resp = Dipendente.objects.create(
+            nome="Simone",
+            cognome="Cortinovis",
+            codice_fiscale="CRTSMN80A01B157X",
+            telegram_chat_id="6395068185",
+            riceve_notifiche_messaggi=True,
+            stato="ATTIVO"
+        )
+
+        # Operatore Jolly 1
+        self.jolly1 = Dipendente.objects.create(
+            nome="Tamara",
+            cognome="Alborghetti",
+            codice_fiscale="LBRTMR85A01B157Y",
+            telegram_chat_id="7140710623",
+            is_jolly=True,
+            stato="ATTIVO"
+        )
+
+        # Operatore Jolly 2
+        self.jolly2 = Dipendente.objects.create(
+            nome="Manuel",
+            cognome="Battaglia",
+            codice_fiscale="BTTMNL90A01B157Z",
+            telegram_chat_id="5394634586",
+            is_jolly=True,
+            stato="ATTIVO"
+        )
+
+        # Cliente
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Pasticceria Cavour",
+            indirizzo_sede="Via Roma 10, Bergamo",
+            partita_iva="01234567890",
+            codice_fiscale="01234567890",
+        )
+
+    def test_trova_jolly_disponibili(self):
+        from core.utils_kandor_chat import trova_jolly_disponibili
+        from core.models import Assenza
+        import datetime
+
+        d_test = datetime.date(2026, 11, 25)
+        # Entrambi liberi
+        liberi = trova_jolly_disponibili(d_test)
+        self.assertEqual(len(liberi), 2)
+
+        # Aggiungi assenza a Jolly 1 per quel giorno
+        Assenza.objects.create(
+            dipendente=self.jolly1,
+            tipo='MALATTIA',
+            data_inizio=d_test,
+            data_fine=d_test,
+            stato_approvazione='APPROVATA'
+        )
+
+        liberi_dopo = trova_jolly_disponibili(d_test)
+        self.assertEqual(len(liberi_dopo), 1)
+        self.assertEqual(liberi_dopo[0].id, self.jolly2.id)
+
+    def test_wizard_assegna_turno_e_invio_proposta(self):
+        from core.utils_kandor_chat import (
+            handle_telegram_callback,
+            handle_telegram_message,
+            _TELEGRAM_STATE
+        )
+        from core.models import PropostaTurnoJolly
+
+        # 1. Responsabile clicca menu_assegna_turno
+        res1 = handle_telegram_callback(self.resp.telegram_chat_id, 'menu_assegna_turno')
+        self.assertIn("Selezione Azienda", res1['text'])
+
+        # 2. Responsabile cerca per nome "Cavour"
+        res2 = handle_telegram_message(self.resp.telegram_chat_id, "Cavour")
+        self.assertIn("Pasticceria Cavour", res2['text'])
+        self.assertIn("Seleziona o digita la data", res2['text'])
+
+        # 3. Responsabile digita data "25/11/2026"
+        res3 = handle_telegram_message(self.resp.telegram_chat_id, "25/11/2026")
+        self.assertIn("Indica l'ora di inizio", res3['text'])
+
+        # 4. Responsabile seleziona ora 08:30 via callback o testo
+        res4 = handle_telegram_callback(self.resp.telegram_chat_id, "asst_ora_08:30")
+        self.assertIn("Indica la durata prevista", res4['text'])
+
+        # 5. Responsabile seleziona durata 2 ore
+        res5 = handle_telegram_callback(self.resp.telegram_chat_id, "asst_dur_2")
+        self.assertIn("Note o compiti specifici per l'operatore", res5['text'])
+
+        # 6. Responsabile digita nota
+        res6 = handle_telegram_message(self.resp.telegram_chat_id, "Pulizia vetrate laboratorio")
+        self.assertIn("Operatori Jolly Disponibili", res6['text'])
+        button_texts = [btn['text'] for row in res6['reply_markup']['inline_keyboard'] for btn in row]
+        self.assertTrue(any("Alborghetti" in t for t in button_texts))
+        self.assertTrue(any("Battaglia" in t for t in button_texts))
+
+        # 7. Responsabile seleziona Tamara Alborghetti (jolly1)
+        res7 = handle_telegram_callback(self.resp.telegram_chat_id, f"asst_jolly_{self.jolly1.id}")
+        self.assertIn("Proposta di Turno Inviata", res7['text'])
+        self.assertIn("Alborghetti Tamara", res7['text'])
+
+        # Verifica record PropostaTurnoJolly creato su DB
+        prop = PropostaTurnoJolly.objects.filter(operatore=self.jolly1, cliente=self.cliente).first()
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop.stato, 'IN_ATTESA')
+        self.assertEqual(str(prop.data), '2026-11-25')
+        self.assertEqual(str(prop.ora_inizio), '08:30:00')
+        self.assertEqual(float(prop.durata_ore), 2.0)
+        self.assertEqual(prop.note, 'Pulizia vetrate laboratorio')
+
+    def test_accettazione_turno_registra_calendario(self):
+        from core.models import PropostaTurnoJolly, Turno, AssegnazioneTurno
+        from core.utils_kandor_chat import handle_telegram_callback
+        import datetime
+
+        prop = PropostaTurnoJolly.objects.create(
+            responsabile=self.resp,
+            operatore=self.jolly1,
+            cliente=self.cliente,
+            data=datetime.date(2026, 11, 26),
+            ora_inizio=datetime.time(9, 0),
+            durata_ore=3.0,
+            note="Spazzolatura pavimenti",
+            stato='IN_ATTESA'
+        )
+
+        # Jolly1 accetta
+        res_accetta = handle_telegram_callback(self.jolly1.telegram_chat_id, f"jolly_accetta_{prop.id}")
+        self.assertIn("registrato nel tuo calendario", res_accetta['text'].lower())
+
+        prop.refresh_from_db()
+        self.assertEqual(prop.stato, 'ACCETTATO')
+        self.assertIsNotNone(prop.turno_creato)
+        self.assertIsNotNone(prop.assegnazione_creata)
+
+        # Verifica su calendario
+        assign = prop.assegnazione_creata
+        self.assertEqual(assign.cliente, self.cliente)
+        self.assertEqual(assign.turno.data, datetime.date(2026, 11, 26))
+        self.assertEqual(assign.orario_inizio_previsto, datetime.time(9, 0))
+        self.assertEqual(float(assign.ore_previste_contratto), 3.0)
+        self.assertIn("Spazzolatura pavimenti", assign.mansione_svolta)
+
+    def test_rifiuto_turno_ripropone_altri_jolly(self):
+        from core.models import PropostaTurnoJolly
+        from core.utils_kandor_chat import handle_telegram_callback
+        import datetime
+
+        prop = PropostaTurnoJolly.objects.create(
+            responsabile=self.resp,
+            operatore=self.jolly1,
+            cliente=self.cliente,
+            data=datetime.date(2026, 11, 27),
+            ora_inizio=datetime.time(14, 0),
+            durata_ore=2.5,
+            note="Sostituzione urgente",
+            stato='IN_ATTESA'
+        )
+
+        # Jolly1 rifiuta
+        res_rifiuta = handle_telegram_callback(self.jolly1.telegram_chat_id, f"jolly_rifiuta_{prop.id}")
+        self.assertIn("rifiutato", res_rifiuta['text'].lower())
+
+        prop.refresh_from_db()
+        self.assertEqual(prop.stato, 'RIFIUTATO')
+        self.assertIn(self.jolly1, prop.operatori_rifiutati.all())
+
+        # Il responsabile seleziona Jolly2 dalla riassegnazione
+        res_rias = handle_telegram_callback(self.resp.telegram_chat_id, f"rias_jolly_{prop.id}_{self.jolly2.id}")
+        self.assertIn("inoltrata a Battaglia Manuel", res_rias['text'])
+
+        # Verifica nuova proposta creata per Jolly2 con Jolly1 nei rifiutati
+        prop2 = PropostaTurnoJolly.objects.filter(operatore=self.jolly2, cliente=self.cliente).first()
+        self.assertIsNotNone(prop2)
+        self.assertEqual(prop2.stato, 'IN_ATTESA')
+        self.assertIn(self.jolly1, prop2.operatori_rifiutati.all())
+
 
 
 

@@ -3844,6 +3844,8 @@ from .views_paghe import (
     pdf_report_paghe,
     export_paghe_csv,
     salva_modifica_cedolino_ajax,
+    dettaglio_ore_giorno_ajax,
+    salva_ore_giorno_ajax,
 )
 from .views_ia import (
     ia_hub_view,

@@ -5,16 +5,17 @@ Tutte le viste delegano i calcoli a `core.paghe_service` (Single Source of Truth
 import csv
 import io
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, time
 from xml.sax.saxutils import escape as xml_escape
 
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from .models import Cliente, Dipendente, TimeTracking, ModificaCedolino, to_decimal
+from .models import Cliente, Dipendente, TimeTracking, ModificaCedolino, to_decimal, Assenza, Turno, AssegnazioneTurno
 from .paghe_service import (
     MESI_NOMI,
     calcola_ore_lavorate_record,
@@ -824,6 +825,211 @@ def salva_modifica_cedolino_ajax(request):
         return JsonResponse({
             'success': True,
             'message': f'Rettifica cedolino per {dipendente.cognome} {dipendente.nome} salvata con successo.'
+        })
+
+    except Dipendente.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Dipendente non trovato.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@staff_or_titolare_api_required
+def dettaglio_ore_giorno_ajax(request):
+    """
+    Restituisce in formato JSON il dettaglio delle ore registrate (TimeTracking),
+    le assenze e l'elenco dei clienti per un dipendente in una data specifica,
+    per consentire la modifica direttamente dalla vista calendario dei cedolini paghe.
+    """
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'error': 'Metodo GET richiesto.'}, status=405)
+
+    dip_id = request.GET.get('dipendente_id')
+    data_str = request.GET.get('data')
+
+    if not dip_id or not data_str:
+        return JsonResponse({'success': False, 'error': 'Parametri dipendente_id e data obbligatori.'}, status=400)
+
+    try:
+        dipendente = Dipendente.objects.get(pk=int(dip_id))
+        data_giorno = date.fromisoformat(data_str)
+    except (Dipendente.DoesNotExist, ValueError):
+        return JsonResponse({'success': False, 'error': 'Dipendente o data non validi.'}, status=400)
+
+    # TimeTracking esistenti per il dipendente in questa data
+    tt_qs = TimeTracking.objects.filter(
+        dipendente=dipendente,
+        assegnazione__turno__data=data_giorno
+    ).select_related('assegnazione__cliente', 'assegnazione__turno__squadra').order_by('id')
+
+    records = []
+    totale_ore = 0.0
+    for tt in tt_qs:
+        ore = calcola_ore_lavorate_record(tt)
+        totale_ore += ore
+        cliente = tt.assegnazione.cliente if tt.assegnazione else None
+        squadra = tt.assegnazione.turno.squadra if (tt.assegnazione and tt.assegnazione.turno) else None
+        records.append({
+            'id': tt.id,
+            'cliente_id': cliente.id if cliente else None,
+            'cliente_nome': cliente.ragione_sociale if cliente else 'Senza Cliente',
+            'squadra_nome': squadra.nome if squadra else (tt.assegnazione.turno.nome_squadra if tt.assegnazione and tt.assegnazione.turno else 'Senza Squadra'),
+            'ore': round(ore, 2),
+            'is_validated': bool(tt.is_validated),
+            'note': tt.note or '',
+            'source': tt.source or 'MANUAL',
+        })
+
+    # Assenze registrate in questa data
+    assenze_qs = Assenza.objects.filter(
+        dipendente=dipendente,
+        data_inizio__lte=data_giorno,
+        data_fine__gte=data_giorno
+    ).exclude(stato_approvazione='RIFIUTATA')
+    assenze_list = [f"{a.get_tipo_display()}{' (' + a.get_orario_display() + ')' if a.tipo == 'PERMESSO' and a.ora_inizio else ''}" for a in assenze_qs]
+
+    # Clienti disponibili per eventuale assegnazione/aggiunta ore
+    clienti_qs = Cliente.objects.all().order_by('ragione_sociale')
+    clienti_list = [{'id': c.id, 'nome': c.ragione_sociale} for c in clienti_qs]
+
+    giorni_nomi = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
+    giorno_sett = giorni_nomi[data_giorno.weekday()]
+
+    return JsonResponse({
+        'success': True,
+        'dipendente_id': dipendente.id,
+        'dipendente_nome': f"{dipendente.cognome} {dipendente.nome}",
+        'data': data_giorno.isoformat(),
+        'data_formatted': data_giorno.strftime('%d/%m/%Y'),
+        'giorno_settimana': giorno_sett,
+        'totale_ore': round(totale_ore, 2),
+        'records': records,
+        'assenze': assenze_list,
+        'clienti': clienti_list,
+    })
+
+
+@csrf_exempt
+@staff_or_titolare_api_required
+def salva_ore_giorno_ajax(request):
+    """
+    Salva le modifiche alle ore registrate giornalmente per un dipendente (TimeTracking).
+    Supporta:
+    - Modifica di ore, validazione e note per i record TimeTracking esistenti della data.
+    - Eliminazione di record esistenti (se ore <= 0 o elimina=True).
+    - Creazione di un nuovo record di ore per la data (Turno + AssegnazioneTurno + TimeTracking).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Metodo POST richiesto.'}, status=405)
+
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        dip_id = data.get('dipendente_id')
+        data_str = data.get('data')
+
+        if not dip_id or not data_str:
+            return JsonResponse({'success': False, 'error': 'Parametri dipendente_id e data mancanti.'}, status=400)
+
+        dipendente = Dipendente.objects.get(pk=int(dip_id))
+        data_giorno = date.fromisoformat(data_str)
+
+        records_mod = data.get('records', [])
+        nuovo_rec = data.get('nuovo_record')
+
+        with transaction.atomic():
+            # 1. Aggiorna o elimina record esistenti
+            for r in records_mod:
+                rec_id = r.get('id')
+                if not rec_id:
+                    continue
+                try:
+                    tt = TimeTracking.objects.get(
+                        pk=int(rec_id),
+                        dipendente=dipendente,
+                        assegnazione__turno__data=data_giorno
+                    )
+                except TimeTracking.DoesNotExist:
+                    continue
+
+                elimina = r.get('elimina', False)
+                ore_raw = r.get('ore')
+
+                if elimina:
+                    tt.delete()
+                    continue
+
+                if ore_raw is not None and str(ore_raw).strip() != '':
+                    ore_val = float(str(ore_raw).replace(',', '.'))
+                    if ore_val <= 0:
+                        tt.delete()
+                        continue
+                    tt.ore_dichiarate = to_decimal(ore_val, places=2)
+                
+                if 'is_validated' in r:
+                    tt.is_validated = bool(r.get('is_validated'))
+                if 'note' in r:
+                    tt.note = (r.get('note') or '').strip()
+
+                tt.save()
+
+            # 2. Crea nuovo record se specificato
+            if nuovo_rec and isinstance(nuovo_rec, dict):
+                ore_nuove_raw = nuovo_rec.get('ore')
+                if ore_nuove_raw is not None and str(ore_nuove_raw).strip() != '':
+                    ore_nuove = float(str(ore_nuove_raw).replace(',', '.'))
+                    if ore_nuove > 0:
+                        cliente_id = nuovo_rec.get('cliente_id')
+                        cliente = None
+                        if cliente_id:
+                            cliente = Cliente.objects.filter(pk=int(cliente_id)).first()
+                        if not cliente:
+                            # Prendi l'ultimo cliente del dipendente o il primo attivo
+                            last_tt = TimeTracking.objects.filter(dipendente=dipendente, assegnazione__cliente__isnull=False).order_by('-id').first()
+                            if last_tt and last_tt.assegnazione and last_tt.assegnazione.cliente:
+                                cliente = last_tt.assegnazione.cliente
+                            else:
+                                cliente = Cliente.objects.all().order_by('ragione_sociale').first()
+
+                        if not cliente:
+                            return JsonResponse({'success': False, 'error': 'Nessun cliente/cantiere disponibile.'}, status=400)
+
+                        squadra = dipendente.squadre_appartenenza.first() or dipendente.squadre_capitanate.first()
+                        turno, _ = Turno.objects.get_or_create(
+                            data=data_giorno,
+                            squadra=squadra
+                        )
+
+                        assign = AssegnazioneTurno.objects.filter(turno=turno, cliente=cliente).first()
+                        if not assign:
+                            assign = AssegnazioneTurno.objects.create(
+                                turno=turno,
+                                cliente=cliente,
+                                orario_inizio_previsto=time(8, 0),
+                                orario_fine_previsto=time(17, 0),
+                                mansione_svolta="Turno inserito da Amministrazione (Report Cedolini Paghe)"
+                            )
+
+                        is_val = bool(nuovo_rec.get('is_validated', True))
+                        nota_nuova = (nuovo_rec.get('note') or '').strip()
+                        if not nota_nuova:
+                            nota_nuova = "Ore inserite da calendario cedolini"
+
+                        TimeTracking.objects.create(
+                            dipendente=dipendente,
+                            assegnazione=assign,
+                            ore_dichiarate=to_decimal(ore_nuove, places=2),
+                            is_validated=is_val,
+                            note=nota_nuova,
+                            source='ADMIN'
+                        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f"Ore del {data_giorno.strftime('%d/%m/%Y')} per {dipendente.cognome} {dipendente.nome} aggiornate con successo."
         })
 
     except Dipendente.DoesNotExist:

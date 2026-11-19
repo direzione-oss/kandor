@@ -142,6 +142,7 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
             'ore_permesso_totali': 0.0,
             'dettaglio_assenze': [],
             'ore_per_giorno': {},
+            'ore_validate_per_giorno': {},
             'assenze_per_giorno': {},
             'note_per_giorno': {},
             'note_dettaglio_per_giorno': {},
@@ -171,6 +172,7 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
         report_data[d_id]['ore_lavorate'] += ore
         if tt.is_validated:
             report_data[d_id]['ore_validate'] += ore
+            report_data[d_id]['ore_validate_per_giorno'][data_turno] = report_data[d_id]['ore_validate_per_giorno'].get(data_turno, 0.0) + ore
 
         if ore > 0:
             report_data[d_id]['giorni_lavorati_set'].add(data_turno)
@@ -284,6 +286,7 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
             while curr_d <= data_fine:
                 wd = curr_d.weekday()
                 ore_g = item['ore_per_giorno'].get(curr_d, 0.0)
+                ore_val_g = item['ore_validate_per_giorno'].get(curr_d, 0.0)
                 assenze_g = item['assenze_per_giorno'].get(curr_d, [])
                 note_list = item['note_per_giorno'].get(curr_d, [])
                 note_det_list = item['note_dettaglio_per_giorno'].get(curr_d, [])
@@ -291,6 +294,9 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
                     'date': curr_d.isoformat(),
                     'day': curr_d.day,
                     'ore': round(ore_g, 1) if ore_g > 0 else None,
+                    'ore_val': round(ore_val_g, 1) if ore_val_g > 0 else None,
+                    'is_validated': (ore_g > 0 and ore_val_g >= ore_g),
+                    'has_pending': (ore_g > 0 and ore_val_g < ore_g),
                     'assenze': assenze_g,
                     'note': " | ".join(note_list),
                     'note_dettaglio': " • ".join(note_det_list),
