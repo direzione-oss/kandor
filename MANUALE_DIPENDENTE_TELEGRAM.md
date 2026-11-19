@@ -1,7 +1,7 @@
 # KANDOR - Guida Operativa Completa per il Dipendente
 ## Web App Mobile (`/app/`) & Bot Telegram (`@kandor_gestionale_bot`)
 
-**Versione 3.3 — 13 Novembre 2026**  
+**Versione 3.4 — 19 Novembre 2026**  
 *Manuale Passo-Passo per la Registrazione Ore, Timbratura GPS/QR Code, Consultazione Turni, Richiesta Assenze, Ordine Materiali Cantiere, Segnalazioni e Scarico Buste Paga PDF*
 
 ---
@@ -243,11 +243,17 @@ Sia su Telegram sia nella barra **Assistente IA** della Web App puoi anche scriv
 - *"Oggi 3 ore da Condominio Rossi"* → registra automaticamente le 3 ore sul turno di oggi;
 - *"Domani sono in malattia"* → avvia subito la registrazione della malattia per domani.
 
-### 9.3 Accettare una Proposta di Sostituzione (Turni Extra)
-Quando un collega e assente e il sistema ti individua come possibile sostituto compatibile:
-1. Ricevi un messaggio su Telegram (e un avviso in cima alla Web App `/app/`) con scritto: **Cantiere, Indirizzo, Data e Orario del turno da coprire**;
-2. Se sei disponibile a svolgere il turno, tocca **`✅ Accetto Sostituzione`**;
-3. Se sei il primo ad accettare, il turno viene aggiunto automaticamente al tuo Calendario e ricevi subito il messaggio di conferma!
+### 9.3 Accettare una Proposta di Sostituzione o Turno Jolly / Squadra
+Esistono due modalità con cui puoi ricevere sul telefono una proposta di turno extra:
+1. **Sostituzione Ordinaria (Collega Assente per Malattia/Ferie)**:
+   - Se hai il flag attivo per le sostituzioni, quando un collega manca in un cantiere compatibile con i tuoi orari e vicinanza, ricevi un avviso su Telegram e nella Web App `/app/` con: **Cantiere, Indirizzo, Data e Orario**;
+   - Tocca **`✅ Accetto Sostituzione`**: il primo che accetta si aggiudica la copertura e trova subito il cantiere nel proprio Calendario.
+2. **Proposta di Turno Jolly o Intervento di Squadra**:
+   - Se sei abilitato come **Operatore Jolly** o fai parte di una **Squadra Libera**, una Responsabile può assegnarti un turno straordinario o urgente;
+   - Ricevi un messaggio su Telegram intitolato *"🔔 Nuova Proposta di Turno Jolly"* (o *"per la tua Squadra"*);
+   - Trovi due pulsanti interattivi: **`✅ Accetta Turno`** e **`❌ Rifiuta Turno`**;
+   - Se tocchi **`✅ Accetta Turno`**, il turno viene confermato all'istante, si inserisce nel tuo calendario e la Responsabile riceve conferma del tuo OK;
+   - Se non sei disponibile, tocca serenamente **`❌ Rifiuta Turno`**: il sistema permetterà alla responsabile di girare la proposta a un altro collega senza inconvenienti.
 
 ### 9.4 Caricare o Aggiornare la propria Foto Profilo (`📸 Foto Profilo`)
 1. Tocca **`📸 Foto Profilo`** nel Menu Principale di Telegram (oppure tocca il cerchio con le tue iniziali in alto a sinistra nella Web App `/app/`);
@@ -274,7 +280,7 @@ Quando un collega e assente e il sistema ti individua come possibile sostituto c
 
 ## PARTE 11 — FUNZIONALITÀ DEDICATE AI RESPONSABILI NEL BOT TELEGRAM
 
-Per gli utenti con ruolo di **Responsabile d'Area**, **Direzione** o abilitati alle notifiche di supervisione, il Menu Principale del Bot Telegram include due pulsanti dedicati:
+Per gli utenti con ruolo di **Responsabile d'Area**, **Direzione** o abilitati alle notifiche di supervisione, il Menu Principale del Bot Telegram include due pulsanti avanzati operativi sul campo:
 
 ### 11.1 Registra Nuovo Cliente (`🏢 Registra Nuovo Cliente`)
 I responsabili possono inserire un nuovo cliente direttamente da Telegram mentre si trovano sul campo o in mobilità.
@@ -294,5 +300,16 @@ I responsabili possono inserire un nuovo cliente direttamente da Telegram mentre
 4. Il sistema registra immediatamente il cliente in anagrafica Kandor, assegna il nuovo ID, attiva la geolocalizzazione automatica delle coordinate se è presente l'indirizzo e invia la conferma con il riepilogo;
 5. In qualsiasi momento è possibile digitare `/annulla` per annullare l'operazione.
 
-### 11.2 Assegna Turno (`📅 Assegna Turno`)
-Pulsante riservato ai Responsabili per visualizzare e coordinare i turni di squadra. Mostra un promemoria con i link rapidi al portale gestionale e alla Web App responsabili, in attesa del modulo interattivo avanzato.
+### 11.2 Assegna Turno a Jolly e Squadre Libere (`📅 Assegna Turno`)
+Il comando e il pulsante **`📅 Assegna Turno`** (o comando `/assegnaturno`) consentono ai Responsabili di pianificare e assegnare un turno straordinario o urgente in mobilità:
+
+1. **Selezione Cliente**: il Bot propone i clienti d'area o permette di digitare una ricerca rapida.
+2. **Data dell'Intervento**: tocca una data rapida o scrivi la data in formato `AAAA-MM-GG` (es. `2026-11-28`).
+3. **Orario e Durata**: inserisci l'ora di inizio (es. `08:00`) e la durata in ore (es. `3.5`).
+4. **Note Operative**: scrivi le indicazioni per il personale (es. *"Sanificazione straordinaria locale mensa"*).
+5. **Modalità di Assegnazione Flessibile**:
+   - **Multi-Selezione Operatori Jolly**: il Bot mostra la lista degli operatori contrassegnati come Jolly. Toccando i pulsanti puoi spuntare uno o più operatori (`☑️ Rossi`, `☑️ Bianchi`) con conteggio dinamico (`Operatori selezionati: 2`). Con un tocco su **`🚀 Invia a 2 Jolly`** la proposta parte in contemporanea a tutti i selezionati;
+   - **Assegnazione a Squadre Libere**: toccando **`👥 Squadre Libere`**, il Bot interroga i turni e mostra solo le squadre che in quella fascia oraria non hanno cantieri attivi. Selezionando la squadra prescelta, la notifica viene inoltrata al Caposquadra e ai componenti.
+6. **Notifiche e Riassegnazione Automatica**:
+   - Quando il lavoratore o il caposquadra preme **`✅ Accetta Turno`**, il turno viene immediatamente scritto nel calendario gestionale e il responsabile riceve una notifica di conferma;
+   - Se invece l'operatore preme **`❌ Rifiuta Turno`**, il responsabile riceve subito un avviso con bottoni di **riassegnazione immediata** a un altro Jolly o a un'altra Squadra libera, escludendo automaticamente chi ha declinato.

@@ -1,7 +1,7 @@
 # KANDOR ERP - Enterprise Resource Planning
 ## Manuale d'Uso Completo, Introduzione Esaustiva alle Funzioni e Guida Operativa Passo-Passo
 
-**Versione 3.3 — 13 Novembre 2026**  
+**Versione 3.4 — 19 Novembre 2026**  
 *Sistema Gestionale ERP Integrato per Imprese di Pulizie, Multiservizi e Gestione Cantieri con Buste Paga Automatiche, Procedure con Avvallo, Controllo di Gestione MOL, Magazzino, Qualita SLA, CRM Preventivi, Pre-Fatturazione, Bot Telegram e Web App Mobile*
 
 ---
@@ -40,20 +40,23 @@ Di seguito sono descritte tutte le macro-funzioni che compongono l'ecosistema **
 - **Abilitazione Granulare delle 38 Sezioni + Modalita "Simula Vista"**: il Programmatore puo abilitare o nascondere con un clic singole Card, singoli Widget della Dashboard o singole Voci Anagrafiche per ciascun Responsabile, e testare in tempo reale l'interfaccia esatta vista da quel Responsabile.
 
 #### B. Anagrafiche Centralizzate e Sicurezza Dati
-- **Anagrafica Dipendenti**: gestione completa di dati fiscali, contatto telefonico, indirizzo (con geocodifica GPS automatica in background), contratto e ore settimanali, costo orario, PIN d'accesso a 4 cifre per Web App e Telegram, ID Telegram con **vincolo anti-duplicato**, foto profilo e due flag rapidi attivabili con 1 clic direttamente dalla lista (**`DISP. SOST.`** per la disponibilita alle sostituzioni e **`RIC.NOT.`** per ricevere le notifiche Telegram dei messaggi inviati dai dipendenti).
-- **Anagrafica Clienti e Cantieri con Storicizzazione Contratti (`StoricoContrattoCliente`)**: gestione di ragione sociale, indirizzo cantiere geolocalizzato, referente, email/telefono, **Responsabile d'Area** assegnato, **Programmazione Ricorrente Settimanale** integrata nella stessa pagina e tracciamento automatico dello storico di ogni variazione di canone mensile, frequenza o stato contrattuale.
+- **Anagrafica Dipendenti e Ruoli Distinti Sostituto vs Jolly**: gestione completa di dati fiscali, conformità **Privacy GDPR** (consenso, data e note trattamento con badge visivo), contatto telefonico, indirizzo (con geocodifica GPS automatica in background), contratto e ore settimanali, costo orario, PIN d'accesso a 4 cifre per Web App e Telegram, ID Telegram con **vincolo anti-duplicato** e auto-correzione, foto profilo e tre controlli rapidi attivabili direttamente dalla lista (**`DISP. SOST.`** per la disponibilita alle sostituzioni ordinarie, **`JOLLY`** toggle 1-click per interventi straordinari/urgenze, e **`RIC.NOT.`** per ricevere le notifiche Telegram dei messaggi inviati dai dipendenti).
+- **Anagrafica Clienti e Cantieri con Storicizzazione Contratti (`StoricoContrattoCliente`)**: gestione di ragione sociale, indirizzo cantiere geolocalizzato, referente, email/telefono, **Responsabile d'Area** assegnato, **Programmazione Ricorrente Settimanale** integrata nella stessa pagina, tracciamento automatico dello storico contrattuale e **Alert Automatico Dati Fiscali Mancanti** per la fatturazione di fine mese.
 - **Anagrafica Squadre, Mezzi Aziendali, Qualifiche e Corsi di Formazione (D.Lgs. 81/08)**: composizione squadre con Caposquadra e componenti, parco automezzi con monitoraggio automatico di **Assicurazione, Revisione e Permesso ZTL Citta Alta**, catalogo qualifiche tecniche e scadenzario automatico di **Visite Mediche** e **Corsi di Sicurezza**.
 
 #### C. Pianificazione Turni e Calendario Settimanale Interattivo
 - **Generazione Automatica Turni da Programmazione Ricorrente**: creazione massiva dei turni futuri per 1, 2, 4, 8 o 12 settimane con salto automatico dei turni gia esistenti.
-- **Calendario Settimanale Interattivo in Dashboard**: griglia visuale Lunedi-Domenica con barra di scorrimento superiore e inferiore sincronizzata, filtri per Stato, Responsabile d'Area e Squadra, e codifica cromatica immediata (**Grigio** = da svolgere, **Ambra** = ore parziali, **Verde** = completato e validato, **Rosso** = anomalia/scopertura).
+- **Calendario Settimanale Interattivo con Nuova UX Fluida**: griglia visuale Lunedi-Domenica con **testata fissa (sticky)**, scorrimento orizzontale sincronizzato sopra e sotto con pulsanti rapidi e drag-to-scroll, scroll verticale confinato ai soli dati dipendenti, filtri per Stato, Responsabile d'Area e Squadra, e codifica cromatica immediata (**Grigio** = da svolgere, **Ambra** = ore parziali, **Verde** = completato e validato, **Rosso** = anomalia/scopertura).
+- **Estrazione PDF Turni Cliente per Cliente**: esportazione dedicata dei turni raggruppati per cantiere con tracciamento visivo delle modifiche e delle note di scostamento.
 - **Modale Operativa Turno All-in-One**: cliccando su qualsiasi card turno si apre la finestra che permette di inserire o correggere le ore di ciascun membro, leggere la **nota di motivazione** lasciata dal dipendente (se ha registrato ore diverse dal previsto), **deselezionare un assente scegliendo contestualmente il sostituto**, attivare una **sostituzione parziale solo su giorni specifici della settimana**, forzare sostituti occupati o senza Telegram, oppure **saltare un turno non effettuato**.
 
 #### D. Raccolta Ore, Motivazione Scostamenti, Geofence GPS e Ricerca Jolly
 - **Finestra Operativa di 31 Giorni**: i dipendenti possono compilare le ore del giorno corrente o recuperare i turni rimasti non compilati negli **ultimi 31 giorni**.
 - **Richiesta Automatica della Motivazione per Ore Diverse dal Previsto**: se un lavoratore dichiara meno o piu ore rispetto all'orario contrattuale del turno (sia da Bot Telegram sia da Web App), il sistema chiede obbligatoriamente il motivo dello scostamento e lo espone con l'icona 💬 sul Calendario Settimanale e sul Calendario Mensile Paghe.
 - **Timbratura Geofence GPS & QR Code Cantiere**: possibilita di stampare il cartello QR Code per ciascun cantiere (`/qualita-ispezioni/qr/<id>/`); il dipendente registra **Check-In** e **Check-Out** da smartphone con verifica automatica della distanza GPS (entro 300 metri dal cantiere) e calcolo automatico delle ore lavorate.
-- **Motore Ricerca Sostituti (Jolly) con Smart Score IA (0-100)**: individuazione istantanea del miglior sostituto disponibile in base a vicinanza chilometrica (formula di Haversine), assenza di sovrapposizioni orarie, qualifica, mezzo e bilanciamento del monte ore settimanale, con invio richiesta su Telegram e Web App.
+- **Motore Ricerca Sostituti & Assegnazione Turno a Jolly / Squadre Libere**:
+  - Algoritmo Smart Score IA (0-100) per sostituzioni ordinarie basato su vicinanza chilometrica (Haversine), assenza di sovrapposizioni, qualifiche e ore residue.
+  - Wizard interattivo per Responsabili (anche da Telegram con **`📅 Assegna Turno`**) con **selezione multipla di operatori Jolly** per invio collettivo oppure assegnazione a **Squadre Libere**, con notifica immediata, sincronizzazione calendario all'accettazione e riassegnazione 1-click in caso di rifiuto.
 
 #### E. Procedure Operative con Avvallo Bloccante (`/procedure/`)
 - **Gestione Pratiche e Checklist Multi-Step** (es. *Procedura di Disdetta Contratto Cliente*): creazione di modelli di procedura riutilizzabili con passaggi ordinati, assegnazione di una pratica a uno specifico cantiere, barra di avanzamento percentuale e **vincolo bloccante sui passaggi critici** che impedisce la spunta finche il collega incaricato non concede il proprio **OK / Avvallo** (tramite Dashboard o pulsante diretto su Telegram).
@@ -64,11 +67,11 @@ Di seguito sono descritte tutte le macro-funzioni che compongono l'ecosistema **
 - **Magazzino Prodotti, Dotazioni Macchinari e Richieste Materiali (`/magazzino-dotazioni/`)**: inventario detergenti e consumabili con alert sottoscorta, registro delle dotazioni fisse assegnate a ciascun cantiere (lavasciuga, aspirapolvere, scale, mazzi chiavi con codice identificativo) e gestione 1-Click delle richieste di rifornimento inviate dai lavoratori dal campo.
 - **Qualita, Ispezioni SLA & QR Code Cantiere (`/qualita-ispezioni/`)**: compilazione digitale dei verbali di sopralluogo con valutazione 1-5 stelle su 5 aree, foto prima/dopo, firma del referente e generazione del **Report PDF di Cortesia** da inviare al cliente su WhatsApp o Email.
 - **Preventivazione Rapida CRM con Conversione 1-Click (`/preventivi-crm/`)**: calcolatore commerciale da sopralluogo (m² superficie ÷ resa oraria m²/h → ore consigliate, costo industriale e canone suggerito con margine garantito), stampa **Offerta Commerciale PDF** e bottone **`Converti in Cliente Attivo (1-Click)`** che crea automaticamente l'anagrafica Cliente e le relative Programmazioni Settimanali.
-- **Pre-Fatturazione Mensile & Lavori Extra (`/pre-fatturazione/`)**: prospetto mensile completo per la fatturazione attiva che unisce Canoni Fissi, Lavori Straordinari a consuntivo e **Lavori Extra intercettati automaticamente dall'IA** nelle note dei turni, esportabile in CSV/Excel.
+- **Pre-Fatturazione Mensile, Lavori Extra e Alert Dati Mancanti (`/pre-fatturazione/`)**: prospetto mensile completo per la fatturazione attiva che unisce Canoni Fissi, Lavori Straordinari a consuntivo, **Lavori Extra intercettati automaticamente dall'IA** e il **Widget Promemoria Dati Fiscali Mancanti** (P.IVA, C.F., SDI/PEC, indirizzo) per evitare blocchi ed emissioni errate, esportabile in CSV/Excel.
 
 #### G. Elaborazione Presenze, Cedolini Paghe e Buste Paga PDF Automatiche
 - **Report Ore (`/verifica-ore/`) e Cedolini Paghe (`/report-paghe/`)**: verifica e convalida delle ore mensili e generazione del prospetto completo per il Consulente del Lavoro con **Calendario Giornaliero Interattivo (giorni 1-31)** modificabile con un clic e riepilogo automatico di Ore Ordinarie, Straordinarie, Malattia, Ferie, Permessi e Legge 104.
-- **Divisione Automatica Buste Paga PDF e Invio 1-Click (`/buste-paga/`)**: caricamento dell'**unico file PDF cumulativo** ricevuto dallo studio paghe; il sistema legge il **Codice Fiscale** in ogni pagina, **divide automaticamente il PDF in singoli cedolini**, li abbina a ciascun dipendente, li rende subito scaricabili nel **Bot Telegram (`📄 Buste Paga`)** e nella **Web App (`/app/`)** e permette l'invio massivo o singolo via **Telegram** e **WhatsApp** con tracciamento in tempo reale di consegna e lettura.
+- **Divisione Automatica Buste Paga PDF e Anteprima Interattiva (`/buste-paga/`)**: caricamento del file PDF cumulativo dello studio paghe, split automatico per Codice Fiscale, accorpamento cedolini multi-pagina, **nuova Anteprima Interattiva PDF** (finestra modale a schermo intero e nuova scheda) prima dell'invio finale, disponibilità istantanea su Bot Telegram e Web App con tracciamento di consegna e lettura.
 
 ---
 
@@ -78,23 +81,23 @@ Di seguito sono descritte tutte le macro-funzioni che compongono l'ecosistema **
 2. **Account Programmatore (`serra`) e Console Gestione Accessi & Sezioni Responsabili (`/gestione-accessi/`)**
 3. **La Dashboard Principale: Intestazione, Card Rapide, Scadenze e Feed Live**
 4. **Gestione Procedure Operative, Checklist e Avvalli tra Colleghi (`/procedure/`)**
-5. **Anagrafica Dipendenti: Scheda Completa, Flag 1-Click (`DISP. SOST.`, `RIC.NOT.`), PIN e Sicurezza Telegram**
+5. **Anagrafica Dipendenti: Ruoli Sostituto vs Jolly, Privacy GDPR, Flag 1-Click (`DISP. SOST.`, `JOLLY`, `RIC.NOT.`), PIN e Sicurezza Telegram**
 6. **Anagrafica Clienti, Cantieri, Programmazioni Integrate e Storico Contratti**
 7. **Anagrafica Squadre, Mezzi Aziendali (ZTL), Qualifiche e Corsi di Formazione (D.Lgs. 81/08)**
 8. **Programmazione Ricorrente e Generazione Automatica Massiva dei Turni**
-9. **Il Calendario Settimanale Interattivo: Filtri, Colori, Scorrimento e Stampa**
-10. **Gestione Operativa del Turno: Modifica Ore, Note Motivazione, Assenze, Sostituzioni Parziali e Salto Turno**
+9. **Il Calendario Settimanale Interattivo: Testata Fissa, Scorrimento Sincronizzato, Filtri e Stampa**
+10. **Gestione Operativa del Turno: Modifica Ore, Note Motivazione, Assenze, Sostituzioni Parziali, Salto Turno ed Estrazione PDF per Cliente**
 11. **Gestione Assenze (Malattia, Ferie, Permessi, Legge 104) e Flusso di Avvallo**
-12. **Ricerca Sostituti (Jolly) e Sostituzioni Rapide con Smart Score IA**
+12. **Ricerca Sostituti (Smart Score IA) e Assegnazione Turno a Jolly / Squadre Libere (Bot Telegram & Web)**
 13. **Time Tracking, Registrazione Ore (Finestra 31 Giorni) e Timbratura Geofence GPS / QR Code**
 14. **Report Ore, Convalida Mensile e PDF Verifica Ore (`/verifica-ore/`)**
 15. **Cedolini Paghe e Calendario Mensile Interattivo Giorni 1-31 (`/report-paghe/`)**
-16. **Gestione Buste Paga: Split Automatico PDF per Codice Fiscale e Invio Telegram/WhatsApp (`/buste-paga/`)**
+16. **Gestione Buste Paga: Split Automatico PDF, Anteprima Interattiva e Invio Telegram/WhatsApp (`/buste-paga/`)**
 17. **Contabilita Industriale, Costi Reali e Marginalita MOL per Cantiere (`/analisi-contratti/`)**
 18. **Magazzino Prodotti, Dotazioni Macchinari in Cantiere e Richieste Materiali (`/magazzino-dotazioni/`)**
 19. **Qualita, Ispezioni SLA 1-5 Stelle, Report PDF Cliente e Cartelli QR Code (`/qualita-ispezioni/`)**
 20. **Preventivazione Rapida CRM, Calcolo Resa m² e Conversione 1-Click in Cliente (`/preventivi-crm/`)**
-21. **Pre-Fatturazione Mensile, Straordinari ed Extra Rilevati dall'IA (`/pre-fatturazione/`)**
+21. **Pre-Fatturazione Mensile, Lavori Extra e Alert Promemoria Dati Fiscali Clienti (`/pre-fatturazione/`)**
 22. **Centro Messaggi Chat & Telegram, Filtro Responsabili e Messaggi Programmati (`/chat-simulator/`)**
 23. **Centro IA & Automazioni Smart a Costo Zero (`/ia-hub/`)**
 24. **Gestione Dati (Import/Export Excel, Backup Sicuro) e Risoluzione Problemi Frequenti (FAQ)**
@@ -265,25 +268,30 @@ Nella colonna destra della pagina `/procedure/` (sezione **Catalogo Modelli Base
 
 ---
 
-## 5. ANAGRAFICA DIPENDENTI: SCHEDA COMPLETA, FLAG 1-CLICK (`DISP. SOST.`, `RIC.NOT.`), PIN E SICUREZZA TELEGRAM
+## 5. ANAGRAFICA DIPENDENTI: RUOLI SOSTITUTO VS JOLLY, PRIVACY GDPR, FLAG 1-CLICK (`DISP. SOST.`, `JOLLY`, `RIC.NOT.`), PIN E SICUREZZA TELEGRAM
 
-### 5.1 Come Accedere all'Elenco Dipendenti
+### 5.1 Come Accedere all'Elenco Dipendenti e Filtri di Stato
 1. Dalla Dashboard scorrere fino alla colonna **Anagrafiche** e cliccare su **Dipendenti** (oppure aprire `/admin/core/dipendente/`).
-2. La tabella mostra per ogni lavoratore: **Cognome e Nome**, **Codice Fiscale**, **PIN App**, **Stato**, **Telefono**, **Collegamento Telegram**, e le due colonne interattive con spunta rapida **`DISP. SOST.`** e **`RIC.NOT.`**.
+2. La tabella mostra per ogni lavoratore: **Cognome e Nome**, **Codice Fiscale**, **Badge Privacy GDPR**, **PIN App**, **Stato** (con filtro rapido per visualizzare dipendenti in `ATTIVO`, `MALATTIA`, `FERIE`, `SOSPESO`, `CESSATO`), **Telefono**, **Collegamento Telegram**, e i tre controlli rapidi con interazione 1-click **`DISP. SOST.`**, **`JOLLY`** e **`RIC.NOT.`**.
 
-### 5.2 I Due Flag Rapidi Modificabili con 1 Clic nella Lista Dipendenti
-Direttamente nella tabella elenco dei Dipendenti (senza dover entrare nella singola scheda) sono presenti due caselle di spunta immediate:
-1. **`DISP. SOST.` (Disponibile per Sostituzioni)**:
-   - Se **spuntato**, il lavoratore viene incluso dal motore di ricerca **Jolly (`/find-jolly/`)** e dallo **Smart Score IA** tra i candidati proponibili quando bisogna coprire un assente.
-   - Se **deselezionato**, il lavoratore non verra proposto come sostituto.
-2. **`RIC.NOT.` (Riceve Notifiche Messaggi — Solo Responsabili)**:
-   - Determina quali Responsabili/Titolari ricevono sul proprio smartphone (via Telegram) le notifiche in tempo reale quando i dipendenti scrivono messaggi in chat, segnalano anomalie o richiedono materiali.
-   - Dopo aver modificato una o piu spunte `DISP. SOST.` o `RIC.NOT.`, cliccare sul pulsante **`Salva`** in fondo o in cima alla tabella.
+### 5.2 La Distinzione Fondamentale tra Sostituto Ordinario e Operatore Jolly
+In Kandor ERP i ruoli di **Sostituto** e di **Jolly** sono completamente separati e indipendenti:
+1. **`DISP. SOST.` (Disponibile per Sostituzioni Ordinarie)**:
+   - Se spuntato, indica che il lavoratore e disponibile a sostituire colleghi assenti per malattia, ferie o permessi sui turni ordinari e ricorrenti. Viene valutato dall'algoritmo **Smart Score IA (0-100)** in `/find-jolly/`.
+2. **`JOLLY` (Operatore Jolly per Urgenze, Straordinari e Squadre Libere)**:
+   - Toggle rapido interattivo con salvataggio istantaneo direttamente dalla tabella. L'operatore contrassegnato come Jolly è una risorsa flessibile dedicata a interventi imprevisti, coperture lampo, potenziamento squadre e assegnazioni dirette da parte dei Responsabili.
+3. **`RIC.NOT.` (Riceve Notifiche Messaggi — Riservato ai Responsabili)**:
+   - Determina quali Responsabili/Titolari ricevono sul proprio smartphone (via Telegram) le notifiche in tempo reale quando i dipendenti inviano comunicazioni, aprono segnalazioni o richiedono prodotti di magazzino.
 
 ### 5.3 Come Creare o Modificare un Dipendente Passo-Passo
 1. Cliccare su **`+ Aggiungi Dipendente`** in alto a destra (o cliccare sul nome di un dipendente esistente).
 2. Compilare le sezioni della scheda:
    - **Dati Anagrafici**: *Nome*, *Cognome*, *Codice Fiscale* (16 caratteri; viene normalizzato automaticamente in maiuscolo), *Data di nascita*, *Telefono cellulare*, *Email*, *Stato* (`ATTIVO`, `SOSPESO`, `CESSATO`) e *Foto profilo*.
+   - **Conformità Privacy & GDPR (D.Lgs. 196/2003 e Regolamento UE 2016/679)**:
+     - *Consenso Privacy GDPR*: spunta che attesta la firma e ricezione dell'informativa sul trattamento dati personali;
+     - *Data Consenso Privacy*: data in cui il lavoratore ha sottoscritto il modulo privacy;
+     - *Note Trattamento Dati*: eventuali annotazioni specifiche relative alla gestione del consenso;
+     - Nella tabella dell'elenco dipendenti compare un **badge visivo statico** che evidenzia a colpo d'occhio la conformità del fascicolo privacy.
    - **Indirizzo e Geolocalizzazione**: inserire *Indirizzo di residenza/domicilio* e *Citta*. Al salvataggio il sistema calcola automaticamente in background le coordinate GPS (*Latitudine* e *Longitudine*) necessarie per calcolare la distanza esatta dai cantieri.
    - **Dati Contrattuali e Sicurezza**:
      - *Ore settimanali da contratto* (es. `40.00` o `20.00`): usate per verificare chi ha ancora margine orario disponibile.
@@ -291,16 +299,18 @@ Direttamente nella tabella elenco dei Dipendenti (senza dover entrare nella sing
      - *Data ultima Visita Medica* e *Data scadenza Visita Medica*: alimentano il widget scadenze in Dashboard.
      - *Usufruisce Legge 104*: se spuntato, abilita per quel lavoratore il pulsante dedicato **`Legge 104`** sia nel Bot Telegram sia nella Web App Mobile.
      - *E Caposquadra*: indica che il lavoratore puo guidare una squadra e compilare verbali ispettivi da mobile.
+     - *Operatore Jolly*: attiva la qualifica di Jolly per assegnazioni straordinarie e squadre libere.
    - **Credenziali Web App Mobile & Accreditamento Sicuro Telegram**:
      - **PIN Accesso App (4 cifre)**: se lasciato vuoto, il sistema genera automaticamente un PIN univoco a 4 cifre (es. `4829`).
      - **Telegram Chat ID**: viene compilato automaticamente quando il dipendente esegue l'accreditamento sul Bot `@kandor_gestionale_bot`.
    - **Qualifiche e Corsi di Formazione (in fondo alla scheda)**:
      - Selezionare le qualifiche tecniche possedute (es. *Vetri in quota*, *Uso Monospazzola/Lavasciuga*) e compilare le date di esecuzione/scadenza dei corsi obbligatori D.Lgs. 81/08.
-3. Cliccare su **`Salva`** in fondo alla pagina.
+3. **Controllo Errori con Auto-Scroll sul Campo**: in caso di inserimento incompleto o non conforme (es. Codice Fiscale errato o data incoerente), il portale mostra un **banner rosso descrittivo in alto** indicando chiaramente il nome del campo contestato e compie automaticamente l'**auto-scroll** fino al campo da correggere, consentendo un upsert immediato e sicuro senza perdita dei dati già digitati.
+4. Cliccare su **`Salva`** in fondo alla pagina.
 
 ### 5.4 Sicurezza Anti-Duplicato Telegram (Blocco Secondo Telefono)
 Per impedire errori di abbinamento o accessi non autorizzati da dispositivi di terzi:
-- **Unicita assoluta del Telegram Chat ID**: in anagrafica e nell'importazione Excel il sistema impedisce di assegnare lo stesso `telegram_chat_id` a due dipendenti diversi.
+- **Unicita assoluta del Telegram Chat ID**: in anagrafica e nell'importazione Excel il sistema impedisce di assegnare lo stesso `telegram_chat_id` a due dipendenti diversi ed esegue un controllo di auto-correzione per evitare disallineamenti.
 - **Protezione sul Bot Telegram (`@kandor_gestionale_bot`)**: una volta che un dipendente ha collegato il proprio smartphone al Bot tramite Codice Fiscale + PIN, se una seconda persona o un secondo telefono tenta di accreditarsi inserendo il Codice Fiscale di quel dipendente, **il sistema blocca automaticamente il secondo telefono** senza scollegare il telefono originale e senza inviare messaggi allarmanti al lavoratore.
 - **Come cambiare telefono a un dipendente**: se un lavoratore cambia realmente smartphone o account Telegram, l'amministratore non deve far altro che aprire la scheda del dipendente in `/admin/core/dipendente/`, **svuotare il campo `Telegram Chat ID`**, cliccare su **Salva** e far scrivere `/start` al dipendente dal nuovo telefono.
 
@@ -376,15 +386,20 @@ Una volta impostate le **Programmazioni Settimanali** dentro le schede dei Clien
 
 ---
 
-## 9. IL CALENDARIO SETTIMANALE INTERATTIVO: FILTRI, COLORI, SCORRIMENTO E STAMPA
+## 9. IL CALENDARIO SETTIMANALE INTERATTIVO: TESTATA FISSA, SCORRIMENTO SINCRONIZZATO, FILTRI E STAMPA
 
 ![Calendario Programmazione Settimanale](screenshots/02_calendario_turni.png)
 
-Il **Calendario Programmazione Settimanale** posto al centro della Dashboard e il cuore operativo giornaliero del portale.
+Il **Calendario Programmazione Settimanale** posto al centro della Dashboard e il cuore operativo giornaliero del portale. Nella versione 3.4 e stato completamente riprogettato con un'esperienza utente (UX) professionale ad altissima leggibilita:
 
-### 9.1 Navigazione, Barra di Scorrimento Sincronizzata e Filtri Rapidi
+### 9.1 Testata Fissa (Sticky Header), Scorrimento Sincronizzato e Controlli Fluidi
+- **Testata e Controlli Orizzontali Fissi in Alto (Sticky Header)**: scorrendo verticalmente la pagina, la riga con la selezione settimana, i pulsanti rapidi e l'intestazione delle date dei giorni (Lunedi-Domenica) rimane costantemente bloccata in cima allo schermo.
+- **Scroll Verticale Confinato ai Dati**: lo scorrimento verso il basso si applica esclusivamente all'elenco dei turni e dei dipendenti, evitando lo scorrimento dell'intera pagina e mantenendo i totali e i controlli sempre a portata di mano.
+- **Doppia Barra di Scorrimento Sincronizzata con Drag-to-Scroll**:
+  - Una barra di scorrimento orizzontale in alto sopra le colonne dei giorni;
+  - Una **barra flottante sticky in basso** che segue la vista dello schermo ed e corredata da pulsanti rapidi di avanzamento (`◀ Sinistra`, `Destra ▶`);
+  - Supporto completo al **drag-to-scroll** (trascinamento del cursore del mouse) per navigare agilmente anche su schermi portatili con decine di squadre e cantieri.
 - **Frecce di Navigazione Settimana**: usare i pulsanti **`◀ Settimana Precedente`**, **`Oggi (Settimana Corrente)`** e **`Settimana Successiva ▶`** per spostarsi nel tempo, oppure scegliere una data specifica dal selettore calendario.
-- **Doppia Barra di Scorrimento Orizzontale Sincronizzata**: per agevolare la consultazione quando ci sono molte squadre, una barra di scorrimento orizzontale e posizionata **anche in alto sopra le intestazioni dei giorni** (Lunedi-Domenica), sincronizzata in tempo reale con la griglia sottostante.
 - **Filtri Combinabili in Tempo Reale**:
   1. **Filtro Stato Turno**: *Tutti*, *Completati (Verdi)*, *Parziali (Ambra)*, *Da Svolgere (Grigi)*, *Anomalie / Scoperti (Rossi)*.
   2. **Filtro Responsabile d'Area**: permette a ciascuna Responsabile (*Sonia*, *Consuelo*, *Carla*, *Roberta*, *Simone*, *Giorgio*) di isolare con un clic solo i propri cantieri.
@@ -404,7 +419,7 @@ Ogni rettangolo (Card Turno) nella griglia settimanale mostra:
 
 ---
 
-## 10. GESTIONE OPERATIVA DEL TURNO: MODIFICA ORE, NOTE MOTIVAZIONE, ASSENZE, SOSTITUZIONI PARZIALI E SALTO TURNO
+## 10. GESTIONE OPERATIVA DEL TURNO: MODIFICA ORE, NOTE MOTIVAZIONE, ASSENZE, SOSTITUZIONI PARZIALI, SALTO TURNO ED ESTRAZIONE PDF PER CLIENTE
 
 ![Modale Operativa Turno sul Calendario](screenshots/06_modale_turno_ore_admin.png)
 
@@ -428,6 +443,18 @@ Quando un lavoratore della squadra e assente per quel turno:
 5. Cliccare su **`💾 Salva Modifiche Turno`**: il lavoratore assente viene escluso solo nei giorni selezionati e il sostituto viene inserito con notifica automatica.
 
 ### 10.3 Come Registrare un "Turno Saltato / Non Effettuato"
+Se per motivi di forza maggiore (es. cantiere chiuso per ferie aziendali, festività o mancata consegna chiavi) il turno non deve essere svolto:
+1. Aprire la modale del turno e cliccare sul pulsante **`❌ Salta Turno (Non Effettuato)`**.
+2. Il sistema imposta lo stato a `SALTATO`, azzera le ore lavorate e colora la card di rosso con la dicitura *"Turno Saltato"*, preservando la tracciabilità per la rendicontazione mensile.
+
+### 10.4 Estrazione PDF Turni Cliente per Cliente con Controllo Modifiche
+Direttamente dal widget del calendario settimanale e disponibile la funzionalità di esportazione mirata:
+1. Tramite il menu o il pulsante **`📄 Estrai PDF Turni per Cliente`**, selezionare il cliente desiderato e il periodo (settimana o mese).
+2. Il sistema genera un documento PDF formattato che raggruppa tutti i turni svolti presso quel cantiere, evidenziando:
+   - Date e fasce orarie programmate vs orari effettivi registrati;
+   - Operatori e squadre che sono intervenuti;
+   - **Controllo e Tracciamento Modifiche**: indicazione chiara di eventuali sostituzioni, ore eccedenti e note di motivazione lasciate sul campo.
+3. Il PDF costituisce un report di conformità impeccabile da allegare alla fattura o da esibire durante gli incontri periodici con l'amministratore di condominio o il referente aziendale.
 Se un intero intervento non e stato eseguito (es. cantiere chiuso per festivita locale o richiesta del cliente):
 1. Aprire la modale del turno sul Calendario;
 2. Cliccare sul pulsante **`⏭️ Segna Turno come Saltato / Non Effettuato`** e indicarne brevemente il motivo;
@@ -464,12 +491,14 @@ Le assenze dei lavoratori possono entrare in Kandor ERP attraverso tre canali si
 
 ---
 
-## 12. RICERCA SOSTITUTI (JOLLY) E SOSTITUZIONI RAPIDE CON SMART SCORE IA
+## 12. RICERCA SOSTITUTI (SMART SCORE IA) E ASSEGNAZIONE TURNO A JOLLY / SQUADRE LIBERE (BOT TELEGRAM & WEB)
 
 ![Motore Ricerca Sostituti e Jolly](screenshots/02_gestione_sostituzioni.png)
 
+Kandor ERP offre due strumenti complementari per la copertura turni: il motore **Smart Score IA per Sostituzioni Ordinarie** (in caso di malattia/ferie) e il modulo interattivo **Assegna Turno a Jolly e Squadre Libere** per urgenze e interventi straordinari.
+
 ### 12.1 Come Funziona il Modulo "Jolly (Trova Sostituto)" (`/find-jolly/`)
-Quando un lavoratore si ammala o va in ferie, il modulo **🏥 Jolly** individua in pochi secondi chi puo sostituirlo:
+Quando un lavoratore si ammala o va in ferie, il modulo **🏥 Jolly** individua in pochi secondi chi puo sostituirlo sui turni ordinari:
 1. Dalla Dashboard cliccare sulla card **🏥 Jolly (`Trova Sostituto`)** (oppure aprire `/find-jolly/`).
 2. Nella parte superiore vengono elencati automaticamente tutti i **Turni Scoperti / Con Assenze** dei prossimi giorni (oppure e possibile cercare manualmente per **Data**, **Fascia Oraria** e **Cantiere/Cliente**).
 3. Cliccando su **`🔍 Cerca Sostituti Compatibili`** accanto al turno scoperto, l'algoritmo analizza tutti i dipendenti attivi con flag **`DISP. SOST.`** e calcola per ciascuno lo **Smart Score IA (da 0 a 100 punti)** basandosi su:
@@ -483,6 +512,22 @@ Quando un lavoratore si ammala o va in ferie, il modulo **🏥 Jolly** individua
 Accanto a ciascun candidato proposto nella classifica sono disponibili due modalita operative:
 1. **`📲 Invia Richiesta Sostituzione (Telegram + App)`**: invia al lavoratore una notifica interattiva con i dettagli del turno (Cliente, Indirizzo, Data, Orario) e i pulsanti **`✅ Accetto Sostituzione`** / **`❌ Rifiuto`**. Il primo candidato che accetta viene assegnato automaticamente al turno.
 2. **`⚡ Assegna Subito (Conferma Ufficio)`**: assegna immediatamente il sostituto al turno (con possibilita di scegliere se assegnarlo per **tutto il periodo dell'assenza**, per **un singolo giorno** o solo per **giorni specifici della settimana**, e di **forzare l'assegnazione** anche se il lavoratore risulta occupato o privo di Telegram).
+
+### 12.3 Wizard Interattivo "Assegna Turno a Jolly e Squadre Libere" (anche da Telegram)
+Per le assegnazioni straordinarie, le pulizie di fondo e le emergenze dell'ultimo minuto, i Responsabili possono utilizzare il wizard operativo direttamente dal Bot Telegram (`📅 Assegna Turno` o comando `/assegnaturno`) o dal portale:
+1. **Avvio del Wizard**: toccare il pulsante **`📅 Assegna Turno`** nel menu principale Telegram o selezionare il cantiere dalla Dashboard.
+2. **Definizione dell'Intervento**:
+   - Selezione del **Cliente / Cantiere** da un elenco a pulsanti o ricerca per nome;
+   - Inserimento della **Data** (es. `2026-11-28`);
+   - Inserimento di **Ora Inizio** (es. `08:00`) e **Durata in Ore** (es. `4.0`);
+   - Nota operativa descrittiva opzionale (es. *"Pulizia vetrate straordinarie dopo tinteggiatura"*).
+3. **Selezione Destinatari: Multi-Selezione Jolly o Squadre Libere**:
+   - **Multi-Selezione Jolly**: il Bot mostra la lista degli operatori aventi qualifica `is_jolly`. Il responsabile può toccare i nomi per attivare la spunta (toggle) con conteggio dinamico in tempo reale (`Operatori selezionati: 2`). Toccando **`🚀 Invia Proposta a N Jolly`**, il sistema invia la richiesta a tutti i selezionati contemporaneamente in blocco;
+   - **Modalità Squadre Libere**: toccando **`👥 Squadre Libere Disponibili`**, il sistema analizza i calendari e propone solo le squadre non impegnate in altri cantieri in quella fascia oraria. Selezionando la squadra, la proposta viene inoltrata al Caposquadra e ai componenti.
+4. **Accettazione, Rifiuto e Riassegnazione Intelligente**:
+   - Il destinatario riceve una notifica su Telegram con scheda cantiere completa e due tasti: **`✅ Accetta Turno`** e **`❌ Rifiuta Turno`**;
+   - **Se il Jolly o la Squadra accetta**: il turno viene generato o inserito all'istante nel calendario turni di Kandor, il responsabile riceve conferma immediata e l'orario viene preimpostato nella Web App;
+   - **Se rifiuta**: il responsabile riceve tempestivamente la notifica del rifiuto e il messaggio contiene pulsanti rapidi per **riassegnare l'intervento a un altro Jolly o a un'altra Squadra libera**, escludendo automaticamente chi ha già rifiutato!
 
 ---
 
@@ -548,7 +593,7 @@ In alto a destra nella pagina `/report-paghe/` sono presenti i pulsanti per espo
 
 ---
 
-## 16. GESTIONE BUSTE PAGA: SPLIT AUTOMATICO PDF PER CODICE FISCALE E INVIO TELEGRAM/WHATSAPP (`/buste-paga/`)
+## 16. GESTIONE BUSTE PAGA: SPLIT AUTOMATICO PDF, ANTEPRIMA INTERATTIVA E INVIO TELEGRAM/WHATSAPP (`/buste-paga/`)
 
 ![Modulo Buste Paga - Split PDF Automatico e Invio 1-Click](screenshots/09_buste_paga.png)
 
@@ -583,6 +628,12 @@ Non appena il lotto viene elaborato:
 La tabella del lotto mostra in tempo reale per ogni dipendente:
 - **Stato Invio**: `Inviato su Telegram (data/ora)`, `Inviato su WhatsApp (data/ora)` o `In attesa di invio`;
 - **Stato Lettura / Scarico Dipendente**: non appena il lavoratore apre o scarica il PDF (da link, da Web App o dal pulsante `📄 Buste Paga` su Telegram), il badge diventa verde **`👁️ Scaricato / Letto il GG/MM/AAAA HH:MM`**, offrendo all'amministrazione la prova certa dell'avvenuta consegna.
+
+### 16.4 Passo 4: Nuova Anteprima Interattiva PDF (Modal & Nuova Scheda)
+Prima di inoltrare i documenti allo studio paghe o di procedere alla notifica ai lavoratori:
+1. Accanto a ogni cedolino o prospetto è disponibile il pulsante **`👁️ Anteprima Interattiva`**.
+2. Cliccandolo si apre una finestra modale ad alta definizione che visualizza il PDF completo direttamente dentro la pagina di amministrazione, senza costringere a scaricare il file in locale.
+3. È presente inoltre il tasto rapido **`↗️ Apri in Nuova Scheda`** per una consultazione a tutto schermo su monitor di grandi dimensioni, garantendo il controllo preventivo impeccabile prima dell'invio definitivo.
 
 ---
 
@@ -693,9 +744,9 @@ Quando il cliente accetta il preventivo:
 
 ---
 
-## 21. PRE-FATTURAZIONE MENSILE, STRAORDINARI ED EXTRA RILEVATI DALL'IA (`/pre-fatturazione/`)
+## 21. PRE-FATTURAZIONE MENSILE, STRAORDINARI, EXTRA RILEVATI DALL'IA E ALERT DATI FISCALI (`/pre-fatturazione/`)
 
-Il modulo **🧾 Pre-Fatturazione & Lavori Extra (`/pre-fatturazione/`)** elimina il rischio di dimenticare di fatturare ai clienti lavori straordinari, ore eccedenti o interventi extra svolti durante il mese.
+Il modulo **🧾 Pre-Fatturazione & Lavori Extra (`/pre-fatturazione/`)** elimina il rischio di dimenticare di fatturare ai clienti lavori straordinari, ore eccedenti o interventi extra svolti durante il mese, e previene gli scarti del Sistema di Interscambio (SDI) grazie ai controlli anagrafici preventivi.
 
 ### 21.1 Come Generare il Prospetto Mensile di Pre-Fatturazione Attiva (Passo-Passo)
 1. Dalla Dashboard cliccare sulla card **🧾 Pre-Fatturazione** (`/pre-fatturazione/`).
@@ -705,6 +756,15 @@ Il modulo **🧾 Pre-Fatturazione & Lavori Extra (`/pre-fatturazione/`)** elimin
    - **Colonna 2 — Interventi a Consuntivo / Ore Eccedenti (€)**: il valore economico delle ore lavorate nei contratti a tariffa oraria o oltre il monte ore pattuito;
    - **Colonna 3 — 🔍 Lavori Extra Rilevati Automaticamente nelle Note Turno**: l'algoritmo scandaglia tutte le note lasciate dai dipendenti e dai responsabili sui turni del mese intercettando parole chiave di interventi extra (*straordinario, extra, sgombero, sanificazione, lavaggio vetri extra, allagamento, post-cantiere, richiesta amministratore*) e le elenca pronte per essere valorizzate in fattura!
 4. Verificare il **Totale Imponibile Da Fatturare (€)** per ciascun cliente e cliccare su **`📥 Esporta Prospetto Pre-Fatturazione (CSV / Excel)`** per inviarlo alla contabilita o importarlo nel software di fatturazione elettronica.
+
+### 21.2 Notifica e Promemoria Dati Fiscali Clienti Mancanti per Fine Mese
+In prossimità della chiusura mensile, l'amministrazione non deve rischiare blocchi o scarti d'invio allo SDI:
+1. Sia nella Dashboard principale sia in cima al modulo Pre-Fatturazione compare automaticamente il widget **`🔔 Promemoria Dati Fiscali Mancanti Fine Mese`**.
+2. Il sistema controlla tutti i clienti con canoni attivi o turni svolti nel mese ed evidenzia con un badge arancione quelli a cui manca almeno un dato fiscale obbligatorio tra:
+   - **Partita IVA** o **Codice Fiscale**;
+   - **Codice Univoco SDI** o **Indirizzo PEC** per la fattura elettronica;
+   - **Indirizzo di fatturazione / Sede Legale**.
+3. Ciascun alert include il link diretto alla scheda del cliente per completare i campi mancanti in pochi secondi prima dell'emissione massiva delle fatture.
 
 ---
 

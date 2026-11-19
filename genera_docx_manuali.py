@@ -394,7 +394,7 @@ def build_manuale_programmatore_markdown(content_main):
     intro_prog = """# KANDOR ERP - Manuale Programmatore & Super-Admin
 ## Guida Tecnico-Direzionale per Gian Carlo Serra — Governance Accessi, Manuali, Suite ERP & Architettura
 
-**Versione 3.3 — 13 Novembre 2026**
+**Versione 3.4 — 19 Novembre 2026**
 
 ---
 
@@ -440,7 +440,7 @@ def genera_tutti_i_docx(output_dir=None):
         doc_prog,
         "KANDOR ERP — MANUALE PROGRAMMATORE",
         "Guida Completa Super-Admin, Console Accessi & Architettura Completa (38 Sezioni)",
-        "Versione 3.3 — 13 Novembre 2026 (File Word .DOCX Modificabile)",
+        "Versione 3.4 — 19 Novembre 2026 (File Word .DOCX Modificabile)",
         "Documento riservato al Programmatore (Gian Carlo Serra). Modificabile liberamente in Microsoft Word per personalizzare l'impaginazione prima dell'esportazione e del caricamento in PDF nella Console Programmatore (/gestione-accessi/).",
     )
     render_markdown_to_docx(doc_prog, content_prog, skip_first_h1=True)
@@ -454,7 +454,7 @@ def genera_tutti_i_docx(output_dir=None):
         doc_admin,
         "KANDOR ERP — MANUALE RESPONSABILI & ADMIN",
         "Introduzione Esaustiva alle Funzioni del Programma e Guida Operativa Passo-Passo",
-        "Versione 3.3 — 13 Novembre 2026 (File Word .DOCX Modificabile)",
+        "Versione 3.4 — 19 Novembre 2026 (File Word .DOCX Modificabile)",
         "Manuale operativo completo per Titolari, Amministrazione e Responsabili d'Area. Modificabile in Microsoft Word e ricaricabile in formato PDF dalla Console Programmatore (/gestione-accessi/).",
     )
     render_markdown_to_docx(doc_admin, content_main, skip_first_h1=True)
@@ -468,7 +468,7 @@ def genera_tutti_i_docx(output_dir=None):
         doc_dip,
         "KANDOR — GUIDA OPERATIVA DIPENDENTE",
         "Manuale Passo-Passo per Web App Mobile (/app/) & Bot Telegram (@kandor_gestionale_bot)",
-        "Versione 3.3 — 13 Novembre 2026 (File Word .DOCX Modificabile)",
+        "Versione 3.4 — 19 Novembre 2026 (File Word .DOCX Modificabile)",
         "Guida pratica illustrata per tutti i lavoratori Kandor: primo accesso, registrazione ore, motivazione scostamenti, recupero turni 31 giorni, timbratura GPS/QR, assenze, richiesta materiali e scarico Buste Paga PDF.",
     )
     render_markdown_to_docx(doc_dip, content_dip, skip_first_h1=True)
