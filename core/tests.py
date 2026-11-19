@@ -2706,6 +2706,127 @@ class TelegramAssegnaTurnoTestCase(TestCase):
         self.assertIn(sq1, prop2.squadre_rifiutate.all())
 
 
+from datetime import date, time
+
+
+class TestFestivitaESospensioniCliente(TestCase):
+    def setUp(self):
+        from datetime import date, time
+        self.date = date
+        self.time = time
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Azienda Test Srl",
+            indirizzo_sede="Via Brembate 10, Brembate di Sopra",
+            ore_mensili_contratto=Decimal('20.0'),
+            importo_mensile_contratto=Decimal('500.0')
+        )
+        self.dipendente = Dipendente.objects.create(
+            nome="Mario",
+            cognome="Rossi",
+            stato="ATTIVO"
+        )
+        self.squadra = Squadra.objects.create(
+            nome="Squadra Alpha",
+            caposquadra=self.dipendente
+        )
+        self.squadra.componenti.add(self.dipendente)
+
+    def test_riconoscimento_festivita(self):
+        from core.utils_festivita import get_festivita, is_giorno_festivo
+        # 15 Agosto (Ferragosto e Patrono Brembate di Sopra)
+        f_ferragosto = get_festivita(date(2026, 8, 15))
+        self.assertIsNotNone(f_ferragosto)
+        self.assertIn("Brembate di Sopra", f_ferragosto['nome'])
+        self.assertTrue(is_giorno_festivo(date(2026, 8, 15)))
+
+        # Natale e Capodanno
+        self.assertTrue(is_giorno_festivo(date(2026, 12, 25)))
+        self.assertTrue(is_giorno_festivo(date(2026, 1, 1)))
+
+        # Giorno feriale qualunque
+        self.assertFalse(is_giorno_festivo(date(2026, 10, 14)))
+
+    def test_turno_festivo_non_autovalidato_anche_se_ore_uguali(self):
+        """Verifica che un turno in giorno festivo NON venga auto-validato anche se le ore inserite sono uguali a quelle previste."""
+        from core.ai_engine import analizza_anomalie_ore
+        data_festivo = date(2026, 8, 15) # Ferragosto e Patrono Brembate di Sopra
+        turno = Turno.objects.create(data=data_festivo, squadra=self.squadra)
+        assign = AssegnazioneTurno.objects.create(
+            turno=turno,
+            cliente=self.cliente,
+            orario_inizio_previsto=time(8, 0),
+            orario_fine_previsto=time(12, 0),
+            ore_previste_contratto=Decimal('4.0')
+        )
+        # Dipendente inserisce esattamente 4 ore (uguali a quelle previste)
+        tt = TimeTracking.objects.create(
+            dipendente=self.dipendente,
+            assegnazione=assign,
+            ore_dichiarate=Decimal('4.0'),
+            is_validated=False
+        )
+
+        res = analizza_anomalie_ore(data_inizio=data_festivo, data_fine=data_festivo, auto_valida=True)
+        tt.refresh_from_db()
+
+        # DEVE rimanere is_validated = False (non auto-validato per giorno festivo)
+        self.assertFalse(tt.is_validated)
+
+        # Deve essere presente tra le anomalie/attenzioni da verificare
+        festivo_anomalie = [a for a in res['anomalie'] if 'Festivo' in a.get('motivo', '') or a.get('badge', '').startswith('🎉')]
+        self.assertTrue(len(festivo_anomalie) > 0)
+        self.assertEqual(festivo_anomalie[0]['severita'], 'ATTENZIONE')
+
+    def test_sospensione_festivita_cliente(self):
+        """Verifica la sospensione dei turni comunicata dal cliente per un periodo festivo."""
+        from core.models import SospensioneFestivitaCliente
+        from core.ai_engine import analizza_anomalie_ore
+
+        d1 = date(2026, 12, 24)
+        d2 = date(2026, 12, 25)
+        turno1 = Turno.objects.create(data=d1, squadra=self.squadra)
+        turno2 = Turno.objects.create(data=d2, squadra=self.squadra)
+
+        assign1 = AssegnazioneTurno.objects.create(
+            turno=turno1, cliente=self.cliente,
+            orario_inizio_previsto=time(9, 0), orario_fine_previsto=time(11, 0),
+            ore_previste_contratto=Decimal('2.0')
+        )
+        assign2 = AssegnazioneTurno.objects.create(
+            turno=turno2, cliente=self.cliente,
+            orario_inizio_previsto=time(9, 0), orario_fine_previsto=time(11, 0),
+            ore_previste_contratto=Decimal('2.0')
+        )
+
+        # Crea sospensione per festività natalizie comunicata dal cliente
+        sosp = SospensioneFestivitaCliente.objects.create(
+            cliente=self.cliente,
+            data_inizio=date(2026, 12, 24),
+            data_fine=date(2026, 12, 26),
+            motivo="Chiusura festività natalizie comunicata dal cliente",
+            attiva=True
+        )
+
+        assign1.refresh_from_db()
+        assign2.refresh_from_db()
+        self.assertTrue(assign1.is_sospeso)
+        self.assertTrue(assign2.is_sospeso)
+        self.assertEqual(assign1.sospensione_cliente, sosp)
+
+        # I turni sospesi non devono generare anomalie di ORE_MANCANTI
+        res = analizza_anomalie_ore(data_inizio=d1, data_fine=d2)
+        ore_mancanti = [a for a in res['anomalie'] if a['tipo'] == 'ORE_MANCANTI']
+        self.assertEqual(len(ore_mancanti), 0)
+
+        # Eliminazione della sospensione ripristina i turni come attivi
+        sosp.delete()
+        assign1.refresh_from_db()
+        assign2.refresh_from_db()
+        self.assertFalse(assign1.is_sospeso)
+        self.assertFalse(assign2.is_sospeso)
+
+
+
 
 
 

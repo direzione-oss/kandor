@@ -39,6 +39,8 @@ from .models import (
     TelegramConversationState, SchedulerExecutionLog,
     StoricoContrattoCliente,
     PropostaTurnoJolly,
+    SospensioneFestivitaCliente,
+    FestivitaPersonalizzata,
 )
 
 @admin.register(ModificaCedolino)
@@ -1197,12 +1199,21 @@ class DatiFatturazioneFilter(admin.SimpleListFilter):
         return queryset
 
 
+class SospensioneFestivitaClienteInline(admin.TabularInline):
+    model = SospensioneFestivitaCliente
+    extra = 0
+    fields = ('data_inizio', 'data_fine', 'motivo', 'comunicata_il', 'attiva', 'note')
+    verbose_name = "Sospensione Festività"
+    verbose_name_plural = "⏸️ Sospensioni per Festività Comunicata dal Cliente"
+    classes = ('collapse',)
+
+
 @admin.register(Cliente)
 class ClienteAdmin(KandorBaseAdmin):
     list_display = ('ragione_sociale', 'fatturazione_badge', 'indirizzo_sede', 'ore_mensili_contratto', 'importo_mensile_contratto', 'dotazioni_badge', 'procedure_cliente_badge', 'pdf_turni_badge')
     list_filter = (DatiFatturazioneFilter,)
     search_fields = ('ragione_sociale', 'partita_iva', 'codice_fiscale')
-    inlines = [ProgrammazioneInline, StraordinarioInline, DotazioneCantiereInline, StoricoContrattoClienteInline]
+    inlines = [ProgrammazioneInline, StraordinarioInline, SospensioneFestivitaClienteInline, DotazioneCantiereInline, StoricoContrattoClienteInline]
     actions = ['duplica_per_nuova_sede', 'avvia_disdetta_action', 'scarica_pdf_turni_settimana_action', 'scarica_pdf_turni_mese_action']
 
     @admin.display(description="🧾 Fatturazione")
@@ -1951,6 +1962,32 @@ class SchedulerExecutionLogAdmin(KandorBaseAdmin):
     list_filter = ('job_name', 'execution_date')
     search_fields = ('job_name',)
     readonly_fields = ('executed_at',)
+
+
+@admin.register(SospensioneFestivitaCliente)
+class SospensioneFestivitaClienteAdmin(KandorBaseAdmin):
+    list_display = ('cliente', 'data_inizio', 'data_fine', 'motivo', 'comunicata_il', 'attiva', 'created_at')
+    list_filter = ('attiva', 'data_inizio', 'cliente')
+    search_fields = ('cliente__ragione_sociale', 'motivo', 'note')
+    list_editable = ('attiva',)
+    date_hierarchy = 'data_inizio'
+
+
+@admin.register(FestivitaPersonalizzata)
+class FestivitaPersonalizzataAdmin(KandorBaseAdmin):
+    list_display = ('nome', 'tipo', 'comune', 'get_data_o_ricorrenza', 'attiva')
+    list_filter = ('tipo', 'attiva', 'comune')
+    search_fields = ('nome', 'comune', 'note')
+    list_editable = ('attiva',)
+
+    @admin.display(description="Data o Ricorrenza")
+    def get_data_o_ricorrenza(self, obj):
+        if obj.data:
+            return obj.data.strftime('%d/%m/%Y')
+        if obj.giorno and obj.mese:
+            return f"{obj.giorno:02d}/{obj.mese:02d} (ogni anno)"
+        return "—"
+
 
 
 

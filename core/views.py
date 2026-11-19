@@ -751,6 +751,155 @@ def delete_turno_ajax(request, assign_id):
 
 @csrf_exempt
 @staff_or_titolare_api_required
+def sospensioni_cliente_api(request):
+    """
+    API per gestire le sospensioni dei turni per festività comunicate dai clienti.
+    GET: restituisce l'elenco delle sospensioni.
+    POST: crea, modifica o elimina una sospensione cliente e applica/ripristina i relativi turni.
+    """
+    from .models import SospensioneFestivitaCliente, Cliente, AssegnazioneTurno
+    from datetime import date as dt_date
+
+    if request.method == 'GET':
+        cliente_id = request.GET.get('cliente_id')
+        qs = SospensioneFestivitaCliente.objects.select_related('cliente').order_by('-data_inizio')
+        if cliente_id and str(cliente_id).isdigit():
+            qs = qs.filter(cliente_id=int(cliente_id))
+        
+        data_res = []
+        for s in qs[:100]:
+            data_res.append({
+                'id': s.id,
+                'cliente_id': s.cliente_id,
+                'cliente_nome': s.cliente.ragione_sociale,
+                'data_inizio': s.data_inizio.isoformat(),
+                'data_inizio_fmt': s.data_inizio.strftime('%d/%m/%Y'),
+                'data_fine': s.data_fine.isoformat(),
+                'data_fine_fmt': s.data_fine.strftime('%d/%m/%Y'),
+                'motivo': s.motivo,
+                'comunicata_il': s.comunicata_il.isoformat() if s.comunicata_il else '',
+                'note': s.note or '',
+                'attiva': s.attiva,
+                'num_turni_sospesi': s.turni_sospesi.count(),
+            })
+        return JsonResponse({'status': 'ok', 'sospensioni': data_res})
+
+    if request.method == 'POST':
+        try:
+            body = json.loads(request.body.decode('utf-8')) if request.body else request.POST
+        except Exception:
+            body = request.POST
+
+        action = body.get('action', 'create')
+
+        if action == 'delete':
+            sosp_id = body.get('sospensione_id')
+            if not sosp_id:
+                return JsonResponse({'status': 'error', 'error': 'ID sospensione mancante'}, status=400)
+            sosp = SospensioneFestivitaCliente.objects.filter(pk=int(sosp_id)).first()
+            if not sosp:
+                return JsonResponse({'status': 'error', 'error': 'Sospensione non trovata'}, status=404)
+            cli_nome = sosp.cliente.ragione_sociale
+            sosp.delete()
+            return JsonResponse({'status': 'ok', 'message': f'Sospensione eliminata e turni ripristinati per {cli_nome}!'})
+
+        if action == 'toggle':
+            sosp_id = body.get('sospensione_id')
+            sosp = SospensioneFestivitaCliente.objects.filter(pk=int(sosp_id)).first()
+            if not sosp:
+                return JsonResponse({'status': 'error', 'error': 'Sospensione non trovata'}, status=404)
+            sosp.attiva = not sosp.attiva
+            sosp.save()
+            stato_txt = 'attivata' if sosp.attiva else 'disattivata'
+            return JsonResponse({'status': 'ok', 'attiva': sosp.attiva, 'message': f'Sospensione {stato_txt} con successo!'})
+
+        # Azione: CREATE o UPDATE
+        cliente_id = body.get('cliente_id')
+        data_inizio_str = body.get('data_inizio')
+        data_fine_str = body.get('data_fine')
+        motivo = (body.get('motivo') or 'Chiusura festività comunicata dal cliente').strip()
+        note = (body.get('note') or '').strip()
+        comunicata_str = body.get('comunicata_il')
+
+        if not cliente_id or not data_inizio_str or not data_fine_str:
+            return JsonResponse({'status': 'error', 'error': 'Cliente, data inizio e data fine sono obbligatori.'}, status=400)
+
+        cliente = Cliente.objects.filter(pk=int(cliente_id)).first()
+        if not cliente:
+            return JsonResponse({'status': 'error', 'error': 'Cliente selezionato non trovato.'}, status=404)
+
+        try:
+            d_inizio = dt_date.fromisoformat(str(data_inizio_str).strip())
+            d_fine = dt_date.fromisoformat(str(data_fine_str).strip())
+        except ValueError:
+            return JsonResponse({'status': 'error', 'error': 'Formato data non valido (atteso YYYY-MM-DD).'}, status=400)
+
+        if d_fine < d_inizio:
+            return JsonResponse({'status': 'error', 'error': 'La data di fine sospensione non può essere precedente alla data di inizio.'}, status=400)
+
+        d_comunicata = None
+        if comunicata_str:
+            try:
+                d_comunicata = dt_date.fromisoformat(str(comunicata_str).strip())
+            except ValueError:
+                pass
+
+        sosp = SospensioneFestivitaCliente.objects.create(
+            cliente=cliente,
+            data_inizio=d_inizio,
+            data_fine=d_fine,
+            motivo=motivo,
+            note=note,
+            comunicata_il=d_comunicata,
+            attiva=True
+        )
+        count_sosp = sosp.turni_sospesi.count()
+        return JsonResponse({
+            'status': 'ok',
+            'id': sosp.id,
+            'message': f"✅ Sospensione registrata per {cliente.ragione_sociale} ({d_inizio.strftime('%d/%m/%Y')} → {d_fine.strftime('%d/%m/%Y')})! {count_sosp} turni sospesi.",
+            'num_turni_sospesi': count_sosp,
+        })
+
+
+@csrf_exempt
+@staff_or_titolare_api_required
+def toggle_sospensione_turno_ajax(request, assign_id):
+    """Sospende o ripristina una singola assegnazione turno (es. chiusura puntuale comunicata dal cliente)."""
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'POST richiesto'})
+    try:
+        from .models import AssegnazioneTurno
+        assign = AssegnazioneTurno.objects.select_related('cliente', 'turno').get(pk=assign_id)
+        data = json.loads(request.body.decode('utf-8')) if request.body else {}
+        force_state = data.get('is_sospeso')
+        motivo = data.get('motivo')
+
+        if force_state is not None:
+            assign.is_sospeso = bool(force_state)
+        else:
+            assign.is_sospeso = not assign.is_sospeso
+
+        if assign.is_sospeso:
+            assign.motivo_sospensione = motivo or "Chiusura festività cliente"
+        else:
+            assign.motivo_sospensione = None
+            assign.sospensione_cliente = None
+
+        assign.save()
+        stato_txt = "sospeso per festività cliente" if assign.is_sospeso else "ripristinato come attivo"
+        return JsonResponse({
+            'status': 'ok',
+            'is_sospeso': assign.is_sospeso,
+            'motivo': assign.motivo_sospensione,
+            'message': f"Turno {assign.cliente.ragione_sociale} del {assign.turno.data.strftime('%d/%m')} {stato_txt}."
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
+
+
+@csrf_exempt
+@staff_or_titolare_api_required
 def validate_ore_ajax(request, assign_id):
     """Valida, invalida o inserisce le ore di un'assegnazione turno per TUTTI i componenti attivi della squadra (escludendo gli assenti e gli esclusi)."""
     if request.method != 'POST':

@@ -462,6 +462,24 @@ def weekly_schedule_widget(context):
         if sost.assegnazione_originale and sost.assegnazione_originale.turno_id:
             sostituzioni_by_turno[sost.assegnazione_originale.turno_id].append(sost)
 
+    # Pre-carica SOSPENSIONI FESTIVITÀ CLIENTI per la settimana
+    from core.models import SospensioneFestivitaCliente
+    from core.utils_festivita import get_festivita, is_giorno_festivo
+    sospensioni_settimana = list(
+        SospensioneFestivitaCliente.objects.filter(
+            attiva=True,
+            data_inizio__lte=dates[-1],
+            data_fine__gte=dates[0]
+        ).select_related('cliente')
+    )
+    sospensioni_by_cli_date = {}
+    for sosp in sospensioni_settimana:
+        s_curr = max(sosp.data_inizio, dates[0])
+        s_end = min(sosp.data_fine, dates[-1])
+        while s_curr <= s_end:
+            sospensioni_by_cli_date[(sosp.cliente_id, s_curr)] = sosp
+            s_curr += timedelta(days=1)
+
     # Raggruppa turni per data
     turni_per_data = defaultdict(list)
     for shift in shifts_qs_all:
@@ -469,12 +487,18 @@ def weekly_schedule_widget(context):
 
     schedule = []
     for d in dates:
+        festivo_info = get_festivita(d)
+        is_festivo_day = bool(festivo_info)
         day_data = {
             'date_obj': d,
             'day_name': DAYS_MAP[d.weekday()],
             'day_date': f"{d.day:02d} {MONTHS_MAP[d.month]}",
             'iso_date': d.isoformat(),
             'is_today': d == today,
+            'is_festivo': is_festivo_day,
+            'festivo_nome': festivo_info['nome'] if festivo_info else '',
+            'festivo_tipo': festivo_info['tipo'] if festivo_info else '',
+            'festivo_desc': festivo_info['descrizione'] if festivo_info else '',
             'shifts': [],
             'events': []
         }
@@ -491,6 +515,9 @@ def weekly_schedule_widget(context):
                 'green': '#27ae60', 'yellow': '#f39c12',
                 'red': '#e74c3c',   'white':  '#bdc3c7',
                 'purple': '#8e44ad',
+                'festivo_warning': '#ea580c',
+                'festivo_info': '#f97316',
+                'suspended': '#64748b',
             }
             HOUR_PX = 80
             grid_start_min = 4 * 60
@@ -567,8 +594,22 @@ def weekly_schedule_widget(context):
                 note_dipendente_str = " | ".join(tt_notes_raw)
                 note_dipendente_dettaglio_str = " • ".join(tt_notes_dettaglio)
 
-                # Se TUTTI i componenti attivi sono in assenza e non c'è sostituto con ore lavorate
-                if comp_assenti and len(comp_assenti) >= len(active_squadra) and not (has_hours or has_sostituti):
+                # Controllo sospensione festività comunicata dal cliente
+                sosp_cli_match = sospensioni_by_cli_date.get((assign.cliente_id, d))
+                is_sospeso_turno = bool(assign.is_sospeso or sosp_cli_match)
+                motivo_sosp_turno = assign.motivo_sospensione or (sosp_cli_match.motivo if sosp_cli_match else '')
+
+                sh_m = assign.orario_inizio_previsto.hour * 60 + assign.orario_inizio_previsto.minute
+                eh_m = assign.orario_fine_previsto.hour * 60 + assign.orario_fine_previsto.minute
+                dur_min = max(eh_m - sh_m, 0)
+                durata_prevista_float = float(assign.ore_previste_contratto) if (assign.ore_previste_contratto and assign.ore_previste_contratto > 0) else (dur_min / 60.0)
+
+                # 1. CASO TURNO SOSPESO PER FESTIVITÀ COMUNICATA DAL CLIENTE
+                if is_sospeso_turno:
+                    ore_stato = 'suspended'
+                    ore_label = '⏸️ Sospeso'
+                # 2. TUTTI I COMPONENTI IN ASSENZA
+                elif comp_assenti and len(comp_assenti) >= len(active_squadra) and not (has_hours or has_sostituti):
                     ore_stato = 'purple'
                     t_ass = comp_assenti[0]['tipo']
                     if t_ass == 'MALATTIA':
@@ -577,6 +618,24 @@ def weekly_schedule_widget(context):
                         ore_label = '🏖️ Ferie'
                     else:
                         ore_label = f"📝 {comp_assenti[0]['tipo_display']}"
+                # 3. GIORNO FESTIVO NAZIONALE O LOCALE (BREMBATE DI SOPRA)
+                # Requisito: evidenziare i turni senza validarli anche se il dipendente ha inserito ore uguali a quelle previste!
+                elif is_festivo_day:
+                    if tt_list and is_all_val and durata_tot > 0:
+                        # Se è stato convalidato esplicitamente dall'amministratore
+                        ore_stato = 'festivo_warning'
+                        ore_label = '🎉 ' + _fmt_ore(durata_tot) + ' ✓'
+                    elif tt_list and has_hours:
+                        # Ha inserito ore (anche se durata_tot == durata_prevista): NON auto-validare, evidenzia festivo!
+                        ore_stato = 'festivo_warning'
+                        ore_label = '🎉 ' + _fmt_ore(durata_tot) + ' ⏳'
+                    elif d < today:
+                        ore_stato = 'festivo_warning'
+                        ore_label = '🎉 Festivo !'
+                    else:
+                        ore_stato = 'festivo_info'
+                        ore_label = '🎉 ' + (_fmt_ore(dur_min / 60) if dur_min else 'Festivo')
+                # 4. GIORNO FERIALE STANDARD
                 elif tt_list and is_all_val and durata_tot > 0:
                     ore_stato = 'green'
                     ore_label = _fmt_ore(durata_tot) + ' ✓'
@@ -588,9 +647,6 @@ def weekly_schedule_widget(context):
                     ore_label = "!"
                 else:
                     ore_stato = 'white'
-                    sh_m = assign.orario_inizio_previsto.hour * 60 + assign.orario_inizio_previsto.minute
-                    eh_m = assign.orario_fine_previsto.hour * 60 + assign.orario_fine_previsto.minute
-                    dur_min = max(eh_m - sh_m, 0)
                     ore_label = _fmt_ore(dur_min / 60) if dur_min else '—'
 
                 badge_bg = STATO_COLORS.get(ore_stato, '#bdc3c7')
@@ -639,6 +695,10 @@ def weekly_schedule_widget(context):
                     'is_ricorrente': assign.programmazione_feriale_id is not None,
                     'has_assenza':  bool(comp_assenti),
                     'assenti_names': ", ".join([a['nome'] for a in comp_assenti]),
+                    'is_festivo':   is_festivo_day,
+                    'festivo_nome': festivo_info['nome'] if festivo_info else '',
+                    'is_sospeso':   is_sospeso_turno,
+                    'motivo_sospensione': motivo_sosp_turno,
                 })
 
             capo = shift.squadra.caposquadra if shift.squadra else None

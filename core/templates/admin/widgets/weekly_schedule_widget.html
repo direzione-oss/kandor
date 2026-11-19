@@ -2,10 +2,13 @@
 .schedule-grid {display:grid;grid-template-columns:60px repeat(7,1fr);min-width:1200px;border-collapse:collapse;background:#fff}
 .schedule-header {background:#F1F5F9;border-bottom:2px solid #CBD5E1;padding:12px 4px;text-align:center;border-right:1px solid #E2E8F0}
 .schedule-header.today {background:#059669;color:#fff}
+.schedule-header.festivo-col {background:linear-gradient(135deg,#c2410c 0%,#ea580c 100%)!important;color:#fff!important;border-bottom:2px solid #fdba74!important}
 .schedule-hour {font-size:11px;color:#64748B;border-right:1px solid #E2E8F0;border-bottom:1px solid #F1F5F9;padding:2px 6px;text-align:right;height:80px;line-height:80px;font-weight:600}
 .schedule-cell {border-right:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9;position:relative;min-height:80px}
 .schedule-cell.today-col {background:#ECFDF5}
 .schedule-event {position:absolute;left:2px;right:2px;background:#fff;border:1px solid #E2E8F0;border-left:4px solid #3B82F6;border-radius:6px;padding:4px 6px;font-size:11px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:#94A3B8 transparent;z-index:2;box-shadow:var(--shadow-sm);cursor:grab;user-select:none;transition:var(--transition)}
+.schedule-event.is-festivo-event {border-top:2px solid #ea580c;box-shadow:0 1px 3px rgba(234,88,12,0.25)}
+.schedule-event.is-suspended-event {background:repeating-linear-gradient(45deg,#f8fafc,#f8fafc 8px,#f1f5f9 8px,#f1f5f9 16px)!important;border:1px dashed #94a3b8!important;border-left:4px solid #64748b!important;opacity:0.85!important}
 .schedule-event::-webkit-scrollbar {width:5px}
 .schedule-event::-webkit-scrollbar-track {background:transparent}
 .schedule-event::-webkit-scrollbar-thumb {background:#CBD5E1;border-radius:4px}
@@ -23,6 +26,8 @@
 .validate-ev-btn.ore-green {background:#059669;opacity:.3}
 .validate-ev-btn.ore-red {background:#DC2626;opacity:.8}
 .validate-ev-btn.ore-yellow {background:#d97706;color:#fff;opacity:1;box-shadow:0 0 0 2px #fde68a;font-weight:bold;width:20px;height:20px;line-height:20px;font-size:11px}
+.validate-ev-btn.ore-festivo_warning {background:#ea580c;color:#fff;opacity:1;box-shadow:0 0 0 2px #fdba74;font-weight:bold;width:20px;height:20px;line-height:20px;font-size:11px}
+.validate-ev-btn.ore-suspended {background:#64748b;color:#fff;opacity:.7}
 .turno-modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;padding:20px;box-sizing:border-box;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);z-index:99999;justify-content:center;align-items:center}
 .turno-modal-overlay.active {display:flex!important}
 .turno-modal {background:#fff;border-radius:12px;padding:24px 26px;width:480px;max-width:95vw;max-height:88vh;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:#64748B #F1F5F9;box-shadow:var(--shadow-xl);border:1px solid var(--border-color)}
@@ -111,6 +116,7 @@
 </select>
 <a href="/settimana-pdf/?week={{ current_week_offset }}{% if squadra_filter %}&squadra={{ squadra_filter }}{% endif %}" target="_blank" style="color:#fff;font-size:12px;text-decoration:none;background:#DC2626;padding:6px 12px;border-radius:20px;font-weight:700" title="PDF Griglia Settimanale Oraria">🖨 PDF</a>
 <button type="button" onclick="openPdfClientiModal()" style="color:#fff;font-size:12px;background:#0d9488;border:none;padding:6px 14px;border-radius:20px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Scarica prospetto PDF turni e verifica modifiche per cliente">🏢 PDF Turni Clienti</button>
+<button type="button" onclick="openSospensioniClientiModal()" style="color:#fff;font-size:12px;background:#c2410c;border:none;padding:6px 14px;border-radius:20px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 3px rgba(0,0,0,0.15);" title="Gestisci chiusure e sospensioni turni per festività comunicate dai clienti">⏸️ Sospensioni Clienti</button>
 <a href="/admin/core/turno/" style="color:#fff;font-size:12px;text-decoration:none;background:rgba(255,255,255,.18);padding:6px 12px;border-radius:20px;font-weight:700">Gestisci Turni &rarr;</a>
 </div>
 </h3>
@@ -118,7 +124,7 @@
 <div style="display:flex;min-width:1200px">
 <!-- Colonna ORA -->
 <div style="width:60px;flex-shrink:0;border-right:1px solid #eee">
-<div style="height:40px;background:#37474f"></div>
+<div style="height:48px;background:#37474f"></div>
 {% for hour in hours_range %}
 <div class="schedule-hour">{{ hour }}:00</div>
 {% endfor %}
@@ -127,12 +133,19 @@
 {% for day in schedule %}
 <div style="flex:1;border-right:1px solid #f0f0f0;min-width:120px">
 <!-- Header giorno -->
-<div class="schedule-header {% if day.is_today %}today{% endif %}" style="height:40px;padding:0;display:flex;flex-direction:column;justify-content:center">
-<div style="font-size:13px;font-weight:700;text-transform:uppercase">{{ day.day_name }}</div>
-<div style="font-size:11px;opacity:.9">{{ day.day_date }}</div>
+<div class="schedule-header {% if day.is_today %}today{% elif day.is_festivo %}festivo-col{% endif %}" style="height:48px;padding:2px 4px;display:flex;flex-direction:column;justify-content:center" title="{% if day.is_festivo %}🎉 Giorno Festivo: {{ day.festivo_nome }} ({{ day.festivo_tipo }}){% endif %}">
+<div style="font-size:12px;font-weight:800;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:3px">
+  {% if day.is_festivo %}<span title="Giorno Festivo">🎉</span>{% endif %}{{ day.day_name }}
+</div>
+<div style="font-size:10.5px;opacity:.9">{{ day.day_date }}</div>
+{% if day.is_festivo %}
+  <div style="font-size:9.5px;font-weight:800;color:#fef08a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.1;padding:0 2px" title="{{ day.festivo_nome }}">
+    {{ day.festivo_nome }}
+  </div>
+{% endif %}
 </div>
 <!-- Corpo colonna: griglia oraria + eventi -->
-<div style="position:relative;height:{{ total_height }}px;{% if day.is_today %}background:#f1f8f3;{% endif %}">
+<div style="position:relative;height:{{ total_height }}px;{% if day.is_today %}background:#f1f8f3;{% elif day.is_festivo %}background:#fffaf0;{% endif %}">
 <!-- Linee orarie (sfondo) -->
 {% for slot in hours_with_top %}
 <div style="position:absolute;left:0;right:0;top:{{ slot.top_px }}px;height:80px;border-bottom:1px solid #f5f5f5;cursor:pointer;"
@@ -143,7 +156,7 @@
 {% endfor %}
 <!-- Eventi posizionati assolutamente -->
 {% for ev in day.events %}
-<div class="schedule-event"
+<div class="schedule-event {% if ev.is_festivo %}is-festivo-event{% endif %} {% if ev.is_sospeso %}is-suspended-event{% endif %}"
   style="top:{{ ev.top_abs }}px;height:{{ ev.height }}px;left:3px;right:3px;border-left-color:{{ ev.color }}"
   data-assign="{{ ev.assign_id }}"
   data-duration="{{ ev.height }}"
@@ -161,17 +174,35 @@
   data-ore-stato="{{ ev.ore_stato }}"
   data-ore-label="{{ ev.ore_label }}"
   data-ricorrente="{{ ev.is_ricorrente|yesno:'1,0' }}"
-  title="Trascina per spostare • Clicca per modificare{% if ev.note_dipendente_dettaglio %} • 💬 {{ ev.note_dipendente_dettaglio }}{% endif %}"
+  data-is-festivo="{{ ev.is_festivo|yesno:'1,0' }}"
+  data-festivo-nome="{{ ev.festivo_nome|escapejs }}"
+  data-is-sospeso="{{ ev.is_sospeso|yesno:'1,0' }}"
+  data-motivo-sospensione="{{ ev.motivo_sospensione|escapejs }}"
+  title="Trascina per spostare • Clicca per modificare{% if ev.is_festivo %} • 🎉 Giorno Festivo: {{ ev.festivo_nome }}{% endif %}{% if ev.is_sospeso %} • ⏸️ Sospeso: {{ ev.motivo_sospensione }}{% endif %}{% if ev.note_dipendente_dettaglio %} • 💬 {{ ev.note_dipendente_dettaglio }}{% endif %}"
   onclick="clickEventEdit(this, event)">
 <button class="delete-ev-btn" onclick="deleteTurno({{ ev.assign_id }},event)" title="Elimina turno">✕</button>
 {{ ev.ore_badge_html|safe }}
-{% if ev.ore_stato == 'yellow' or ev.ore_stato == 'green' %}
-<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="{% if ev.ore_stato == 'yellow' %}Valida ore inviate dal dipendente ({{ ev.ore_dichiarate_fmt }}){% else %}Ore già validate ({{ ev.ore_dichiarate_fmt }}){% endif %}">✓</button>
+{% if ev.ore_stato == 'yellow' or ev.ore_stato == 'green' or ev.ore_stato == 'festivo_warning' %}
+<button class="validate-ev-btn ore-{{ ev.ore_stato }}" onclick="validateOre({{ ev.assign_id }},event)" title="{% if ev.ore_stato == 'festivo_warning' %}Turno Festivo: clicca per convalidare manualmente le ore ({{ ev.ore_dichiarate_fmt|default:ev.ore_previste }}){% elif ev.ore_stato == 'yellow' %}Valida ore inviate dal dipendente ({{ ev.ore_dichiarate_fmt }}){% else %}Ore già validate ({{ ev.ore_dichiarate_fmt }}){% endif %}">✓</button>
 {% endif %}
 <div class="ev-cliente">{{ ev.cliente_nome }}</div>
 <div class="ev-squadra">{{ ev.squadra_nome }}</div>
 <div style="font-size:9px;color:#777;margin-top:2px">{{ ev.time_range }}</div>
-{% if ev.ore_stato == 'yellow' %}
+
+{% if ev.is_sospeso %}
+  <div style="font-size:9px;font-weight:800;color:#334155;background:#e2e8f0;padding:2px 5px;border-radius:4px;margin-top:2px;display:inline-block;border:1px dashed #94a3b8" title="Turno sospeso per festività o ferie comunicate dal cliente: {{ ev.motivo_sospensione }}">
+    ⏸️ SOSPESO: {{ ev.motivo_sospensione|default:"Chiusura cliente" }}
+  </div>
+{% elif ev.is_festivo %}
+  <div style="font-size:9px;font-weight:800;color:#c2410c;background:#ffedd5;padding:2px 5px;border-radius:4px;margin-top:2px;display:inline-block;border:1px solid #fdba74" title="Giorno festivo: {{ ev.festivo_nome }}. Non validato automaticamente.">
+    🎉 {{ ev.festivo_nome }}
+  </div>
+  {% if ev.ore_dichiarate %}
+    <div style="font-size:9px;font-weight:bold;color:#9a3412;background:#fee2e2;padding:2px 5px;border-radius:4px;margin-top:2px;display:inline-block;border:1px solid #fca5a5" title="Ore inserite in giorno festivo: {{ ev.ore_dichiarate_fmt }}. Richiede convalida manuale dell'Amministrazione!">
+      ⏳ Provv. Festivo: {{ ev.ore_dichiarate_fmt }}
+    </div>
+  {% endif %}
+{% elif ev.ore_stato == 'yellow' %}
   <div style="font-size:9.5px;font-weight:bold;color:#92400e;background:#fef3c7;padding:2px 5px;border-radius:4px;margin-top:3px;display:inline-block;border:1px solid #fde68a;box-shadow:0 1px 2px rgba(0,0,0,0.05)" title="Ore inserite dal dipendente in attesa di validazione">
     ⏳ Provvisorie: {{ ev.ore_dichiarate_fmt }}
   </div>
@@ -248,6 +279,8 @@
   <h3 style="color:#e65100;margin:0">✏️ Modifica Turno</h3>
   <button type="button" onclick="closeEditTurno()" style="background:transparent;border:none;font-size:20px;color:#64748B;cursor:pointer;line-height:1" title="Chiudi">✕</button>
 </div>
+<div id="edit-festivo-banner" style="display:none;margin-bottom:12px;padding:9px 12px;background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea580c;border-radius:6px;font-size:12px;color:#9a3412;font-weight:700;line-height:1.4"></div>
+<div id="edit-sospeso-banner" style="display:none;margin-bottom:12px;padding:9px 12px;background:#f8fafc;border:1px dashed #94a3b8;border-left:4px solid #64748b;border-radius:6px;font-size:12px;color:#334155;font-weight:700;line-height:1.4"></div>
 <label>Squadra</label>
 <select id="edit-squadra" style="margin-bottom:10px"></select>
 <label>Cliente</label>
@@ -311,9 +344,10 @@
     <button onclick="submitCopyMove('move')" style="background:#6c757d;color:#fff;border:none;border-radius:4px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">✂️ Sposta</button>
   </div>
 </div>
-<div class="turno-modal-actions">
+<div class="turno-modal-actions" style="flex-wrap:wrap;gap:8px">
+<button type="button" id="edit-btn-sospendi" onclick="toggleSospensioneCurrentEdit()" style="background:#64748b;color:#fff;padding:8px 14px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px">⏸️ Sospendi</button>
 <button class="btn-cancel-turno" onclick="closeEditTurno()">Annulla</button>
-<button style="background:#c62828;color:#fff;padding:8px 20px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:13px" onclick="confirmDeleteEdit()">🗑️ Elimina</button>
+<button style="background:#c62828;color:#fff;padding:8px 16px;border:none;border-radius:4px;font-weight:600;cursor:pointer;font-size:12px" onclick="confirmDeleteEdit()">🗑️ Elimina</button>
 <button class="btn-save-turno" onclick="saveEditTurno()">💾 Salva</button>
 </div>
 </div>
@@ -397,6 +431,89 @@
   </div>
 </div>
 
+<!-- MODAL GESTIONE SOSPENSIONI TURNI PER FESTIVITÀ CLIENTI -->
+<div id="sospensioni-clienti-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.65);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(3px);">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:640px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);overflow:hidden;max-height:90vh;display:flex;flex-direction:column;">
+    <div style="background:#0F172A;color:#fff;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:22px;">⏸️</span>
+        <div>
+          <h4 style="margin:0;font-size:16px;font-weight:700;color:#F8FAFC;">Sospensione Turni per Festività Cliente</h4>
+          <p style="margin:2px 0 0;font-size:11.5px;color:#94A3B8;">Registra i periodi di chiusura comunicati dai clienti (sospende i turni senza creare ore mancanti)</p>
+        </div>
+      </div>
+      <button type="button" onclick="closeSospensioniClientiModal()" style="background:transparent;border:none;color:#94A3B8;font-size:22px;cursor:pointer;line-height:1;" title="Chiudi">&times;</button>
+    </div>
+    
+    <div style="padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;">
+      <!-- Form Nuova Sospensione -->
+      <div style="background:#FFF7ED;border:1px solid #FFEDD5;border-left:4px solid #EA580C;border-radius:8px;padding:14px;">
+        <div style="font-size:13px;font-weight:700;color:#9A3412;margin-bottom:10px;">➕ Nuova Comunicazione Chiusura / Festività</div>
+        
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:3px;">Cliente *</label>
+            <select id="sosp-cliente-select" style="width:100%;padding:8px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;background:#fff;color:#0F172A;font-weight:600;">
+              <option value="">— Seleziona Cliente —</option>
+              {% for cli in clienti_list %}
+              <option value="{{ cli.id }}">{{ cli.ragione_sociale }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div style="display:flex;gap:10px;">
+            <div style="flex:1;">
+              <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:3px;">Data Inizio Chiusura *</label>
+              <input type="date" id="sosp-data-inizio" style="width:100%;padding:7px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;box-sizing:border-box;">
+            </div>
+            <div style="flex:1;">
+              <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:3px;">Data Fine Chiusura *</label>
+              <input type="date" id="sosp-data-fine" style="width:100%;padding:7px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;box-sizing:border-box;">
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:3px;">Motivo Comunicato dal Cliente *</label>
+            <input type="text" id="sosp-motivo" placeholder="Es. Chiusura per Festività Pasquali, Ferie Estive, Ponte Festivo..." value="Chiusura festività comunicata dal cliente" style="width:100%;padding:7px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;box-sizing:border-box;">
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">
+              <button type="button" onclick="setQuickMotivo('Chiusura Festività Pasquali')" style="font-size:10.5px;background:#FED7AA;color:#9A3412;border:none;padding:2px 7px;border-radius:4px;cursor:pointer;">Pasqua</button>
+              <button type="button" onclick="setQuickMotivo('Chiusura Festività Natalizie')" style="font-size:10.5px;background:#FED7AA;color:#9A3412;border:none;padding:2px 7px;border-radius:4px;cursor:pointer;">Natale/Capodanno</button>
+              <button type="button" onclick="setQuickMotivo('Chiusura Estiva per Ferie')" style="font-size:10.5px;background:#FED7AA;color:#9A3412;border:none;padding:2px 7px;border-radius:4px;cursor:pointer;">Ferie Estive</button>
+              <button type="button" onclick="setQuickMotivo('Ponte Festivo')" style="font-size:10.5px;background:#FED7AA;color:#9A3412;border:none;padding:2px 7px;border-radius:4px;cursor:pointer;">Ponte</button>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:#334155;margin-bottom:3px;">Note / Riferimenti (opzionale)</label>
+            <input type="text" id="sosp-note" placeholder="Es. Comunicazione email referente del 15/12..." style="width:100%;padding:7px 10px;border:1px solid #CBD5E1;border-radius:6px;font-size:13px;box-sizing:border-box;">
+          </div>
+
+          <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+            <button type="button" onclick="submitNuovaSospensione()" style="background:#EA580C;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(234,88,12,0.3);">
+              <span>⏸️ Applica Sospensione ai Turni</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Elenco Sospensioni Attive -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:700;color:#0F172A;">📋 Sospensioni Festività Registrate</span>
+          <button type="button" onclick="caricaSospensioniList()" style="background:transparent;border:none;color:#0D9488;font-size:11.5px;font-weight:700;cursor:pointer;">🔄 Aggiorna</button>
+        </div>
+        <div id="sospensioni-table-wrap" style="max-height:220px;overflow-y:auto;border:1px solid #E2E8F0;border-radius:8px;">
+          <div style="padding:16px;text-align:center;color:#64748B;font-size:12px;">Caricamento sospensioni in corso...</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:#F8FAFC;border-top:1px solid #E2E8F0;padding:12px 20px;display:flex;justify-content:flex-end;flex-shrink:0;">
+      <button type="button" onclick="closeSospensioniClientiModal()" style="padding:8px 18px;border:1px solid #CBD5E1;background:#fff;border-radius:6px;font-size:13px;font-weight:600;color:#475569;cursor:pointer;">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <script>
 var _turnoDate=''; var _dataLoaded=false; var _editId=null;
 var HOUR_PX=80; var GRID_START=4;
@@ -443,7 +560,11 @@ function clickEventEdit(el, e) {
     el.getAttribute('data-ore-dichiarate')||'',
     el.getAttribute('data-ricorrente')||'1',
     el.getAttribute('data-note-dipendente')||'',
-    el.getAttribute('data-note-dipendente-dettaglio')||''
+    el.getAttribute('data-note-dipendente-dettaglio')||'',
+    el.getAttribute('data-is-festivo')||'0',
+    el.getAttribute('data-festivo-nome')||'',
+    el.getAttribute('data-is-sospeso')||'0',
+    el.getAttribute('data-motivo-sospensione')||''
   );
 }
 
@@ -610,11 +731,48 @@ function _syncSostitutoTurnoAjax(assignId, dipId, sostitutoId, riattiva, statusE
   });
 }
 
-function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente,noteDipendente,noteDipendenteDettaglio){
+function openEditTurno(assignId,clienteId,squadraId,oraInizio,oraFine,note,oreStato,oreLabel,orePreviste,oreDichiarate,isRicorrente,noteDipendente,noteDipendenteDettaglio,isFestivo,festivoNome,isSospeso,motivoSospensione){
 try {
 
   _editId=assignId;
   _sostChangedInModal=false;
+  _isCurrentSospeso=(isSospeso==='1');
+
+  var fBanner=document.getElementById('edit-festivo-banner');
+  if(fBanner){
+    if(isFestivo==='1'){
+      fBanner.innerHTML='🎉 <b>GIORNO FESTIVO: '+(festivoNome||'Festività')+'</b><br/>Questo turno cade in un giorno festivo (nazionale o patrono di Brembate di Sopra). <b>Anche se le ore inserite sono uguali a quelle previste</b>, il turno richiede verifica e convalida manuale dell\'Amministrazione per le relative maggiorazioni festive.';
+      fBanner.style.display='block';
+    } else {
+      fBanner.style.display='none';
+      fBanner.innerHTML='';
+    }
+  }
+
+  var sBanner=document.getElementById('edit-sospeso-banner');
+  if(sBanner){
+    if(isSospeso==='1'){
+      sBanner.innerHTML='⏸️ <b>TURNO SOSPESO PER FESTIVITÀ / FERIE COMUNICATE DAL CLIENTE</b><br/>Motivo chiusura: <i>'+(motivoSospensione||'Chiusura cliente')+'</i>.<br/>Questo turno non richiede compilazione ore e non genera allarmi di ore mancanti.';
+      sBanner.style.display='block';
+    } else {
+      sBanner.style.display='none';
+      sBanner.innerHTML='';
+    }
+  }
+
+  var btnSosp=document.getElementById('edit-btn-sospendi');
+  if(btnSosp){
+    if(isSospeso==='1'){
+      btnSosp.textContent='▶️ Riattiva Turno';
+      btnSosp.style.background='#059669';
+      btnSosp.title='Riattiva questo turno sospeso';
+    } else {
+      btnSosp.textContent='⏸️ Sospendi per Festività Cliente';
+      btnSosp.style.background='#64748b';
+      btnSosp.title='Sospendi questo turno per chiusura comunicata dal cliente';
+    }
+  }
+
   document.getElementById('edit-inizio').value=oraInizio;
   document.getElementById('edit-fine').value=oraFine;
   document.getElementById('edit-note').value=note||'';
@@ -1245,5 +1403,132 @@ function submitPdfClienti() {
 
   window.open(url, '_blank');
   closePdfClientiModal();
+}
+
+function toggleSospensioneCurrentEdit() {
+  if (!_editId) return;
+  var motivo = prompt('Motivo della sospensione per festività / ferie comunicata dal cliente:', 'Chiusura festività comunicata dal cliente');
+  if (motivo === null) return;
+  fetch('/api/toggle-sospensione-turno/' + _editId + '/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({motivo: motivo})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.status === 'ok') {
+      alert(d.message);
+      closeEditTurno(true);
+      location.reload();
+    } else {
+      alert('Errore: ' + (d.error || 'operazione non riuscita'));
+    }
+  }).catch(function(){ alert('Errore di connessione'); });
+}
+
+function openSospensioniClientiModal() {
+  var m = document.getElementById('sospensioni-clienti-modal');
+  if (m) {
+    m.style.display = 'flex';
+    caricaSospensioniList();
+  }
+}
+
+function closeSospensioniClientiModal() {
+  var m = document.getElementById('sospensioni-clienti-modal');
+  if (m) m.style.display = 'none';
+}
+
+function setQuickMotivo(txt) {
+  var el = document.getElementById('sosp-motivo');
+  if (el) el.value = txt;
+}
+
+function caricaSospensioniList() {
+  var wrap = document.getElementById('sospensioni-table-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="padding:14px;text-align:center;color:#64748B;font-size:12px;">Caricamento sospensioni...</div>';
+  fetch('/api/sospensioni-cliente/').then(function(r){ return r.json(); }).then(function(d){
+    if (d.status === 'ok') {
+      if (!d.sospensioni || !d.sospensioni.length) {
+        wrap.innerHTML = '<div style="padding:18px;text-align:center;color:#64748B;font-size:12px;">Nessuna sospensione per festività registrata finora. Usa il modulo sopra per registrarne una.</div>';
+        return;
+      }
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">' +
+        '<tr style="background:#F1F5F9;color:#475569;font-weight:700;border-bottom:1px solid #CBD5E1;">' +
+        '<th style="padding:8px 10px;">Cliente</th>' +
+        '<th style="padding:8px 10px;">Periodo Chiusura</th>' +
+        '<th style="padding:8px 10px;">Motivo Comunicato</th>' +
+        '<th style="padding:8px 10px;text-align:center;">Turni Sospesi</th>' +
+        '<th style="padding:8px 10px;text-align:right;">Azioni</th>' +
+        '</tr>';
+      d.sospensioni.forEach(function(s){
+        var bg = s.attiva ? '#fff' : '#f8fafc';
+        var badgeAttiva = s.attiva ? '<span style="color:#059669;font-weight:700">● Attiva</span>' : '<span style="color:#94a3b8">○ Inattiva</span>';
+        html += '<tr style="background:' + bg + ';border-bottom:1px solid #E2E8F0;">' +
+          '<td style="padding:8px 10px;font-weight:700;color:#0F172A;">' + s.cliente_nome + '<br/><small>' + badgeAttiva + '</small></td>' +
+          '<td style="padding:8px 10px;white-space:nowrap;"><b>' + s.data_inizio_fmt + '</b> &rarr; <b>' + s.data_fine_fmt + '</b></td>' +
+          '<td style="padding:8px 10px;color:#334155;">' + s.motivo + (s.note ? ('<br/><small style="color:#64748B">' + s.note + '</small>') : '') + '</td>' +
+          '<td style="padding:8px 10px;text-align:center;"><span style="background:#FED7AA;color:#9A3412;padding:2px 7px;border-radius:10px;font-weight:700;font-size:11px;">' + s.num_turni_sospesi + '</span></td>' +
+          '<td style="padding:8px 10px;text-align:right;white-space:nowrap;">' +
+          '<button type="button" onclick="eliminaSospensione(' + s.id + ')" style="background:#DC2626;color:#fff;border:none;padding:4px 9px;border-radius:4px;font-size:11px;font-weight:700;cursor:pointer;" title="Elimina e ripristina i turni">🗑️ Rimuovi</button>' +
+          '</td>' +
+          '</tr>';
+      });
+      html += '</table>';
+      wrap.innerHTML = html;
+    } else {
+      wrap.innerHTML = '<div style="padding:14px;color:#DC2626;font-size:12px;">Errore caricamento sospensioni: ' + (d.error || '') + '</div>';
+    }
+  }).catch(function(){
+    wrap.innerHTML = '<div style="padding:14px;color:#DC2626;font-size:12px;">Errore di connessione.</div>';
+  });
+}
+
+function submitNuovaSospensione() {
+  var cliId = document.getElementById('sosp-cliente-select').value;
+  var dIni = document.getElementById('sosp-data-inizio').value;
+  var dFin = document.getElementById('sosp-data-fine').value;
+  var motivo = (document.getElementById('sosp-motivo').value || '').trim();
+  var note = (document.getElementById('sosp-note').value || '').trim();
+
+  if (!cliId) { alert('Seleziona il cliente che ha comunicato la chiusura.'); return; }
+  if (!dIni || !dFin) { alert('Inserisci sia la data di inizio che la data di fine chiusura.'); return; }
+  if (dFin < dIni) { alert('La data di fine chiusura non può essere precedente alla data di inizio.'); return; }
+
+  fetch('/api/sospensioni-cliente/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({
+      cliente_id: cliId,
+      data_inizio: dIni,
+      data_fine: dFin,
+      motivo: motivo,
+      note: note
+    })
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.status === 'ok') {
+      alert(d.message);
+      caricaSospensioniList();
+      location.reload();
+    } else {
+      alert('Errore: ' + (d.error || 'impossibile salvare la sospensione'));
+    }
+  }).catch(function(){ alert('Errore di connessione'); });
+}
+
+function eliminaSospensione(id) {
+  if (!confirm('Rimuovere questa sospensione e ripristinare tutti i relativi turni del cliente come attivi?')) return;
+  fetch('/api/sospensioni-cliente/', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({action: 'delete', sospensione_id: id})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d.status === 'ok') {
+      alert(d.message);
+      caricaSospensioniList();
+      location.reload();
+    } else {
+      alert('Errore: ' + (d.error || 'impossibile eliminare'));
+    }
+  }).catch(function(){ alert('Errore di connessione'); });
 }
 </script>

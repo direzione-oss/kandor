@@ -18,6 +18,7 @@ from decimal import Decimal
 from django.utils import timezone
 from django.db.models import Q, Count, Avg, Sum
 from geopy.distance import geodesic
+from .utils_festivita import get_festivita, is_giorno_festivo
 
 
 # ==============================================================================
@@ -190,6 +191,9 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False, d
         totale_ore_previste += ore_prev_unitarie * n_pres
 
         if not tts:
+            # Se il turno è sospeso per festività/chiusura comunicata dal cliente, non è un'anomalia di ore mancanti
+            if getattr(assign, 'is_sospeso', False):
+                continue
             # Se tutti i componenti del turno sono in assenza e il turno è NON_SOSTITUITO, non è un'anomalia di ore mancanti
             if sost_list and all(r.stato == 'NON_SOSTITUITO' for r in sost_list):
                 continue
@@ -301,17 +305,27 @@ def analizza_anomalie_ore(data_inizio=None, data_fine=None, auto_valida=False, d
                     )
                     severita_tt = 'CRITICA'
 
+            # 5. Controllo Festività Nazionale o Locale di Brembate di Sopra
+            # Requisito: evidenziare i turni senza validarli anche se il dipendente ha inserito ore uguali a quelle previste!
+            festivo_info = get_festivita(data_turno)
+            if festivo_info:
+                motivi_tt.append(
+                    f"Turno in giorno festivo ({festivo_info['nome']}): richiede verifica e convalida manuale dell'Amministrazione."
+                )
+                if severita_tt == 'INFO':
+                    severita_tt = 'ATTENZIONE'
+
             if motivi_tt:
                 assign_has_anomaly = True
                 badge_map = {
                     'CRITICA': '🔴 Anomalia Critica',
-                    'ATTENZIONE': '🟠 Da Verificare',
+                    'ATTENZIONE': f"🎉 Festivo ({festivo_info['nome']})" if (festivo_info and abs(diff) < 0.5) else '🟠 Da Verificare',
                     'INFO': '🔵 Nota IA',
                 }
                 az_cons = (
                     "Controlla le note del dipendente o rettifica dal Report Cedolini Paghe."
                     if severita_tt == 'CRITICA'
-                    else "Verifica scostamento prima della validazione."
+                    else ("Verifica maggiorazione festiva e convalida manualmente." if festivo_info else "Verifica scostamento prima della validazione.")
                 )
                 dip_lbl = f"{dip.cognome} {dip.nome}" if dip else 'N/D'
                 cli_lbl = assign.cliente.ragione_sociale if assign.cliente else 'N/D'

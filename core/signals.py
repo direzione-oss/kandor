@@ -585,17 +585,34 @@ def _genera_turni_singola_programmazione(prog, days=365, only_future=False):
         orario_fine = orario_inizio
 
     mansione_str = f"Generato autom. (Qualifica: {prog.qualifica_richiesta})"
-    assigns_to_create = [
-        AssegnazioneTurno(
-            turno=existing_turni[d],
-            cliente_id=prog.cliente_id,
-            programmazione_feriale=prog,
-            orario_inizio_previsto=orario_inizio,
-            orario_fine_previsto=orario_fine,
-            mansione_svolta=mansione_str
+
+    # Pre-carica eventuali sospensioni per festività comunicate dal cliente nel periodo
+    from core.models import SospensioneFestivitaCliente
+    sospensioni_cli = list(SospensioneFestivitaCliente.objects.filter(
+        cliente_id=prog.cliente_id,
+        attiva=True,
+        data_inizio__lte=end_date,
+        data_fine__gte=start_date
+    ))
+
+    assigns_to_create = []
+    for d in missing_dates:
+        if d not in existing_turni:
+            continue
+        sosp_match = next((s for s in sospensioni_cli if s.data_inizio <= d <= s.data_fine), None)
+        assigns_to_create.append(
+            AssegnazioneTurno(
+                turno=existing_turni[d],
+                cliente_id=prog.cliente_id,
+                programmazione_feriale=prog,
+                orario_inizio_previsto=orario_inizio,
+                orario_fine_previsto=orario_fine,
+                mansione_svolta=mansione_str,
+                is_sospeso=bool(sosp_match),
+                motivo_sospensione=sosp_match.motivo if sosp_match else None,
+                sospensione_cliente=sosp_match,
+            )
         )
-        for d in missing_dates if d in existing_turni
-    ]
     if not assigns_to_create:
         return 0
 

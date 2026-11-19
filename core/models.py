@@ -638,6 +638,116 @@ class Squadra(models.Model):
         verbose_name_plural = "Squadre"
         ordering = ['nome']
 
+class SospensioneFestivitaCliente(models.Model):
+    """
+    Sospensione dei turni per festività o ferie comunicata dal cliente.
+    Sospende automaticamente tutti i turni del cliente programmati nell'intervallo specificato,
+    evitando la segnalazione di anomalie di ore non compilate ed evidenziandone la chiusura sul calendario.
+    """
+    cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name='sospensioni_festivita', verbose_name="Cliente")
+    data_inizio = models.DateField(verbose_name="Data Inizio Sospensione")
+    data_fine = models.DateField(verbose_name="Data Fine Sospensione")
+    motivo = models.CharField(
+        max_length=200,
+        default="Chiusura festività comunicata dal cliente",
+        verbose_name="Motivo Sospensione / Chiusura",
+        help_text="Es: Chiusura festività natalizie, Ferie estive, Ponte festivo, Chiusura aziendale"
+    )
+    comunicata_il = models.DateField(null=True, blank=True, verbose_name="Data Comunicazione Cliente")
+    note = models.TextField(blank=True, verbose_name="Note / Riferimenti")
+    attiva = models.BooleanField(default=True, verbose_name="Sospensione Attiva")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.data_inizio and self.data_fine and self.data_fine < self.data_inizio:
+            raise ValidationError({'data_fine': "La data di fine sospensione non può essere precedente alla data di inizio."})
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.applica_sospensione_a_turni()
+
+    def applica_sospensione_a_turni(self):
+        """Applica o rimuove la sospensione su tutte le assegnazioni turno nel periodo del cliente."""
+        turni_qs = AssegnazioneTurno.objects.filter(
+            cliente=self.cliente,
+            turno__data__gte=self.data_inizio,
+            turno__data__lte=self.data_fine
+        )
+        if self.attiva:
+            turni_qs.update(
+                is_sospeso=True,
+                motivo_sospensione=self.motivo,
+                sospensione_cliente=self
+            )
+        else:
+            turni_qs.filter(sospensione_cliente=self).update(
+                is_sospeso=False,
+                motivo_sospensione=None,
+                sospensione_cliente=None
+            )
+
+    def delete(self, *args, **kwargs):
+        # Prima di eliminare, ripristina le assegnazioni sospese da questo record
+        AssegnazioneTurno.objects.filter(sospensione_cliente=self).update(
+            is_sospeso=False,
+            motivo_sospensione=None,
+            sospensione_cliente=None
+        )
+        super().delete(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.cliente} - Sospensione dal {self.data_inizio.strftime('%d/%m/%Y')} al {self.data_fine.strftime('%d/%m/%Y')} ({self.motivo})"
+
+    class Meta:
+        verbose_name = "Sospensione Festività Cliente"
+        verbose_name_plural = "Sospensioni Festività Clienti"
+        ordering = ['-data_inizio', 'cliente__ragione_sociale']
+
+
+class FestivitaPersonalizzata(models.Model):
+    """
+    Festività personalizzata locale o aziendale per Brembate di Sopra o cantieri specifici.
+    Permette di definire festività con ricorrenza annuale (giorno/mese) o data specifica.
+    """
+    TIPO_CHOICES = [
+        ('LOCALE', 'Locale (Brembate di Sopra / Comune Cantiere)'),
+        ('NAZIONALE', 'Nazionale'),
+        ('AZIENDALE', 'Chiusura Straordinaria / Aziendale'),
+    ]
+    nome = models.CharField(max_length=150, verbose_name="Nome Festività")
+    data = models.DateField(null=True, blank=True, verbose_name="Data Specifica", help_text="Compilare solo per festività una tantum di un anno specifico")
+    giorno = models.IntegerField(null=True, blank=True, verbose_name="Giorno (1-31)", help_text="Per festività ricorrenti ogni anno")
+    mese = models.IntegerField(null=True, blank=True, verbose_name="Mese (1-12)", help_text="Per festività ricorrenti ogni anno")
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='LOCALE', verbose_name="Tipo Festività")
+    comune = models.CharField(max_length=100, default='Brembate di Sopra', blank=True, verbose_name="Comune di Riferimento")
+    attiva = models.BooleanField(default=True, verbose_name="Attiva")
+    note = models.TextField(blank=True, verbose_name="Note")
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not self.data and (not self.giorno or not self.mese):
+            raise ValidationError("Devi indicare una Data Specifica oppure Giorno e Mese per la ricorrenza annuale.")
+        if self.giorno and (self.giorno < 1 or self.giorno > 31):
+            raise ValidationError({'giorno': "Il giorno deve essere compreso tra 1 e 31."})
+        if self.mese and (self.mese < 1 or self.mese > 12):
+            raise ValidationError({'mese': "Il mese deve essere compreso tra 1 e 12."})
+
+    def __str__(self):
+        if self.data:
+            dt_str = self.data.strftime('%d/%m/%Y')
+        elif self.giorno and self.mese:
+            dt_str = f"{self.giorno:02d}/{self.mese:02d} (annuale)"
+        else:
+            dt_str = "N/D"
+        return f"{self.nome} - {dt_str} ({self.get_tipo_display()})"
+
+    class Meta:
+        verbose_name = "Festività Personalizzata"
+        verbose_name_plural = "Festività Personalizzate"
+        ordering = ['mese', 'giorno', 'data']
+
+
 class Turno(models.Model):
     data = models.DateField(verbose_name="Data Turno")
     squadra = models.ForeignKey(Squadra, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Squadra Assegnata")
@@ -688,6 +798,26 @@ class AssegnazioneTurno(models.Model):
         help_text="Dipendenti della squadra NON presenti in questo turno (es. lavoro da soli)."
     )
     
+    is_sospeso = models.BooleanField(
+        default=False,
+        verbose_name="Turno Sospeso",
+        help_text="Turno sospeso per festività o chiusura comunicata dal cliente."
+    )
+    motivo_sospensione = models.CharField(
+        max_length=200,
+        blank=True,
+        null=True,
+        verbose_name="Motivo Sospensione"
+    )
+    sospensione_cliente = models.ForeignKey(
+        'SospensioneFestivitaCliente',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='turni_sospesi',
+        verbose_name="Riferimento Sospensione Cliente"
+    )
+    
     mansione_svolta = models.TextField(blank=True)
 
     @property
@@ -734,6 +864,25 @@ class AssegnazioneTurno(models.Model):
             elif self.richiesta_straordinaria and not self.orario_inizio_previsto:
                 self.orario_inizio_previsto = self.richiesta_straordinaria.ora_inizio
                 self.orario_fine_previsto = self.richiesta_straordinaria.ora_fine
+
+        # Controllo automatico sospensione festività comunicata dal cliente
+        if not self.is_sospeso and self.cliente_id and self.turno_id:
+            try:
+                data_turno = self.turno.data if hasattr(self.turno, 'data') else None
+                if data_turno:
+                    sosp = SospensioneFestivitaCliente.objects.filter(
+                        cliente_id=self.cliente_id,
+                        attiva=True,
+                        data_inizio__lte=data_turno,
+                        data_fine__gte=data_turno
+                    ).first()
+                    if sosp:
+                        self.is_sospeso = True
+                        self.motivo_sospensione = sosp.motivo
+                        self.sospensione_cliente = sosp
+            except Exception:
+                pass
+
         super().save(*args, **kwargs)
 
     def __str__(self):
