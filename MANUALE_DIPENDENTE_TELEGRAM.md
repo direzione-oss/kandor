@@ -106,6 +106,8 @@ Quando apri il **Bot Telegram (`@kandor_gestionale_bot`)** (o premi il pulsante 
 | **🚨 Segnalazione** | Tab **Segnalazioni** | Segnalare un guasto, un imprevisto o una nota dal cantiere |
 | **📄 Buste Paga** | Tab **Buste Paga** | Scaricare sul telefono le proprie buste paga in formato PDF |
 | **📸 Foto Profilo** | Icona **Foto in alto** | Scattare o caricare la propria foto per il tesserino aziendale |
+| **🏢 Registra Nuovo Cliente** *(Solo Responsabili)* | Sezione **Clienti** | Registrare al volo un nuovo cliente aggiornando subito l'anagrafica |
+| **📅 Assegna Turno** *(Solo Responsabili)* | Sezione **Turni** | Accesso rapido all'assegnazione e programmazione dei turni |
 | **📖 Guida** | Link **Guida** | Aprire questo manuale operativo sempre aggiornato |
 
 ---
@@ -267,3 +269,30 @@ Quando un collega e assente e il sistema ti individua come possibile sostituto c
 
 - **D: Dove trovo questo manuale se ho un dubbio mentre sono al lavoro?**  
   **R:** Tocca in qualsiasi momento il pulsante **`📖 Guida`** in fondo al Menu Principale del Bot Telegram oppure apri `https://kandor.187.126.30.207.sslip.io/manuale-dipendente/` (da cui puoi anche scaricare il PDF completo toccando **`Scarica PDF Guida Dipendente`**).
+
+---
+
+## PARTE 11 — FUNZIONALITÀ DEDICATE AI RESPONSABILI NEL BOT TELEGRAM
+
+Per gli utenti con ruolo di **Responsabile d'Area**, **Direzione** o abilitati alle notifiche di supervisione, il Menu Principale del Bot Telegram include due pulsanti dedicati:
+
+### 11.1 Registra Nuovo Cliente (`🏢 Registra Nuovo Cliente`)
+I responsabili possono inserire un nuovo cliente direttamente da Telegram mentre si trovano sul campo o in mobilità.
+
+1. Dal Menu Principale tocca **`🏢 Registra Nuovo Cliente`** (oppure invia il comando `/nuovocliente`);
+2. Il Bot si mette in attesa e ti chiede di inviare i dati del cliente;
+3. Puoi inviare:
+   - **Solo il Nome / Ragione Sociale** (obbligatorio): es. `Pasticceria La Mimosa`
+   - **Nome + Indirizzo**: es. `Pasticceria La Mimosa, Via Roma 15 Bergamo`
+   - **Scheda completa su più righe**:
+     ```text
+     Nome: Pasticceria La Mimosa
+     Indirizzo: Via Roma 15 Bergamo
+     P.IVA: 01234567890
+     Referente: Mario Rossi
+     ```
+4. Il sistema registra immediatamente il cliente in anagrafica Kandor, assegna il nuovo ID, attiva la geolocalizzazione automatica delle coordinate se è presente l'indirizzo e invia la conferma con il riepilogo;
+5. In qualsiasi momento è possibile digitare `/annulla` per annullare l'operazione.
+
+### 11.2 Assegna Turno (`📅 Assegna Turno`)
+Pulsante riservato ai Responsabili per visualizzare e coordinare i turni di squadra. Mostra un promemoria con i link rapidi al portale gestionale e alla Web App responsabili, in attesa del modulo interattivo avanzato.
