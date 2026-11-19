@@ -168,6 +168,53 @@
     .bp-badge-info { background: #E0F2FE; color: #075985; border: 1px solid #BAE6FD; }
     .bp-badge-gray { background: #F1F5F9; color: #64748B; border: 1px solid #CBD5E1; }
 
+    /* Modal Anteprima PDF */
+    .pdf-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.78);
+        z-index: 100000;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        backdrop-filter: blur(5px);
+    }
+    .pdf-modal-overlay.active { display: flex; }
+    .pdf-modal-box {
+        background: #0F172A;
+        border-radius: 14px;
+        width: 95%;
+        max-width: 1320px;
+        height: 92vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45);
+        overflow: hidden;
+        border: 1px solid #334155;
+    }
+    .pdf-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 20px;
+        background: #0F172A;
+        color: #F8FAFC;
+        border-bottom: 1px solid #334155;
+    }
+    .pdf-modal-body {
+        flex: 1;
+        background: #1E293B;
+        position: relative;
+    }
+    .pdf-modal-body iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+        background: #334155;
+    }
+
     /* Modal coda WhatsApp */
     .wa-modal-overlay {
         display: none;
@@ -235,6 +282,28 @@
                     </p>
                     <input type="file" name="pdf_file" id="pdfFileInput" accept="application/pdf,.pdf" required
                         style="display: block; width: 100%; padding: 10px; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; font-weight: 600;">
+
+                    <!-- Box ANTEPRIMA PDF SELEZIONATO -->
+                    <div id="pdfSelectedInfoBox" style="display: none; margin-top: 10px; padding: 10px 14px; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; min-width: 220px; flex: 1;">
+                            <span style="font-size: 22px;">📄</span>
+                            <div style="overflow: hidden;">
+                                <div id="pdfSelectedFileName" style="font-size: 0.88rem; font-weight: 800; color: #1E3A8A; word-break: break-all;"></div>
+                                <div id="pdfSelectedFileSize" style="font-size: 0.74rem; color: #3B82F6; font-weight: 600; margin-top: 2px;"></div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" onclick="apriAnteprimaPdfModal()" class="bp-btn bp-btn-dark bp-btn-sm" style="display: inline-flex; align-items: center; gap: 6px; background: #0284C7; font-weight: 700; box-shadow: 0 1px 3px rgba(2,132,199,0.3);" title="Apri anteprima del PDF multipagina a schermo">
+                                👁️ Anteprima PDF
+                            </button>
+                            <button type="button" onclick="apriAnteprimaPdfNuovaScheda()" class="bp-btn bp-btn-outline bp-btn-sm" style="display: inline-flex; align-items: center; gap: 4px; font-weight: 700; background: #FFF;" title="Apri il PDF selezionato in una nuova scheda del browser">
+                                ↗️ Nuova Scheda
+                            </button>
+                            <button type="button" onclick="rimuoviFileSelezionato()" class="bp-btn bp-btn-outline bp-btn-sm" style="color: #DC2626 !important; border-color: #FCA5A5; background: #FFF;" title="Rimuovi il file selezionato">
+                                ✕ Rimuovi
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div style="flex: 1.3; min-width: 260px; display: flex; flex-direction: column; gap: 10px;">
@@ -592,6 +661,36 @@
 
 </div>
 
+<!-- Modal ANTEPRIMA PDF -->
+<div id="previewPdfModal" class="pdf-modal-overlay" onclick="if(event.target===this)chiudiAnteprimaPdfModal()">
+    <div class="pdf-modal-box">
+        <div class="pdf-modal-header">
+            <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+                <span style="font-size: 22px;">👁️</span>
+                <div>
+                    <h3 id="pdfModalTitle" style="margin: 0; font-size: 0.95rem; font-weight: 800; color: #F8FAFC; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 650px;">
+                        Anteprima Documento PDF
+                    </h3>
+                    <div id="pdfModalSubtitle" style="font-size: 0.75rem; color: #94A3B8; margin-top: 2px;">
+                        Verifica le pagine e i cedolini prima di avviare la suddivisione per Codice Fiscale
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" onclick="apriAnteprimaPdfNuovaScheda()" class="bp-btn bp-btn-outline bp-btn-sm" style="background: rgba(255,255,255,0.1); color: #FFF !important; border-color: rgba(255,255,255,0.3); font-weight: 700;">
+                    ↗️ Apri a tutto schermo (Nuova Scheda)
+                </button>
+                <button type="button" onclick="chiudiAnteprimaPdfModal()" style="background: transparent; border: none; color: #94A3B8; font-size: 24px; cursor: pointer; line-height: 1; padding: 0 6px;" title="Chiudi Anteprima">
+                    &times;
+                </button>
+            </div>
+        </div>
+        <div class="pdf-modal-body">
+            <iframe id="pdfModalIframe" src="" title="Anteprima PDF Buste Paga"></iframe>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Invio Sequenziale Guidato WhatsApp -->
 <div class="wa-modal-overlay" id="waQueueModal">
     <div class="wa-modal">
@@ -636,10 +735,105 @@ const CSRF_TOKEN = '{{ csrf_token }}';
 const API_URL = '{% url "buste_paga_api" %}';
 let currentTabFilter = 'all';
 
-// Drag & Drop upload
+// Drag & Drop upload & Gestione Anteprima File PDF Unico
+let currentPdfBlobUrl = null;
+let currentPdfFile = null;
+
+function aggiornaFileSelezionato(file) {
+    if (!file) {
+        rimuoviFileSelezionato();
+        return;
+    }
+    currentPdfFile = file;
+    if (currentPdfBlobUrl) {
+        URL.revokeObjectURL(currentPdfBlobUrl);
+    }
+    currentPdfBlobUrl = URL.createObjectURL(file);
+
+    const box = document.getElementById('pdfSelectedInfoBox');
+    const nameEl = document.getElementById('pdfSelectedFileName');
+    const sizeEl = document.getElementById('pdfSelectedFileSize');
+
+    if (nameEl) nameEl.textContent = file.name;
+    if (sizeEl) {
+        const mb = (file.size / (1024 * 1024)).toFixed(2);
+        sizeEl.textContent = `${mb} MB (${file.size.toLocaleString('it-IT')} byte)`;
+    }
+    if (box) box.style.display = 'flex';
+}
+
+function rimuoviFileSelezionato() {
+    currentPdfFile = null;
+    if (currentPdfBlobUrl) {
+        URL.revokeObjectURL(currentPdfBlobUrl);
+        currentPdfBlobUrl = null;
+    }
+    const pdfInp = document.getElementById('pdfFileInput');
+    if (pdfInp) pdfInp.value = '';
+    const box = document.getElementById('pdfSelectedInfoBox');
+    if (box) box.style.display = 'none';
+    chiudiAnteprimaPdfModal();
+}
+
+function apriAnteprimaPdfModal() {
+    if (!currentPdfBlobUrl) {
+        alert('Seleziona prima un file PDF per aprire l\'anteprima.');
+        return;
+    }
+    const modal = document.getElementById('previewPdfModal');
+    const iframe = document.getElementById('pdfModalIframe');
+    const title = document.getElementById('pdfModalTitle');
+    const sub = document.getElementById('pdfModalSubtitle');
+
+    if (title && currentPdfFile) {
+        title.textContent = `👁️ Anteprima: ${currentPdfFile.name}`;
+    }
+    if (sub && currentPdfFile) {
+        const mb = (currentPdfFile.size / (1024 * 1024)).toFixed(2);
+        sub.textContent = `Dimensione: ${mb} MB — Controlla il documento prima di avviare l'elaborazione`;
+    }
+    if (iframe) {
+        iframe.src = currentPdfBlobUrl;
+    }
+    if (modal) modal.classList.add('active');
+}
+
+function chiudiAnteprimaPdfModal() {
+    const modal = document.getElementById('previewPdfModal');
+    const iframe = document.getElementById('pdfModalIframe');
+    if (iframe) iframe.src = '';
+    if (modal) modal.classList.remove('active');
+}
+
+function apriAnteprimaPdfNuovaScheda() {
+    if (!currentPdfBlobUrl) {
+        alert('Seleziona prima un file PDF.');
+        return;
+    }
+    window.open(currentPdfBlobUrl, '_blank');
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        chiudiAnteprimaPdfModal();
+        if (typeof chiudiCodaWhatsapp === 'function') chiudiCodaWhatsapp();
+    }
+});
+
 const dropZone = document.getElementById('dropZone');
 const pdfInput = document.getElementById('pdfFileInput');
 const uploadForm = document.getElementById('uploadForm');
+
+if (pdfInput) {
+    pdfInput.addEventListener('change', e => {
+        if (e.target.files && e.target.files[0]) {
+            aggiornaFileSelezionato(e.target.files[0]);
+        } else {
+            rimuoviFileSelezionato();
+        }
+    });
+}
+
 if (dropZone && pdfInput) {
     ['dragenter', 'dragover'].forEach(ev => {
         dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -650,6 +844,7 @@ if (dropZone && pdfInput) {
     dropZone.addEventListener('drop', e => {
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             pdfInput.files = e.dataTransfer.files;
+            aggiornaFileSelezionato(e.dataTransfer.files[0]);
         }
     });
     uploadForm.addEventListener('submit', () => {
