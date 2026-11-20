@@ -25,6 +25,24 @@ def daily_quote_context(request):
         from core.accessi_service import TUTTI_CODICI_SEZIONI
         sezioni_abilitate_portale = set(TUTTI_CODICI_SEZIONI)
 
+    # Info sintetiche credito IA per topbar e widget
+    ia_billing_info = {
+        'saldo_residuo': 20.0,
+        'totale_chiamate': 0,
+        'gemini_attivo': False,
+    }
+    try:
+        from core.ia_billing_service import get_billing_summary
+        b_sum = get_billing_summary()
+        ia_billing_info = {
+            'saldo_residuo': b_sum.get('saldo_residuo_eur', 20.0),
+            'totale_chiamate': b_sum.get('totale_chiamate', 0),
+            'gemini_attivo': b_sum.get('gemini_attivo', False),
+            'da_fatturare_eur': b_sum.get('totale_da_fatturare_eur', 0.0),
+        }
+    except Exception:
+        pass
+
     return {
         "daily_quote_info": info,
         "daily_quote_date": info["date_formatted"],
@@ -37,4 +55,5 @@ def daily_quote_context(request):
         "is_programmatore_reale": is_programmatore_reale,
         "in_preview_responsabile": in_preview_responsabile,
         "sezioni_abilitate_portale": sezioni_abilitate_portale,
+        "ia_billing": ia_billing_info,
     }

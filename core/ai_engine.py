@@ -31,13 +31,15 @@ def is_gemini_configured():
     return bool(key)
 
 
-def call_gemini_json(prompt, image_bytes=None, mime_type='image/jpeg'):
+def call_gemini_json(prompt, image_bytes=None, mime_type='image/jpeg', operazione='Elaborazione IA',
+                     cliente=None, cliente_id=None, dipendente=None, dipendente_id=None):
     """
-    Chiama l'API gratuita di Google Gemini Flash (se GEMINI_API_KEY è impostata)
-    e restituisce un dizionario JSON. In assenza di chiave o errore, restituisce None
-    attivando automaticamente il motore euristico/locale a costo zero.
+    Chiama l'API Google Gemini Flash (se GEMINI_API_KEY è impostata),
+    traccia i token consumati e aggiorna automaticamente il bilancio crediti e la ripartizione
+    per cliente per la fatturazione. Restituisce un dizionario JSON.
+    In assenza di chiave o errore, restituisce None attivando il motore locale.
     """
-    api_key = os.environ.get('GEMINI_API_KEY', '').strip()
+    api_key = os.environ.get('GEMINI_API_KEY', '').strip() or os.environ.get('GOOGLE_API_KEY', '').strip()
     if not api_key:
         return None
     try:
@@ -64,6 +66,27 @@ def call_gemini_json(prompt, image_bytes=None, mime_type='image/jpeg'):
         if resp.status_code == 200:
             data = resp.json()
             text_out = data['candidates'][0]['content']['parts'][0]['text']
+
+            # Tracciamento automatico token e costi per il billing e fatturazione clienti
+            try:
+                usage = data.get('usageMetadata', {})
+                p_tok = usage.get('promptTokenCount', 0)
+                c_tok = usage.get('candidatesTokenCount', 0)
+                if p_tok > 0 or c_tok > 0:
+                    from .ia_billing_service import registra_consumo_ia
+                    registra_consumo_ia(
+                        operazione=operazione,
+                        token_input=p_tok,
+                        token_output=c_tok,
+                        cliente=cliente,
+                        cliente_id=cliente_id,
+                        dipendente=dipendente,
+                        dipendente_id=dipendente_id,
+                        modello='gemini-1.5-flash',
+                    )
+            except Exception:
+                pass
+
             return json.loads(text_out)
     except Exception:
         pass
@@ -750,7 +773,7 @@ def interpreta_messaggio_libero(dipendente, testo):
             "Rispondi in JSON con chiave 'intent' tra: 'RICHIESTA_ASSENZA', 'SEGNALAZIONE', 'SCONOSCIUTO'. "
             "Se RICHIESTA_ASSENZA includi 'tipo_assenza' (FERIE, MALATTIA, PERMESSO, 104), 'data_inizio' (YYYY-MM-DD), 'data_fine' (YYYY-MM-DD)."
         )
-        gem_res = call_gemini_json(prompt)
+        gem_res = call_gemini_json(prompt, operazione="Triage NLP Messaggi / Assenze")
         if gem_res and gem_res.get('intent') in ('RICHIESTA_ASSENZA', 'SEGNALAZIONE'):
             return gem_res
 
@@ -787,7 +810,10 @@ def analizza_documento_o_certificato(dipendente=None, testo_o_nomefile='', image
             "'nome_corso' (se è un attestato corso), "
             "'sintesi' (breve descrizione in italiano)."
         )
-        ocr_data = call_gemini_json(prompt, image_bytes=img_data, mime_type=mime_type)
+        ocr_data = call_gemini_json(
+            prompt, image_bytes=img_data, mime_type=mime_type,
+            operazione="Vision OCR Certificato / Documento", dipendente=dipendente
+        )
         if ocr_data and ocr_data.get('tipo_documento') in ('CERTIFICATO_MALATTIA', 'ATTESTATO_CORSO'):
             ocr_data.setdefault('corso_nome', ocr_data.get('nome_corso'))
             ocr_data.setdefault('codice_puc', ocr_data.get('protocollo_puc'))

@@ -20,6 +20,14 @@ from .views import (
     ia_hub_view, ia_auto_valida_ore_api, ia_invia_briefing_api, ia_mezzo_manutenzione_api, ia_analizza_documento_api,
     gestione_procedure_view, gestione_procedure_api,
 )
+from .views_ia_billing import (
+    ia_billing_status_api,
+    ia_billing_ricarica_api,
+    ia_billing_test_connection_api,
+    ia_billing_marca_fatturato_api,
+    ia_billing_configura_tariffe_api,
+    ia_billing_export_csv_view,
+)
 from .views_webapp import (
     dipendente_app_view,
     dipendente_app_login_view,
@@ -151,6 +159,14 @@ urlpatterns = [
     path('api/ia/invia-briefing/', ia_invia_briefing_api, name='ia_invia_briefing_api'),
     path('api/ia/mezzo-manutenzione/', ia_mezzo_manutenzione_api, name='ia_mezzo_manutenzione_api'),
     path('api/ia/analizza-documento/', ia_analizza_documento_api, name='ia_analizza_documento_api'),
+
+    # Monitoraggio Crediti IA Google Gemini & Fatturazione Clienti
+    path('api/ia/billing/status/', ia_billing_status_api, name='ia_billing_status_api'),
+    path('api/ia/billing/ricarica/', ia_billing_ricarica_api, name='ia_billing_ricarica_api'),
+    path('api/ia/billing/test-connection/', ia_billing_test_connection_api, name='ia_billing_test_connection_api'),
+    path('api/ia/billing/marca-fatturato/', ia_billing_marca_fatturato_api, name='ia_billing_marca_fatturato_api'),
+    path('api/ia/billing/configura-tariffe/', ia_billing_configura_tariffe_api, name='ia_billing_configura_tariffe_api'),
+    path('api/ia/billing/export-clienti-csv/', ia_billing_export_csv_view, name='ia_billing_export_csv_view'),
 
     # Gestione Procedure Operative (es. Disdetta Contratto, Checklist personalizzabili)
     path('procedure/', gestione_procedure_view, name='gestione_procedure'),

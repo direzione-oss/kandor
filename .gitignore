@@ -37,7 +37,9 @@ venv/
 staticfiles/
 
 # Media uploads
+media/
 contratti/
+deploy_kandor.py
 
 # OS
 .DS_Store

@@ -2823,4 +2823,100 @@ def geocode_helper(instance, address_field):
     instance._pending_async_geocode = address
 
 
+# ==============================================================================
+# MONITORAGGIO CREDITI & FATTURAZIONE CONSUMI IA (GEMINI API)
+# ==============================================================================
+
+class IACreditWallet(models.Model):
+    """
+    Portafoglio crediti prepagati Google Gemini IA & impostazioni di ricarico per i clienti.
+    Modello singleton (record primario pk=1).
+    """
+    saldo_residuo = models.DecimalField(
+        max_digits=12, decimal_places=4, default=Decimal('20.0000'),
+        verbose_name="Credito Residuo (€)"
+    )
+    ricariche_totali = models.DecimalField(
+        max_digits=12, decimal_places=4, default=Decimal('20.0000'),
+        verbose_name="Totale Ricaricato (€)"
+    )
+    costo_totale_consumato = models.DecimalField(
+        max_digits=14, decimal_places=6, default=Decimal('0.000000'),
+        verbose_name="Costo Totale Google (€)"
+    )
+    totale_chiamate = models.IntegerField(default=0, verbose_name="Totale Chiamate")
+    totale_token_input = models.BigIntegerField(default=0, verbose_name="Token Input")
+    totale_token_output = models.BigIntegerField(default=0, verbose_name="Token Output")
+
+    modello_predefinito = models.CharField(
+        max_length=64, default='gemini-1.5-flash', verbose_name="Modello IA"
+    )
+    costo_per_1m_input_eur = models.DecimalField(
+        max_digits=10, decimal_places=6, default=Decimal('0.092000'),
+        verbose_name="Costo Input €/1M Token"
+    )
+    costo_per_1m_output_eur = models.DecimalField(
+        max_digits=10, decimal_places=6, default=Decimal('0.368000'),
+        verbose_name="Costo Output €/1M Token"
+    )
+    ricarico_cliente_percentuale = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal('30.00'),
+        verbose_name="Ricarico Cliente (%)"
+    )
+    data_ultima_ricarica = models.DateField(auto_now_add=True, verbose_name="Data Ultima Ricarica")
+    ultimo_aggiornamento = models.DateTimeField(auto_now=True, verbose_name="Ultimo Aggiornamento")
+
+    class Meta:
+        verbose_name = "Portafoglio Credito IA"
+        verbose_name_plural = "Portafoglio Crediti IA"
+
+    def __str__(self):
+        return f"Credito IA: € {self.saldo_residuo:.2f} (Chiamate: {self.totale_chiamate})"
+
+
+class IAConsumoLog(models.Model):
+    """
+    Log dettagliato di ogni operazione IA eseguita con tracciamento token e cliente associato.
+    Permette di ripartire i costi e fatturarli al rispettivo cliente.
+    """
+    data_ora = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Data/Ora")
+    operazione = models.CharField(max_length=150, default='Elaborazione IA', verbose_name="Operazione")
+    cliente = models.ForeignKey(
+        'Cliente', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ia_consumi', verbose_name="Cliente Associato"
+    )
+    dipendente = models.ForeignKey(
+        'Dipendente', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ia_consumi', verbose_name="Dipendente"
+    )
+    modello = models.CharField(max_length=64, default='gemini-1.5-flash', verbose_name="Modello")
+    token_input = models.IntegerField(default=0, verbose_name="Token Input")
+    token_output = models.IntegerField(default=0, verbose_name="Token Output")
+    token_totali = models.IntegerField(default=0, verbose_name="Token Totali")
+
+    costo_eur = models.DecimalField(
+        max_digits=12, decimal_places=6, default=Decimal('0.000000'),
+        verbose_name="Costo Vivo Google (€)"
+    )
+    prezzo_cliente_eur = models.DecimalField(
+        max_digits=12, decimal_places=6, default=Decimal('0.000000'),
+        verbose_name="Prezzo al Cliente (€)"
+    )
+    fatturato = models.BooleanField(
+        default=False, db_index=True, verbose_name="Già Fatturato/Addebitato"
+    )
+    data_fatturazione = models.DateTimeField(null=True, blank=True, verbose_name="Data Fatturazione")
+    note = models.TextField(blank=True, default='', verbose_name="Note")
+
+    class Meta:
+        verbose_name = "Consumo IA"
+        verbose_name_plural = "Consumi IA (Fatturazione Clienti)"
+        ordering = ['-data_ora']
+
+    def __str__(self):
+        cliente_str = f" - Cliente: {self.cliente.ragione_sociale}" if self.cliente else ""
+        return f"{self.data_ora.strftime('%d/%m/%Y %H:%M')} | {self.operazione}{cliente_str} (€ {self.costo_eur:.4f})"
+
+
+
 

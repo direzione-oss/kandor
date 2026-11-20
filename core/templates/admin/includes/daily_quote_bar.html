@@ -80,6 +80,16 @@
             ✨ &ldquo;<span id="kandor-daily-quote-text">{{ daily_quote_text }}</span>&rdquo;
         </span>
     </div>
+
+    <!-- Pill Rapido Credito IA Google Gemini (Apre Modal Monitoraggio & Fatturazione Clienti) -->
+    <div class="ia-topbar-pill" onclick="openIaBillingModal('panoramica')" title="Visualizza consumi, credito residuo e fatturazione IA ai clienti">
+        <span style="font-size: 0.85rem;">✨</span>
+        <span style="font-size: 0.76rem; font-weight: 700; color: #93C5FD; white-space: nowrap;">Credito IA:</span>
+        <span style="font-size: 0.8rem; font-weight: 800; color: #FFFFFF; white-space: nowrap;">
+            € <span id="iaTopbarSaldoVal">{{ ia_billing.saldo_residuo|floatformat:2 }}</span>
+        </span>
+        <span class="ia-dot" style="background: #34D399; width: 7px; height: 7px; border-radius: 50%; display: inline-block;"></span>
+    </div>
     {% if is_programmatore_reale %}
         {% if in_preview_responsabile %}
         <div style="display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #7c2d12, #9a3412); border: 1.5px solid #fb923c; border-radius: 999px; padding: 4px 14px;" title="Stai simulando la vista di questo Responsabile">

@@ -1,0 +1,897 @@
+<!-- Modal Monitoraggio Crediti IA Google Gemini & Fatturazione Clienti -->
+<style>
+    /* Backdrop & Container */
+    #iaBillingModalBackdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(4px);
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        box-sizing: border-box;
+    }
+    #iaBillingModalBackdrop.active {
+        display: flex;
+    }
+    .ia-modal-box {
+        background: #0F172A;
+        color: #F8FAFC;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 820px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+        overflow: hidden;
+        font-family: inherit;
+        animation: iaModalFadeIn 0.2s ease-out;
+    }
+    @keyframes iaModalFadeIn {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    .ia-modal-header {
+        padding: 18px 24px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(30, 41, 59, 0.5);
+    }
+    .ia-modal-header h3 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #FFFFFF;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .ia-modal-close-btn {
+        background: transparent;
+        border: none;
+        color: #94A3B8;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 6px;
+        line-height: 1;
+        transition: 0.15s;
+    }
+    .ia-modal-close-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #FFFFFF;
+    }
+
+    /* Tabs */
+    .ia-modal-tabs {
+        display: flex;
+        gap: 4px;
+        padding: 8px 24px;
+        background: #1E293B;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+        overflow-x: auto;
+    }
+    .ia-tab-btn {
+        background: transparent;
+        border: none;
+        color: #94A3B8;
+        padding: 8px 14px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+    .ia-tab-btn.active {
+        background: #3B82F6;
+        color: #FFFFFF;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    }
+    .ia-tab-btn:hover:not(.active) {
+        background: rgba(255, 255, 255, 0.05);
+        color: #E2E8F0;
+    }
+
+    /* Content Area */
+    .ia-modal-body {
+        padding: 22px 24px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+    .ia-tab-panel {
+        display: none;
+        flex-direction: column;
+        gap: 18px;
+    }
+    .ia-tab-panel.active {
+        display: flex;
+    }
+
+    /* Metric Cards */
+    .ia-metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+    .ia-metric-card {
+        background: #1E293B;
+        border: 1px solid rgba(148, 163, 184, 0.15);
+        border-radius: 12px;
+        padding: 14px 16px;
+    }
+    .ia-metric-card .label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #94A3B8;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
+    .ia-metric-card .value {
+        font-size: 1.45rem;
+        font-weight: 800;
+        color: #F8FAFC;
+    }
+    .ia-metric-card .sub {
+        font-size: 0.75rem;
+        color: #64748B;
+        margin-top: 4px;
+    }
+
+    /* Banner Saldo */
+    .ia-balance-banner {
+        background: linear-gradient(135deg, rgba(30, 58, 138, 0.4) 0%, rgba(15, 23, 42, 0.8) 100%);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 14px;
+        padding: 18px 20px;
+    }
+    .ia-progress-bar-wrap {
+        width: 100%;
+        background: rgba(15, 23, 42, 0.8);
+        border-radius: 999px;
+        height: 10px;
+        overflow: hidden;
+        margin: 12px 0 8px 0;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .ia-progress-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 0.6s ease;
+    }
+
+    /* Live Status Badge */
+    .ia-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .ia-status-pill.online {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #34D399;
+    }
+    .ia-status-pill.warning {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        color: #FBBF24;
+    }
+    .ia-status-pill.error {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #F87171;
+    }
+    .ia-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: iaPulse 1.8s infinite;
+    }
+    @keyframes iaPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Tables */
+    .ia-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
+    }
+    .ia-table th {
+        background: #1E293B;
+        color: #94A3B8;
+        font-weight: 700;
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .ia-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        color: #E2E8F0;
+    }
+    .ia-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Forms & Buttons */
+    .ia-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: none;
+        transition: 0.2s;
+        text-decoration: none;
+    }
+    .ia-btn-primary {
+        background: #3B82F6;
+        color: #FFFFFF;
+    }
+    .ia-btn-primary:hover {
+        background: #2563EB;
+    }
+    .ia-btn-emerald {
+        background: #059669;
+        color: #FFFFFF;
+    }
+    .ia-btn-emerald:hover {
+        background: #047857;
+    }
+    .ia-btn-outline {
+        background: transparent;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        color: #E2E8F0;
+    }
+    .ia-btn-outline:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+    .ia-input {
+        background: #0F172A;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 8px;
+        color: #FFFFFF;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        box-sizing: border-box;
+    }
+    .ia-input:focus {
+        outline: none;
+        border-color: #3B82F6;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    }
+
+    /* Footer */
+    .ia-modal-footer {
+        padding: 14px 24px;
+        border-top: 1px solid rgba(148, 163, 184, 0.15);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(30, 41, 59, 0.4);
+        font-size: 0.8rem;
+        color: #94A3B8;
+    }
+
+    /* Topbar Pill Badge */
+    .ia-topbar-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
+        border: 1.5px solid rgba(59, 130, 246, 0.4);
+        border-radius: 999px;
+        padding: 4px 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        text-decoration: none;
+    }
+    .ia-topbar-pill:hover {
+        border-color: #60A5FA;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+</style>
+
+<!-- MODAL HTML -->
+<div id="iaBillingModalBackdrop" onclick="if(event.target===this) closeIaBillingModal();">
+    <div class="ia-modal-box">
+        <!-- Header -->
+        <div class="ia-modal-header">
+            <div>
+                <h3>
+                    <span style="font-size: 1.3rem;">✨</span>
+                    <span>Stato Credito &amp; Monitoraggio IA</span>
+                    <span id="iaModalStatusBadge" class="ia-status-pill online" style="margin-left: 8px;">
+                        <span class="ia-dot" style="background: #34D399;"></span>
+                        <span id="iaModalStatusText">Gemini Flash • Attivo</span>
+                    </span>
+                </h3>
+                <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 2px;">
+                    Controllo consumi token, credito residuo e ripartizione spese per fatturazione clienti (Kandor ERP)
+                </div>
+            </div>
+            <button type="button" class="ia-modal-close-btn" onclick="closeIaBillingModal()" title="Chiudi">&times;</button>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="ia-modal-tabs">
+            <button type="button" class="ia-tab-btn active" onclick="switchIaTab('panoramica')">📊 Panoramica &amp; Credito</button>
+            <button type="button" class="ia-tab-btn" onclick="switchIaTab('clienti')">💼 Fatturazione Clienti (<span id="iaTabClientiBadge">0</span>)</button>
+            <button type="button" class="ia-tab-btn" onclick="switchIaTab('storico')">📝 Storico Consumi (<span id="iaTabStoricoBadge">0</span>)</button>
+            <button type="button" class="ia-tab-btn" onclick="switchIaTab('tariffe')">⚙️ Configura Tariffe &amp; Ricarico</button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="ia-modal-body">
+
+            <!-- TAB 1: PANORAMICA & CREDITO -->
+            <div id="iaTab-panoramica" class="ia-tab-panel active">
+                <!-- Banner Saldo Residuo -->
+                <div class="ia-balance-banner">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #93C5FD; letter-spacing: 0.05em;">
+                                Credito Residuo Stimato
+                            </div>
+                            <div style="font-size: 2.3rem; font-weight: 900; color: #FFFFFF; line-height: 1.1; margin-top: 4px;">
+                                € <span id="iaValSaldoResiduo">20.00</span>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <span id="iaPctResiduaBadge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #34D399; font-weight: 800; font-size: 0.8rem; padding: 4px 10px; border-radius: 999px;">
+                                <span id="iaValPctResidua">100</span>% disponibile
+                            </span>
+                            <div style="font-size: 0.75rem; color: #94A3B8; margin-top: 6px;">
+                                Ricaricato: <strong>€ <span id="iaValRicaricheTotali">20.00</span></strong> (<span id="iaValDataRicarica">Oggi</span>)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="ia-progress-bar-wrap">
+                        <div id="iaProgressBarFill" class="ia-progress-bar-fill" style="width: 100%; background: #10B981;"></div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94A3B8;">
+                        <span>Consumato da Google: <strong style="color: #F87171;">€ <span id="iaValCostoConsumato">0.0000</span></strong></span>
+                        <span>Da fatturare ai clienti: <strong style="color: #60A5FA;">€ <span id="iaValDaFatturareTotale">0.00</span></strong></span>
+                    </div>
+                </div>
+
+                <!-- 4 Metriche Chiave -->
+                <div class="ia-metric-grid">
+                    <div class="ia-metric-card">
+                        <div class="label">Chiamate IA Totali</div>
+                        <div class="value" id="iaValTotaleChiamate">0</div>
+                        <div class="sub">Operazioni registrate</div>
+                    </div>
+                    <div class="ia-metric-card">
+                        <div class="label">Token Totali</div>
+                        <div class="value" style="color: #60A5FA;" id="iaValTokenTotali">0k</div>
+                        <div class="sub">In: <span id="iaValTokenIn">0</span> | Out: <span id="iaValTokenOut">0</span></div>
+                    </div>
+                    <div class="ia-metric-card">
+                        <div class="label">Fatturabile Clienti</div>
+                        <div class="value" style="color: #34D399;">€ <span id="iaValPrezzoClientiTotale">0.00</span></div>
+                        <div class="sub">Markup: +<span id="iaValMarkupPct">30</span>% sul costo</div>
+                    </div>
+                    <div class="ia-metric-card">
+                        <div class="label">Margine Atteso</div>
+                        <div class="value" style="color: #FBBF24;">€ <span id="iaValMargineTotale">0.00</span></div>
+                        <div class="sub">Guadagno sulle chiamate</div>
+                    </div>
+                </div>
+
+                <!-- Autonomia Stimata Box -->
+                <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">⚡</span>
+                        <div>
+                            <div style="font-size: 0.88rem; font-weight: 700; color: #FFFFFF;">
+                                Autonomia Stimata: ~<span id="iaValOperazioniRimanenti">65.000</span> operazioni
+                            </div>
+                            <div style="font-size: 0.75rem; color: #94A3B8;">
+                                Costo medio operazione Gemini Flash: circa <strong>0,0003 €</strong> (analisi ore, triage o OCR).
+                            </div>
+                        </div>
+                    </div>
+                    <a href="https://aistudio.google.com/billing" target="_blank" rel="noopener" class="ia-btn ia-btn-outline" style="font-size: 0.75rem;">
+                        Google AI Studio Billing ↗
+                    </a>
+                </div>
+
+                <!-- Test Connessione Live & Registra Ricarica -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+                    <!-- Test Connessione Box -->
+                    <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 16px;">
+                        <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 8px; color: #F8FAFC; display: flex; align-items: center; gap: 6px;">
+                            <span>🛰️</span> Test Connessione Live
+                        </div>
+                        <div style="font-size: 0.78rem; color: #94A3B8; margin-bottom: 12px;">
+                            Invia un ping reale a Google Gemini API e misura tempo di latenza e token:
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button type="button" id="iaBtnTestPing" class="ia-btn ia-btn-primary" onclick="eseguiTestPingLive()">
+                                ⚡ Esegui Test Live
+                            </button>
+                            <span id="iaPingResultText" style="font-size: 0.78rem; color: #94A3B8;"></span>
+                        </div>
+                    </div>
+
+                    <!-- Registra Ricarica Box -->
+                    <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 16px;">
+                        <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 8px; color: #F8FAFC; display: flex; align-items: center; gap: 6px;">
+                            <span>💳</span> Registra Ricarica Credito
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <input type="number" id="iaInputRicarica" class="ia-input" value="20.00" step="1.00" min="1" style="width: 100px;">
+                            <select id="iaSelectRicaricaMode" class="ia-input" style="width: 130px;">
+                                <option value="add">+ Somma al saldo</option>
+                                <option value="set">Imposta come saldo</option>
+                            </select>
+                            <button type="button" class="ia-btn ia-btn-emerald" onclick="inviaRicaricaCredito()">
+                                Salva Ricarica
+                            </button>
+                        </div>
+                        <div id="iaRicaricaSuccessMsg" style="font-size: 0.75rem; color: #34D399; margin-top: 6px; display: none;">
+                            ✓ Ricarica salvata con successo!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: FATTURAZIONE CLIENTI -->
+            <div id="iaTab-clienti" class="ia-tab-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <h4 style="margin: 0; font-size: 0.95rem; color: #FFFFFF;">Riepilogo Consumi per Cliente</h4>
+                        <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: #94A3B8;">
+                            Spese IA tracciate per ciascun cliente. Puoi addebitarle direttamente in fattura o marcare come già incassate.
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <a href="/api/ia/billing/export-clienti-csv/" class="ia-btn ia-btn-emerald" style="font-size: 0.78rem;">
+                            📥 Esporta CSV per Fattura
+                        </a>
+                    </div>
+                </div>
+
+                <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; overflow-x: auto;">
+                    <table class="ia-table">
+                        <thead>
+                            <tr>
+                                <th>Cliente / Contesto</th>
+                                <th style="text-align: center;">Chiamate</th>
+                                <th style="text-align: right;">Token</th>
+                                <th style="text-align: right;">Costo Vivo Google</th>
+                                <th style="text-align: right;">Prezzo al Cliente (+markup)</th>
+                                <th style="text-align: right;">Da Fatturare</th>
+                                <th style="text-align: center;">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody id="iaTableClientiBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Caricamento clienti in corso...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 3: STORICO CONSUMI -->
+            <div id="iaTab-storico" class="ia-tab-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 style="margin: 0; font-size: 0.95rem; color: #FFFFFF;">Ultime Operazioni IA Registrate</h4>
+                    <span style="font-size: 0.75rem; color: #94A3B8;">Tracciamento token dettagliato con timestamp</span>
+                </div>
+
+                <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; overflow-x: auto; max-height: 400px;">
+                    <table class="ia-table">
+                        <thead>
+                            <tr>
+                                <th>Data/Ora</th>
+                                <th>Operazione</th>
+                                <th>Cliente / Riferimento</th>
+                                <th style="text-align: right;">Token In/Out</th>
+                                <th style="text-align: right;">Costo Google</th>
+                                <th style="text-align: right;">Prezzo Cliente</th>
+                                <th style="text-align: center;">Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody id="iaTableStoricoBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Caricamento storico in corso...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 4: CONFIGURA TARIFFE -->
+            <div id="iaTab-tariffe" class="ia-tab-panel">
+                <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 20px;">
+                    <h4 style="margin: 0 0 8px 0; font-size: 0.95rem; color: #FFFFFF;">Impostazioni Economiche &amp; Percentuale di Ricarico</h4>
+                    <p style="font-size: 0.78rem; color: #94A3B8; margin-bottom: 18px;">
+                        Configura il costo base di acquisto da Google (1M token) e il margine da applicare quando addebiti il servizio IA al cliente.
+                    </p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">
+                                Costo Input per 1M Token (€)
+                            </label>
+                            <input type="number" id="iaCfgInput1M" class="ia-input" step="0.001" style="width: 100%;">
+                            <span style="font-size: 0.7rem; color: #64748B;">Tariffa Google: ~0.092 € ($0.10)</span>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">
+                                Costo Output per 1M Token (€)
+                            </label>
+                            <input type="number" id="iaCfgOutput1M" class="ia-input" step="0.001" style="width: 100%;">
+                            <span style="font-size: 0.7rem; color: #64748B;">Tariffa Google: ~0.368 € ($0.40)</span>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">
+                                Ricarico Cliente (%)
+                            </label>
+                            <input type="number" id="iaCfgRicaricoPct" class="ia-input" step="1.0" min="0" style="width: 100%;">
+                            <span style="font-size: 0.7rem; color: #64748B;">Consigliato: 30% - 50%</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button type="button" class="ia-btn ia-btn-primary" onclick="salvaConfigurazioneTariffe()">
+                            💾 Salva Parametri Economici
+                        </button>
+                        <span id="iaCfgSuccessMsg" style="font-size: 0.75rem; color: #34D399; display: none;">
+                            ✓ Parametri aggiornati con successo!
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="ia-modal-footer">
+            <div>
+                Google AI Studio Key: <code style="color: #60A5FA;" id="iaFooterKeyMasked">...</code>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" class="ia-btn ia-btn-outline" onclick="closeIaBillingModal()">Chiudi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JAVASCRIPT GESTIONE MODAL & API -->
+<script>
+(function() {
+    let iaBillingData = null;
+
+    window.openIaBillingModal = function(tabName) {
+        const backdrop = document.getElementById('iaBillingModalBackdrop');
+        if (backdrop) {
+            backdrop.classList.add('active');
+            if (tabName) switchIaTab(tabName);
+            caricaDatiBilling(false);
+        }
+    };
+
+    window.closeIaBillingModal = function() {
+        const backdrop = document.getElementById('iaBillingModalBackdrop');
+        if (backdrop) backdrop.classList.remove('active');
+    };
+
+    window.switchIaTab = function(tabId) {
+        document.querySelectorAll('.ia-tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.ia-tab-panel').forEach(p => p.classList.remove('active'));
+
+        const targetBtn = Array.from(document.querySelectorAll('.ia-tab-btn')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(tabId));
+        if (targetBtn) targetBtn.classList.add('active');
+
+        const targetPanel = document.getElementById('iaTab-' + tabId);
+        if (targetPanel) targetPanel.classList.add('active');
+    };
+
+    function aggiornaUI(data) {
+        if (!data) return;
+        iaBillingData = data;
+
+        // Banner & Saldo
+        const saldo = parseFloat(data.saldo_residuo_eur || 0);
+        const ricariche = parseFloat(data.ricariche_totali_eur || 20);
+        const consumato = parseFloat(data.costo_totale_consumato_eur || 0);
+        const daFatturare = parseFloat(data.totale_da_fatturare_eur || 0);
+        const prezzoClienti = parseFloat((daFatturare + (data.totale_gia_fatturato_eur || 0)).toFixed(2));
+        const margine = parseFloat(data.margine_totale_eur || 0);
+        const pct = Math.min(100, Math.max(0, data.percentuale_residua || 0));
+
+        const elSaldo = document.getElementById('iaValSaldoResiduo');
+        if (elSaldo) elSaldo.textContent = saldo.toFixed(2);
+
+        const elTopBarSaldo = document.getElementById('iaTopbarSaldoVal');
+        if (elTopBarSaldo) elTopBarSaldo.textContent = saldo.toFixed(2);
+
+        const elCardSaldo = document.getElementById('iaCardSaldoVal');
+        if (elCardSaldo) elCardSaldo.textContent = saldo.toFixed(2);
+
+        const elPct = document.getElementById('iaValPctResidua');
+        if (elPct) elPct.textContent = pct.toFixed(1);
+
+        const elRicariche = document.getElementById('iaValRicaricheTotali');
+        if (elRicariche) elRicariche.textContent = ricariche.toFixed(2);
+
+        const elDataRicarica = document.getElementById('iaValDataRicarica');
+        if (elDataRicarica && data.data_ultima_ricarica) elDataRicarica.textContent = data.data_ultima_ricarica;
+
+        const elConsumato = document.getElementById('iaValCostoConsumato');
+        if (elConsumato) elConsumato.textContent = consumato.toFixed(4);
+
+        const elDaFatturare = document.getElementById('iaValDaFatturareTotale');
+        if (elDaFatturare) elDaFatturare.textContent = daFatturare.toFixed(2);
+
+        // Progress bar fill color
+        const bar = document.getElementById('iaProgressBarFill');
+        if (bar) {
+            bar.style.width = pct + '%';
+            if (pct > 30) bar.style.background = '#10B981';
+            else if (pct > 10) bar.style.background = '#F59E0B';
+            else bar.style.background = '#EF4444';
+        }
+
+        // Metriche
+        const elCalls = document.getElementById('iaValTotaleChiamate');
+        if (elCalls) elCalls.textContent = data.totale_chiamate || 0;
+
+        const elTokTot = document.getElementById('iaValTokenTotali');
+        if (elTokTot) elTokTot.textContent = ((data.totale_token || 0) / 1000).toFixed(1) + 'k';
+
+        const elTokIn = document.getElementById('iaValTokenIn');
+        if (elTokIn) elTokIn.textContent = (data.totale_token_input || 0).toLocaleString();
+
+        const elTokOut = document.getElementById('iaValTokenOut');
+        if (elTokOut) elTokOut.textContent = (data.totale_token_output || 0).toLocaleString();
+
+        const elPrezzoCli = document.getElementById('iaValPrezzoClientiTotale');
+        if (elPrezzoCli) elPrezzoCli.textContent = prezzoClienti.toFixed(2);
+
+        const elMarkup = document.getElementById('iaValMarkupPct');
+        if (elMarkup) elMarkup.textContent = data.ricarico_cliente_percentuale || 30;
+
+        const elMargine = document.getElementById('iaValMargineTotale');
+        if (elMargine) elMargine.textContent = margine.toFixed(2);
+
+        const elAutonomia = document.getElementById('iaValOperazioniRimanenti');
+        if (elAutonomia) elAutonomia.textContent = (data.operazioni_rimanenti || 65000).toLocaleString();
+
+        const elKey = document.getElementById('iaFooterKeyMasked');
+        if (elKey) elKey.textContent = data.key_masked || '...';
+
+        // Badge tabs
+        const elBadgeCli = document.getElementById('iaTabClientiBadge');
+        if (elBadgeCli) elBadgeCli.textContent = (data.clienti_summary || []).length;
+
+        const elBadgeSto = document.getElementById('iaTabStoricoBadge');
+        if (elBadgeSto) elBadgeSto.textContent = (data.recent_usages || []).length;
+
+        // Config campi
+        const elIn1M = document.getElementById('iaCfgInput1M');
+        if (elIn1M) elIn1M.value = data.costo_1m_input_eur || 0.092;
+
+        const elOut1M = document.getElementById('iaCfgOutput1M');
+        if (elOut1M) elOut1M.value = data.costo_1m_output_eur || 0.368;
+
+        const elRicarico = document.getElementById('iaCfgRicaricoPct');
+        if (elRicarico) elRicarico.value = data.ricarico_cliente_percentuale || 30;
+
+        // Render Tabella Clienti
+        renderTabellaClienti(data.clienti_summary || []);
+
+        // Render Tabella Storico
+        renderTabellaStorico(data.recent_usages || []);
+    }
+
+    function renderTabellaClienti(clienti) {
+        const tbody = document.getElementById('iaTableClientiBody');
+        if (!tbody) return;
+        if (!clienti.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Nessun consumo IA registrato per i clienti al momento.</td></tr>';
+            return;
+        }
+        let html = '';
+        clienti.forEach(c => {
+            const hasDaFatturare = c.da_fatturare_eur > 0;
+            html += `<tr>
+                <td>
+                    <strong style="color: #FFFFFF;">${escapeHtml(c.cliente_nome)}</strong>
+                    ${c.cliente_id ? `<div style="font-size: 0.7rem; color: #64748B;">ID Cliente #${c.cliente_id}</div>` : ''}
+                </td>
+                <td style="text-align: center;"><span style="background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 4px; font-weight: 700;">${c.chiamate}</span></td>
+                <td style="text-align: right; color: #93C5FD;">${(c.token_totali || 0).toLocaleString()}</td>
+                <td style="text-align: right; color: #F87171;">€ ${c.costo_vivo_eur.toFixed(4)}</td>
+                <td style="text-align: right; font-weight: 700; color: #F8FAFC;">€ ${c.prezzo_totale_eur.toFixed(4)}</td>
+                <td style="text-align: right;">
+                    ${hasDaFatturare ? `<strong style="color: #FBBF24;">€ ${c.da_fatturare_eur.toFixed(4)}</strong>` : `<span style="color: #34D399; font-size: 0.75rem;">✓ Già saldato</span>`}
+                </td>
+                <td style="text-align: center;">
+                    ${hasDaFatturare && c.cliente_id ? `
+                        <button type="button" class="ia-btn ia-btn-emerald" style="padding: 4px 10px; font-size: 0.72rem;" onclick="marcaClienteFatturato(${c.cliente_id})">
+                            ✓ Segna Fatturato
+                        </button>
+                    ` : `<span style="color: #64748B; font-size: 0.72rem;">-</span>`}
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function renderTabellaStorico(usages) {
+        const tbody = document.getElementById('iaTableStoricoBody');
+        if (!tbody) return;
+        if (!usages.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Nessuna operazione registrata.</td></tr>';
+            return;
+        }
+        let html = '';
+        usages.forEach(u => {
+            html += `<tr>
+                <td style="white-space: nowrap; color: #94A3B8;">${escapeHtml(u.data || '')}</td>
+                <td><strong style="color: #FFFFFF;">${escapeHtml(u.operazione || 'IA')}</strong></td>
+                <td><span style="color: #93C5FD;">${escapeHtml(u.cliente_nome || 'Sistema')}</span></td>
+                <td style="text-align: right; font-size: 0.75rem; color: #94A3B8;">${(u.token_input || 0)} / ${(u.token_output || 0)}</td>
+                <td style="text-align: right; color: #F87171;">€ ${(u.costo_eur || 0).toFixed(6)}</td>
+                <td style="text-align: right; font-weight: 700; color: #F8FAFC;">€ ${(u.prezzo_cliente_eur || 0).toFixed(6)}</td>
+                <td style="text-align: center;">
+                    ${u.fatturato ? `<span style="color: #34D399; font-size: 0.72rem;">✓ Fatturato</span>` : `<span style="color: #FBBF24; font-size: 0.72rem;">● Da addebitare</span>`}
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    }
+
+    function escapeHtml(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    window.caricaDatiBilling = function(withPing) {
+        fetch('/api/ia/billing/status/' + (withPing ? '?ping=1' : ''))
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) aggiornaUI(data);
+            })
+            .catch(err => console.error("Errore recupero billing:", err));
+    };
+
+    window.eseguiTestPingLive = function() {
+        const btn = document.getElementById('iaBtnTestPing');
+        const resText = document.getElementById('iaPingResultText');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Test in corso...';
+        }
+        if (resText) resText.textContent = '';
+
+        fetch('/api/ia/billing/test-connection/', { method: 'POST' })
+            .then(r => r.json())
+            .then(res => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Esegui Test Live';
+                }
+                if (res.ok) {
+                    if (resText) resText.innerHTML = `<span style="color:#34D399;">✓ Connessione OK (${res.ping.latency_ms} ms)</span>`;
+                    if (res.summary) aggiornaUI(res.summary);
+                } else {
+                    if (resText) resText.innerHTML = `<span style="color:#F87171;">✕ ${escapeHtml(res.ping.message || 'Errore')}</span>`;
+                }
+            })
+            .catch(e => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '⚡ Esegui Test Live';
+                }
+                if (resText) resText.innerHTML = `<span style="color:#F87171;">✕ Errore di rete: ${e}</span>`;
+            });
+    };
+
+    window.inviaRicaricaCredito = function() {
+        const inputAmount = document.getElementById('iaInputRicarica');
+        const selectMode = document.getElementById('iaSelectRicaricaMode');
+        const msg = document.getElementById('iaRicaricaSuccessMsg');
+        const val = parseFloat(inputAmount ? inputAmount.value : 20);
+        const mode = selectMode ? selectMode.value : 'add';
+
+        if (isNaN(val) || val <= 0) return alert("Inserisci un importo valido in euro.");
+
+        fetch('/api/ia/billing/ricarica/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: val, mode: mode })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.ok) {
+                if (msg) {
+                    msg.style.display = 'block';
+                    setTimeout(() => msg.style.display = 'none', 3000);
+                }
+                if (res.summary) aggiornaUI(res.summary);
+            } else {
+                alert("Errore salvataggio: " + (res.error || ''));
+            }
+        });
+    };
+
+    window.marcaClienteFatturato = function(clienteId) {
+        if (!confirm("Confermi di voler segnare come già fatturati tutti i consumi IA di questo cliente?")) return;
+        fetch('/api/ia/billing/marca-fatturato/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cliente_id: clienteId })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.ok && res.summary) {
+                aggiornaUI(res.summary);
+            }
+        });
+    };
+
+    window.salvaConfigurazioneTariffe = function() {
+        const inVal = parseFloat(document.getElementById('iaCfgInput1M').value);
+        const outVal = parseFloat(document.getElementById('iaCfgOutput1M').value);
+        const ricVal = parseFloat(document.getElementById('iaCfgRicaricoPct').value);
+        const msg = document.getElementById('iaCfgSuccessMsg');
+
+        fetch('/api/ia/billing/configura-tariffe/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ costo_input_1m: inVal, costo_output_1m: outVal, ricarico_pct: ricVal })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.ok) {
+                if (msg) {
+                    msg.style.display = 'inline';
+                    setTimeout(() => msg.style.display = 'none', 3000);
+                }
+                if (res.summary) aggiornaUI(res.summary);
+            }
+        });
+    };
+
+    // Auto-caricamento al primo avvio
+    document.addEventListener('DOMContentLoaded', function() {
+        caricaDatiBilling(false);
+    });
+})();
+</script>

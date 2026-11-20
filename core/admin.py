@@ -1989,6 +1989,36 @@ class FestivitaPersonalizzataAdmin(KandorBaseAdmin):
         return "—"
 
 
+# ==============================================================================
+# ADMIN: MONITORAGGIO CREDITI IA & CONSUMI FATTURABILI AI CLIENTI
+# ==============================================================================
+
+try:
+    from .models import IACreditWallet, IAConsumoLog
+
+    @admin.register(IACreditWallet)
+    class IACreditWalletAdmin(KandorBaseAdmin):
+        list_display = (
+            'id', 'saldo_residuo', 'ricariche_totali', 'costo_totale_consumato',
+            'totale_chiamate', 'totale_token_input', 'totale_token_output',
+            'ricarico_cliente_percentuale', 'ultimo_aggiornamento'
+        )
+        readonly_fields = ('ultimo_aggiornamento',)
+
+    @admin.register(IAConsumoLog)
+    class IAConsumoLogAdmin(KandorBaseAdmin):
+        list_display = (
+            'data_ora', 'operazione', 'cliente', 'token_totali',
+            'costo_eur', 'prezzo_cliente_eur', 'fatturato'
+        )
+        list_filter = ('fatturato', 'operazione', 'cliente', 'data_ora')
+        search_fields = ('operazione', 'cliente__ragione_sociale', 'note')
+        list_editable = ('fatturato',)
+        date_hierarchy = 'data_ora'
+except Exception:
+    pass
+
+
 
 
 

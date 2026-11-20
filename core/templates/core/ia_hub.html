@@ -361,6 +361,9 @@
             <p>Motore algoritmico ed euristico integrato per revisione ore, sostituzioni predittive, sicurezza cantieri e marginalità</p>
         </div>
         <div class="topbar-actions">
+            <button type="button" class="btn btn-primary" onclick="openIaBillingModal('panoramica')" style="background: #2563EB; color: #FFFFFF; font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(37,99,235,0.4);">
+                ✨ Credito IA: € {{ ia_billing.saldo_residuo|floatformat:2 }}
+            </button>
             <button type="button" class="btn btn-emerald" onclick="inviaBriefingTelegram()">
                 📲 Invia Briefing Mattutino su Telegram
             </button>
@@ -1041,5 +1044,6 @@
             }
         }
     </script>
+    {% include "admin/includes/ia_billing_modal.html" %}
 </body>
 </html>
