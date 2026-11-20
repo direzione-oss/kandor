@@ -143,45 +143,54 @@ def ia_billing_configura_tariffe_api(request):
 def ia_billing_export_csv_view(request):
     """
     GET /api/ia/billing/export-clienti-csv/
-    Esporta il prospetto spese IA aggregate per cliente per l'addebito in fattura.
+    Esporta il prospetto generale consumi IA del programma Kandor da addebitare al cliente.
     """
     if not _check_auth(request):
         return HttpResponse('Non autorizzato', status=403)
 
     summary = get_billing_summary()
-    clienti = summary.get('clienti_summary', [])
+    usages = summary.get('recent_usages', [])
 
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     today_str = timezone.now().strftime('%Y%m%d')
-    response['Content-Disposition'] = f'attachment; filename="KANDOR_Consumi_IA_Clienti_{today_str}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="KANDOR_Prospetto_Spese_IA_{today_str}.csv"'
 
     # BOM UTF-8 per corretta apertura in Microsoft Excel
     response.write('\ufeff'.encode('utf-8'))
     writer = csv.writer(response, delimiter=';')
+
+    # Sezione 1: Sintesi Generale Kandor per Fattura
+    writer.writerow(['PROSPETTO GENERALE CONSUMI IA — PROGRAMMA KANDOR'])
+    writer.writerow(['Data Esportazione', timezone.now().strftime('%d/%m/%Y %H:%M')])
+    writer.writerow(['Totale Chiamate IA Kandor', summary.get('totale_chiamate', 0)])
+    writer.writerow(['Token Totali Scambiati', summary.get('totale_token', 0)])
+    writer.writerow(['Costo Vivo Google (€)', f"{summary.get('costo_totale_consumato_eur', 0.0):.4f}".replace('.', ',')])
+    writer.writerow(['Ricarico Applicato', f"+{summary.get('ricarico_cliente_percentuale', 30.0):.1f}%"])
+    writer.writerow(['TOTALE DA FAR PAGARE AL CLIENTE (€)', f"{summary.get('totale_da_fatturare_eur', 0.0):.2f}".replace('.', ',')])
+    writer.writerow([])
+
+    # Sezione 2: Dettaglio Registro Operazioni
     writer.writerow([
-        'ID Cliente',
-        'Ragione Sociale / Contesto',
-        'Chiamate IA Eseguite',
-        'Token Totali Scambiati',
+        'Data / Ora',
+        'Operazione / Funzione Kandor',
+        'Token Input',
+        'Token Output',
+        'Token Totali',
         'Costo Google (€)',
-        'Prezzo Totale al Cliente (€)',
-        'Importo da Fatturare (€)',
-        'Importo già Fatturato (€)',
-        'Note / Ricarico Applicato',
+        'Importo da Addebitare (€)',
+        'Stato Contabile',
     ])
 
-    ricarico = summary.get('ricarico_cliente_percentuale', 30.0)
-    for c in clienti:
+    for u in usages:
         writer.writerow([
-            c['cliente_id'] if c['cliente_id'] != 0 else 'N/D',
-            c['cliente_nome'],
-            c['chiamate'],
-            c['token_totali'],
-            f"{c['costo_vivo_eur']:.4f}".replace('.', ','),
-            f"{c['prezzo_totale_eur']:.4f}".replace('.', ','),
-            f"{c['da_fatturare_eur']:.4f}".replace('.', ','),
-            f"{c['gia_fatturato_eur']:.4f}".replace('.', ','),
-            f"+{ricarico:.1f}% markup",
+            u.get('data', ''),
+            u.get('operazione', 'Elaborazione IA'),
+            u.get('token_input', 0),
+            u.get('token_output', 0),
+            u.get('token_totali', 0),
+            f"{u.get('costo_eur', 0.0):.6f}".replace('.', ','),
+            f"{u.get('prezzo_cliente_eur', 0.0):.6f}".replace('.', ','),
+            'Incassato' if u.get('fatturato') else 'Da fatturare',
         ])
 
     return response

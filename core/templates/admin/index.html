@@ -262,14 +262,14 @@
     <!-- Sezione Operazioni Veloci -->
     <div class="section-title">Operazioni Frequenti</div>
     <div class="quick-ops-grid">
-        <!-- Card Monitoraggio Credito IA & Fatturazione Clienti (Gemini API) -->
+        <!-- Card Monitoraggio Crediti IA Kandor & Fatturazione Cliente -->
         <div class="quick-card" style="border: 2px solid #3B82F6; background: linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%);">
             <div>
                 <div class="quick-card-header">
                     <div class="quick-icon" style="background: #DBEAFE; color: #2563EB;">✨</div>
                     <div style="flex: 1;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="color: #1E40AF; margin: 0;">Crediti IA &amp; Fatturazione</h3>
+                            <h3 style="color: #1E40AF; margin: 0;">Crediti IA Kandor</h3>
                             <span class="k-badge k-badge-success" style="font-size: 0.7rem; padding: 2px 8px;">● Gemini Flash Attivo</span>
                         </div>
                     </div>
@@ -277,15 +277,15 @@
                 <p style="margin-top: 8px;">
                     Credito residuo: <strong style="font-size: 1.05rem; color: #1E3A8A;">€ <span id="iaCardSaldoVal">{{ ia_billing.saldo_residuo|floatformat:2 }}</span></strong>
                     <br>
-                    <span style="font-size: 0.78rem; color: #64748B;">Monitora i consumi token e ripartisci le spese da addebitare ai clienti in fattura.</span>
+                    <span style="font-size: 0.78rem; color: #64748B;">Monitoraggio consumo token del programma Kandor per il conteggio e l'addebito al cliente.</span>
                 </p>
             </div>
             <div class="quick-card-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button type="button" class="quick-btn" style="background: #2563EB; flex: 1; border: none; cursor: pointer; padding: 7px 10px; font-size: 0.8rem; border-radius: 6px; color: white;" onclick="openIaBillingModal('panoramica')">
                     ⚡ Monitora &amp; Ricarica
                 </button>
-                <button type="button" class="quick-btn" style="background: #059669; flex: 1; border: none; cursor: pointer; padding: 7px 10px; font-size: 0.8rem; border-radius: 6px; color: white;" onclick="openIaBillingModal('clienti')">
-                    💼 Fattura ai Clienti
+                <button type="button" class="quick-btn" style="background: #059669; flex: 1; border: none; cursor: pointer; padding: 7px 10px; font-size: 0.8rem; border-radius: 6px; color: white;" onclick="openIaBillingModal('fatturazione')">
+                    🧾 Conteggio Cliente
                 </button>
             </div>
         </div>

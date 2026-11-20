@@ -1,4 +1,4 @@
-<!-- Modal Monitoraggio Crediti IA Google Gemini & Fatturazione Clienti -->
+<!-- Modal Monitoraggio Consumo Crediti IA Google Gemini — Programma Kandor -->
 <style>
     /* Backdrop & Container */
     #iaBillingModalBackdrop {
@@ -6,7 +6,7 @@
         position: fixed;
         inset: 0;
         z-index: 99999;
-        background: rgba(15, 23, 42, 0.75);
+        background: rgba(15, 23, 42, 0.78);
         backdrop-filter: blur(4px);
         align-items: center;
         justify-content: center;
@@ -187,16 +187,6 @@
         border: 1px solid rgba(16, 185, 129, 0.4);
         color: #34D399;
     }
-    .ia-status-pill.warning {
-        background: rgba(245, 158, 11, 0.15);
-        border: 1px solid rgba(245, 158, 11, 0.4);
-        color: #FBBF24;
-    }
-    .ia-status-pill.error {
-        background: rgba(239, 68, 68, 0.15);
-        border: 1px solid rgba(239, 68, 68, 0.4);
-        color: #F87171;
-    }
     .ia-dot {
         width: 8px;
         height: 8px;
@@ -327,14 +317,14 @@
             <div>
                 <h3>
                     <span style="font-size: 1.3rem;">✨</span>
-                    <span>Stato Credito &amp; Monitoraggio IA</span>
+                    <span>Monitoraggio Credito IA — Kandor</span>
                     <span id="iaModalStatusBadge" class="ia-status-pill online" style="margin-left: 8px;">
                         <span class="ia-dot" style="background: #34D399;"></span>
-                        <span id="iaModalStatusText">Gemini Flash • Attivo</span>
+                        <span id="iaModalStatusText">Gemini 2.5 Flash • Attivo</span>
                     </span>
                 </h3>
                 <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 2px;">
-                    Controllo consumi token, credito residuo e ripartizione spese per fatturazione clienti (Kandor ERP)
+                    Controllo consumo crediti usati dal programma Kandor per il conteggio e l'addebito al cliente
                 </div>
             </div>
             <button type="button" class="ia-modal-close-btn" onclick="closeIaBillingModal()" title="Chiudi">&times;</button>
@@ -342,23 +332,23 @@
 
         <!-- Navigation Tabs -->
         <div class="ia-modal-tabs">
-            <button type="button" class="ia-tab-btn active" onclick="switchIaTab('panoramica')">📊 Panoramica &amp; Credito</button>
-            <button type="button" class="ia-tab-btn" onclick="switchIaTab('clienti')">💼 Fatturazione Clienti (<span id="iaTabClientiBadge">0</span>)</button>
-            <button type="button" class="ia-tab-btn" onclick="switchIaTab('storico')">📝 Storico Consumi (<span id="iaTabStoricoBadge">0</span>)</button>
-            <button type="button" class="ia-tab-btn" onclick="switchIaTab('tariffe')">⚙️ Configura Tariffe &amp; Ricarico</button>
+            <button type="button" class="ia-tab-btn active" onclick="switchIaTab('panoramica')">📊 Credito &amp; Consumi Kandor</button>
+            <button type="button" class="ia-tab-btn" onclick="switchIaTab('fatturazione')">🧾 Conteggio per il Cliente</button>
+            <button type="button" class="ia-tab-btn" onclick="switchIaTab('storico')">📝 Registro Operazioni IA (<span id="iaTabStoricoBadge">0</span>)</button>
+            <button type="button" class="ia-tab-btn" onclick="switchIaTab('tariffe')">⚙️ Tariffe &amp; Ricarica</button>
         </div>
 
         <!-- Modal Body -->
         <div class="ia-modal-body">
 
-            <!-- TAB 1: PANORAMICA & CREDITO -->
+            <!-- TAB 1: PANORAMICA & CREDITO GENERALE KANDOR -->
             <div id="iaTab-panoramica" class="ia-tab-panel active">
-                <!-- Banner Saldo Residuo -->
+                <!-- Banner Saldo Residuo Kandor -->
                 <div class="ia-balance-banner">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #93C5FD; letter-spacing: 0.05em;">
-                                Credito Residuo Stimato
+                                Credito Residuo Kandor
                             </div>
                             <div style="font-size: 2.3rem; font-weight: 900; color: #FFFFFF; line-height: 1.1; margin-top: 4px;">
                                 € <span id="iaValSaldoResiduo">20.00</span>
@@ -369,7 +359,7 @@
                                 <span id="iaValPctResidua">100</span>% disponibile
                             </span>
                             <div style="font-size: 0.75rem; color: #94A3B8; margin-top: 6px;">
-                                Ricaricato: <strong>€ <span id="iaValRicaricheTotali">20.00</span></strong> (<span id="iaValDataRicarica">Oggi</span>)
+                                Totale Ricaricato: <strong>€ <span id="iaValRicaricheTotali">20.00</span></strong> (<span id="iaValDataRicarica">Oggi</span>)
                             </div>
                         </div>
                     </div>
@@ -380,32 +370,32 @@
                     </div>
 
                     <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #94A3B8;">
-                        <span>Consumato da Google: <strong style="color: #F87171;">€ <span id="iaValCostoConsumato">0.0000</span></strong></span>
-                        <span>Da fatturare ai clienti: <strong style="color: #60A5FA;">€ <span id="iaValDaFatturareTotale">0.00</span></strong></span>
+                        <span>Costo Vivo Consumato da Kandor: <strong style="color: #F87171;">€ <span id="iaValCostoConsumato">0.0000</span></strong></span>
+                        <span>Totale da Far Pagare al Cliente: <strong style="color: #34D399;">€ <span id="iaValPrezzoClientiTotale">0.00</span></strong></span>
                     </div>
                 </div>
 
                 <!-- 4 Metriche Chiave -->
                 <div class="ia-metric-grid">
                     <div class="ia-metric-card">
-                        <div class="label">Chiamate IA Totali</div>
+                        <div class="label">Chiamate IA Kandor</div>
                         <div class="value" id="iaValTotaleChiamate">0</div>
-                        <div class="sub">Operazioni registrate</div>
+                        <div class="sub">Operazioni complessive</div>
                     </div>
                     <div class="ia-metric-card">
-                        <div class="label">Token Totali</div>
+                        <div class="label">Token Totali Usati</div>
                         <div class="value" style="color: #60A5FA;" id="iaValTokenTotali">0k</div>
                         <div class="sub">In: <span id="iaValTokenIn">0</span> | Out: <span id="iaValTokenOut">0</span></div>
                     </div>
                     <div class="ia-metric-card">
-                        <div class="label">Fatturabile Clienti</div>
-                        <div class="value" style="color: #34D399;">€ <span id="iaValPrezzoClientiTotale">0.00</span></div>
-                        <div class="sub">Markup: +<span id="iaValMarkupPct">30</span>% sul costo</div>
+                        <div class="label">Costo Effettivo IA</div>
+                        <div class="value" style="color: #F87171;">€ <span id="iaValCostoConsumato2">0.0000</span></div>
+                        <div class="sub">Spesa Google Gemini</div>
                     </div>
                     <div class="ia-metric-card">
-                        <div class="label">Margine Atteso</div>
-                        <div class="value" style="color: #FBBF24;">€ <span id="iaValMargineTotale">0.00</span></div>
-                        <div class="sub">Guadagno sulle chiamate</div>
+                        <div class="label">Da Far Pagare al Cliente</div>
+                        <div class="value" style="color: #34D399;">€ <span id="iaValDaFatturareTotale">0.00</span></div>
+                        <div class="sub">Incluso ricarico (+<span id="iaValMarkupPct">30</span>%)</div>
                     </div>
                 </div>
 
@@ -415,10 +405,10 @@
                         <span style="font-size: 1.5rem;">⚡</span>
                         <div>
                             <div style="font-size: 0.88rem; font-weight: 700; color: #FFFFFF;">
-                                Autonomia Stimata: ~<span id="iaValOperazioniRimanenti">65.000</span> operazioni
+                                Autonomia Stimata per Kandor: ~<span id="iaValOperazioniRimanenti">65.000</span> operazioni
                             </div>
                             <div style="font-size: 0.75rem; color: #94A3B8;">
-                                Costo medio operazione Gemini Flash: circa <strong>0,0003 €</strong> (analisi ore, triage o OCR).
+                                Costo medio operazione Gemini Flash: circa <strong>0,0003 €</strong> (analisi ore, triage messaggi, OCR documenti).
                             </div>
                         </div>
                     </div>
@@ -432,10 +422,10 @@
                     <!-- Test Connessione Box -->
                     <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 16px;">
                         <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 8px; color: #F8FAFC; display: flex; align-items: center; gap: 6px;">
-                            <span>🛰️</span> Test Connessione Live
+                            <span>🛰️</span> Test Connessione Live API
                         </div>
                         <div style="font-size: 0.78rem; color: #94A3B8; margin-bottom: 12px;">
-                            Invia un ping reale a Google Gemini API e misura tempo di latenza e token:
+                            Verifica la risposta di Google Gemini in tempo reale:
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             <button type="button" id="iaBtnTestPing" class="ia-btn ia-btn-primary" onclick="eseguiTestPingLive()">
@@ -448,13 +438,13 @@
                     <!-- Registra Ricarica Box -->
                     <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 16px;">
                         <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 8px; color: #F8FAFC; display: flex; align-items: center; gap: 6px;">
-                            <span>💳</span> Registra Ricarica Credito
+                            <span>💳</span> Ricarica Credito Kandor
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                             <input type="number" id="iaInputRicarica" class="ia-input" value="20.00" step="1.00" min="1" style="width: 100px;">
                             <select id="iaSelectRicaricaMode" class="ia-input" style="width: 130px;">
                                 <option value="add">+ Somma al saldo</option>
-                                <option value="set">Imposta come saldo</option>
+                                <option value="set">Imposta saldo</option>
                             </select>
                             <button type="button" class="ia-btn ia-btn-emerald" onclick="inviaRicaricaCredito()">
                                 Salva Ricarica
@@ -467,48 +457,68 @@
                 </div>
             </div>
 
-            <!-- TAB 2: FATTURAZIONE CLIENTI -->
-            <div id="iaTab-clienti" class="ia-tab-panel">
-                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                        <h4 style="margin: 0; font-size: 0.95rem; color: #FFFFFF;">Riepilogo Consumi per Cliente</h4>
-                        <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: #94A3B8;">
-                            Spese IA tracciate per ciascun cliente. Puoi addebitarle direttamente in fattura o marcare come già incassate.
-                        </p>
+            <!-- TAB 2: PROSPETTO CONTEGGIO PER IL CLIENTE -->
+            <div id="iaTab-fatturazione" class="ia-tab-panel">
+                <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(30, 41, 59, 0.6) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 14px; padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                            <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #34D399; letter-spacing: 0.05em;">
+                                Prospetto Spese IA — Da Addebitare al Cliente di Kandor
+                            </span>
+                            <h4 style="margin: 4px 0 0 0; font-size: 1.6rem; color: #FFFFFF;">
+                                Totale da Far Pagare: <strong style="color: #34D399;">€ <span id="iaBillingFatturaTotale">0.00</span></strong>
+                            </h4>
+                            <p style="margin: 6px 0 0 0; font-size: 0.78rem; color: #94A3B8;">
+                                Conteggio generale calcolato sui consumi e token utilizzati dal programma Kandor per le sue automazioni e analisi intelligenti.
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <a href="/api/ia/billing/export-clienti-csv/" class="ia-btn ia-btn-emerald" style="font-size: 0.8rem;">
+                                📥 Esporta Riepilogo Spese (CSV)
+                            </a>
+                            <button type="button" class="ia-btn ia-btn-primary" onclick="segnaConteggioFatturato()" style="font-size: 0.8rem;">
+                                ✓ Segna Periodo come Incassato
+                            </button>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <a href="/api/ia/billing/export-clienti-csv/" class="ia-btn ia-btn-emerald" style="font-size: 0.78rem;">
-                            📥 Esporta CSV per Fattura
-                        </a>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.15);">
+                        <div>
+                            <span style="font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; font-weight: 700;">Chiamate Complessive</span>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #FFFFFF;" id="iaBillingFatturaCalls">0</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; font-weight: 700;">Token Complessivi</span>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #60A5FA;" id="iaBillingFatturaTokens">0</div>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; font-weight: 700;">Costo Puro Google</span>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #F87171;">€ <span id="iaBillingFatturaCostoVivo">0.0000</span></div>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.72rem; color: #94A3B8; text-transform: uppercase; font-weight: 700;">Margine Applicato</span>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #FBBF24;">+<span id="iaBillingFatturaMarkup">30</span>%</div>
+                        </div>
                     </div>
                 </div>
 
-                <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; overflow-x: auto;">
-                    <table class="ia-table">
-                        <thead>
-                            <tr>
-                                <th>Cliente / Contesto</th>
-                                <th style="text-align: center;">Chiamate</th>
-                                <th style="text-align: right;">Token</th>
-                                <th style="text-align: right;">Costo Vivo Google</th>
-                                <th style="text-align: right;">Prezzo al Cliente (+markup)</th>
-                                <th style="text-align: right;">Da Fatturare</th>
-                                <th style="text-align: center;">Azioni</th>
-                            </tr>
-                        </thead>
-                        <tbody id="iaTableClientiBody">
-                            <tr>
-                                <td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Caricamento clienti in corso...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Istruzioni per fatturare al cliente -->
+                <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 16px; font-size: 0.82rem; color: #CBD5E1;">
+                    <div style="font-weight: 700; color: #FFFFFF; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        <span>💡</span> Come addebitare il consumo al cliente
+                    </div>
+                    Puoi inserire in fattura o nota spese una voce come:
+                    <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.2); padding: 8px 12px; border-radius: 6px; font-family: monospace; color: #34D399; margin: 8px 0;">
+                        "Rimborso consumi elaborazione e automazioni IA Kandor (Periodo corrente)" — € <span id="iaBillingEsempioVoce">0.00</span>
+                    </div>
+                    Con il pulsante <strong>Esporta Riepilogo Spese (CSV)</strong> puoi allegare il dettaglio completo con le chiamate e i token impiegati.
                 </div>
             </div>
 
-            <!-- TAB 3: STORICO CONSUMI -->
+            <!-- TAB 3: REGISTRO OPERAZIONI IA KANDOR -->
             <div id="iaTab-storico" class="ia-tab-panel">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <h4 style="margin: 0; font-size: 0.95rem; color: #FFFFFF;">Ultime Operazioni IA Registrate</h4>
+                    <h4 style="margin: 0; font-size: 0.95rem; color: #FFFFFF;">Registro Operazioni IA Eseguite da Kandor</h4>
                     <span style="font-size: 0.75rem; color: #94A3B8;">Tracciamento token dettagliato con timestamp</span>
                 </div>
 
@@ -517,29 +527,28 @@
                         <thead>
                             <tr>
                                 <th>Data/Ora</th>
-                                <th>Operazione</th>
-                                <th>Cliente / Riferimento</th>
+                                <th>Operazione / Funzione Kandor</th>
                                 <th style="text-align: right;">Token In/Out</th>
                                 <th style="text-align: right;">Costo Google</th>
-                                <th style="text-align: right;">Prezzo Cliente</th>
+                                <th style="text-align: right;">Importo al Cliente</th>
                                 <th style="text-align: center;">Stato</th>
                             </tr>
                         </thead>
                         <tbody id="iaTableStoricoBody">
                             <tr>
-                                <td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Caricamento storico in corso...</td>
+                                <td colspan="6" style="text-align: center; color: #94A3B8; padding: 24px;">Caricamento operazioni in corso...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- TAB 4: CONFIGURA TARIFFE -->
+            <!-- TAB 4: CONFIGURA TARIFFE & RICARICO -->
             <div id="iaTab-tariffe" class="ia-tab-panel">
                 <div style="background: #1E293B; border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 12px; padding: 20px;">
-                    <h4 style="margin: 0 0 8px 0; font-size: 0.95rem; color: #FFFFFF;">Impostazioni Economiche &amp; Percentuale di Ricarico</h4>
+                    <h4 style="margin: 0 0 8px 0; font-size: 0.95rem; color: #FFFFFF;">Impostazioni Tariffe &amp; Ricarico Cliente</h4>
                     <p style="font-size: 0.78rem; color: #94A3B8; margin-bottom: 18px;">
-                        Configura il costo base di acquisto da Google (1M token) e il margine da applicare quando addebiti il servizio IA al cliente.
+                        Configura il costo base di acquisto dei token e il margine da applicare quando addebiti l'uso di Kandor al tuo cliente.
                     </p>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
@@ -559,7 +568,7 @@
                         </div>
                         <div>
                             <label style="display: block; font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">
-                                Ricarico Cliente (%)
+                                Ricarico per il Cliente (%)
                             </label>
                             <input type="number" id="iaCfgRicaricoPct" class="ia-input" step="1.0" min="0" style="width: 100%;">
                             <span style="font-size: 0.7rem; color: #64748B;">Consigliato: 30% - 50%</span>
@@ -568,7 +577,7 @@
 
                     <div style="margin-bottom: 18px; padding-top: 14px; border-top: 1px solid rgba(148, 163, 184, 0.15);">
                         <label style="display: block; font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">
-                            Chiave Google Gemini API (Opzionale / Override Live)
+                            Chiave Google Gemini API
                         </label>
                         <div style="display: flex; gap: 8px;">
                             <input type="password" id="iaCfgApiKey" class="ia-input" placeholder="Incolla chiave GEMINI_API_KEY se vuoi aggiornarla..." style="flex: 1;">
@@ -579,10 +588,10 @@
 
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" class="ia-btn ia-btn-primary" onclick="salvaConfigurazioneTariffe()">
-                            💾 Salva Parametri Economici
+                            💾 Salva Impostazioni
                         </button>
                         <span id="iaCfgSuccessMsg" style="font-size: 0.75rem; color: #34D399; display: none;">
-                            ✓ Parametri aggiornati con successo!
+                            ✓ Impostazioni salvate con successo!
                         </span>
                     </div>
                 </div>
@@ -636,13 +645,12 @@
         if (!data) return;
         iaBillingData = data;
 
-        // Banner & Saldo
+        // Banner & Saldo Generale Kandor
         const saldo = parseFloat(data.saldo_residuo_eur || 0);
         const ricariche = parseFloat(data.ricariche_totali_eur || 20);
         const consumato = parseFloat(data.costo_totale_consumato_eur || 0);
         const daFatturare = parseFloat(data.totale_da_fatturare_eur || 0);
         const prezzoClienti = parseFloat((daFatturare + (data.totale_gia_fatturato_eur || 0)).toFixed(2));
-        const margine = parseFloat(data.margine_totale_eur || 0);
         const pct = Math.min(100, Math.max(0, data.percentuale_residua || 0));
 
         const elSaldo = document.getElementById('iaValSaldoResiduo');
@@ -666,8 +674,11 @@
         const elConsumato = document.getElementById('iaValCostoConsumato');
         if (elConsumato) elConsumato.textContent = consumato.toFixed(4);
 
+        const elConsumato2 = document.getElementById('iaValCostoConsumato2');
+        if (elConsumato2) elConsumato2.textContent = consumato.toFixed(4);
+
         const elDaFatturare = document.getElementById('iaValDaFatturareTotale');
-        if (elDaFatturare) elDaFatturare.textContent = daFatturare.toFixed(2);
+        if (elDaFatturare) elDaFatturare.textContent = (daFatturare > 0 ? daFatturare : prezzoClienti).toFixed(2);
 
         // Progress bar fill color
         const bar = document.getElementById('iaProgressBarFill');
@@ -697,19 +708,32 @@
         const elMarkup = document.getElementById('iaValMarkupPct');
         if (elMarkup) elMarkup.textContent = data.ricarico_cliente_percentuale || 30;
 
-        const elMargine = document.getElementById('iaValMargineTotale');
-        if (elMargine) elMargine.textContent = margine.toFixed(2);
-
         const elAutonomia = document.getElementById('iaValOperazioniRimanenti');
         if (elAutonomia) elAutonomia.textContent = (data.operazioni_rimanenti || 65000).toLocaleString();
 
         const elKey = document.getElementById('iaFooterKeyMasked');
         if (elKey) elKey.textContent = data.key_masked || '...';
 
-        // Badge tabs
-        const elBadgeCli = document.getElementById('iaTabClientiBadge');
-        if (elBadgeCli) elBadgeCli.textContent = (data.clienti_summary || []).length;
+        // Tab Fatturazione al Cliente
+        const elFatTot = document.getElementById('iaBillingFatturaTotale');
+        if (elFatTot) elFatTot.textContent = (daFatturare > 0 ? daFatturare : prezzoClienti).toFixed(2);
 
+        const elFatCalls = document.getElementById('iaBillingFatturaCalls');
+        if (elFatCalls) elFatCalls.textContent = data.totale_chiamate || 0;
+
+        const elFatTok = document.getElementById('iaBillingFatturaTokens');
+        if (elFatTok) elFatTok.textContent = (data.totale_token || 0).toLocaleString();
+
+        const elFatCosto = document.getElementById('iaBillingFatturaCostoVivo');
+        if (elFatCosto) elFatCosto.textContent = consumato.toFixed(4);
+
+        const elFatMarkup = document.getElementById('iaBillingFatturaMarkup');
+        if (elFatMarkup) elFatMarkup.textContent = data.ricarico_cliente_percentuale || 30;
+
+        const elEsempio = document.getElementById('iaBillingEsempioVoce');
+        if (elEsempio) elEsempio.textContent = (daFatturare > 0 ? daFatturare : prezzoClienti).toFixed(2);
+
+        // Badge tabs
         const elBadgeSto = document.getElementById('iaTabStoricoBadge');
         if (elBadgeSto) elBadgeSto.textContent = (data.recent_usages || []).length;
 
@@ -723,65 +747,27 @@
         const elRicarico = document.getElementById('iaCfgRicaricoPct');
         if (elRicarico) elRicarico.value = data.ricarico_cliente_percentuale || 30;
 
-        // Render Tabella Clienti
-        renderTabellaClienti(data.clienti_summary || []);
-
-        // Render Tabella Storico
+        // Render Tabella Storico Operazioni
         renderTabellaStorico(data.recent_usages || []);
-    }
-
-    function renderTabellaClienti(clienti) {
-        const tbody = document.getElementById('iaTableClientiBody');
-        if (!tbody) return;
-        if (!clienti.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Nessun consumo IA registrato per i clienti al momento.</td></tr>';
-            return;
-        }
-        let html = '';
-        clienti.forEach(c => {
-            const hasDaFatturare = c.da_fatturare_eur > 0;
-            html += `<tr>
-                <td>
-                    <strong style="color: #FFFFFF;">${escapeHtml(c.cliente_nome)}</strong>
-                    ${c.cliente_id ? `<div style="font-size: 0.7rem; color: #64748B;">ID Cliente #${c.cliente_id}</div>` : ''}
-                </td>
-                <td style="text-align: center;"><span style="background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 4px; font-weight: 700;">${c.chiamate}</span></td>
-                <td style="text-align: right; color: #93C5FD;">${(c.token_totali || 0).toLocaleString()}</td>
-                <td style="text-align: right; color: #F87171;">€ ${c.costo_vivo_eur.toFixed(4)}</td>
-                <td style="text-align: right; font-weight: 700; color: #F8FAFC;">€ ${c.prezzo_totale_eur.toFixed(4)}</td>
-                <td style="text-align: right;">
-                    ${hasDaFatturare ? `<strong style="color: #FBBF24;">€ ${c.da_fatturare_eur.toFixed(4)}</strong>` : `<span style="color: #34D399; font-size: 0.75rem;">✓ Già saldato</span>`}
-                </td>
-                <td style="text-align: center;">
-                    ${hasDaFatturare && c.cliente_id ? `
-                        <button type="button" class="ia-btn ia-btn-emerald" style="padding: 4px 10px; font-size: 0.72rem;" onclick="marcaClienteFatturato(${c.cliente_id})">
-                            ✓ Segna Fatturato
-                        </button>
-                    ` : `<span style="color: #64748B; font-size: 0.72rem;">-</span>`}
-                </td>
-            </tr>`;
-        });
-        tbody.innerHTML = html;
     }
 
     function renderTabellaStorico(usages) {
         const tbody = document.getElementById('iaTableStoricoBody');
         if (!tbody) return;
         if (!usages.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #94A3B8; padding: 24px;">Nessuna operazione registrata.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #94A3B8; padding: 24px;">Nessuna operazione IA registrata al momento.</td></tr>';
             return;
         }
         let html = '';
         usages.forEach(u => {
             html += `<tr>
                 <td style="white-space: nowrap; color: #94A3B8;">${escapeHtml(u.data || '')}</td>
-                <td><strong style="color: #FFFFFF;">${escapeHtml(u.operazione || 'IA')}</strong></td>
-                <td><span style="color: #93C5FD;">${escapeHtml(u.cliente_nome || 'Sistema')}</span></td>
+                <td><strong style="color: #FFFFFF;">${escapeHtml(u.operazione || 'Elaborazione IA')}</strong></td>
                 <td style="text-align: right; font-size: 0.75rem; color: #94A3B8;">${(u.token_input || 0)} / ${(u.token_output || 0)}</td>
                 <td style="text-align: right; color: #F87171;">€ ${(u.costo_eur || 0).toFixed(6)}</td>
-                <td style="text-align: right; font-weight: 700; color: #F8FAFC;">€ ${(u.prezzo_cliente_eur || 0).toFixed(6)}</td>
+                <td style="text-align: right; font-weight: 700; color: #34D399;">€ ${(u.prezzo_cliente_eur || 0).toFixed(6)}</td>
                 <td style="text-align: center;">
-                    ${u.fatturato ? `<span style="color: #34D399; font-size: 0.72rem;">✓ Fatturato</span>` : `<span style="color: #FBBF24; font-size: 0.72rem;">● Da addebitare</span>`}
+                    ${u.fatturato ? `<span style="color: #34D399; font-size: 0.72rem;">✓ Incassato</span>` : `<span style="color: #FBBF24; font-size: 0.72rem;">● Da fatturare</span>`}
                 </td>
             </tr>`;
         });
@@ -862,17 +848,18 @@
         });
     };
 
-    window.marcaClienteFatturato = function(clienteId) {
-        if (!confirm("Confermi di voler segnare come già fatturati tutti i consumi IA di questo cliente?")) return;
+    window.segnaConteggioFatturato = function() {
+        if (!confirm("Confermi di voler segnare tutte le attuali operazioni IA di Kandor come già fatturate al cliente?")) return;
         fetch('/api/ia/billing/marca-fatturato/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cliente_id: clienteId })
+            body: JSON.stringify({ tutti: true })
         })
         .then(r => r.json())
         .then(res => {
             if (res.ok && res.summary) {
                 aggiornaUI(res.summary);
+                alert("Periodo segnato come fatturato con successo!");
             }
         });
     };
