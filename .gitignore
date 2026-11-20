@@ -40,6 +40,8 @@ staticfiles/
 media/
 contratti/
 deploy_kandor.py
+check_prod.py
+trigger_deploy.py
 
 # OS
 .DS_Store

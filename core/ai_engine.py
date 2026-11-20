@@ -54,7 +54,7 @@ def call_gemini_json(prompt, image_bytes=None, mime_type='image/jpeg', operazion
                     "data": b64,
                 }
             })
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": parts}],
             "generationConfig": {
@@ -82,7 +82,7 @@ def call_gemini_json(prompt, image_bytes=None, mime_type='image/jpeg', operazion
                         cliente_id=cliente_id,
                         dipendente=dipendente,
                         dipendente_id=dipendente_id,
-                        modello='gemini-1.5-flash',
+                        modello='gemini-2.5-flash',
                     )
             except Exception:
                 pass

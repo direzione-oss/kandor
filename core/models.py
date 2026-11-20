@@ -2849,7 +2849,7 @@ class IACreditWallet(models.Model):
     totale_token_output = models.BigIntegerField(default=0, verbose_name="Token Output")
 
     modello_predefinito = models.CharField(
-        max_length=64, default='gemini-1.5-flash', verbose_name="Modello IA"
+        max_length=64, default='gemini-2.5-flash', verbose_name="Modello IA"
     )
     costo_per_1m_input_eur = models.DecimalField(
         max_digits=10, decimal_places=6, default=Decimal('0.092000'),
@@ -2889,7 +2889,7 @@ class IAConsumoLog(models.Model):
         'Dipendente', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='ia_consumi', verbose_name="Dipendente"
     )
-    modello = models.CharField(max_length=64, default='gemini-1.5-flash', verbose_name="Modello")
+    modello = models.CharField(max_length=64, default='gemini-2.5-flash', verbose_name="Modello")
     token_input = models.IntegerField(default=0, verbose_name="Token Input")
     token_output = models.IntegerField(default=0, verbose_name="Token Output")
     token_totali = models.IntegerField(default=0, verbose_name="Token Totali")

@@ -165,7 +165,7 @@ def get_billing_summary():
         costo_1m_in = float(json_data.get('costo_input_1m', 0.092))
         costo_1m_out = float(json_data.get('costo_output_1m', 0.368))
         data_top_up = json_data.get('last_top_up_date', '')
-        modello = 'gemini-1.5-flash'
+        modello = 'gemini-2.5-flash'
 
     # Autonomia stimata: costo medio per operazione (~0.0003 €)
     costo_medio_op = 0.0003
@@ -307,7 +307,7 @@ def get_billing_summary():
 
 def registra_consumo_ia(operazione='Elaborazione IA', token_input=0, token_output=0,
                         cliente=None, cliente_id=None, dipendente=None, dipendente_id=None,
-                        modello='gemini-1.5-flash', note=''):
+                        modello='gemini-2.5-flash', note=''):
     """
     Registra il consumo di token per un'operazione IA, calcola il costo vivo e il prezzo
     al cliente (incluso ricarico), e aggiorna il credito residuo.
@@ -515,7 +515,7 @@ def esegui_test_connessione():
             'latency_ms': 0,
         }
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": "Rispondi esclusivamente con un JSON: {\"status\": \"ok\", \"service\": \"KANDOR ERP\"}"}]}],
         "generationConfig": {
