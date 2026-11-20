@@ -85,11 +85,49 @@ def get_wallet():
 
 
 def get_gemini_api_key():
-    """Cerca la chiave API Gemini nell'ambiente o in configurazione."""
+    """Cerca la chiave API Gemini nell'ambiente, nel volume persistente media o nel .env."""
     key = os.environ.get('GEMINI_API_KEY', '').strip()
     if not key:
         key = os.environ.get('GOOGLE_API_KEY', '').strip()
+    if not key:
+        # Cerca nel volume media persistente
+        try:
+            key_path = os.path.join(os.path.dirname(_get_json_file_path()), 'gemini_api_key.txt')
+            if os.path.exists(key_path):
+                with open(key_path, 'r', encoding='utf-8') as f:
+                    key = f.read().strip()
+        except Exception:
+            pass
+    if not key:
+        # Cerca nel .env dell'applicazione
+        try:
+            env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env')
+            if os.path.exists(env_file):
+                with open(env_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith('GEMINI_API_KEY='):
+                            key = line.split('=', 1)[1].strip()
+                            break
+        except Exception:
+            pass
     return key
+
+
+def imposta_gemini_api_key(new_key):
+    """Salva la nuova chiave API Gemini nel volume persistente."""
+    new_key = (new_key or '').strip()
+    if not new_key:
+        return False
+    try:
+        key_path = os.path.join(os.path.dirname(_get_json_file_path()), 'gemini_api_key.txt')
+        with open(key_path, 'w', encoding='utf-8') as f:
+            f.write(new_key)
+        os.environ['GEMINI_API_KEY'] = new_key
+        return True
+    except Exception as e:
+        print(f"[IA BILLING] Errore salvataggio chiave API: {e}")
+        return False
 
 
 def get_billing_summary():

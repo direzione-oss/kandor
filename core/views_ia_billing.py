@@ -14,6 +14,7 @@ from .ia_billing_service import (
     marca_consumi_fatturati,
     configura_tariffe,
     esegui_test_connessione,
+    imposta_gemini_api_key,
 )
 
 
@@ -124,6 +125,9 @@ def ia_billing_configura_tariffe_api(request):
         in_1m = data.get('costo_input_1m')
         out_1m = data.get('costo_output_1m')
         ricarico = data.get('ricarico_pct')
+        api_key = data.get('gemini_api_key')
+        if api_key:
+            imposta_gemini_api_key(api_key)
     except Exception as e:
         return JsonResponse({'ok': False, 'error': f'Dati errati: {e}'}, status=400)
 

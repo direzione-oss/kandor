@@ -566,6 +566,17 @@
                         </div>
                     </div>
 
+                    <div style="margin-bottom: 18px; padding-top: 14px; border-top: 1px solid rgba(148, 163, 184, 0.15);">
+                        <label style="display: block; font-size: 0.75rem; color: #94A3B8; font-weight: 700; margin-bottom: 4px;">
+                            Chiave Google Gemini API (Opzionale / Override Live)
+                        </label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="password" id="iaCfgApiKey" class="ia-input" placeholder="Incolla chiave GEMINI_API_KEY se vuoi aggiornarla..." style="flex: 1;">
+                            <button type="button" class="ia-btn ia-btn-outline" onclick="const f = document.getElementById('iaCfgApiKey'); f.type = f.type==='password'?'text':'password';">👁️</button>
+                        </div>
+                        <span style="font-size: 0.7rem; color: #64748B;">Se lasciata vuota, viene mantenuta la chiave attiva corrente.</span>
+                    </div>
+
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <button type="button" class="ia-btn ia-btn-primary" onclick="salvaConfigurazioneTariffe()">
                             💾 Salva Parametri Economici
@@ -870,12 +881,16 @@
         const inVal = parseFloat(document.getElementById('iaCfgInput1M').value);
         const outVal = parseFloat(document.getElementById('iaCfgOutput1M').value);
         const ricVal = parseFloat(document.getElementById('iaCfgRicaricoPct').value);
+        const keyVal = (document.getElementById('iaCfgApiKey').value || '').trim();
         const msg = document.getElementById('iaCfgSuccessMsg');
+
+        const payload = { costo_input_1m: inVal, costo_output_1m: outVal, ricarico_pct: ricVal };
+        if (keyVal) payload.gemini_api_key = keyVal;
 
         fetch('/api/ia/billing/configura-tariffe/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ costo_input_1m: inVal, costo_output_1m: outVal, ricarico_pct: ricVal })
+            body: JSON.stringify(payload)
         })
         .then(r => r.json())
         .then(res => {
