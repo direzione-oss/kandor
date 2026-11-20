@@ -136,6 +136,15 @@ CATALOGO_SEZIONI_PORTALE = [
         'default_responsabile': True,
     },
     {
+        'codice': 'credito_ia',
+        'gruppo': 'OPERAZIONI',
+        'gruppo_label': '⚡ Card Operazioni Frequenti & Moduli Principali',
+        'icona': '✨',
+        'titolo': 'Crediti IA Kandor & Fatturazione (Finestra e Pill)',
+        'descrizione': 'Card in Dashboard, pill nella barra superiore e finestra modale con monitoraggio token, credito residuo e conteggio per il cliente',
+        'default_responsabile': False,
+    },
+    {
         'codice': 'guide_manuali',
         'gruppo': 'OPERAZIONI',
         'gruppo_label': '⚡ Card Operazioni Frequenti & Moduli Principali',
@@ -439,6 +448,7 @@ URL_PREFIX_TO_SECTION = [
     ('/procedure/', 'procedure'),
     ('/data-management/', 'gestione_dati'),
     ('/ia-hub/', 'centro_ia'),
+    ('/api/ia/billing/', 'credito_ia'),
     ('/manuale/', 'guide_manuali'),
 ]
 

@@ -262,6 +262,7 @@
     <!-- Sezione Operazioni Veloci -->
     <div class="section-title">Operazioni Frequenti</div>
     <div class="quick-ops-grid">
+        {% if 'credito_ia' in sezioni_abilitate_portale %}
         <!-- Card Monitoraggio Crediti IA Kandor & Fatturazione Cliente -->
         <div class="quick-card" style="border: 2px solid #3B82F6; background: linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%);">
             <div>
@@ -289,6 +290,7 @@
                 </button>
             </div>
         </div>
+        {% endif %}
         {% if is_programmatore_reale and not in_preview_responsabile %}
         <!-- Console Programmatore (Visibile SOLO a Serra Gian Carlo) -->
         <div class="quick-card" style="border: 2px solid #F59E0B; background: linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%);">

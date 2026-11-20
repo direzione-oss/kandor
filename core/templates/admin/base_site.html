@@ -26,7 +26,9 @@
 {{ block.super }}
 {% include "admin/includes/sostituti_modal.html" %}
 {% include "admin/includes/table_scroll_helper.html" %}
+{% if 'credito_ia' in sezioni_abilitate_portale %}
 {% include "admin/includes/ia_billing_modal.html" %}
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var errorNote = document.querySelector('.errornote');

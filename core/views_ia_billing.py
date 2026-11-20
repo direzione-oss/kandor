@@ -19,8 +19,17 @@ from .ia_billing_service import (
 
 
 def _check_auth(request):
-    """Verifica che l'utente sia admin, titolare o staff."""
-    return request.user.is_authenticated or request.session.get('titolare_id') or request.session.get('operatore_id')
+    """Verifica che l'utente sia autenticato e abbia la sezione 'credito_ia' abilitata."""
+    if not (request.user.is_authenticated or request.session.get('titolare_id') or request.session.get('operatore_id')):
+        return False
+    try:
+        from .accessi_service import get_sezioni_abilitate_per_request
+        sezioni = get_sezioni_abilitate_per_request(request)
+        if sezioni and 'credito_ia' not in sezioni:
+            return False
+    except Exception:
+        pass
+    return True
 
 
 def ia_billing_status_api(request):
