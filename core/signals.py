@@ -692,6 +692,8 @@ def on_programmazione_save(sender, instance, created=False, raw=False, **kwargs)
             else:
                 orario_fine = orario_inizio
 
+            mansione_str = f"Generato autom. (Qualifica: {instance.qualifica_richiesta})"
+
             AssegnazioneTurno.objects.filter(
                 programmazione_feriale=instance,
                 turno__data__gte=today
@@ -699,6 +701,7 @@ def on_programmazione_save(sender, instance, created=False, raw=False, **kwargs)
                 cliente_id=instance.cliente_id,
                 orario_inizio_previsto=orario_inizio,
                 orario_fine_previsto=orario_fine,
+                mansione_svolta=mansione_str,
             )
 
     created_count = _genera_turni_singola_programmazione(instance, only_future=(not created))
