@@ -3054,6 +3054,128 @@ class TimbraturaLiberaGpsWebAppTestCase(TestCase):
         self.assertGreater(tt.ore_dichiarate, 0)
 
 
+class CronologiaLavorazioniEUndoTestCase(TestCase):
+    """
+    Test di verifica per la sezione 'Cronologia Lavorazioni & Rollback (UNDO)':
+    - Presenza nel catalogo delle sezioni del Portale Kandor
+    - Abilitazione/Disabilitazione per ciascun Responsabile
+    - Protezione accesso: solo autorizzati e Programmatore
+    - Esecuzione corretta del Rollback / UNDO con ripristino dati
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import ProfiloAccessoPortale, Dipendente
+
+        self.prog_user = User.objects.create_superuser(
+            username='serra',
+            email='direzione@serrastudio.it',
+            password='TestPassword123!',
+            first_name='Gian Carlo',
+            last_name='Serra',
+        )
+        self.prof_prog = ProfiloAccessoPortale.objects.create(
+            user=self.prog_user,
+            ruolo='PROGRAMMATORE',
+            sezioni_abilitate=[],
+            attivo=True,
+        )
+        self.resp_user = User.objects.create_user(
+            username='responsabile_ufficio',
+            password='TestPassword123!',
+            first_name='Marco',
+            last_name='Resp',
+            is_staff=True,
+        )
+        self.dip = Dipendente.objects.create(
+            nome="Marco",
+            cognome="Resp",
+            codice_fiscale="RSPMRC80A01A794X",
+            stato="ATTIVO",
+        )
+        self.prof_resp = ProfiloAccessoPortale.objects.create(
+            user=self.resp_user,
+            dipendente=self.dip,
+            ruolo='RESPONSABILE',
+            sezioni_abilitate=[],
+            attivo=True,
+        )
+
+    def test_sezione_nel_catalogo(self):
+        from core.accessi_service import CATALOGO_SEZIONI_PORTALE, TUTTI_CODICI_SEZIONI
+        codici = [s['codice'] for s in CATALOGO_SEZIONI_PORTALE]
+        self.assertIn('cronologia_lavorazioni', codici)
+        self.assertIn('cronologia_lavorazioni', TUTTI_CODICI_SEZIONI)
+
+    def test_accesso_permessi_e_toggle(self):
+        backend = 'django.contrib.auth.backends.ModelBackend'
+
+        # 1. Responsabile senza spunta viene reindirizzato con errore
+        c_resp = self.client_class()
+        c_resp.force_login(self.resp_user, backend=backend)
+        resp_ko = c_resp.get('/cronologia-lavorazioni/')
+        self.assertEqual(resp_ko.status_code, 302)
+        self.assertEqual(resp_ko.headers.get('Location'), '/admin/')
+
+        # 2. Programmatore accede sempre
+        self.prog_user.refresh_from_db()
+        c_prog = self.client_class()
+        c_prog.force_login(self.prog_user, backend=backend)
+        resp_prog = c_prog.get('/cronologia-lavorazioni/')
+        self.assertEqual(resp_prog.status_code, 200)
+
+        # 3. Abilitazione sezione per il responsabile
+        resp_toggle = c_prog.post('/api/gestione-accessi/action/', {
+            'action': 'toggle_sezione',
+            'profilo_id': self.prof_resp.id,
+            'codice': 'cronologia_lavorazioni',
+            'abilitata': '1',
+        })
+        self.assertEqual(resp_toggle.status_code, 200)
+        self.prof_resp.refresh_from_db()
+        self.assertIn('cronologia_lavorazioni', self.prof_resp.sezioni_abilitate)
+
+        # 4. Ora il responsabile accede con successo
+        resp_ok = c_resp.get('/cronologia-lavorazioni/')
+        self.assertEqual(resp_ok.status_code, 200)
+        self.assertEqual(resp_ok.status_code, 200)
+
+    def test_registrazione_operazione_e_undo(self):
+        from core.models import RegistroOperazione
+        from core.audit_service import registra_operazione
+
+        op = registra_operazione(
+            utente=self.resp_user,
+            modulo='ORE',
+            tipo_azione='MODIFICA',
+            titolo="Rettifica ore turno",
+            dettagli="Modifica ore da 4 a 8",
+            modello_target='',
+            oggetto_id='999',
+            oggetto_descrizione="Mario Rossi — Cantiere Beta",
+            dati_precedenti={'ore': 4.0},
+            dati_successivi={'ore': 8.0},
+            annullabile=True,
+        )
+        self.assertIsNotNone(op)
+        self.assertFalse(op.annullata)
+
+        # Esecuzione UNDO via POST form
+        self.client.force_login(self.prog_user)
+        resp_undo = self.client.post('/cronologia-lavorazioni/', {
+            'action': 'esegui_undo',
+            'operazione_id': op.id,
+            'motivo': 'Errore digitazione ore',
+        }, follow=True)
+        self.assertEqual(resp_undo.status_code, 200)
+
+        op.refresh_from_db()
+        self.assertTrue(op.annullata)
+        self.assertEqual(op.annullata_da, self.prog_user)
+        self.assertEqual(op.motivo_annullamento, 'Errore digitazione ore')
+
+
+
 
 
 

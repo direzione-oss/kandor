@@ -50,6 +50,9 @@ from .views_accessi import (
     scarica_manuale_docx_view,
     manuale_programmatore_pdf_view,
 )
+from .views_cronologia import (
+    cronologia_lavorazioni_view,
+)
 from .views_erp_pro import (
     magazzino_dotazioni_view,
     magazzino_dotazioni_api,
@@ -202,4 +205,7 @@ urlpatterns = [
     path('pre-fatturazione/', pre_fatturazione_view, name='pre_fatturazione'),
     path('api/pre-fatturazione/action/', pre_fatturazione_api, name='pre_fatturazione_api'),
     path('pre-fatturazione/csv/', export_pre_fatturazione_csv, name='export_pre_fatturazione_csv'),
+
+    # Cronologia Lavorazioni & Rollback (UNDO)
+    path('cronologia-lavorazioni/', cronologia_lavorazioni_view, name='cronologia_lavorazioni'),
 ]

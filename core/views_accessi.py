@@ -381,7 +381,7 @@ def gestione_accessi_api_view(request):
     if action == 'toggle_sezione':
         prof_id = request.POST.get('profilo_id')
         codice = (request.POST.get('codice') or '').strip()
-        abilitata = request.POST.get('abilitata') == '1'
+        abilitata = request.POST.get('abilitata') in ('1', 'true', 'True')
 
         prof = get_object_or_404(ProfiloAccessoPortale, pk=prof_id)
         if prof.ruolo == 'PROGRAMMATORE':

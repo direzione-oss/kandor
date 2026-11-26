@@ -307,6 +307,22 @@
         </div>
         {% endif %}
 
+        {% if 'cronologia_lavorazioni' in sezioni_abilitate_portale %}
+        <!-- Cronologia Lavorazioni & Rollback (UNDO) -->
+        <div class="quick-card" style="border: 1.5px solid #CBD5E1; background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%);">
+            <div>
+                <div class="quick-card-header">
+                    <div class="quick-icon" style="background: #E2E8F0; color: #0F172A;">🛡️</div>
+                    <h3 style="color: #0F172A;">Cronologia &amp; UNDO</h3>
+                </div>
+                <p>Monitora le operazioni e lavorazioni svolte nel programma e annulla modifiche errate (UNDO)</p>
+            </div>
+            <div class="quick-card-actions">
+                <a href="{% url 'cronologia_lavorazioni' %}" class="quick-btn" style="background:#0F172A;">Vedi Cronologia &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
         {% if 'jolly' in sezioni_abilitate_portale %}
         <!-- Jolly -->
         <div class="quick-card">

@@ -1,0 +1,595 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<style>
+    #container, #content, #content-main { max-width: 100% !important; width: 100% !important; box-sizing: border-box; }
+    #content-related { display: none !important; }
+
+    .crono-container {
+        padding: 18px 24px 40px 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #1e293b;
+    }
+
+    /* Hero Header */
+    .crono-hero {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+        color: #ffffff;
+        padding: 24px 28px;
+        border-radius: 14px;
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.2);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .crono-hero h1 {
+        margin: 0;
+        font-size: 1.6rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .crono-hero p {
+        margin: 6px 0 0 0;
+        font-size: 0.9rem;
+        color: #94a3b8;
+    }
+
+    /* Stat Cards */
+    .crono-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .crono-stat-card {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .crono-stat-card .info h4 {
+        margin: 0;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        font-weight: 700;
+    }
+    .crono-stat-card .info .num {
+        margin: 6px 0 0 0;
+        font-size: 1.7rem;
+        font-weight: 800;
+        color: #0f172a;
+    }
+    .crono-stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+    }
+
+    /* Filters Panel */
+    .crono-filters-panel {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        padding: 18px 20px;
+        margin-bottom: 24px;
+    }
+    .crono-filters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 14px;
+        align-items: flex-end;
+    }
+    .crono-form-group label {
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #475569;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .crono-input, .crono-select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        background: #ffffff;
+        color: #1e293b;
+        transition: border-color 0.15s ease;
+    }
+    .crono-input:focus, .crono-select:focus {
+        border-color: #3b82f6;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    .crono-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        cursor: pointer;
+        border: none;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+    .crono-btn-primary {
+        background: #2563eb;
+        color: #ffffff !important;
+    }
+    .crono-btn-primary:hover {
+        background: #1d4ed8;
+    }
+    .crono-btn-secondary {
+        background: #f1f5f9;
+        color: #475569 !important;
+        border: 1px solid #cbd5e1;
+    }
+    .crono-btn-secondary:hover {
+        background: #e2e8f0;
+    }
+    .crono-btn-undo {
+        background: #fee2e2;
+        color: #b91c1c !important;
+        border: 1px solid #fca5a5;
+        padding: 5px 11px;
+        font-size: 0.78rem;
+        border-radius: 6px;
+    }
+    .crono-btn-undo:hover {
+        background: #ef4444;
+        color: #ffffff !important;
+        border-color: #dc2626;
+    }
+
+    /* Table Container */
+    .crono-table-wrapper {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+    }
+    .crono-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.86rem;
+    }
+    .crono-table th {
+        background: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 12px 16px;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: left;
+    }
+    .crono-table td {
+        padding: 12px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+    .crono-table tr:hover {
+        background: #f8fafc;
+    }
+    .crono-table tr.row-annullata {
+        background: #fafafa;
+        opacity: 0.75;
+    }
+
+    /* Badges */
+    .c-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .c-badge-modulo { background: #e0e7ff; color: #3730a3; }
+    .c-badge-creazione { background: #dcfce7; color: #166534; }
+    .c-badge-modifica { background: #fef3c7; color: #92400e; }
+    .c-badge-eliminazione { background: #fee2e2; color: #991b1b; }
+    .c-badge-stato { background: #e0f2fe; color: #075985; }
+    .c-badge-annullata { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+    .c-badge-attiva { background: #dcfce7; color: #15803d; }
+
+    /* Modal */
+    .c-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.65);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .c-modal {
+        background: #ffffff;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 540px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+    }
+    .c-modal-header {
+        background: #0f172a;
+        color: #ffffff;
+        padding: 16px 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .c-modal-header h3 { margin: 0; font-size: 1.1rem; font-weight: 700; }
+    .c-modal-body { padding: 22px; font-size: 0.9rem; line-height: 1.5; color: #334155; }
+    .c-modal-footer {
+        background: #f8fafc;
+        padding: 14px 22px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        border-top: 1px solid #e2e8f0;
+    }
+</style>
+
+<div class="crono-container">
+
+    <!-- Hero Header -->
+    <div class="crono-hero">
+        <div>
+            <h1>🛡️ Cronologia Lavorazioni &amp; Rollback (UNDO)</h1>
+            <p>Tracciamento verificabile delle operazioni svolte nel programma con controllo modifiche e annullamento sicuro.</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            {% if is_programmatore_reale %}
+            <a href="{% url 'gestione_accessi' %}" class="crono-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #0f172a !important;">
+                🔐 Permessi Responsabili
+            </a>
+            {% endif %}
+            <a href="{% url 'admin:index' %}" class="crono-btn crono-btn-secondary" style="color: #ffffff !important; background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.25);">
+                ← Torna al Gestionale
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistiche Rapide -->
+    <div class="crono-stats-grid">
+        <div class="crono-stat-card">
+            <div class="info">
+                <h4>Totale Lavorazioni</h4>
+                <div class="num">{{ totale_operazioni }}</div>
+            </div>
+            <div class="crono-stat-icon" style="background: #eff6ff; color: #2563eb;">📜</div>
+        </div>
+        <div class="crono-stat-card">
+            <div class="info">
+                <h4>Operazioni Oggi</h4>
+                <div class="num">{{ operazioni_oggi }}</div>
+            </div>
+            <div class="crono-stat-icon" style="background: #ecfdf5; color: #059669;">⚡</div>
+        </div>
+        <div class="crono-stat-card">
+            <div class="info">
+                <h4>Operazioni Annullate (UNDO)</h4>
+                <div class="num">{{ operazioni_annullate }}</div>
+            </div>
+            <div class="crono-stat-icon" style="background: #fef2f2; color: #dc2626;">↩️</div>
+        </div>
+        <div class="crono-stat-card">
+            <div class="info">
+                <h4>Responsabili Attivi</h4>
+                <div class="num">{{ operatori_count }}</div>
+            </div>
+            <div class="crono-stat-icon" style="background: #f5f3ff; color: #7c3aed;">👔</div>
+        </div>
+    </div>
+
+    <!-- Barra Filtri e Ricerca -->
+    <div class="crono-filters-panel">
+        <form method="get" action="">
+            <div class="crono-filters-grid">
+                <div class="crono-form-group" style="grid-column: span 2;">
+                    <label>🔍 Ricerca Libera</label>
+                    <input type="text" name="q" value="{{ filtri.q }}" placeholder="Cerca dipendente, cantiere, titolo operazione o note..." class="crono-input">
+                </div>
+                <div class="crono-form-group">
+                    <label>Area / Modulo</label>
+                    <select name="modulo" class="crono-select">
+                        <option value="">-- Tutti i Moduli --</option>
+                        {% for code, label in modulo_choices %}
+                        <option value="{{ code }}" {% if filtri.modulo == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="crono-form-group">
+                    <label>Tipo Azione</label>
+                    <select name="tipo_azione" class="crono-select">
+                        <option value="">-- Tutte le Azioni --</option>
+                        {% for code, label in tipo_azione_choices %}
+                        <option value="{{ code }}" {% if filtri.tipo_azione == code %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="crono-form-group">
+                    <label>Stato</label>
+                    <select name="stato" class="crono-select">
+                        <option value="">Tutte le Operazioni</option>
+                        <option value="attive" {% if filtri.stato == 'attive' %}selected{% endif %}>Solo Attive</option>
+                        <option value="annullate" {% if filtri.stato == 'annullate' %}selected{% endif %}>Solo Annullate (UNDO)</option>
+                    </select>
+                </div>
+                <div class="crono-form-group">
+                    <label>Responsabile</label>
+                    <select name="utente_id" class="crono-select">
+                        <option value="">-- Tutti i Responsabili --</option>
+                        {% for u in utenti_filtro %}
+                        <option value="{{ u.id }}" {% if filtri.utente_id == u.id|stringformat:"s" %}selected{% endif %}>
+                            {{ u.first_name }} {{ u.last_name }} (@{{ u.username }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="crono-form-group">
+                    <label>Data Da</label>
+                    <input type="date" name="data_da" value="{{ filtri.data_da }}" class="crono-input">
+                </div>
+                <div class="crono-form-group">
+                    <label>Data A</label>
+                    <input type="date" name="data_a" value="{{ filtri.data_a }}" class="crono-input">
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button type="submit" class="crono-btn crono-btn-primary" style="flex: 1;">Filtra</button>
+                    <a href="{% url 'cronologia_lavorazioni' %}" class="crono-btn crono-btn-secondary" title="Reimposta Filtri">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tabella Cronologica -->
+    <div class="crono-table-wrapper">
+        <table class="crono-table">
+            <thead>
+                <tr>
+                    <th style="width: 140px;">Data / Ora</th>
+                    <th style="width: 130px;">Area Modulo</th>
+                    <th style="width: 120px;">Tipo Azione</th>
+                    <th>Descrizione Lavorazione &amp; Oggetto</th>
+                    <th style="width: 150px;">Operatore</th>
+                    <th style="width: 90px; text-align: center;">Diff</th>
+                    <th style="width: 110px; text-align: center;">Stato</th>
+                    <th style="width: 140px; text-align: right;">Azione UNDO</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for op in operazioni %}
+                <tr class="{% if op.annullata %}row-annullata{% endif %}">
+                    <td>
+                        <strong style="color: #0f172a;">{{ op.timestamp|date:"d/m/Y" }}</strong><br>
+                        <span style="color: #64748b; font-size: 0.78rem;">{{ op.timestamp|date:"H:i:s" }}</span>
+                    </td>
+                    <td>
+                        <span class="c-badge c-badge-modulo">{{ op.get_modulo_display }}</span>
+                    </td>
+                    <td>
+                        {% if op.tipo_azione == 'CREAZIONE' %}
+                        <span class="c-badge c-badge-creazione">➕ Creazione</span>
+                        {% elif op.tipo_azione == 'MODIFICA' %}
+                        <span class="c-badge c-badge-modifica">✏️ Modifica</span>
+                        {% elif op.tipo_azione == 'ELIMINAZIONE' %}
+                        <span class="c-badge c-badge-eliminazione">🗑️ Eliminazione</span>
+                        {% elif op.tipo_azione == 'STATO' %}
+                        <span class="c-badge c-badge-stato">🔄 Stato</span>
+                        {% else %}
+                        <span class="c-badge c-badge-modulo">{{ op.get_tipo_azione_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="font-weight: 700; color: #0f172a; margin-bottom: 2px;">
+                            {{ op.titolo }}
+                        </div>
+                        {% if op.oggetto_descrizione %}
+                        <div style="font-size: 0.8rem; color: #475569;">
+                            📍 {{ op.oggetto_descrizione }}
+                        </div>
+                        {% endif %}
+                        {% if op.dettagli %}
+                        <div style="font-size: 0.77rem; color: #64748b; margin-top: 3px;">
+                            {{ op.dettagli }}
+                        </div>
+                        {% endif %}
+                        {% if op.annullata %}
+                        <div style="margin-top: 5px; font-size: 0.75rem; color: #b91c1c; background: #fee2e2; padding: 3px 8px; border-radius: 4px; display: inline-block;">
+                            ↩️ Annullata il {{ op.data_annullamento|date:"d/m/Y H:i" }} da {{ op.annullata_da.username|default:"Sistema" }} — Motivo: {{ op.motivo_annullamento|default:"Nessuno" }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if op.utente %}
+                        <strong>{{ op.utente.first_name }} {{ op.utente.last_name }}</strong><br>
+                        <span style="font-size: 0.75rem; color: #64748b;">@{{ op.utente.username }}</span>
+                        {% else %}
+                        <span style="color: #64748b;">Sistema Automatico</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        {% if op.dati_precedenti or op.dati_successivi %}
+                        <button type="button" class="crono-btn crono-btn-secondary" style="padding: 3px 8px; font-size: 0.75rem;" onclick="apriDiffModal('{{ op.id }}', '{{ op.titolo|escapejs }}', {{ op.dati_precedenti|default:'{}'|safe }}, {{ op.dati_successivi|default:'{}'|safe }})">
+                            🔍 Dettagli
+                        </button>
+                        {% else %}
+                        <span style="color: #94a3b8; font-size: 0.75rem;">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">
+                        {% if op.annullata %}
+                        <span class="c-badge c-badge-annullata">↩️ Annullata</span>
+                        {% else %}
+                        <span class="c-badge c-badge-attiva">● Attiva</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if op.annullabile and not op.annullata %}
+                        <button type="button" class="crono-btn crono-btn-undo" onclick="confermaUndo('{{ op.id }}', '{{ op.titolo|escapejs }}')">
+                            ↩️ Annulla (UNDO)
+                        </button>
+                        {% elif op.annullata %}
+                        <span style="font-size: 0.75rem; color: #94a3b8; font-style: italic;">Già Annullata</span>
+                        {% else %}
+                        <span style="font-size: 0.75rem; color: #94a3b8;">Non Annullabile</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 40px; color: #64748b;">
+                        Nessuna operazione registrata corrispondente ai filtri selezionati.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginazione -->
+    {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: center; gap: 8px; margin-top: 24px;">
+        {% if page_obj.has_previous %}
+        <a href="?page=1{% if filtri.q %}&q={{ filtri.q }}{% endif %}{% if filtri.modulo %}&modulo={{ filtri.modulo }}{% endif %}{% if filtri.stato %}&stato={{ filtri.stato }}{% endif %}" class="crono-btn crono-btn-secondary">&laquo; Prima</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if filtri.q %}&q={{ filtri.q }}{% endif %}{% if filtri.modulo %}&modulo={{ filtri.modulo }}{% endif %}{% if filtri.stato %}&stato={{ filtri.stato }}{% endif %}" class="crono-btn crono-btn-secondary">&lsaquo; Precedente</a>
+        {% endif %}
+        
+        <span style="padding: 8px 16px; font-weight: 700; color: #475569; font-size: 0.85rem;">
+            Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}
+        </span>
+
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if filtri.q %}&q={{ filtri.q }}{% endif %}{% if filtri.modulo %}&modulo={{ filtri.modulo }}{% endif %}{% if filtri.stato %}&stato={{ filtri.stato }}{% endif %}" class="crono-btn crono-btn-secondary">Successiva &rsaquo;</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if filtri.q %}&q={{ filtri.q }}{% endif %}{% if filtri.modulo %}&modulo={{ filtri.modulo }}{% endif %}{% if filtri.stato %}&stato={{ filtri.stato }}{% endif %}" class="crono-btn crono-btn-secondary">Ultima &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Modal Conferma UNDO -->
+<div class="c-modal-overlay" id="undoModalOverlay">
+    <div class="c-modal">
+        <form method="post" action="{% url 'cronologia_lavorazioni' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="esegui_undo">
+            <input type="hidden" name="operazione_id" id="undoOperazioneId" value="">
+            
+            <div class="c-modal-header" style="background: #991b1b;">
+                <h3>↩️ Conferma Annullamento Operazione (UNDO)</h3>
+                <button type="button" onclick="chiudiUndoModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&times;</button>
+            </div>
+            <div class="c-modal-body">
+                <p>Stai per annullare la seguente lavorazione:</p>
+                <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 10px 14px; border-radius: 4px; margin-bottom: 14px;">
+                    <strong id="undoTitoloOperazione" style="color: #991b1b;"></strong>
+                </div>
+                <p style="font-size: 0.85rem; color: #64748b;">
+                    Il sistema ripristinerà automaticamente lo stato precedente o rimuoverà gli elementi creati per errore. L'operazione di annullamento verrà certificata e registrata a tuo nome.
+                </p>
+                <div style="margin-top: 14px;">
+                    <label style="display:block;font-size:0.8rem;font-weight:700;margin-bottom:5px;">Motivo dell'annullamento (opzionale):</label>
+                    <input type="text" name="motivo" placeholder="Es. Assegnazione turno errata, rettifica orario non corretta..." class="crono-input">
+                </div>
+            </div>
+            <div class="c-modal-footer">
+                <button type="button" class="crono-btn crono-btn-secondary" onclick="chiudiUndoModal()">Annulla</button>
+                <button type="submit" class="crono-btn" style="background: #dc2626; color: #fff;">Conferma Rollback (UNDO)</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Dettaglio Diff Prima/Dopo -->
+<div class="c-modal-overlay" id="diffModalOverlay">
+    <div class="c-modal" style="max-width: 680px;">
+        <div class="c-modal-header">
+            <h3>🔍 Confronto Dati Prima / Dopo</h3>
+            <button type="button" onclick="chiudiDiffModal()" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;">&times;</button>
+        </div>
+        <div class="c-modal-body">
+            <h4 id="diffModalTitolo" style="margin-top:0; color:#0f172a;"></h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px;">
+                <div>
+                    <strong style="color: #991b1b; display: block; margin-bottom: 6px;">⬅️ Stato Precedente (Prima)</strong>
+                    <pre id="diffPrecedenti" style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; font-size: 0.75rem; max-height: 240px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                </div>
+                <div>
+                    <strong style="color: #15803d; display: block; margin-bottom: 6px;">➡️ Stato Applicato (Dopo)</strong>
+                    <pre id="diffSuccessivi" style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; font-size: 0.75rem; max-height: 240px; overflow-y: auto; white-space: pre-wrap;"></pre>
+                </div>
+            </div>
+        </div>
+        <div class="c-modal-footer">
+            <button type="button" class="crono-btn crono-btn-secondary" onclick="chiudiDiffModal()">Chiudi</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function confermaUndo(opId, titolo) {
+    document.getElementById('undoOperazioneId').value = opId;
+    document.getElementById('undoTitoloOperazione').textContent = titolo;
+    const modal = document.getElementById('undoModalOverlay');
+    modal.style.display = 'flex';
+}
+function chiudiUndoModal() {
+    document.getElementById('undoModalOverlay').style.display = 'none';
+}
+
+function apriDiffModal(opId, titolo, preDati, postDati) {
+    document.getElementById('diffModalTitolo').textContent = 'Operazione #' + opId + ' — ' + titolo;
+    document.getElementById('diffPrecedenti').textContent = JSON.stringify(preDati, null, 2);
+    document.getElementById('diffSuccessivi').textContent = JSON.stringify(postDati, null, 2);
+    const modal = document.getElementById('diffModalOverlay');
+    modal.style.display = 'flex';
+}
+function chiudiDiffModal() {
+    document.getElementById('diffModalOverlay').style.display = 'none';
+}
+
+// Chiudi modale al click fuori
+window.onclick = function(event) {
+    const undoM = document.getElementById('undoModalOverlay');
+    const diffM = document.getElementById('diffModalOverlay');
+    if (event.target === undoM) undoM.style.display = 'none';
+    if (event.target === diffM) diffM.style.display = 'none';
+};
+</script>
+{% endblock %}

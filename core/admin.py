@@ -2155,6 +2155,30 @@ except Exception:
     pass
 
 
+# ==============================================================================
+# ADMIN: REGISTRO OPERAZIONI & CRONOLOGIA LAVORAZIONI (UNDO)
+# ==============================================================================
+
+try:
+    from .models import RegistroOperazione
+
+    @admin.register(RegistroOperazione)
+    class RegistroOperazioneAdmin(KandorBaseAdmin):
+        list_display = (
+            'timestamp', 'modulo', 'tipo_azione', 'titolo', 'utente',
+            'oggetto_descrizione', 'annullabile', 'annullata'
+        )
+        list_filter = ('modulo', 'tipo_azione', 'annullata', 'annullabile', 'timestamp', 'utente')
+        search_fields = ('titolo', 'dettagli', 'oggetto_descrizione', 'oggetto_id', 'motivo_annullamento')
+        readonly_fields = (
+            'timestamp', 'data_annullamento', 'annullata_da'
+        )
+        date_hierarchy = 'timestamp'
+except Exception:
+    pass
+
+
+
 
 
 

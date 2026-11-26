@@ -2928,5 +2928,157 @@ class IAConsumoLog(models.Model):
         return f"{self.data_ora.strftime('%d/%m/%Y %H:%M')} | {self.operazione}{cliente_str} (€ {self.costo_eur:.4f})"
 
 
+# ==============================================================================
+# AUDIT LOG, CRONOLOGIA LAVORAZIONI & ROLLBACK (UNDO)
+# ==============================================================================
+
+class RegistroOperazione(models.Model):
+    """
+    Registro storico delle lavorazioni e operazioni effettuate nel programma
+    (turni, ore, assenze, paghe, magazzino, procedure, anagrafiche).
+    Supporta il controllo di conformità e l'annullamento sicuro (UNDO).
+    """
+    MODULO_CHOICES = [
+        ('TURNI', '📅 Turni & Jolly'),
+        ('ORE', '⏱️ Ore & Timbrature'),
+        ('PAGHE', '💰 Cedolini & Paghe'),
+        ('MAGAZZINO', '📦 Magazzino & Materiali'),
+        ('PROCEDURE', '📋 Procedure & Avvalli'),
+        ('ANAGRAFICHE', '👥 Clienti & Personale'),
+        ('ALTRO', '⚡ Altro'),
+    ]
+
+    TIPO_AZIONE_CHOICES = [
+        ('CREAZIONE', '➕ Creazione Elemento'),
+        ('MODIFICA', '✏️ Modifica Dati'),
+        ('ELIMINAZIONE', '🗑️ Eliminazione'),
+        ('STATO', '🔄 Cambio Stato / Convalida'),
+        ('APPROVAZIONE', '✅ Approvazione / Avvallo'),
+    ]
+
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="Data e Ora Operazione")
+    utente = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='operazioni_eseguite', verbose_name="Responsabile / Utente"
+    )
+    modulo = models.CharField(max_length=40, choices=MODULO_CHOICES, default='TURNI', db_index=True, verbose_name="Modulo")
+    tipo_azione = models.CharField(max_length=30, choices=TIPO_AZIONE_CHOICES, default='MODIFICA', db_index=True, verbose_name="Tipo Azione")
+    titolo = models.CharField(max_length=200, verbose_name="Descrizione Sintetica Lavorazione")
+    dettagli = models.TextField(blank=True, default='', verbose_name="Dettagli Estesi")
+
+    # Identificativi oggetto interessato
+    modello_target = models.CharField(max_length=80, blank=True, default='', verbose_name="Nome Modello Target")
+    oggetto_id = models.CharField(max_length=80, blank=True, default='', verbose_name="ID Oggetto")
+    oggetto_descrizione = models.CharField(max_length=255, blank=True, default='', verbose_name="Riferimento Oggetto (es. Mario Rossi - Cantiere Alfa)")
+
+    # Snapshot per UNDO / Rollback
+    dati_precedenti = models.JSONField(default=dict, blank=True, verbose_name="Snapshot Pre-Operazione (Stato per UNDO)")
+    dati_successivi = models.JSONField(default=dict, blank=True, verbose_name="Snapshot Post-Operazione")
+
+    # Flag e audit di Annullamento (UNDO)
+    annullabile = models.BooleanField(default=True, verbose_name="Annullabile (UNDO)")
+    annullata = models.BooleanField(default=False, db_index=True, verbose_name="Già Annullata")
+    data_annullamento = models.DateTimeField(null=True, blank=True, verbose_name="Data/Ora Annullamento")
+    annullata_da = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='operazioni_annullate', verbose_name="Annullata Da"
+    )
+    motivo_annullamento = models.CharField(max_length=255, blank=True, default='', verbose_name="Motivo Annullamento")
+
+    class Meta:
+        verbose_name = "Registro Operazione / Lavorazione"
+        verbose_name_plural = "Cronologia Lavorazioni & Rollback (UNDO)"
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['modulo', 'timestamp']),
+            models.Index(fields=['utente', 'timestamp']),
+            models.Index(fields=['annullata', 'timestamp']),
+        ]
+
+    def __str__(self):
+        utente_str = self.utente.username if self.utente else 'Sistema'
+        return f"[{self.timestamp.strftime('%d/%m/%Y %H:%M')}] {self.get_modulo_display()} - {self.titolo} ({utente_str})"
+
+    def esegui_undo(self, user, motivo=""):
+        """
+        Esegue il rollback dell'operazione.
+        Restituisce una tupla (successo: bool, messaggio: str).
+        """
+        from django.utils import timezone
+        from django.apps import apps
+
+        if not self.annullabile:
+            return False, "Questa lavorazione non è contrassegnata come annullabile."
+        if self.annullata:
+            return False, f"Operazione già annullata il {self.data_annullamento.strftime('%d/%m/%Y alle %H:%M')} da {self.annullata_da or 'sconosciuto'}."
+
+        target_model = None
+        if self.modello_target:
+            try:
+                target_model = apps.get_model('core', self.modello_target)
+            except LookupError:
+                pass
+
+        try:
+            if self.tipo_azione == 'CREAZIONE' and target_model and self.oggetto_id:
+                # Per le creazioni, l'UNDO rimuove l'oggetto creato per errore
+                obj = target_model.objects.filter(pk=self.oggetto_id).first()
+                if obj:
+                    obj.delete()
+                msg = f"Elemento '{self.oggetto_descrizione or self.oggetto_id}' rimosso con successo."
+
+            elif self.tipo_azione in ('MODIFICA', 'STATO', 'APPROVAZIONE') and target_model and self.oggetto_id:
+                # Per le modifiche, ripristina i campi pre-esistenti salvati in dati_precedenti
+                obj = target_model.objects.filter(pk=self.oggetto_id).first()
+                if not obj:
+                    return False, f"Impossibile trovare l'oggetto originario ID={self.oggetto_id} per ripristinare i valori."
+                if self.dati_precedenti:
+                    campi_aggiornati = []
+                    for k, v in self.dati_precedenti.items():
+                        if hasattr(obj, k):
+                            setattr(obj, k, v)
+                            campi_aggiornati.append(k)
+                    obj.save()
+                    msg = f"Valori precedenti ripristinati su '{self.oggetto_descrizione}': campi {', '.join(campi_aggiornati)}."
+                else:
+                    msg = f"Ripristino effettuato (nessun campo specifico da modificare)."
+
+            elif self.tipo_azione == 'ELIMINAZIONE' and target_model and self.dati_precedenti:
+                # Per le eliminazioni, ricrea l'oggetto partendo dallo snapshot pre
+                dati = dict(self.dati_precedenti)
+                if self.oggetto_id and 'id' not in dati and 'pk' not in dati:
+                    dati['id'] = self.oggetto_id
+                nuovo_obj = target_model.objects.create(**dati)
+                msg = f"Elemento '{self.oggetto_descrizione}' ricreato con successo (ID {nuovo_obj.pk})."
+            else:
+                msg = f"Annullamento logico registrato per '{self.titolo}'."
+
+            self.annullata = True
+            self.data_annullamento = timezone.now()
+            self.annullata_da = user
+            self.motivo_annullamento = motivo or "Annullato da interfaccia Responsabile"
+            self.save(update_fields=['annullata', 'data_annullamento', 'annullata_da', 'motivo_annullamento'])
+
+            # Traccia l'operazione di UNDO stessa nel registro
+            RegistroOperazione.objects.create(
+                utente=user,
+                modulo=self.modulo,
+                tipo_azione='STATO',
+                titolo=f"↩️ UNDO: Annullata operazione #{self.id}",
+                dettagli=f"Ripristino di '{self.titolo}'. Motivo: {motivo or 'Nessuno specificato'}",
+                modello_target=self.modello_target,
+                oggetto_id=self.oggetto_id,
+                oggetto_descrizione=self.oggetto_descrizione,
+                dati_precedenti={'operazione_id_annullata': self.id},
+                dati_successivi={'stato': 'ANNULLATA'},
+                annullabile=False,
+            )
+
+            return True, msg
+        except Exception as e:
+            return False, f"Errore durante l'esecuzione dell'UNDO: {str(e)}"
+
+
+
 
 

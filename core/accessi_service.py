@@ -145,6 +145,15 @@ CATALOGO_SEZIONI_PORTALE = [
         'default_responsabile': False,
     },
     {
+        'codice': 'cronologia_lavorazioni',
+        'gruppo': 'OPERAZIONI',
+        'gruppo_label': '⚡ Card Operazioni Frequenti & Moduli Principali',
+        'icona': '🛡️',
+        'titolo': 'Cronologia Lavorazioni & Rollback (UNDO)',
+        'descrizione': 'Registro verificabile delle lavorazioni/operazioni con controllo modifiche e pulsante di annullamento (UNDO)',
+        'default_responsabile': False,
+    },
+    {
         'codice': 'guide_manuali',
         'gruppo': 'OPERAZIONI',
         'gruppo_label': '⚡ Card Operazioni Frequenti & Moduli Principali',
@@ -448,6 +457,7 @@ URL_PREFIX_TO_SECTION = [
     ('/procedure/', 'procedure'),
     ('/data-management/', 'gestione_dati'),
     ('/ia-hub/', 'centro_ia'),
+    ('/cronologia-lavorazioni/', 'cronologia_lavorazioni'),
     ('/api/ia/billing/', 'credito_ia'),
     ('/manuale/', 'guide_manuali'),
 ]
