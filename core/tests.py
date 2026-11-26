@@ -2828,6 +2828,149 @@ class TestFestivitaESospensioniCliente(TestCase):
         self.assertFalse(assign2.is_sospeso)
 
 
+class DipendenteCanaliComunicazioneFiltriTestCase(TestCase):
+    """
+    Test di verifica per i filtri dell'Elenco Dipendenti in Django Admin:
+    - TelegramDipendenteFilter (ha telegram / senza telegram)
+    - WhatsAppDipendenteFilter (ha whatsapp / attivo webapp / senza whatsapp)
+    - CanaleComunicazioneFilter (almeno uno / entrambi / solo tg / solo wa / nessuno)
+    """
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.admin_user = User.objects.create_superuser(
+            username='admin_filtri_test',
+            email='admin@kandor.test',
+            password='TestPassword123!',
+        )
+        self.client.force_login(self.admin_user)
+
+        self.dip_tg = Dipendente.objects.create(
+            nome="Mario",
+            cognome="Telegram",
+            codice_fiscale="TLGMRA80A01H501Z",
+            telegram_chat_id="111222333",
+            telefono="",
+            stato="ATTIVO",
+        )
+        self.dip_wa = Dipendente.objects.create(
+            nome="Luigi",
+            cognome="WhatsApp",
+            codice_fiscale="WHTLGU80A01H501K",
+            telegram_chat_id=None,
+            telefono="3331122334",
+            stato="ATTIVO",
+        )
+        self.dip_both = Dipendente.objects.create(
+            nome="Anna",
+            cognome="Entrambi",
+            codice_fiscale="NTRNNA80A01H501W",
+            telegram_chat_id="444555666",
+            telefono="3339988776",
+            privacy_accettata=True,
+            stato="ATTIVO",
+        )
+        self.dip_none = Dipendente.objects.create(
+            nome="Paolo",
+            cognome="Nessuno",
+            codice_fiscale="NSSPLA80A01H501Y",
+            telegram_chat_id="",
+            telefono="",
+            stato="ATTIVO",
+        )
+
+    def test_filtro_telegram(self):
+        from core.admin import TelegramDipendenteFilter
+        qs = Dipendente.objects.filter(pk__in=[self.dip_tg.pk, self.dip_wa.pk, self.dip_both.pk, self.dip_none.pk])
+        
+        # Con Telegram
+        f_si = TelegramDipendenteFilter(None, {'has_telegram': ['si']}, Dipendente, None)
+        res_si = list(f_si.queryset(None, qs))
+        self.assertIn(self.dip_tg, res_si)
+        self.assertIn(self.dip_both, res_si)
+        self.assertNotIn(self.dip_wa, res_si)
+        self.assertNotIn(self.dip_none, res_si)
+
+        # Senza Telegram
+        f_no = TelegramDipendenteFilter(None, {'has_telegram': ['no']}, Dipendente, None)
+        res_no = list(f_no.queryset(None, qs))
+        self.assertIn(self.dip_wa, res_no)
+        self.assertIn(self.dip_none, res_no)
+        self.assertNotIn(self.dip_tg, res_no)
+        self.assertNotIn(self.dip_both, res_no)
+
+    def test_filtro_whatsapp(self):
+        from core.admin import WhatsAppDipendenteFilter
+        qs = Dipendente.objects.filter(pk__in=[self.dip_tg.pk, self.dip_wa.pk, self.dip_both.pk, self.dip_none.pk])
+
+        # Con WhatsApp / Telefono
+        f_si = WhatsAppDipendenteFilter(None, {'has_whatsapp': ['si']}, Dipendente, None)
+        res_si = list(f_si.queryset(None, qs))
+        self.assertIn(self.dip_wa, res_si)
+        self.assertIn(self.dip_both, res_si)
+        self.assertNotIn(self.dip_tg, res_si)
+        self.assertNotIn(self.dip_none, res_si)
+
+        # Attivo App / Privacy accettata
+        f_app = WhatsAppDipendenteFilter(None, {'has_whatsapp': ['attivo_app']}, Dipendente, None)
+        res_app = list(f_app.queryset(None, qs))
+        self.assertIn(self.dip_both, res_app)
+        self.assertNotIn(self.dip_tg, res_app)
+        self.assertNotIn(self.dip_none, res_app)
+
+        # Senza WhatsApp
+        f_no = WhatsAppDipendenteFilter(None, {'has_whatsapp': ['no']}, Dipendente, None)
+        res_no = list(f_no.queryset(None, qs))
+        self.assertIn(self.dip_tg, res_no)
+        self.assertIn(self.dip_none, res_no)
+        self.assertNotIn(self.dip_wa, res_no)
+        self.assertNotIn(self.dip_both, res_no)
+
+    def test_filtro_canale_comunicazione(self):
+        from core.admin import CanaleComunicazioneFilter
+        qs = Dipendente.objects.filter(pk__in=[self.dip_tg.pk, self.dip_wa.pk, self.dip_both.pk, self.dip_none.pk])
+
+        # Almeno uno (Telegram O WhatsApp)
+        f_uno = CanaleComunicazioneFilter(None, {'canale_comunicazione': ['almeno_uno']}, Dipendente, None)
+        res_uno = list(f_uno.queryset(None, qs))
+        self.assertEqual(len(res_uno), 3)
+        self.assertIn(self.dip_tg, res_uno)
+        self.assertIn(self.dip_wa, res_uno)
+        self.assertIn(self.dip_both, res_uno)
+        self.assertNotIn(self.dip_none, res_uno)
+
+        # Entrambi (Sia Telegram che WhatsApp)
+        f_both = CanaleComunicazioneFilter(None, {'canale_comunicazione': ['entrambi']}, Dipendente, None)
+        res_both = list(f_both.queryset(None, qs))
+        self.assertEqual(res_both, [self.dip_both])
+
+        # Solo Telegram
+        f_solo_tg = CanaleComunicazioneFilter(None, {'canale_comunicazione': ['solo_tg']}, Dipendente, None)
+        res_solo_tg = list(f_solo_tg.queryset(None, qs))
+        self.assertEqual(res_solo_tg, [self.dip_tg])
+
+        # Solo WhatsApp
+        f_solo_wa = CanaleComunicazioneFilter(None, {'canale_comunicazione': ['solo_wa']}, Dipendente, None)
+        res_solo_wa = list(f_solo_wa.queryset(None, qs))
+        self.assertEqual(res_solo_wa, [self.dip_wa])
+
+        # Nessun canale
+        f_none = CanaleComunicazioneFilter(None, {'canale_comunicazione': ['nessuno']}, Dipendente, None)
+        res_none = list(f_none.queryset(None, qs))
+        self.assertEqual(res_none, [self.dip_none])
+
+    def test_changelist_admin_http(self):
+        # Verifica che la changelist risponda 200 con i nuovi filtri applicati via URL
+        resp_tg = self.client.get('/admin/core/dipendente/?has_telegram=si')
+        self.assertEqual(resp_tg.status_code, 200)
+
+        resp_wa = self.client.get('/admin/core/dipendente/?has_whatsapp=si')
+        self.assertEqual(resp_wa.status_code, 200)
+
+        resp_comb = self.client.get('/admin/core/dipendente/?canale_comunicazione=almeno_uno')
+        self.assertEqual(resp_comb.status_code, 200)
+
+
+
 
 
 

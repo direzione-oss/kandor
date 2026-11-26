@@ -4,6 +4,7 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
 from django.db import IntegrityError
+from django.db.models import Q
 from django.core.exceptions import ValidationError
 
 class KandorBaseAdmin(admin.ModelAdmin):
@@ -432,12 +433,130 @@ class StatoDipendenteDefaultAttiviFilter(admin.SimpleListFilter):
         return queryset.filter(stato=val)
 
 
+def get_webapp_connected_dip_ids():
+    """Restituisce l'insieme di ID dei dipendenti che hanno una sessione attiva della Web App."""
+    import base64
+    import json
+    import zlib
+    from django.contrib.sessions.models import Session
+
+    connected_ids = set()
+    try:
+        for raw in Session.objects.values_list('session_data', flat=True):
+            if not raw:
+                continue
+            try:
+                b64_part = raw.split(':', 1)[0]
+                pad = b64_part + '=' * (-len(b64_part) % 4)
+                dec = base64.urlsafe_b64decode(pad)
+                if dec.startswith(b'.'):
+                    dec = zlib.decompress(dec[1:])
+                payload = json.loads(dec.decode('utf-8'))
+                dip_id = payload.get('dipendente_app_id')
+                if dip_id and (payload.get('dipendente_webapp_auth') or '_auth_user_id' not in payload):
+                    connected_ids.add(int(dip_id))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return connected_ids
+
+
+class TelegramDipendenteFilter(admin.SimpleListFilter):
+    title = 'Telegram'
+    parameter_name = 'has_telegram'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('si', '✈️ Ha Telegram collegato'),
+            ('no', '❌ Senza Telegram'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val == 'si':
+            return queryset.exclude(telegram_chat_id__isnull=True).exclude(telegram_chat_id='')
+        if val == 'no':
+            return queryset.filter(Q(telegram_chat_id__isnull=True) | Q(telegram_chat_id=''))
+        return queryset
+
+
+class WhatsAppDipendenteFilter(admin.SimpleListFilter):
+    title = 'WhatsApp'
+    parameter_name = 'has_whatsapp'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('si', '💬 Ha WhatsApp (Numero cellulare)'),
+            ('attivo_app', '💚 Attivo su Web App / WhatsApp'),
+            ('no', '❌ Senza WhatsApp / Telefono'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val == 'si':
+            return queryset.exclude(telefono__isnull=True).exclude(telefono='')
+        if val == 'attivo_app':
+            connected_ids = get_webapp_connected_dip_ids()
+            return queryset.filter(Q(pk__in=connected_ids) | Q(privacy_accettata=True))
+        if val == 'no':
+            return queryset.filter(Q(telefono__isnull=True) | Q(telefono=''))
+        return queryset
+
+
+class CanaleComunicazioneFilter(admin.SimpleListFilter):
+    title = 'Canale (Telegram / WhatsApp)'
+    parameter_name = 'canale_comunicazione'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('almeno_uno', '📱 Ha Telegram O WhatsApp (Almeno uno)'),
+            ('entrambi', '✨ Ha Sia Telegram Che WhatsApp'),
+            ('solo_tg', '✈️ Solo Telegram (Senza WhatsApp)'),
+            ('solo_wa', '💬 Solo WhatsApp (Senza Telegram)'),
+            ('nessuno', '⚠️ Nessun Canale (Né Telegram né WhatsApp)'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        q_has_tg = Q(telegram_chat_id__isnull=False) & ~Q(telegram_chat_id='')
+        q_no_tg = Q(telegram_chat_id__isnull=True) | Q(telegram_chat_id='')
+        q_has_wa = Q(telefono__isnull=False) & ~Q(telefono='')
+        q_no_wa = Q(telefono__isnull=True) | Q(telefono='')
+
+        if val == 'almeno_uno':
+            return queryset.filter(q_has_tg | q_has_wa)
+        if val == 'entrambi':
+            return queryset.filter(q_has_tg & q_has_wa)
+        if val == 'solo_tg':
+            return queryset.filter(q_has_tg & q_no_wa)
+        if val == 'solo_wa':
+            return queryset.filter(q_no_tg & q_has_wa)
+        if val == 'nessuno':
+            return queryset.filter(q_no_tg & q_no_wa)
+        return queryset
+
+
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'jolly_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     list_editable = ('costo_orario_aziendale',)
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
-    list_filter = (StatoDipendenteDefaultAttiviFilter, 'privacy_accettata', 'is_jolly', 'livello_contrattuale', 'riceve_notifiche_messaggi', 'usufruisce_104', 'is_part_time', 'tipo_part_time', 'is_sostituto', 'qualifiche')
+    list_filter = (
+        StatoDipendenteDefaultAttiviFilter,
+        TelegramDipendenteFilter,
+        WhatsAppDipendenteFilter,
+        CanaleComunicazioneFilter,
+        'privacy_accettata',
+        'is_jolly',
+        'livello_contrattuale',
+        'riceve_notifiche_messaggi',
+        'usufruisce_104',
+        'is_part_time',
+        'tipo_part_time',
+        'is_sostituto',
+        'qualifiche',
+    )
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
     actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action', 'imposta_jolly_action', 'rimuovi_jolly_action']
@@ -740,31 +859,7 @@ class DipendenteAdmin(KandorBaseAdmin):
         }
 
     def _get_webapp_connected_dip_ids(self):
-        import base64
-        import json
-        import zlib
-        from django.contrib.sessions.models import Session
-
-        connected_ids = set()
-        try:
-            for raw in Session.objects.values_list('session_data', flat=True):
-                if not raw:
-                    continue
-                try:
-                    b64_part = raw.split(':', 1)[0]
-                    pad = b64_part + '=' * (-len(b64_part) % 4)
-                    dec = base64.urlsafe_b64decode(pad)
-                    if dec.startswith(b'.'):
-                        dec = zlib.decompress(dec[1:])
-                    payload = json.loads(dec.decode('utf-8'))
-                    dip_id = payload.get('dipendente_app_id')
-                    if dip_id and (payload.get('dipendente_webapp_auth') or '_auth_user_id' not in payload):
-                        connected_ids.add(int(dip_id))
-                except Exception:
-                    continue
-        except Exception:
-            pass
-        return connected_ids
+        return get_webapp_connected_dip_ids()
 
     def changelist_view(self, request, extra_context=None):
         self._cached_webapp_dip_ids = self._get_webapp_connected_dip_ids()
