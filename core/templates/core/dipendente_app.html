@@ -620,11 +620,11 @@
             {% endfor %}
             {% endif %}
 
-            <!-- TIMBRATURA GPS CANTIERE (SCELTA LIBERA DA MENU) -->
+            <!-- TIMBRATURA GPS CANTIERE (SOLO TURNI DEL GIORNO) -->
             <div class="card" style="background:#F8FAFC; border:1.5px solid #CBD5E1; margin-bottom:16px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span style="font-weight:800; font-size:14px; color:#0F172A;">📍 Timbratura GPS Cantiere</span>
-                    <span class="badge" style="background:#E2E8F0; color:#334155; font-weight:700;">Scelta Libera</span>
+                    <span class="badge badge-blue">Turni di Oggi</span>
                 </div>
 
                 {% if timbratura_aperta_info %}
@@ -636,34 +636,40 @@
                 </div>
                 {% endif %}
 
+                {% if turni_oggi %}
                 <div style="font-size:12px; color:#64748B; margin-bottom:8px;">
-                    Scegli il cantiere in cui ti trovi per timbrare l'ingresso o l'uscita con verifica GPS:
+                    Seleziona il cantiere del tuo turno di oggi per timbrare l'ingresso o l'uscita:
                 </div>
 
                 <div class="form-group" style="margin-bottom:10px;">
-                    <select id="quick_timbra_cliente_id" class="form-control" style="font-weight:600; font-size:13.5px; padding:10px;" onchange="aggiornaDettaglioCantiereSelezionato()">
-                        <option value="">-- Seleziona Cantiere / Cliente --</option>
-                        {% for c in tutti_clienti %}
-                        <option value="{{ c.id }}" data-indirizzo="{{ c.indirizzo_sede|default:'' }}" {% if timbratura_aperta_info and timbratura_aperta_info.cliente_id == c.id %}selected{% endif %}>
-                            🏢 {{ c.ragione_sociale }}
+                    <select id="quick_timbra_assign_id" class="form-control" style="font-weight:600; font-size:13.5px; padding:10px;" onchange="aggiornaDettaglioTurnoSelezionato()">
+                        {% if turni_oggi|length > 1 %}
+                        <option value="">-- Seleziona Cantiere / Turno di Oggi --</option>
+                        {% endif %}
+                        {% for t in turni_oggi %}
+                        <option value="{{ t.id }}" data-cliente-id="{{ t.cliente_id }}" data-indirizzo="{{ t.cliente_indirizzo|default:'' }}" data-checkin="{{ t.check_in_str }}" data-checkout="{{ t.check_out_str }}" {% if timbratura_aperta_info and timbratura_aperta_info.assign_id == t.id %}selected{% elif turni_oggi|length == 1 %}selected{% endif %}>
+                            🏢 {{ t.cliente_nome }}{% if t.orario_inizio and t.orario_fine %} ({{ t.orario_inizio }} - {{ t.orario_fine }}){% endif %}
                         </option>
                         {% endfor %}
                     </select>
-                    <div id="quick_timbra_indirizzo" style="font-size:11.5px; color:#475569; margin-top:5px; {% if not timbratura_aperta_info %}display:none;{% endif %}">
-                        {% if timbratura_aperta_info %}
-                        📍 <em>Cantiere selezionato per il Check-Out</em>
-                        {% endif %}
-                    </div>
+                    <div id="quick_timbra_indirizzo" style="font-size:11.5px; color:#475569; margin-top:5px;"></div>
+                    <div id="quick_timbra_orari_info" style="font-size:11.5px; margin-top:4px; font-weight:600;"></div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                    <button type="button" class="btn btn-success" style="padding:11px 8px; font-weight:800; font-size:13.5px; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="timbraLiberaGps('CHECK_IN')">
+                    <button type="button" class="btn btn-success" style="padding:11px 8px; font-weight:800; font-size:13.5px; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="timbraTurnoOggiGps('CHECK_IN')">
                         <span>🟢 Check-In GPS</span>
                     </button>
-                    <button type="button" class="btn btn-danger" style="padding:11px 8px; font-weight:800; font-size:13.5px; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="timbraLiberaGps('CHECK_OUT')">
+                    <button type="button" class="btn btn-danger" style="padding:11px 8px; font-weight:800; font-size:13.5px; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="timbraTurnoOggiGps('CHECK_OUT')">
                         <span>🔴 Check-Out GPS</span>
                     </button>
                 </div>
+                {% else %}
+                <div style="text-align:center; padding:12px 8px; color:#64748B; font-size:13px;">
+                    ☕ <strong>Nessun turno programmato per oggi ({{ today_str }}).</strong>
+                    <div style="font-size:11.5px; margin-top:4px; color:#94A3B8;">I pulsanti di timbratura GPS si abilitano sui cantieri dei tuoi turni programmati.</div>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Turni di Oggi -->
@@ -1882,30 +1888,55 @@
             }, 150);
         }
 
-        async function timbraLiberaGps(tipo) {
-            const sel = document.getElementById('quick_timbra_cliente_id');
-            const clienteId = sel ? sel.value : '';
-            if (!clienteId) {
-                alert('Seleziona prima il cantiere / cliente dal menu a tendina.');
+        async function timbraTurnoOggiGps(tipo) {
+            const sel = document.getElementById('quick_timbra_assign_id');
+            const assignId = sel ? sel.value : '';
+            if (!assignId) {
+                alert('Seleziona il cantiere / turno di oggi dal menu a tendina.');
                 if (sel) sel.focus();
                 return;
             }
-            try { localStorage.setItem('kandor_last_timbratura_cliente_id', clienteId); } catch(e){}
-            await timbraGeofenceGps(tipo, '', clienteId);
+            const opt = sel.options[sel.selectedIndex];
+            const clienteId = opt ? opt.getAttribute('data-cliente-id') : '';
+            await timbraGeofenceGps(tipo, assignId, clienteId);
         }
 
-        function aggiornaDettaglioCantiereSelezionato() {
-            const sel = document.getElementById('quick_timbra_cliente_id');
+        function aggiornaDettaglioTurnoSelezionato() {
+            const sel = document.getElementById('quick_timbra_assign_id');
             const indBox = document.getElementById('quick_timbra_indirizzo');
-            if (!sel || !indBox) return;
+            const infoBox = document.getElementById('quick_timbra_orari_info');
+            if (!sel) return;
             const opt = sel.options[sel.selectedIndex];
-            const ind = opt ? opt.getAttribute('data-indirizzo') : '';
-            if (ind) {
-                indBox.style.display = 'block';
-                indBox.innerHTML = '📍 <em>' + ind + '</em>';
-            } else {
-                indBox.style.display = 'none';
-                indBox.innerHTML = '';
+            if (!opt || !opt.value) {
+                if (indBox) { indBox.style.display = 'none'; indBox.innerHTML = ''; }
+                if (infoBox) { infoBox.style.display = 'none'; infoBox.innerHTML = ''; }
+                return;
+            }
+            const ind = opt.getAttribute('data-indirizzo') || '';
+            const cIn = opt.getAttribute('data-checkin') || '';
+            const cOut = opt.getAttribute('data-checkout') || '';
+
+            if (indBox) {
+                if (ind) {
+                    indBox.style.display = 'block';
+                    indBox.innerHTML = '📍 <em>' + ind + '</em>';
+                } else {
+                    indBox.style.display = 'none';
+                    indBox.innerHTML = '';
+                }
+            }
+
+            if (infoBox) {
+                if (cIn || cOut) {
+                    infoBox.style.display = 'block';
+                    let txt = '';
+                    if (cIn) txt += '<span style="color:#047857;">🟢 Entrata registrata: ' + cIn + '</span>';
+                    if (cOut) txt += (txt ? ' &bull; ' : '') + '<span style="color:#B91C1C;">🔴 Uscita registrata: ' + cOut + '</span>';
+                    infoBox.innerHTML = txt;
+                } else {
+                    infoBox.style.display = 'none';
+                    infoBox.innerHTML = '';
+                }
             }
         }
 
@@ -1952,17 +1983,9 @@
             }
         }
 
-        // Ripristino rapido ultimo cantiere selezionato se non già impostato dal server
         try {
             document.addEventListener('DOMContentLoaded', () => {
-                const sel = document.getElementById('quick_timbra_cliente_id');
-                if (sel && !sel.value) {
-                    const lastCli = localStorage.getItem('kandor_last_timbratura_cliente_id');
-                    if (lastCli) {
-                        sel.value = lastCli;
-                        aggiornaDettaglioCantiereSelezionato();
-                    }
-                }
+                aggiornaDettaglioTurnoSelezionato();
             });
         } catch(e){}
 

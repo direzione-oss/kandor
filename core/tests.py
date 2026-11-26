@@ -3104,13 +3104,16 @@ class DipendenteCanaliComunicazioneFiltriTestCase(TestCase):
 
 class TimbraturaLiberaGpsWebAppTestCase(TestCase):
     """
-    Test di verifica per la Timbratura Libera GPS da Web App:
-    - Selezione libera di qualsiasi cantiere attivo
-    - Check-In GPS su cantiere senza turno programmato (creazione al volo del turno)
-    - Check-Out GPS con calcolo automatico ore e aggiornamento stato aperto
+    Test di verifica per la Timbratura GPS da Web App:
+    - Selezione cantiere limitata ESCLUSIVAMENTE ai clienti per cui il dipendente ha un turno oggi
+    - Check-In GPS sul turno selezionato
+    - Check-Out GPS con calcolo automatico ore e aggiornamento stato
     """
     def setUp(self):
-        from core.models import Dipendente, Cliente
+        from core.models import Dipendente, Cliente, Squadra, Turno, AssegnazioneTurno
+        from django.utils import timezone
+        import datetime
+
         self.dip = Dipendente.objects.create(
             nome="Giulia",
             cognome="Verdi",
@@ -3119,30 +3122,53 @@ class TimbraturaLiberaGpsWebAppTestCase(TestCase):
             privacy_accettata=True,
             privacy_versione='1.0',
         )
-        self.cli = Cliente.objects.create(
+        self.cli_oggi = Cliente.objects.create(
             ragione_sociale="Condominio Smeraldo",
             indirizzo_sede="Via Roma 1, Bergamo",
             latitudine=45.6983,
             longitudine=9.6773,
         )
+        self.cli_nessun_turno = Cliente.objects.create(
+            ragione_sociale="Azienda Senza Turno",
+            indirizzo_sede="Via Milano 10, Bergamo",
+            latitudine=45.7000,
+            longitudine=9.6800,
+        )
+
+        today = timezone.localdate()
+        self.squadra = Squadra.objects.create(nome="Squadra Giulia", caposquadra=self.dip)
+        self.turno = Turno.objects.create(data=today, squadra=self.squadra)
+        self.assign = AssegnazioneTurno.objects.create(
+            turno=self.turno,
+            cliente=self.cli_oggi,
+            orario_inizio_previsto=datetime.time(8, 0),
+            orario_fine_previsto=datetime.time(12, 0),
+            ore_previste_contratto=4.0,
+        )
+
         session = self.client.session
         session['dipendente_app_id'] = self.dip.id
         session['dipendente_webapp_auth'] = True
         session.save()
 
-    def test_timbratura_libera_checkin_and_checkout(self):
+    def test_timbratura_checkin_and_checkout_turni_oggi(self):
         from core.models import TimeTracking, ProximityLog
 
-        # 1. Verifica che la home dell'app mostri tutti i clienti
+        # 1. Verifica che i turni di oggi mostrino SOLO il cliente con turno oggi e NON altri clienti
         resp = self.client.get('/app/')
         self.assertEqual(resp.status_code, 200)
-        self.assertIn('tutti_clienti', resp.context)
-        self.assertTrue(any(c.id == self.cli.id for c in resp.context['tutti_clienti']))
+        self.assertIn('turni_oggi', resp.context)
+        turni_oggi = resp.context['turni_oggi']
+        self.assertEqual(len(turni_oggi), 1)
+        self.assertEqual(turni_oggi[0]['cliente_id'], self.cli_oggi.id)
+        # Il cliente non programmato per oggi non deve essere nei turni di oggi
+        self.assertFalse(any(t['cliente_id'] == self.cli_nessun_turno.id for t in turni_oggi))
 
-        # 2. Check-In GPS libero senza turno programmato
+        # 2. Check-In GPS sul turno di oggi
         post_in = self.client.post('/app/action/', {
             'action': 'timbra_geofence_gps',
-            'cliente_id': self.cli.id,
+            'assign_id': self.assign.id,
+            'cliente_id': self.cli_oggi.id,
             'tipo_timbratura': 'CHECK_IN',
             'lat': '45.6983',
             'lon': '9.6773',
@@ -3153,27 +3179,28 @@ class TimbraturaLiberaGpsWebAppTestCase(TestCase):
         self.assertIn('Check-In registrato', data_in.get('message', ''))
 
         # TimeTracking creato con check_in
-        tt = TimeTracking.objects.filter(dipendente=self.dip, assegnazione__cliente=self.cli).first()
+        tt = TimeTracking.objects.filter(dipendente=self.dip, assegnazione=self.assign).first()
         self.assertIsNotNone(tt)
         self.assertIsNotNone(tt.check_in)
         self.assertIsNone(tt.check_out)
 
         # ProximityLog registrato
-        pl = ProximityLog.objects.filter(dipendente=self.dip, cliente=self.cli).first()
+        pl = ProximityLog.objects.filter(dipendente=self.dip, cliente=self.cli_oggi).first()
         self.assertIsNotNone(pl)
         self.assertTrue(pl.is_near)
 
-        # 3. La Home dell'app adesso deve mostrare timbratura_aperta_info
+        # 3. La Home dell'app adesso mostra timbratura_aperta_info per quel cantiere
         resp_after_in = self.client.get('/app/')
         self.assertEqual(resp_after_in.status_code, 200)
         open_info = resp_after_in.context.get('timbratura_aperta_info')
         self.assertIsNotNone(open_info)
-        self.assertEqual(open_info['cliente_id'], self.cli.id)
+        self.assertEqual(open_info['cliente_id'], self.cli_oggi.id)
 
-        # 4. Check-Out GPS libero
+        # 4. Check-Out GPS
         post_out = self.client.post('/app/action/', {
             'action': 'timbra_geofence_gps',
-            'cliente_id': self.cli.id,
+            'assign_id': self.assign.id,
+            'cliente_id': self.cli_oggi.id,
             'tipo_timbratura': 'CHECK_OUT',
             'lat': '45.6983',
             'lon': '9.6773',
@@ -3182,6 +3209,10 @@ class TimbraturaLiberaGpsWebAppTestCase(TestCase):
         data_out = post_out.json()
         self.assertTrue(data_out.get('ok'))
         self.assertIn('Check-Out registrato', data_out.get('message', ''))
+
+        tt.refresh_from_db()
+        self.assertIsNotNone(tt.check_out)
+        self.assertGreater(tt.ore_dichiarate, 0)
 
         tt.refresh_from_db()
         self.assertIsNotNone(tt.check_out)
