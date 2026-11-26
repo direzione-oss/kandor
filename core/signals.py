@@ -578,7 +578,7 @@ def _genera_turni_singola_programmazione(prog, days=365, only_future=False):
     if prog.durata:
         dt_start = datetime.combine(date.today(), orario_inizio)
         hours = int(prog.durata)
-        minutes = int((prog.durata - hours) * 60)
+        minutes = int(round((prog.durata - hours) * 60))
         dt_end = dt_start + timedelta(hours=hours, minutes=minutes)
         orario_fine = dt_end.time()
     else:
@@ -687,7 +687,7 @@ def on_programmazione_save(sender, instance, created=False, raw=False, **kwargs)
             if instance.durata:
                 dt_start = datetime.combine(date.today(), orario_inizio)
                 hours = int(instance.durata)
-                minutes = int((instance.durata - hours) * 60)
+                minutes = int(round((instance.durata - hours) * 60))
                 orario_fine = (dt_start + timedelta(hours=hours, minutes=minutes)).time()
             else:
                 orario_fine = orario_inizio

@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django import forms
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
@@ -1056,8 +1057,40 @@ class DipendenteAdmin(KandorBaseAdmin):
             )
 
 
+class ProgrammazioneRicorrenteForm(forms.ModelForm):
+    durata = forms.CharField(
+        label="Durata ore:min (es. 1:34 o 8)",
+        help_text="Durata in ore:minuti (es. 1:34 per 1h e 34m, oppure 7:30, 8:00, 45m).",
+        widget=forms.TextInput(attrs={
+            'placeholder': 'es. 1:34 o 8',
+            'style': 'max-width: 140px; font-weight: bold;'
+        })
+    )
+
+    class Meta:
+        model = ProgrammazioneRicorrente
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and self.instance.durata is not None:
+            from .utils_ore import format_ore_hhmm
+            self.initial['durata'] = format_ore_hhmm(self.instance.durata)
+
+    def clean_durata(self):
+        val = self.cleaned_data.get('durata')
+        if val is None or str(val).strip() == '':
+            return None
+        from .utils_ore import parse_ore_input
+        dec = parse_ore_input(val)
+        if dec is None or dec <= 0:
+            raise forms.ValidationError("Inserisci una durata valida in formato HH:MM (es. 1:34) o ore (es. 8).")
+        return dec
+
+
 class ProgrammazioneInline(admin.StackedInline):
     model = ProgrammazioneRicorrente
+    form = ProgrammazioneRicorrenteForm
     extra = 1
     readonly_fields = ('ora_fine',)
     ordering = ('tipo_ripetizione', 'giorno_settimana', 'ora_inizio')
@@ -1087,9 +1120,10 @@ class StraordinarioInline(admin.StackedInline):
 
 @admin.register(ProgrammazioneRicorrente)
 class ProgrammazioneRicorrenteAdmin(KandorBaseAdmin):
+    form = ProgrammazioneRicorrenteForm
     list_display = (
         'cliente', 'tipo_ripetizione', 'get_giorno_display',
-        'ora_inizio', 'durata', 'ora_fine',
+        'ora_inizio', 'get_durata_display', 'ora_fine',
         'squadra_abituale', 'mezzo_abituale',
         'data_inizio_contratto', 'data_fine_contratto'
     )
@@ -1119,6 +1153,13 @@ class ProgrammazioneRicorrenteAdmin(KandorBaseAdmin):
             )
         }),
     )
+
+    @admin.display(description="Durata (HH:MM)", ordering='durata')
+    def get_durata_display(self, obj):
+        from .utils_ore import format_ore_hhmm
+        if obj.durata is None:
+            return "-"
+        return f"{format_ore_hhmm(obj.durata)} ({obj.durata:g}h)"
 
     def get_giorno_display(self, obj):
         if obj.tipo_ripetizione == 'GIORNALIERO':

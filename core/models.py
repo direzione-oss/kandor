@@ -410,7 +410,7 @@ class ProgrammazioneRicorrente(models.Model):
     giorno_mese = models.IntegerField(null=True, blank=True, verbose_name="Giorno del Mese (1-31)")
     
     ora_inizio = models.TimeField(help_text="Formato HH:MM (es. 06:30)")
-    durata = models.DecimalField(max_digits=4, decimal_places=2, help_text="Durata in ore (es. 2.5 per 2 ore e mezza)", default=1.0)
+    durata = models.DecimalField(max_digits=4, decimal_places=2, help_text="Durata in ore (es. 1:34 o 8:00)", default=1.0)
     ora_fine = models.TimeField(editable=False, null=True) # Calcolato autom.
     
     orario_flessibile = models.BooleanField(default=False, help_text="Se attivo, gli orari sono indicativi")
@@ -424,6 +424,16 @@ class ProgrammazioneRicorrente(models.Model):
     data_inizio_contratto = models.DateField(null=True, blank=True, verbose_name="Data Inizio Contratto", help_text="Data dalla quale iniziano i turni")
     data_fine_contratto = models.DateField(null=True, blank=True, verbose_name="Data Fine Contratto", help_text="Data fino alla quale generare i turni (vuoto = a tempo indeterminato)")
 
+    @property
+    def durata_hhmm(self):
+        from .utils_ore import format_ore_hhmm
+        return format_ore_hhmm(self.durata)
+
+    @property
+    def durata_fmt(self):
+        from .utils_ore import format_ore_estese
+        return format_ore_estese(self.durata)
+
     def save(self, *args, **kwargs):
         # Calcolo automatico ora_fine
         if self.ora_inizio and self.durata:
@@ -433,7 +443,7 @@ class ProgrammazioneRicorrente(models.Model):
             dt_start = datetime.datetime.combine(dummy_date, self.ora_inizio)
             # Durata in ore -> timedelta
             hours = int(self.durata)
-            minutes = int((self.durata - hours) * 60)
+            minutes = int(round((self.durata - hours) * 60))
             dt_end = dt_start + datetime.timedelta(hours=hours, minutes=minutes)
             self.ora_fine = dt_end.time()
         super().save(*args, **kwargs)
