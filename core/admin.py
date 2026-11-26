@@ -539,6 +539,7 @@ class CanaleComunicazioneFilter(admin.SimpleListFilter):
 
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
+    change_list_template = 'admin/core/dipendente/change_list.html'
     list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'jolly_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     list_editable = ('costo_orario_aziendale',)
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
@@ -559,7 +560,7 @@ class DipendenteAdmin(KandorBaseAdmin):
     )
     filter_horizontal = ('qualifiche',)
     inlines = [CorsoDipendenteInline]
-    actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action', 'imposta_jolly_action', 'rimuovi_jolly_action']
+    actions = ['send_telegram_message_action', 'rigenera_pin_action', 'abilita_notifiche_messaggi_action', 'disabilita_notifiche_messaggi_action', 'imposta_jolly_action', 'rimuovi_jolly_action', 'esporta_excel_action']
     readonly_fields = ('anteprima_foto_telegram', 'condivisione_whatsapp_box', 'privacy_accettata_il', 'privacy_versione', 'privacy_ip')
     fieldsets = (
         ('Dati Anagrafici & Accesso App', {
@@ -611,6 +612,11 @@ class DipendenteAdmin(KandorBaseAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
+                'export-excel/',
+                self.admin_site.admin_view(self.export_excel_view),
+                name='core_dipendente_export_excel',
+            ),
+            path(
                 'toggle-sostituto/<int:dip_id>/',
                 self.admin_site.admin_view(self.toggle_sostituto_view),
                 name='core_dipendente_toggle_sostituto',
@@ -627,6 +633,30 @@ class DipendenteAdmin(KandorBaseAdmin):
             ),
         ]
         return custom_urls + urls
+
+    def export_excel_view(self, request):
+        """
+        Esporta l'elenco dei dipendenti attualmente filtrato dall'utente in ChangeList
+        (rispetta ricerca di testo, filtri laterali e ordinamento attivi).
+        """
+        cl = self.get_changelist_instance(request)
+        queryset = cl.get_queryset(request).prefetch_related('qualifiche')
+        return self._generate_dipendenti_excel_response(queryset)
+
+    def _generate_dipendenti_excel_response(self, queryset):
+        from django.http import HttpResponse
+        from django.utils import timezone
+        from .utils_import import export_dipendenti_to_excel
+
+        output = export_dipendenti_to_excel(queryset)
+        now_str = timezone.now().strftime('%Y%m%d_%H%M')
+        filename = f"elenco_dipendenti_{now_str}.xlsx"
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
     def toggle_sostituto_view(self, request, dip_id):
         from django.http import JsonResponse
@@ -686,6 +716,10 @@ class DipendenteAdmin(KandorBaseAdmin):
     def rimuovi_jolly_action(self, request, queryset):
         updated = queryset.update(is_jolly=False)
         self.message_user(request, f'🚫 Flag "Jolly" rimosso per {updated} dipendenti.', messages.SUCCESS)
+
+    @admin.action(description='📥 Esporta in Excel i dipendenti selezionati')
+    def esporta_excel_action(self, request, queryset):
+        return self._generate_dipendenti_excel_response(queryset.prefetch_related('qualifiche'))
 
     @admin.display(description='RIC.NOT.', ordering='riceve_notifiche_messaggi')
     def riceve_notifiche_toggle_badge(self, obj):

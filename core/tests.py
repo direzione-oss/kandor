@@ -734,6 +734,69 @@ class DipendentePartTimeTestCase(TestCase):
         )
         self.assertEqual(admin_obj.part_time_display(dip_part), "Part-Time (M - Misto)")
 
+    def test_export_dipendenti_to_excel_and_admin_view(self):
+        import io
+        import openpyxl
+        from django.test import RequestFactory
+        from django.contrib.auth.models import User
+        from django.contrib.admin.sites import AdminSite
+        from core.admin import DipendenteAdmin
+        from core.models import Dipendente, Qualifica
+        from core.utils_import import export_dipendenti_to_excel
+
+        q1 = Qualifica.objects.create(nome="Operaio Specializzato")
+        dip1 = Dipendente.objects.create(
+            nome='Mario', cognome='Rossi', codice_fiscale='RSSMRA80A01H501U',
+            stato='ATTIVO', is_jolly=True, is_part_time=False
+        )
+        dip1.qualifiche.add(q1)
+        dip2 = Dipendente.objects.create(
+            nome='Luigi', cognome='Verdi', codice_fiscale='VRDLGU85B02H501K',
+            stato='INATTIVO', is_jolly=False, is_part_time=True, tipo_part_time='V'
+        )
+
+        # 1. Test diretto export_dipendenti_to_excel
+        buf = export_dipendenti_to_excel(Dipendente.objects.filter(pk__in=[dip1.pk, dip2.pk]))
+        self.assertIsInstance(buf, io.BytesIO)
+        wb = openpyxl.load_workbook(buf)
+        self.assertIn('Dipendenti', wb.sheetnames)
+        sheet = wb['Dipendenti']
+        self.assertEqual(sheet.cell(row=1, column=1).value, 'ID')
+        self.assertEqual(sheet.cell(row=1, column=2).value, 'Cognome')
+        # Verifica righe scritte (1 header + 2 dipendenti)
+        self.assertEqual(sheet.max_row, 3)
+
+        # 2. Test export_excel_view via Admin con filtri attivi (es. solo Jolly)
+        factory = RequestFactory()
+        admin_user = User.objects.create_superuser('admin_excel', 'admin_excel@kandor.it', 'pass1234')
+        admin_obj = DipendenteAdmin(Dipendente, AdminSite())
+
+        # Richiesta filtrata: is_jolly__exact=1
+        req_filtered = factory.get('/admin/core/dipendente/export-excel/?is_jolly__exact=1')
+        req_filtered.user = admin_user
+        resp_filtered = admin_obj.export_excel_view(req_filtered)
+        self.assertEqual(resp_filtered.status_code, 200)
+        self.assertIn('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', resp_filtered['Content-Type'])
+        self.assertIn('attachment; filename="elenco_dipendenti_', resp_filtered['Content-Disposition'])
+
+        wb_filtered = openpyxl.load_workbook(io.BytesIO(resp_filtered.content))
+        sheet_filtered = wb_filtered['Dipendenti']
+        # Con il filtro is_jolly=1, solo dip1 deve essere presente
+        cognomi_filtrati = [sheet_filtered.cell(row=r, column=2).value for r in range(2, sheet_filtered.max_row + 1)]
+        self.assertIn('Rossi', cognomi_filtrati)
+        self.assertNotIn('Verdi', cognomi_filtrati)
+
+        # 3. Test admin action esporta_excel_action
+        req_action = factory.post('/admin/core/dipendente/')
+        req_action.user = admin_user
+        resp_action = admin_obj.esporta_excel_action(req_action, Dipendente.objects.filter(pk=dip2.pk))
+        self.assertEqual(resp_action.status_code, 200)
+        wb_action = openpyxl.load_workbook(io.BytesIO(resp_action.content))
+        sheet_action = wb_action['Dipendenti']
+        cognomi_action = [sheet_action.cell(row=r, column=2).value for r in range(2, sheet_action.max_row + 1)]
+        self.assertEqual(cognomi_action, ['Verdi'])
+
+
 
 from core.models import TimeTracking
 from decimal import Decimal

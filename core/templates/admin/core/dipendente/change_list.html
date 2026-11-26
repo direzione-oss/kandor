@@ -1,0 +1,12 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <a href="export-excel/{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="button" style="background: #15803D !important; color: #FFFFFF !important; font-weight: 700; border: none; border-radius: 6px; padding: 7px 14px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.12); margin-left: 6px;" title="Scarica il file Excel (.xlsx) contenente tutti i dipendenti filtrati in base ai criteri attuali">
+            <svg style="width: 15px; height: 15px; fill: currentColor;" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Esporta Elenco Filtrato (Excel)
+        </a>
+    </li>
+{% endblock %}

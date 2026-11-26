@@ -307,3 +307,151 @@ def export_data_excel(model_name):
     workbook.close()
     output.seek(0)
     return output
+
+
+def export_dipendenti_to_excel(queryset):
+    """
+    Esporta un queryset di Dipendente (filtrato dai filtri admin o completo)
+    in un file Excel (.xlsx) con formattazione professionale, larghezza colonne automatica,
+    blocco riga intestazioni e autofiltro.
+    """
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+    worksheet = workbook.add_worksheet('Dipendenti')
+
+    header_format = workbook.add_format({
+        'bold': True,
+        'bg_color': '#1E293B',
+        'font_color': '#FFFFFF',
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter',
+        'font_name': 'Arial',
+        'font_size': 10,
+    })
+
+    cell_left = workbook.add_format({
+        'border': 1,
+        'align': 'left',
+        'valign': 'vcenter',
+        'font_name': 'Arial',
+        'font_size': 9.5,
+    })
+    cell_center = workbook.add_format({
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter',
+        'font_name': 'Arial',
+        'font_size': 9.5,
+    })
+    cell_date = workbook.add_format({
+        'border': 1,
+        'align': 'center',
+        'valign': 'vcenter',
+        'num_format': 'dd/mm/yyyy',
+        'font_name': 'Arial',
+        'font_size': 9.5,
+    })
+    cell_currency = workbook.add_format({
+        'border': 1,
+        'align': 'right',
+        'valign': 'vcenter',
+        'num_format': '€ #,##0.00',
+        'font_name': 'Arial',
+        'font_size': 9.5,
+    })
+    cell_decimal = workbook.add_format({
+        'border': 1,
+        'align': 'right',
+        'valign': 'vcenter',
+        'num_format': '#,##0.0',
+        'font_name': 'Arial',
+        'font_size': 9.5,
+    })
+
+    headers = [
+        'ID',
+        'Cognome',
+        'Nome',
+        'Codice Fiscale',
+        'Stato',
+        'Data Nascita',
+        'Data Assunzione',
+        'Data Licenziamento',
+        'Livello Contrattuale',
+        'Costo Orario Aziendale',
+        'Part-Time',
+        'Tipo Part-Time',
+        'Ore Settimana Part-Time',
+        'Sostituto Disponibile',
+        'Jolly',
+        'Categoria Protetta',
+        'Legge 104',
+        'Riceve Notifiche Resp.',
+        'Qualifiche / Mansioni',
+        'Telefono',
+        'Email',
+        'Indirizzo Residenza',
+        'Scadenza Visita Medica',
+        'Privacy Accettata',
+        'PIN Accesso App',
+        'Telegram Chat ID',
+    ]
+
+    worksheet.set_row(0, 26)
+    for col_idx, h in enumerate(headers):
+        worksheet.write(0, col_idx, h, header_format)
+
+    col_widths = [len(h) + 4 for h in headers]
+
+    row_idx = 1
+    for dip in queryset:
+        qualifiche_str = ', '.join([q.nome for q in dip.qualifiche.all()])
+
+        data_row = [
+            (dip.id, cell_center),
+            (dip.cognome or '', cell_left),
+            (dip.nome or '', cell_left),
+            (dip.codice_fiscale or '', cell_center),
+            (dip.get_stato_display() if hasattr(dip, 'get_stato_display') else (dip.stato or ''), cell_center),
+            (dip.data_nascita.strftime('%d/%m/%Y') if dip.data_nascita else '', cell_date if dip.data_nascita else cell_center),
+            (dip.data_assunzione.strftime('%d/%m/%Y') if dip.data_assunzione else '', cell_date if dip.data_assunzione else cell_center),
+            (dip.data_licenziamento.strftime('%d/%m/%Y') if dip.data_licenziamento else '', cell_date if dip.data_licenziamento else cell_center),
+            (dip.get_livello_contrattuale_display() if hasattr(dip, 'get_livello_contrattuale_display') else (dip.livello_contrattuale or ''), cell_center),
+            (float(dip.costo_orario_aziendale) if dip.costo_orario_aziendale is not None else '', cell_currency if dip.costo_orario_aziendale is not None else cell_center),
+            ('Sì' if dip.is_part_time else 'No', cell_center),
+            (dip.get_tipo_part_time_display() if hasattr(dip, 'get_tipo_part_time_display') else (dip.tipo_part_time or ''), cell_center),
+            (float(dip.ore_settimanali_part_time) if dip.ore_settimanali_part_time is not None else '', cell_decimal if dip.ore_settimanali_part_time is not None else cell_center),
+            ('Sì' if dip.is_sostituto else 'No', cell_center),
+            ('Sì' if dip.is_jolly else 'No', cell_center),
+            ('Sì' if dip.categoria_protetta else 'No', cell_center),
+            ('Sì' if dip.usufruisce_104 else 'No', cell_center),
+            ('Sì' if dip.riceve_notifiche_messaggi else 'No', cell_center),
+            (qualifiche_str, cell_left),
+            (dip.telefono or '', cell_center),
+            (dip.email or '', cell_left),
+            (dip.indirizzo_residenza or '', cell_left),
+            (dip.data_ultima_visita_medica.strftime('%d/%m/%Y') if dip.data_ultima_visita_medica else '', cell_date if dip.data_ultima_visita_medica else cell_center),
+            ('Sì' if dip.privacy_accettata else 'No', cell_center),
+            (dip.pin_accesso or '', cell_center),
+            (dip.telegram_chat_id or '', cell_center),
+        ]
+
+        worksheet.set_row(row_idx, 20)
+        for c_idx, (val, fmt) in enumerate(data_row):
+            worksheet.write(row_idx, c_idx, val, fmt)
+            s_val = str(val or '')
+            if len(s_val) + 3 > col_widths[c_idx]:
+                col_widths[c_idx] = min(len(s_val) + 3, 40)
+
+        row_idx += 1
+
+    for c_idx, w in enumerate(col_widths):
+        worksheet.set_column(c_idx, c_idx, max(w, 12))
+
+    worksheet.freeze_panes(1, 0)
+    worksheet.autofilter(0, 0, max(row_idx - 1, 1), len(headers) - 1)
+
+    workbook.close()
+    output.seek(0)
+    return output
