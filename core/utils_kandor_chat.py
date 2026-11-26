@@ -1926,10 +1926,10 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     if clean_text in ('/scheda', '/app', 'scheda', 'app'):
         _TELEGRAM_STATE.pop(telegram_chat_id, None)
         from django.conf import settings
-        from urllib.parse import quote
+        from .security_service import get_dipendente_magic_url
         base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
-        if dipendente and getattr(dipendente, 'codice_fiscale', None) and getattr(dipendente, 'pin_accesso', None):
-            app_url = f"{base_url}/app/?cf={quote(dipendente.codice_fiscale)}&pin={quote(dipendente.pin_accesso)}"
+        if dipendente and getattr(dipendente, 'codice_fiscale', None):
+            app_url = get_dipendente_magic_url(dipendente, base_url=base_url)
         else:
             app_url = f"{base_url}/app/"
         return {

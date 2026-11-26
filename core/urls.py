@@ -54,6 +54,11 @@ from .views_accessi import (
 from .views_cronologia import (
     cronologia_lavorazioni_view,
 )
+from .views_cron import (
+    invia_auguri_cron_view,
+    api_cron_run_tasks_view,
+    api_task_status_view,
+)
 from .views_erp_pro import (
     magazzino_dotazioni_view,
     magazzino_dotazioni_api,
@@ -212,4 +217,9 @@ urlpatterns = [
 
     # Cronologia Lavorazioni & Rollback (UNDO)
     path('cronologia-lavorazioni/', cronologia_lavorazioni_view, name='cronologia_lavorazioni'),
+
+    # Background Tasks & Cron Scheduler Endpoints
+    path('api/tasks/<str:task_id>/', api_task_status_view, name='api_task_status'),
+    path('api/cron/run-tasks/', api_cron_run_tasks_view, name='api_cron_run_tasks'),
+    path('api/cron/invia-auguri/', invia_auguri_cron_view, name='invia_auguri_cron'),
 ]

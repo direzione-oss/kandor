@@ -231,6 +231,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Telegram Integration
 # Ottieni il token da @BotFather su Telegram
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_WEBHOOK_SECRET = os.environ.get('TELEGRAM_WEBHOOK_SECRET', 'kandor-webhook-secret-production-v1')
 
 # Token per endpoint riepilogo settimanale (GET /titolari/riepilogo/?token=...)
 RIEPILOGO_TOKEN = os.environ.get('RIEPILOGO_TOKEN', '')

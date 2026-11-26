@@ -67,7 +67,20 @@ def _get_photo_url(dip):
 
 
 def _get_logged_dipendente(request):
-    # Permetti accesso diretto tramite link personale (Magic Link WhatsApp: ?cf=...&pin=...)
+    # 1. Permetti accesso prioritario tramite Magic Link firmato (?token=...)
+    token_q = (request.GET.get('token') or '').strip()
+    if token_q:
+        from .security_service import verify_magic_token
+        dip_id, cf_token = verify_magic_token(token_q)
+        if dip_id and cf_token:
+            cand = Dipendente.objects.filter(pk=dip_id, codice_fiscale__iexact=cf_token, stato='ATTIVO').first()
+            if cand:
+                request.session[SESSION_KEY_DIP_ID] = cand.pk
+                request.session['dipendente_webapp_auth'] = True
+                request.session.set_expiry(60 * 60 * 24 * 90)
+                return cand
+
+    # 2. Permetti accesso diretto tramite link legacy personale (?cf=...&pin=...)
     cf_q = (request.GET.get('cf') or '').strip().upper().replace(' ', '')
     pin_q = (request.GET.get('pin') or '').strip()
     if cf_q and pin_q:
@@ -256,27 +269,41 @@ def dipendente_app_login_view(request):
     if request.method == 'POST':
         cf_val = (request.POST.get('codice_fiscale') or '').strip().upper().replace(' ', '')
         pin_val = (request.POST.get('pin_accesso') or '').strip()
+        client_ip = _get_client_ip(request)
+
+        from .security_service import check_login_rate_limit, record_login_failure, reset_login_attempts
 
         if not cf_val or not pin_val:
             error = "Inserisci sia il Codice Fiscale sia il PIN di 4 cifre."
         else:
-            cand = Dipendente.objects.filter(codice_fiscale__iexact=cf_val).first()
-            if not cand:
-                error = "Codice Fiscale non trovato in archivio. Verifica di averlo scritto correttamente."
-            elif cand.stato != 'ATTIVO':
-                error = "Questo profilo dipendente risulta non attivo. Contatta l'Amministrazione."
+            is_allowed, attempts_left, retry_after = check_login_rate_limit(cf_val, ip=client_ip, max_attempts=5, window_seconds=900)
+            if not is_allowed:
+                error = f"⛔ Troppi tentativi falliti. Per sicurezza l'accesso è temporaneamente bloccato per {int(retry_after // 60) or 15} minuti. Riprova più tardi."
             else:
-                # Assicura che abbia un PIN
-                if not cand.pin_accesso:
-                    cand.save()
-                if cand.pin_accesso.strip() != pin_val:
-                    error = "PIN di accesso non corretto. Verifica il PIN di 4 cifre con l'Amministrazione."
+                cand = Dipendente.objects.filter(codice_fiscale__iexact=cf_val).first()
+                if not cand:
+                    record_login_failure(cf_val, ip=client_ip)
+                    error = "Codice Fiscale non trovato in archivio. Verifica di averlo scritto correttamente."
+                elif cand.stato != 'ATTIVO':
+                    error = "Questo profilo dipendente risulta non attivo. Contatta l'Amministrazione."
                 else:
-                    request.session[SESSION_KEY_DIP_ID] = cand.pk
-                    request.session['dipendente_webapp_auth'] = True
-                    # Sessione persistente per 90 giorni sul cellulare
-                    request.session.set_expiry(60 * 60 * 24 * 90)
-                    return HttpResponseRedirect('/app/')
+                    # Assicura che abbia un PIN
+                    if not cand.pin_accesso:
+                        cand.save()
+                    if cand.pin_accesso.strip() != pin_val:
+                        cur_fails = record_login_failure(cf_val, ip=client_ip)
+                        rimasti = max(0, 5 - cur_fails)
+                        if rimasti > 0:
+                            error = f"PIN di accesso non corretto. Tentativi rimasti: {rimasti}."
+                        else:
+                            error = "⛔ Troppi tentativi falliti. L'accesso è ora bloccato per 15 minuti."
+                    else:
+                        reset_login_attempts(cf_val, ip=client_ip)
+                        request.session[SESSION_KEY_DIP_ID] = cand.pk
+                        request.session['dipendente_webapp_auth'] = True
+                        # Sessione persistente per 90 giorni sul cellulare
+                        request.session.set_expiry(60 * 60 * 24 * 90)
+                        return HttpResponseRedirect('/app/')
 
     return render(request, 'core/dipendente_login.html', {
         'error': error,
@@ -1047,149 +1074,36 @@ def dipendente_app_action_view(request):
 
     # 11. TIMBRATURA GEOFENCE GPS / QR CODE IN CANTIERE (Check-In / Check-Out reale + ProximityLog)
     elif action == 'timbra_geofence_gps':
+        from .turni_service import registra_timbratura_gps
         assign_id = request.POST.get('assign_id')
         cliente_id = request.POST.get('cliente_id')
         tipo_timbratura = (request.POST.get('tipo_timbratura') or 'CHECK_IN').strip().upper()
         lat_raw = request.POST.get('latitudine') or request.POST.get('lat')
         lon_raw = request.POST.get('longitudine') or request.POST.get('lon')
 
-        now = timezone.now()
-        today = timezone.localdate()
-
-        assign = None
-        if assign_id and str(assign_id).isdigit():
-            assign = AssegnazioneTurno.objects.select_related('cliente', 'turno').filter(pk=int(assign_id)).first()
-        if not assign and cliente_id and str(cliente_id).isdigit():
-            assign = (
-                AssegnazioneTurno.objects.select_related('cliente', 'turno')
-                .filter(cliente_id=int(cliente_id), turno__data=today)
-                .filter(
-                    Q(turno__squadra__componenti=dip)
-                    | Q(turno__squadra__caposquadra=dip)
-                    | Q(timetracks__dipendente=dip)
-                )
-                .first()
-            )
-            if not assign:
-                assign = (
-                    AssegnazioneTurno.objects.select_related('cliente', 'turno')
-                    .filter(cliente_id=int(cliente_id), turno__data=today)
-                    .first()
-                )
-
-        # Se non esiste ancora un turno programmato oggi per questo cantiere, crealo al volo
-        if not assign and cliente_id and str(cliente_id).isdigit():
-            target_cli = Cliente.objects.filter(pk=int(cliente_id)).first()
-            if target_cli:
-                squadra = dip.squadre_appartenenza.first() or dip.squadre_capitanate.first()
-                if not squadra:
-                    squadra = Squadra.objects.first()
-                turno, _ = Turno.objects.get_or_create(
-                    data=today,
-                    squadra=squadra,
-                )
-                ora_inizio = timezone.localtime(now).time().replace(second=0, microsecond=0)
-                dt_fine = datetime.combine(today, ora_inizio) + timedelta(hours=2)
-                assign, _ = AssegnazioneTurno.objects.get_or_create(
-                    turno=turno,
-                    cliente=target_cli,
-                    defaults={
-                        'orario_inizio_previsto': ora_inizio,
-                        'orario_fine_previsto': dt_fine.time(),
-                        'ore_previste_contratto': Decimal('2.00'),
-                        'mansione_svolta': "Timbratura rapida da App Dipendenti",
-                    }
-                )
-
-        if not assign:
-            return JsonResponse({
-                'ok': False,
-                'error': 'Seleziona un cantiere valido per registrare la timbratura GPS.',
-            })
-
-        cliente = assign.cliente
-        lat_val = None
-        lon_val = None
-        distanza_m = None
-        is_near = True
-        try:
-            if lat_raw and lon_raw:
-                lat_val = float(lat_raw)
-                lon_val = float(lon_raw)
-                if cliente and cliente.latitudine and cliente.longitudine:
-                    from geopy.distance import geodesic
-                    distanza_m = int(round(geodesic((lat_val, lon_val), (cliente.latitudine, cliente.longitudine)).meters))
-                    is_near = distanza_m <= 300
-        except Exception:
-            pass
-
-        # Registra/aggiorna ProximityLog per tracciabilità Geofence (unique_together dipendente+cliente)
-        if cliente:
+        # Supporto timestamp retrodatato nativo per sincronizzazione offline
+        ts_raw = request.POST.get('timestamp_locale') or request.POST.get('client_timestamp')
+        ts_dt = None
+        if ts_raw:
             try:
-                if tipo_timbratura == 'CHECK_IN':
-                    ProximityLog.objects.update_or_create(
-                        dipendente=dip,
-                        cliente=cliente,
-                        defaults={
-                            'is_near': is_near,
-                            'entered_at': now,
-                            'exited_at': None,
-                        },
-                    )
-                else:
-                    prox_obj, _ = ProximityLog.objects.get_or_create(
-                        dipendente=dip,
-                        cliente=cliente,
-                        defaults={'is_near': is_near, 'entered_at': now},
-                    )
-                    prox_obj.is_near = False
-                    prox_obj.exited_at = now
-                    prox_obj.save()
+                from dateutil.parser import parse as parse_date
+                ts_dt = parse_date(ts_raw)
+                if timezone.is_naive(ts_dt):
+                    ts_dt = timezone.make_aware(ts_dt, timezone.get_current_timezone())
             except Exception:
-                pass
+                ts_dt = None
 
-        tt, _ = TimeTracking.objects.get_or_create(
+        res = registra_timbratura_gps(
             dipendente=dip,
-            assegnazione=assign,
-            defaults={'source': 'WEBAPP'},
+            cliente_id=cliente_id,
+            assign_id=assign_id,
+            tipo_timbratura=tipo_timbratura,
+            lat=lat_raw,
+            lon=lon_raw,
+            timestamp_rilevato=ts_dt,
+            source='WEBAPP',
         )
-        if lat_val is not None and lon_val is not None:
-            tt.latitudine = lat_val
-            tt.longitudine = lon_val
-
-        gps_badge = f" (📍 GPS verificato a {distanza_m}m dal cantiere)" if distanza_m is not None else " (📍 Timbratura registrata)"
-        ora_locale = timezone.localtime(now).strftime('%H:%M')
-
-        if tipo_timbratura == 'CHECK_IN':
-            tt.check_in = now
-            tt.source = 'WEBAPP'
-            tt.save()
-            return JsonResponse({
-                'ok': True,
-                'message': f"🟢 Check-In registrato alle {ora_locale} presso {cliente.ragione_sociale}{gps_badge}!",
-                'ora': ora_locale,
-                'distanza_m': distanza_m,
-            })
-        else:
-            tt.check_out = now
-            if not tt.check_in:
-                tt.check_in = now - timedelta(hours=float(_calcola_ore_previste(assign)))
-            delta_h = max(0.5, round((tt.check_out - tt.check_in).total_seconds() / 3600.0, 1))
-            if tt.ore_dichiarate is None:
-                tt.ore_dichiarate = Decimal(str(delta_h))
-            nota_gps = f"[Geofence {ora_locale}" + (f" - {distanza_m}m]" if distanza_m is not None else "]")
-            if nota_gps not in (tt.note or ''):
-                tt.note = ((tt.note or '') + ' ' + nota_gps).strip()
-            tt.source = 'WEBAPP'
-            tt.save()
-            assign.dipendenti_esclusi.remove(dip)
-            return JsonResponse({
-                'ok': True,
-                'message': f"🔴 Check-Out registrato alle {ora_locale} presso {cliente.ragione_sociale} ({tt.ore_dichiarate}h calcolate){gps_badge}!",
-                'ora': ora_locale,
-                'ore_calcolate': float(tt.ore_dichiarate),
-                'distanza_m': distanza_m,
-            })
+        return JsonResponse(res, status=200 if res.get('ok') else 400)
 
     # 12. SALVA SCHEDA ISPEZIONE QUALITÀ CANTIERE DA MOBILE (Responsabili Area / Capisquadra)
     elif action == 'salva_ispezione_mobile':
@@ -1280,18 +1194,46 @@ def dipendente_app_icon_view(request):
 
 
 def dipendente_app_sw_view(request):
-    js = """const CACHE_NAME = 'kandor-app-v1';
+    js = """const CACHE_NAME = 'kandor-pwa-v2';
+const STATIC_ASSETS = [
+  '/app/',
+  '/app/manifest.json',
+  '/app/icon.svg'
+];
+
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+  );
   self.skipWaiting();
 });
+
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+    )).then(() => self.clients.claim())
+  );
 });
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
-  );
+  const url = new URL(event.request.url);
+
+  // Network-first con fallback su cache per le pagine dell'app
+  if (url.pathname.startsWith('/app/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((resp) => {
+          if (resp && resp.status === 200) {
+            const clone = resp.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/app/')))
+    );
+  }
 });
 """
     response = HttpResponse(js, content_type="application/javascript")

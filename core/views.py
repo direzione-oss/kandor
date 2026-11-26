@@ -1302,6 +1302,9 @@ def telegram_webhook_view(request):
     Gestisce messaggi di testo e callback_query (bottoni inline).
     """
     if request.method == 'POST':
+        from .security_service import validate_telegram_webhook_secret
+        if not validate_telegram_webhook_secret(request):
+            return HttpResponseForbidden("Accesso non autorizzato: secret token non valido.")
         try:
             data = json.loads(request.body)
             token = settings.TELEGRAM_BOT_TOKEN

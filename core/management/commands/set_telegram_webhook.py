@@ -26,9 +26,13 @@ class Command(BaseCommand):
         self.stdout.write(f"Configurando Webhook su: {webhook_url}")
 
         api_url = f"https://api.telegram.org/bot{token}/setWebhook"
+        secret_token = getattr(settings, 'TELEGRAM_WEBHOOK_SECRET', '').strip()
+        data_payload = {'url': webhook_url}
+        if secret_token:
+            data_payload['secret_token'] = secret_token
         
         try:
-            response = requests.post(api_url, data={'url': webhook_url})
+            response = requests.post(api_url, data=data_payload)
             
             if response.status_code == 200:
                 result = response.json()

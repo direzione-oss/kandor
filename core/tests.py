@@ -3340,6 +3340,159 @@ class CronologiaLavorazioniEUndoTestCase(TestCase):
         self.assertEqual(op.motivo_annullamento, 'Errore digitazione ore')
 
 
+class CinqueMigliorieTestCase(TestCase):
+    """
+    Test di verifica per le 5 migliorie implementate:
+    1. Hardening sicurezza: Token Magic Link firmati crittograficamente
+    2. Rate limiting login & protezione brute-force PIN
+    3. Validazione header segreto Webhook Telegram
+    4. Coda asincrona task in background
+    5. Servizio turni con supporto timbratura offline retrodatata e gestione scheduler
+    """
+
+    def setUp(self):
+        self.qualifica = Qualifica.objects.create(nome="Operatore Specializzato")
+        self.dip = Dipendente.objects.create(
+            nome="Mario",
+            cognome="Rossi",
+            codice_fiscale="RSSMRA80A01C123X",
+            telefono="3331234567",
+            stato="ATTIVO",
+            pin_accesso="1234",
+            privacy_accettata=True,
+            privacy_versione="1.0",
+        )
+        self.dip.qualifiche.add(self.qualifica)
+        self.cliente = Cliente.objects.create(
+            ragione_sociale="Condominio Belvedere",
+            indirizzo_sede="Via Roma 10, Milano",
+            latitudine=45.4642,
+            longitudine=9.1900,
+        )
+
+    def test_security_magic_link_signed_tokens(self):
+        from .security_service import generate_magic_token, verify_magic_token
+
+        token = generate_magic_token(self.dip.pk, self.dip.codice_fiscale)
+        self.assertIsNotNone(token)
+        self.assertIn(':', token)
+
+        # Verifica decodifica corretta
+        dip_id, cf = verify_magic_token(token)
+        self.assertEqual(dip_id, self.dip.pk)
+        self.assertEqual(cf, self.dip.codice_fiscale)
+
+        # Verifica rifiuto token manomesso
+        tampered = token + "xyz"
+        bad_id, bad_cf = verify_magic_token(tampered)
+        self.assertIsNone(bad_id)
+        self.assertIsNone(bad_cf)
+
+    def test_security_login_rate_limiting(self):
+        from .security_service import check_login_rate_limit, record_login_failure, reset_login_attempts
+
+        test_cf = "RATECHECKCF12345"
+        reset_login_attempts(test_cf)
+
+        # Inizialmente consentito
+        allowed, left, _ = check_login_rate_limit(test_cf, max_attempts=3)
+        self.assertTrue(allowed)
+        self.assertEqual(left, 3)
+
+        # 3 fallimenti consecutivi
+        record_login_failure(test_cf)
+        record_login_failure(test_cf)
+        record_login_failure(test_cf)
+
+        # Ora deve essere bloccato
+        allowed, left, _ = check_login_rate_limit(test_cf, max_attempts=3)
+        self.assertFalse(allowed)
+        self.assertEqual(left, 0)
+
+        # Reset a seguito di login riuscito
+        reset_login_attempts(test_cf)
+        allowed, left, _ = check_login_rate_limit(test_cf, max_attempts=3)
+        self.assertTrue(allowed)
+        self.assertEqual(left, 3)
+
+    def test_security_telegram_webhook_secret_validation(self):
+        from .security_service import validate_telegram_webhook_secret
+        from django.test import RequestFactory
+        from django.conf import settings
+
+        rf = RequestFactory()
+
+        # Richiesta con header errato da IP simulato (non testserver)
+        req_bad = rf.post('/telegram-webhook/', headers={'x-telegram-bot-api-secret-token': 'wrong-token'})
+        req_bad.META['SERVER_NAME'] = 'production.kandor.it'
+        self.assertFalse(validate_telegram_webhook_secret(req_bad))
+
+        # Richiesta con header valido
+        expected_secret = getattr(settings, 'TELEGRAM_WEBHOOK_SECRET', 'kandor-webhook-secret-production-v1')
+        req_good = rf.post('/telegram-webhook/', headers={'x-telegram-bot-api-secret-token': expected_secret})
+        req_good.META['SERVER_NAME'] = 'production.kandor.it'
+        self.assertTrue(validate_telegram_webhook_secret(req_good))
+
+    def test_async_tasks_queue(self):
+        from .tasks import enqueue_task, get_task_status
+        import time
+
+        def simple_sum(a, b):
+            return a + b
+
+        task_id = enqueue_task(simple_sum, 15, 25, task_name="TestSomma")
+        self.assertIsNotNone(task_id)
+
+        # Attendi completamento nel pool
+        time.sleep(0.5)
+        status = get_task_status(task_id)
+        self.assertIn(status.get('status'), ['RUNNING', 'SUCCESS'])
+        if status.get('status') == 'SUCCESS':
+            self.assertEqual(status.get('result'), 40)
+
+    def test_turni_service_timbratura_offline_timestamp(self):
+        from .turni_service import registra_timbratura_gps
+        from django.utils import timezone
+        from datetime import timedelta
+
+        # Simula una timbratura retrodatata di 2 ore fa avvenuta offline
+        past_time = timezone.now() - timedelta(hours=2)
+
+        res_in = registra_timbratura_gps(
+            dipendente=self.dip,
+            cliente_id=self.cliente.id,
+            tipo_timbratura='CHECK_IN',
+            lat=45.4642,
+            lon=9.1900,
+            timestamp_rilevato=past_time,
+            source='OFFLINE_SYNC',
+        )
+        self.assertTrue(res_in.get('ok'))
+        self.assertEqual(res_in.get('tipo'), 'CHECK_IN')
+        self.assertTrue(res_in.get('is_near'))
+
+        # Check-Out successivo
+        now_time = timezone.now()
+        res_out = registra_timbratura_gps(
+            dipendente=self.dip,
+            cliente_id=self.cliente.id,
+            tipo_timbratura='CHECK_OUT',
+            lat=45.4642,
+            lon=9.1900,
+            timestamp_rilevato=now_time,
+            source='OFFLINE_SYNC',
+        )
+        self.assertTrue(res_out.get('ok'))
+        self.assertEqual(res_out.get('tipo'), 'CHECK_OUT')
+        self.assertGreaterEqual(res_out.get('ore_calcolate', 0), 1.9)
+
+    def test_run_scheduler_management_command_once(self):
+        from django.core.management import call_command
+        # Verifica che il comando esegua senza errori in modalità one-off
+        call_command('run_scheduler', once=True, force=True)
+
+
+
 
 
 

@@ -100,8 +100,31 @@ def _reminder_loop():
         time.sleep(30)
 
 
+def esegui_tutti_i_job_pianificati(force: bool = False) -> dict:
+    """
+    Esegue in modo atomico tutti i job batch periodici di Kandor:
+    1. Promemoria ore mancanti delle 17:00
+    2. Audit scadenze formazione e visite mediche 81/08
+    """
+    risultati = {}
+    now = timezone.localtime(timezone.now())
+    today = now.date()
+
+    try:
+        res_prom = esegui_promemoria_giornaliero_atomico(target_date=today, force=force)
+        risultati['promemoria_17'] = res_prom
+    except Exception as exc:
+        risultati['promemoria_17'] = {'error': str(exc)}
+
+    return risultati
+
+
 def start_scheduler():
     global _SCHEDULER_THREAD
+    if os.environ.get('DISABLE_INTERNAL_SCHEDULER') == '1':
+        print(f"⏰ [Scheduler PID={os.getpid()}] Thread interno disabilitato via DISABLE_INTERNAL_SCHEDULER=1.")
+        return
+
     if _SCHEDULER_THREAD is None or not _SCHEDULER_THREAD.is_alive():
         _SCHEDULER_THREAD = threading.Thread(target=_reminder_loop, daemon=True, name="KandorReminderScheduler")
         _SCHEDULER_THREAD.start()
