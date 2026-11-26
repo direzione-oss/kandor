@@ -444,6 +444,9 @@
             <p>Riepilogo ore lavorate, convalidate ed assenze per l'elaborazione delle buste paga dal <b>{{ data_inizio_formatted }}</b> al <b>{{ data_fine_formatted }}</b></p>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" onclick="apriModalInvioMassivoTelegram()" class="btn-paghe-pdf" style="background:#0284C7; color:#FFF; border:none; cursor:pointer;" title="Invia tramite Bot Telegram il prospetto analitico calendario ai dipendenti con tutte le ore convalidate">
+                🤖 Invia PDF Calendari (Telegram)
+            </button>
             <a href="{% url 'buste_paga' %}" class="btn-paghe-pdf" style="background:#059669; color:#FFF;">
                 📄 Invio Automatico Buste Paga (PDF)
             </a>
@@ -482,7 +485,21 @@
                 </select>
             </div>
             <div class="paghe-filter-group">
-                <button type="submit" class="button" style="height: 38px; padding: 0 20px;">🔍 Genera Report</button>
+                <label for="stato_validazione">Stato Validazione Ore</label>
+                <select id="stato_validazione" name="stato_validazione" style="min-width: 210px;">
+                    <option value="" {% if not stato_validazione %}selected{% endif %}>Tutti i dipendenti</option>
+                    <option value="non_validate" {% if stato_validazione == 'non_validate' %}selected{% endif %}>⚠️ Con ore non validate (da revisionare)</option>
+                    <option value="validate" {% if stato_validazione == 'validate' %}selected{% endif %}>✅ Solo ore convalidate al 100%</option>
+                </select>
+            </div>
+            <div class="paghe-filter-group" style="justify-content: flex-end; padding-bottom: 8px;">
+                <label style="display: flex; align-items: center; gap: 7px; cursor: pointer; text-transform: none; font-size: 0.85rem; font-weight: 600; color: #1E293B;">
+                    <input type="checkbox" name="solo_con_ore" value="1" {% if solo_con_ore %}checked{% endif %} style="min-height: auto; width: 17px; height: 17px; cursor: pointer;">
+                    <span>Escludi chi non ha ore (Pulisci elenco)</span>
+                </label>
+            </div>
+            <div class="paghe-filter-group">
+                <button type="submit" class="button" style="height: 38px; padding: 0 20px;">🔍 Filtra Report</button>
             </div>
         </form>
     </div>
@@ -594,8 +611,19 @@
                         </td>
                         <td style="font-size: 0.82rem; color: var(--text-main);">{{ item.clienti_str }}</td>
                         <td style="text-align: center;">
-                            <div style="display: flex; gap: 4px; justify-content: center;">
-                                <button type="button" class="btn-calendario" onclick="toggleCalendario('{{ item.dip_id }}')" style="background: #334155; color: white; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 0.75rem; font-weight: 600; white-space: nowrap;">📅 Calendario{% if item.note_calendario_count %} <span style="background:#dbeafe;color:#1e40af;padding:1px 5px;border-radius:8px;font-size:0.7rem;margin-left:3px;" title="Presenza di note/motivazioni orario nel mese">💬 {{ item.note_calendario_count }}</span>{% endif %}</button>
+                            <div style="display: flex; gap: 4px; justify-content: center; align-items: center; flex-wrap: wrap;">
+                                <button type="button" class="btn-calendario" onclick="toggleCalendario('{{ item.dip_id }}')" style="background: #334155; color: white; border: none; border-radius: 4px; padding: 6px 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600; white-space: nowrap;" title="Mostra/Nascondi il calendario presenze su questa schermata">📅 Cal{% if item.note_calendario_count %} <span style="background:#dbeafe;color:#1e40af;padding:1px 4px;border-radius:8px;font-size:0.68rem;margin-left:2px;" title="Presenza di note/motivazioni orario">💬{{ item.note_calendario_count }}</span>{% endif %}</button>
+                                
+                                <a href="{% url 'pdf_calendario_dipendente' item.dip_id %}?data_inizio={{ data_inizio }}&data_fine={{ data_fine }}" target="_blank" class="btn-calendario" style="background: #0284C7; color: white; border: none; border-radius: 4px; padding: 6px 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600; text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px;" title="Scarica o stampa il PDF del prospetto analitico con timbro e firma">📄 PDF</a>
+
+                                {% if item.ore_non_validate > 0 %}
+                                <button type="button" class="btn-calendario" style="background: #EF4444; color: white; border: none; border-radius: 4px; padding: 6px 8px; font-size: 0.72rem; font-weight: 700; cursor: not-allowed; opacity: 0.9; white-space: nowrap;" title="INVIO BLOCCATO: Ci sono {{ item.ore_non_validate }}h non ancora convalidate per questo periodo. Valida tutte le ore prima dell'invio!" disabled>🚫 Bot ({{ item.ore_non_validate }}h non val.)</button>
+                                {% elif not item.ha_telegram %}
+                                <button type="button" class="btn-calendario" style="background: #CBD5E1; color: #475569; border: none; border-radius: 4px; padding: 6px 8px; font-size: 0.72rem; font-weight: 600; cursor: not-allowed; white-space: nowrap;" title="Dipendente senza Telegram Chat ID (@kandor_gestionale_bot)" disabled>🤖 No Bot</button>
+                                {% else %}
+                                <button type="button" class="btn-calendario" onclick="inviaCalendarioTelegramSingolo('{{ item.dip_id }}', '{{ item.cognome_nome|escapejs }}')" style="background: #16A34A; color: white; border: none; border-radius: 4px; padding: 6px 8px; font-size: 0.75rem; font-weight: 700; cursor: pointer; white-space: nowrap;" title="Invia ora il PDF del calendario via Bot Telegram a {{ item.cognome_nome }}">🤖 Invia Bot</button>
+                                {% endif %}
+
                                 <button type="button" class="btn-modifica-cedolino" onclick="apriModalModifica(
                                 '{{ item.dip_id }}',
                                 '{{ item.cognome_nome|escapejs }}',
@@ -615,7 +643,7 @@
                                 '{{ item.giorni_104_override|default_if_none:"" }}',
                                 '{{ item.modifica_note|escapejs }}',
                                 '{{ item.is_rettificato|yesno:"1,0" }}'
-                            )">
+                            )" title="Rettifica ore o assenze per questo cedolino" style="padding: 6px 8px; font-size: 0.75rem;">
                                 ✏️ Rettifica
                             </button>
                         </td>
@@ -1268,6 +1296,133 @@
         });
     }
 
+    // Invio singolo Calendario PDF Telegram
+    function inviaCalendarioTelegramSingolo(dipId, dipNome) {
+        if (!confirm(`Sei sicuro di voler inviare il PDF del prospetto analitico calendario a ${dipNome} tramite il Bot Telegram?`)) {
+            return;
+        }
+
+        const payload = {
+            dipendente_id: dipId,
+            data_inizio: '{{ data_inizio }}',
+            data_fine: '{{ data_fine }}'
+        };
+
+        fetch('{% url "invia_calendario_telegram_singolo_api" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                alert(`✅ Documento PDF inviato con successo a ${dipNome} via Bot Telegram!`);
+            } else {
+                alert(`⚠️ Impossibile inviare: ${data.error || 'Errore sconosciuto'}`);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Errore di connessione durante l\'invio Telegram.');
+        });
+    }
+
+    // Modal Invio Massivo Telegram
+    function apriModalInvioMassivoTelegram() {
+        document.getElementById('massivo_risultati_box').style.display = 'none';
+        document.getElementById('massivo_btn_conferma').style.display = 'inline-block';
+        document.getElementById('massivo_btn_conferma').disabled = false;
+        document.getElementById('massivo_btn_conferma').innerText = '🚀 Procedi con l\'Invio Massivo';
+        document.getElementById('modalInvioMassivoTelegram').style.display = 'flex';
+    }
+
+    function chiudiModalInvioMassivoTelegram() {
+        document.getElementById('modalInvioMassivoTelegram').style.display = 'none';
+    }
+
+    function eseguiInvioMassivoTelegram() {
+        const btn = document.getElementById('massivo_btn_conferma');
+        btn.disabled = true;
+        btn.innerText = '⏳ Invio in corso dei documenti...';
+
+        const payload = {
+            data_inizio: '{{ data_inizio }}',
+            data_fine: '{{ data_fine }}',
+            solo_con_ore: true
+        };
+
+        fetch('{% url "invia_calendari_telegram_massivo_api" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.style.display = 'none';
+            const resBox = document.getElementById('massivo_risultati_box');
+            resBox.style.display = 'block';
+
+            if (!data.ok) {
+                resBox.innerHTML = `<div style="background:#FEF2F2; color:#B91C1C; padding:12px; border-radius:8px; border:1px solid #FECACA;"><b>Errore:</b> ${data.error}</div>`;
+                return;
+            }
+
+            let html = `
+                <div style="background:#F0FDF4; color:#15803D; padding:14px; border-radius:8px; border:1px solid #BBF7D0; margin-bottom:14px;">
+                    <div style="font-size:1.1rem; font-weight:800; margin-bottom:4px;">🎉 Elaborazione Completata!</div>
+                    <div><b>${data.inviati}</b> calendari PDF inviati con successo via Bot Telegram ai lavoratori con ore convalidate.</div>
+                </div>
+            `;
+
+            if (data.saltati_non_validati && data.saltati_non_validati.length > 0) {
+                html += `
+                    <div style="background:#FFFBEB; color:#B45309; padding:12px; border-radius:8px; border:1px solid #FDE68A; margin-bottom:12px; font-size:0.85rem;">
+                        <b>⚠️ Esclusi per ore non convalidate (${data.saltati_non_validati.length}):</b>
+                        <ul style="margin:6px 0 0 16px; padding:0;">
+                            ${data.saltati_non_validati.map(x => `<li><b>${x.nome}</b>: ${x.ore_non_validate}h in attesa di validazione</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            if (data.saltati_senza_telegram && data.saltati_senza_telegram.length > 0) {
+                html += `
+                    <div style="background:#F1F5F9; color:#475569; padding:12px; border-radius:8px; border:1px solid #CBD5E1; margin-bottom:12px; font-size:0.85rem;">
+                        <b>ℹ️ Esclusi perché non hanno Telegram (@kandor_gestionale_bot) (${data.saltati_senza_telegram.length}):</b>
+                        <ul style="margin:6px 0 0 16px; padding:0;">
+                            ${data.saltati_senza_telegram.map(x => `<li>${x.nome}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            if (data.errori && data.errori.length > 0) {
+                html += `
+                    <div style="background:#FEF2F2; color:#B91C1C; padding:12px; border-radius:8px; border:1px solid #FECACA; font-size:0.85rem;">
+                        <b>❌ Errori riscontrati (${data.errori.length}):</b>
+                        <ul style="margin:6px 0 0 16px; padding:0;">
+                            ${data.errori.map(e => `<li>${e}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            resBox.innerHTML = html;
+        })
+        .catch(err => {
+            console.error(err);
+            btn.disabled = false;
+            btn.innerText = 'Riprova Invio';
+            alert('Errore di comunicazione durante l\'invio massivo Telegram.');
+        });
+    }
+
     // Chiudi modal cliccando fuori
     window.onclick = function(event) {
         const modalCed = document.getElementById('modalModificaCedolino');
@@ -1278,6 +1433,57 @@
         if (event.target === modalGiorno) {
             chiudiModalModificaGiorno();
         }
+        const modalMassivo = document.getElementById('modalInvioMassivoTelegram');
+        if (event.target === modalMassivo) {
+            chiudiModalInvioMassivoTelegram();
+        }
     };
 </script>
+
+<!-- MODAL INVIO MASSIVO CALENDARI TELEGRAM -->
+<div id="modalInvioMassivoTelegram" class="modal-overlay">
+    <div class="modal-card" style="max-width: 620px;">
+        <div class="modal-header">
+            <h3>🤖 Invio PDF Calendari ai Dipendenti (Telegram)</h3>
+            <button type="button" class="modal-close-btn" onclick="chiudiModalInvioMassivoTelegram()">&times;</button>
+        </div>
+        <div style="margin-bottom: 16px; font-size: 0.9rem; color: #334155; line-height: 1.5;">
+            <p style="margin: 0 0 12px 0;">
+                Stai per inviare via Bot Telegram (<b>@kandor_gestionale_bot</b>) il documento PDF del prospetto analitico con calendario ore per il periodo:
+                <br><b style="font-size: 1rem; color: #0F172A;">{{ data_inizio_formatted }} — {{ data_fine_formatted }}</b>
+            </p>
+
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+                <div style="font-weight: 700; color: #0F172A; margin-bottom: 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em;">Riepilogo Dipendenti Selezionati</div>
+                <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>✅ Dipendenti con ore 100% validate e Telegram:</span>
+                        <b style="color: #059669;">{{ totale_generale.pronti_invio_count }} pronti all'invio</b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>⚠️ Dipendenti con ore ancora da convalidare:</span>
+                        <b style="color: #DC2626;">{{ totale_generale.da_validare_count }} (INVIO BLOCCATO)</b>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>ℹ️ Dipendenti senza Bot Telegram collegato:</span>
+                        <b style="color: #64748B;">{{ totale_generale.senza_telegram_count }}</b>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 12px; font-size: 0.82rem; color: #1E40AF; line-height: 1.4;">
+                🛡️ <b>Controllo di Sicurezza Attivo:</b> Il sistema <u>bloccherà ed escluderà categoricamente</u> qualsiasi dipendente che abbia anche solo 1 ora non convalidata nel periodo selezionato. Verranno inviati solo i prospetti certificati al 100%.
+            </div>
+
+            <div id="massivo_risultati_box" style="display: none; margin-top: 16px; max-height: 250px; overflow-y: auto;"></div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="button" onclick="chiudiModalInvioMassivoTelegram()" style="background:#64748B; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer;">Chiudi</button>
+            <button type="button" id="massivo_btn_conferma" class="button" onclick="eseguiInvioMassivoTelegram()" style="background:#0284C7; color:white; border:none; padding:8px 20px; border-radius:6px; font-weight:700; cursor:pointer;">
+                🚀 Procedi con l'Invio Massivo
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}

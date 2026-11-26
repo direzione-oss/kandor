@@ -56,7 +56,7 @@ def parse_periodo_paghe(str_inizio='', str_fine=''):
     return data_inizio, data_fine
 
 
-def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_calendar=True):
+def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_calendar=True, solo_con_ore=False, stato_validazione=''):
     """
     Unica fonte di verità per l'elaborazione dei cedolini paghe (usata da HTML, PDF e CSV).
     Restituisce un dizionario completo con:
@@ -66,6 +66,8 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
     - all_dipendenti (QuerySet di tutti i dipendenti selezionabili nel filtro)
     - dipendente_id_int (int o '')
     - ha_rettifiche (bool)
+    - solo_con_ore (bool)
+    - stato_validazione (str: '' | 'non_validate' | 'validate')
     """
     data_inizio, data_fine = parse_periodo_paghe(str_inizio, str_fine)
 
@@ -269,6 +271,10 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
             item['ore_validate'] = ore_val_orig
 
         item['ore_non_validate'] = max(0.0, round(item['ore_lavorate'] - item['ore_validate'], 2))
+        item['is_completamente_validato'] = bool(item['ore_lavorate'] > 0 and item['ore_non_validate'] <= 0.0)
+        telegram_cid = str(getattr(item['dipendente'], 'telegram_chat_id', '') or '').strip()
+        item['ha_telegram'] = bool(telegram_cid)
+        item['telegram_chat_id'] = telegram_cid
         item['altri_e_104'] = (
             item['assenze_dict']['104']
             + item['assenze_dict']['INFORTUNIO']
@@ -312,11 +318,23 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
 
     report_list.sort(key=lambda x: (x['cognome'], x['nome']))
 
+    # Filtri aggiuntivi per pulizia elenco e stato validazione
+    solo_con_ore_bool = (solo_con_ore is True or str(solo_con_ore).strip() in ('1', 'true', 'True'))
+    if solo_con_ore_bool:
+        report_list = [x for x in report_list if x['ore_lavorate'] > 0 or x['giorni_lavorati'] > 0]
+
+    stato_val_str = str(stato_validazione or '').strip().lower()
+    if stato_val_str in ('non_validate', 'da_validare', 'pending'):
+        report_list = [x for x in report_list if x['ore_non_validate'] > 0]
+    elif stato_val_str in ('validate', 'completate', 'ok'):
+        report_list = [x for x in report_list if x['is_completamente_validato']]
+
     totale_generale = {
         'dipendenti_count': len(report_list),
         'giorni_lavorati_totali': sum(x['giorni_lavorati'] for x in report_list),
         'ore_lavorate_totali': round(sum(x['ore_lavorate'] for x in report_list), 2),
         'ore_validate_totali': round(sum(x['ore_validate'] for x in report_list), 2),
+        'ore_non_validate_totali': round(sum(x['ore_non_validate'] for x in report_list), 2),
         'giorni_assenza_totali': sum(x['giorni_assenza_totali'] for x in report_list),
         'ferie_totali': sum(x['assenze_dict']['FERIE'] for x in report_list),
         'permessi_totali': sum(x['assenze_dict']['PERMESSO'] for x in report_list),
@@ -325,6 +343,9 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
         'l104_totale': sum(x['assenze_dict']['104'] for x in report_list),
         'altri_totale': sum(x['assenze_dict']['ALTRO'] for x in report_list),
         'altri_e_104_totali': sum(x['altri_e_104'] for x in report_list),
+        'pronti_invio_count': sum(1 for x in report_list if x['is_completamente_validato'] and x['ha_telegram']),
+        'da_validare_count': sum(1 for x in report_list if x['ore_non_validate'] > 0),
+        'senza_telegram_count': sum(1 for x in report_list if not x['ha_telegram'] and x['ore_lavorate'] > 0),
     }
 
     return {
@@ -335,6 +356,8 @@ def calcola_dataset_paghe(str_inizio='', str_fine='', dipendente_id='', build_ca
         'all_dipendenti': all_dipendenti,
         'dipendente_id_int': int(dip_id_str) if dip_id_str.isdigit() else '',
         'ha_rettifiche': ha_rettifiche,
+        'solo_con_ore': solo_con_ore_bool,
+        'stato_validazione': stato_val_str,
     }
 
 
@@ -676,3 +699,424 @@ def calcola_analisi_contratti(mese=None, anno=None, soglia=15.0):
         'totale_fatturato': totale_fatturato,
         'media_oraria': media_oraria,
     }
+
+
+def genera_pdf_calendario_dipendente(item, data_inizio, data_fine):
+    """
+    Genera il prospetto analitico mensile e calendario presenze in formato PDF per il singolo dipendente.
+    Include:
+    - Intestazione ufficiale Kandor
+    - Scheda riassuntiva lavoratore e KPI (ore lavorate, convalidate, assenze, cantieri)
+    - Griglia calendario mensile dettagliata giorno per giorno
+    - Firme di accettazione con timbro aziendale ufficiale Kandor
+    Restituisce: bytes del PDF.
+    """
+    import io
+    import os
+    from xml.sax.saxutils import escape as xml_escape
+    from django.conf import settings
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, KeepTogether
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=10 * mm,
+        bottomMargin=10 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_main = ParagraphStyle(
+        'DocTitleMain',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=15,
+        leading=18,
+        textColor=colors.HexColor('#0F172A'),
+        spaceAfter=2,
+    )
+    sub_head = ParagraphStyle(
+        'DocSubHead',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=11,
+        textColor=colors.HexColor('#475569'),
+    )
+    title_right = ParagraphStyle(
+        'DocTitleRight',
+        parent=styles['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=13,
+        leading=16,
+        textColor=colors.HexColor('#1E3A8A'),
+        alignment=2,
+    )
+    sub_right = ParagraphStyle(
+        'DocSubRight',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=12,
+        textColor=colors.HexColor('#64748B'),
+        alignment=2,
+    )
+    card_label = ParagraphStyle(
+        'CardLabel',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=7.5,
+        leading=10,
+        textColor=colors.HexColor('#475569'),
+    )
+    card_val = ParagraphStyle(
+        'CardVal',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor('#0F172A'),
+    )
+    card_val_bold = ParagraphStyle(
+        'CardValBold',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor('#0F172A'),
+    )
+    day_num_style = ParagraphStyle(
+        'DayNum',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=9,
+        textColor=colors.HexColor('#64748B'),
+        alignment=2,
+    )
+    cal_mid_style = ParagraphStyle(
+        'CalMid',
+        parent=styles['Normal'],
+        fontSize=11,
+        leading=13,
+        alignment=1,
+    )
+    cal_note_style = ParagraphStyle(
+        'CalNote',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=6.5,
+        leading=8,
+        textColor=colors.HexColor('#1E40AF'),
+        alignment=1,
+    )
+    sign_label = ParagraphStyle(
+        'SignLabel',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor('#0F172A'),
+    )
+    sign_note = ParagraphStyle(
+        'SignNote',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=7.5,
+        leading=10,
+        textColor=colors.HexColor('#64748B'),
+    )
+
+    story = []
+
+    # 1. HEADER KANDOR & TITOLO DOCUMENTO
+    header_left = [
+        Paragraph("<b>KANDOR SOCIETÀ COOPERATIVA</b>", title_main),
+        Paragraph("Impresa di Pulizie e Servizi Integrati • P.IVA 04182710162 • C.C.I.A.A. BG n°442382", sub_head),
+        Paragraph("Via Martiri di Cefalonia 2, 24031 Almenno San Bartolomeo (BG) • Tel/Fax 035 643033", sub_head),
+    ]
+    header_right = [
+        Paragraph("PROSPETTO ANALITICO PRESENZE", title_right),
+        Paragraph(f"Periodo: <b>{data_inizio.strftime('%d/%m/%Y')} — {data_fine.strftime('%d/%m/%Y')}</b>", sub_right),
+        Paragraph(f"Emesso il {timezone.now().strftime('%d/%m/%Y %H:%M')}", sub_right),
+    ]
+    header_table = Table([[header_left, header_right]], colWidths=[430, 330])
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 4 * mm))
+
+    # 2. SCHEDA DIPENDENTE & KPI
+    nome_dip = item.get('cognome_nome', '')
+    cf_dip = item.get('codice_fiscale', '---')
+    ruolo_dip = item.get('ruolo', 'Dipendente')
+    ore_lav = item.get('ore_lavorate', 0.0)
+    ore_val = item.get('ore_validate', 0.0)
+    ore_non_val = item.get('ore_non_validate', 0.0)
+    gg_lav = item.get('giorni_lavorati', 0)
+    ferie = item.get('assenze_dict', {}).get('FERIE', 0)
+    perm = item.get('assenze_dict', {}).get('PERMESSO', 0)
+    mal = item.get('assenze_dict', {}).get('MALATTIA', 0)
+    altri_104 = item.get('altri_e_104', 0)
+    cantieri_str = item.get('clienti_str', 'Nessun cantiere registrato')
+
+    if ore_non_val <= 0 and ore_lav > 0:
+        val_status_txt = f"<font color='#059669'><b>{ore_val} h</b> (Tutte Validate ✅)</font>"
+    elif ore_non_val > 0:
+        val_status_txt = f"<font color='#DC2626'><b>{ore_val} h</b> ({ore_non_val}h in attesa ⚠️)</font>"
+    else:
+        val_status_txt = "<b>0.0 h</b>"
+
+    assenze_summary = []
+    if ferie: assenze_summary.append(f"Ferie: {ferie}gg")
+    if perm: assenze_summary.append(f"Permessi: {perm}gg")
+    if mal: assenze_summary.append(f"Malattia: {mal}gg")
+    if altri_104: assenze_summary.append(f"104/Altri: {altri_104}gg")
+    assenze_txt = " • ".join(assenze_summary) if assenze_summary else "Nessuna assenza"
+
+    kpi_data = [
+        [
+            Paragraph("Lavoratore:", card_label),
+            Paragraph(f"<b>{xml_escape(nome_dip)}</b>", card_val_bold),
+            Paragraph("Codice Fiscale:", card_label),
+            Paragraph(f"<code>{xml_escape(cf_dip)}</code>", card_val),
+            Paragraph("Inquadramento:", card_label),
+            Paragraph(xml_escape(ruolo_dip), card_val),
+        ],
+        [
+            Paragraph("Giorni Lavorati:", card_label),
+            Paragraph(f"<b>{gg_lav} gg</b>", card_val),
+            Paragraph("Ore Totali Lavorate:", card_label),
+            Paragraph(f"<b>{ore_lav} h</b>", card_val_bold),
+            Paragraph("Ore Convalidate:", card_label),
+            Paragraph(val_status_txt, card_val),
+        ],
+        [
+            Paragraph("Riepilogo Assenze:", card_label),
+            Paragraph(xml_escape(assenze_txt), card_val),
+            Paragraph("Cantieri & Clienti:", card_label),
+            Paragraph(xml_escape(cantieri_str), card_val),
+            Paragraph("", card_label),
+            Paragraph("", card_val),
+        ],
+    ]
+    kpi_table = Table(kpi_data, colWidths=[90, 165, 95, 175, 85, 150])
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+        ('BOX', (0, 0), (-1, -1), 0.75, colors.HexColor('#CBD5E1')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('SPAN', (3, 2), (5, 2)),  # Cantieri allargati sulle ultime 3 colonne della riga 3
+    ]))
+    story.append(kpi_table)
+    story.append(Spacer(1, 4 * mm))
+
+    # 3. GRIGLIA CALENDARIO MENSILE (7 COLONNE: LUN-DOM)
+    cal_style = TableStyle([
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0F172A')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8.5),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+        ('TOPPADDING', (0, 0), (-1, 0), 4),
+        ('LEFTPADDING', (0, 1), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 1), (-1, -1), 3),
+        ('TOPPADDING', (0, 1), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+    ])
+
+    cal_data = [['LUNEDÌ', 'MARTEDÌ', 'MERCOLEDÌ', 'GIOVEDÌ', 'VENERDÌ', 'SABATO', 'DOMENICA']]
+    empty_cell = [Spacer(1, 28)]
+    row = [list(empty_cell) for _ in range(7)]
+
+    curr_d = data_inizio
+    while curr_d <= data_fine:
+        wd = curr_d.weekday()
+        flowables = [Paragraph(str(curr_d.day), day_num_style)]
+
+        ore = item.get('ore_per_giorno', {}).get(curr_d, 0.0)
+        ore_val_g = item.get('ore_validate_per_giorno', {}).get(curr_d, 0.0)
+        assenze = item.get('assenze_per_giorno', {}).get(curr_d, [])
+        note_giorno = item.get('note_per_giorno', {}).get(curr_d, [])
+
+        mid_parts = []
+        if ore > 0:
+            if ore_val_g >= ore:
+                mid_parts.append(f"<font color='#059669'><b>{round(ore, 1)} h</b></font>")
+                mid_parts.append("<font size=6 color='#059669'>[Validato]</font>")
+            else:
+                mid_parts.append(f"<font color='#DC2626'><b>{round(ore, 1)} h</b></font>")
+                mid_parts.append("<font size=6 color='#DC2626'>[In attesa]</font>")
+
+        if assenze:
+            mid_parts.append(f"<font size=7 color='#2563EB'><b>{'+'.join(assenze)}</b></font>")
+
+        if mid_parts:
+            flowables.append(Spacer(1, 1))
+            flowables.append(Paragraph("<br/>".join(mid_parts), cal_mid_style))
+
+        if note_giorno:
+            clean_note = " • ".join(note_giorno)
+            flowables.append(Spacer(1, 1))
+            flowables.append(Paragraph(xml_escape(clean_note[:75]), cal_note_style))
+
+        if not ore and not assenze and not note_giorno:
+            flowables.append(Spacer(1, 18))
+
+        row[wd] = flowables
+
+        if wd == 6 or curr_d == data_fine:
+            cal_data.append(row)
+            row = [list(empty_cell) for _ in range(7)]
+
+        curr_d += timedelta(days=1)
+
+    col_w = 760.0 / 7.0  # ~108.57 pt ciascuna
+    t_cal = Table(cal_data, colWidths=[col_w] * 7)
+    t_cal.setStyle(cal_style)
+    story.append(t_cal)
+    story.append(Spacer(1, 5 * mm))
+
+    # 4. SEZIONE FIRME E TIMBRO KANDOR
+    timbro_path = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'img', 'timbro_kandor.jpg')
+    timbro_elements = [
+        Paragraph("Per <b>KANDOR Società Cooperativa</b>:", sign_label),
+        Spacer(1, 1 * mm),
+    ]
+    if os.path.exists(timbro_path):
+        try:
+            # Immagine del timbro aziendale Kandor ufficiale
+            timbro_elements.append(Image(timbro_path, width=140, height=48))
+        except Exception:
+            timbro_elements.append(Paragraph("<i>(Timbro e Firma Kandor)</i>", sign_note))
+    else:
+        timbro_elements.append(Spacer(1, 12 * mm))
+        timbro_elements.append(Paragraph("________________________________________", sign_note))
+
+    firma_dip_elements = [
+        Paragraph("Firma del Lavoratore per presa visione e accettazione:", sign_label),
+        Spacer(1, 8 * mm),
+        Paragraph("____________________________________________________", sign_label),
+        Spacer(1, 1 * mm),
+        Paragraph(f"Firma per esteso: {xml_escape(nome_dip)}", sign_note),
+    ]
+
+    firme_table = Table([[timbro_elements, firma_dip_elements]], colWidths=[380, 380])
+    firme_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+
+    story.append(KeepTogether(firme_table))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def invia_pdf_calendario_telegram(dipendente, data_inizio, data_fine, pdf_bytes, item=None):
+    """
+    Invia via Bot Telegram il PDF del calendario / prospetto analitico ore al dipendente.
+    REQUISITO CRITICO:
+    - Se ci sono ore non convalidate per il periodo (`ore_non_validate > 0`), l'invio è RIGOROSAMENTE BLOCCATO.
+    - Se il dipendente non ha Telegram collegato, ritorna errore esplicito.
+    - Registra il messaggio e l'allegato anche nella chat interna dell'App dipendente.
+    """
+    import os
+    import requests
+    from django.conf import settings
+    from .models import MessaggioChat
+
+    bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
+    if not bot_token:
+        return {'ok': False, 'error': 'TELEGRAM_BOT_TOKEN non configurato sul server'}
+
+    chat_id = str(getattr(dipendente, 'telegram_chat_id', '') or '').strip()
+    if not chat_id:
+        return {'ok': False, 'error': f"{dipendente.nome} {dipendente.cognome} non ha collegato il Bot Telegram (@kandor_gestionale_bot)"}
+
+    # CONTROLLO BLOCCANTE ORE NON CONVALIDATE
+    ore_non_val = item.get('ore_non_validate', 0.0) if item else 0.0
+    if ore_non_val > 0.0:
+        return {
+            'ok': False,
+            'error': f"Invio bloccato: sono presenti {ore_non_val} ore non convalidate nel periodo per {dipendente.nome} {dipendente.cognome}. Tutte le ore devono essere validate prima dell'invio!"
+        }
+
+    periodo_str = f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}"
+    mese_anno_tag = data_inizio.strftime('%m_%Y')
+    cf_tag = dipendente.codice_fiscale or f"ID{dipendente.pk}"
+    safe_filename = f"Prospetto_Ore_{mese_anno_tag}_{cf_tag}.pdf"
+
+    ore_tot = item.get('ore_lavorate', 0.0) if item else 0.0
+    gg_lav = item.get('giorni_lavorati', 0) if item else 0
+    ferie = item.get('assenze_dict', {}).get('FERIE', 0) if item else 0
+    perm = item.get('assenze_dict', {}).get('PERMESSO', 0) if item else 0
+    mal = item.get('assenze_dict', {}).get('MALATTIA', 0) if item else 0
+
+    caption = (
+        f"📅 PROSPETTO ANALITICO ORE & CALENDARIO\n"
+        f"Periodo: {periodo_str}\n\n"
+        f"👤 Gentile {dipendente.nome} {dipendente.cognome},\n"
+        f"in allegato trovi il documento PDF del tuo prospetto analitico con il calendario presenze e le ore validate.\n\n"
+        f"⏱️ Ore Lavorate: {ore_tot}h (Tutte convalidate ✅)\n"
+        f"🗓️ Giorni Lavorati: {gg_lav} gg\n"
+    )
+    if ferie or perm or mal:
+        caption += f"🏖️ Assenze: {ferie}gg Ferie | {perm}gg Permessi | {mal}gg Malattia\n"
+    caption += "\n📲 Puoi verificare le tue timbrature anche sull'App Kandor."
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{bot_token}/sendDocument",
+            data={
+                'chat_id': chat_id,
+                'caption': caption,
+            },
+            files={
+                'document': (safe_filename, pdf_bytes, 'application/pdf'),
+            },
+            timeout=30,
+        )
+        data_json = resp.json() if resp.status_code == 200 else {}
+        if resp.status_code == 200 and data_json.get('ok'):
+            # Registrazione opzionale nello storico chat WebApp Dipendente
+            try:
+                MessaggioChat.objects.create(
+                    dipendente=dipendente,
+                    testo=f"📅 Prospetto Ore & Calendario ({periodo_str}) — {ore_tot}h validate",
+                    allegato_nome=safe_filename,
+                    direzione='OUT',
+                    letto=True,
+                )
+            except Exception:
+                pass
+            return {'ok': True, 'dipendente': f"{dipendente.cognome} {dipendente.nome}"}
+        else:
+            err_desc = data_json.get('description', f"HTTP {resp.status_code}")
+            return {'ok': False, 'error': f"Errore Telegram: {err_desc}"}
+    except Exception as e:
+        return {'ok': False, 'error': f"Errore di connessione Telegram: {e}"}

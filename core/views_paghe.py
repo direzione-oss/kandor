@@ -23,6 +23,8 @@ from .paghe_service import (
     calcola_dataset_paghe,
     calcola_verifica_ore_mensile,
     calcola_analisi_contratti,
+    genera_pdf_calendario_dipendente,
+    invia_pdf_calendario_telegram,
 )
 from .views import staff_or_titolare_required, staff_or_titolare_api_required
 
@@ -466,12 +468,18 @@ def report_paghe_view(request):
     """
     Report Elaborazione Cedolini Paghe da Data Inizio a Data Fine.
     Usa `calcola_dataset_paghe` come unica fonte di verità.
+    Supporta filtri per escludere chi non ha ore e per stato validazione ore.
     """
+    solo_con_ore_param = request.GET.get('solo_con_ore', '')
+    stato_validazione_param = request.GET.get('stato_validazione', '')
+
     dataset = calcola_dataset_paghe(
         str_inizio=request.GET.get('data_inizio', ''),
         str_fine=request.GET.get('data_fine', ''),
         dipendente_id=request.GET.get('dipendente_id', ''),
         build_calendar=True,
+        solo_con_ore=solo_con_ore_param,
+        stato_validazione=stato_validazione_param,
     )
     data_inizio = dataset['data_inizio']
     data_fine = dataset['data_fine']
@@ -485,6 +493,8 @@ def report_paghe_view(request):
         'data_fine_formatted': data_fine.strftime('%d/%m/%Y'),
         'dipendente_id': dataset['dipendente_id_int'],
         'all_dipendenti': dataset['all_dipendenti'],
+        'solo_con_ore': dataset['solo_con_ore'],
+        'stato_validazione': dataset['stato_validazione'],
     }
     return render(request, 'admin/report_paghe.html', context)
 
@@ -740,6 +750,192 @@ def export_paghe_csv(request):
         ])
 
     return response
+
+
+@csrf_exempt
+@staff_or_titolare_required
+def pdf_calendario_dipendente_view(request, dipendente_id):
+    """
+    Genera e visualizza/scarica il PDF del prospetto analitico calendario
+    per un singolo dipendente nel periodo selezionato.
+    """
+    str_inizio = request.GET.get('data_inizio', '')
+    str_fine = request.GET.get('data_fine', '')
+
+    dataset = calcola_dataset_paghe(
+        str_inizio=str_inizio,
+        str_fine=str_fine,
+        dipendente_id=dipendente_id,
+        build_calendar=True,
+    )
+    if not dataset['report_list']:
+        return HttpResponse("Nessun dato trovato per questo dipendente nel periodo specificato.", status=404)
+
+    item = dataset['report_list'][0]
+    data_inizio = dataset['data_inizio']
+    data_fine = dataset['data_fine']
+
+    pdf_bytes = genera_pdf_calendario_dipendente(item, data_inizio, data_fine)
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    cf = item.get('cf_raw') or f"ID{dipendente_id}"
+    filename = f"calendario_ore_{data_inizio.strftime('%Y%m')}_{cf}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+@csrf_exempt
+@staff_or_titolare_api_required
+def invia_calendario_telegram_singolo_api(request):
+    """
+    Invia il PDF calendario al singolo dipendente via Bot Telegram.
+    REGOLA FERREA:
+    Blocca categoricamente l'invio se ci sono ore non convalidate nel periodo selezionato.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo POST richiesto.'}, status=405)
+
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        dipendente_id = data.get('dipendente_id')
+        str_inizio = data.get('data_inizio', '')
+        str_fine = data.get('data_fine', '')
+
+        if not dipendente_id:
+            return JsonResponse({'ok': False, 'error': 'Parametro dipendente_id mancante.'}, status=400)
+
+        dipendente = Dipendente.objects.filter(pk=int(dipendente_id)).first()
+        if not dipendente:
+            return JsonResponse({'ok': False, 'error': 'Dipendente non trovato.'}, status=404)
+
+        dataset = calcola_dataset_paghe(
+            str_inizio=str_inizio,
+            str_fine=str_fine,
+            dipendente_id=dipendente_id,
+            build_calendar=True,
+        )
+        if not dataset['report_list']:
+            return JsonResponse({'ok': False, 'error': 'Nessun record presente per questo dipendente nel periodo.'}, status=404)
+
+        item = dataset['report_list'][0]
+        data_inizio = dataset['data_inizio']
+        data_fine = dataset['data_fine']
+
+        # CONTROLLO BLOCCANTE RIGOROSO: ore non convalidate
+        ore_non_val = item.get('ore_non_validate', 0.0)
+        if ore_non_val > 0.0:
+            return JsonResponse({
+                'ok': False,
+                'error': f"Impossibile inviare il documento: sono presenti {ore_non_val} ore non convalidate per {item['cognome_nome']}. Tutte le ore devono essere prima validate dall'Amministrazione!"
+            })
+
+        if not item.get('ha_telegram'):
+            return JsonResponse({
+                'ok': False,
+                'error': f"{item['cognome_nome']} non ha collegato il Bot Telegram (@kandor_gestionale_bot). Invio non disponibile."
+            })
+
+        pdf_bytes = genera_pdf_calendario_dipendente(item, data_inizio, data_fine)
+        result = invia_pdf_calendario_telegram(dipendente, data_inizio, data_fine, pdf_bytes, item=item)
+        return JsonResponse(result)
+
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@staff_or_titolare_api_required
+def invia_calendari_telegram_massivo_api(request):
+    """
+    Invia massivamente il PDF calendario a TUTTI i dipendenti che risultano:
+    - con ore lavorate > 0
+    - COMPLETAMENTE VALIDATI (0 ore non validate)
+    - con Bot Telegram collegato
+    Salta ed elenca tutti gli esclusi (non validati o senza bot).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Metodo POST richiesto.'}, status=405)
+
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        str_inizio = data.get('data_inizio', '')
+        str_fine = data.get('data_fine', '')
+        solo_con_ore = data.get('solo_con_ore', True)
+
+        dataset = calcola_dataset_paghe(
+            str_inizio=str_inizio,
+            str_fine=str_fine,
+            build_calendar=True,
+            solo_con_ore=solo_con_ore,
+        )
+
+        data_inizio = dataset['data_inizio']
+        data_fine = dataset['data_fine']
+        report_list = dataset['report_list']
+
+        inviati = 0
+        saltati_non_validati = []
+        saltati_senza_telegram = []
+        errori = []
+
+        for item in report_list:
+            nome = item.get('cognome_nome', 'Dipendente')
+            ore_lav = item.get('ore_lavorate', 0.0)
+            ore_non_val = item.get('ore_non_validate', 0.0)
+            ha_telegram = item.get('ha_telegram', False)
+            dip = item.get('dipendente')
+
+            # Salta chi non ha ore
+            if ore_lav <= 0.0 and item.get('giorni_lavorati', 0) <= 0:
+                continue
+
+            # CONTROLLO BLOCCANTE VALIDAZIONE: esclude categoricamente chi ha ore non validate
+            if ore_non_val > 0.0:
+                saltati_non_validati.append({
+                    'id': item['dip_id'],
+                    'nome': nome,
+                    'ore_non_validate': ore_non_val,
+                })
+                continue
+
+            # CONTROLLO BOT TELEGRAM: esclude chi non ha la chat telegram collegata
+            if not ha_telegram:
+                saltati_senza_telegram.append({
+                    'id': item['dip_id'],
+                    'nome': nome,
+                })
+                continue
+
+            # Tutti i requisiti soddisfatti: generazione e invio
+            try:
+                pdf_bytes = genera_pdf_calendario_dipendente(item, data_inizio, data_fine)
+                res = invia_pdf_calendario_telegram(dip, data_inizio, data_fine, pdf_bytes, item=item)
+                if res.get('ok'):
+                    inviati += 1
+                else:
+                    errori.append(f"{nome}: {res.get('error')}")
+            except Exception as e_send:
+                errori.append(f"{nome}: {str(e_send)}")
+
+        return JsonResponse({
+            'ok': True,
+            'inviati': inviati,
+            'saltati_non_validati': saltati_non_validati,
+            'saltati_senza_telegram': saltati_senza_telegram,
+            'errori': errori,
+            'totale_esaminati': len(report_list),
+        })
+
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 
 @csrf_exempt

@@ -4094,6 +4094,9 @@ from .views_paghe import (
     salva_modifica_cedolino_ajax,
     dettaglio_ore_giorno_ajax,
     salva_ore_giorno_ajax,
+    pdf_calendario_dipendente_view,
+    invia_calendario_telegram_singolo_api,
+    invia_calendari_telegram_massivo_api,
 )
 from .views_ia import (
     ia_hub_view,
