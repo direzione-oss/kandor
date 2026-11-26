@@ -45,7 +45,7 @@ class ManualePDF(FPDF):
         self.ln(14)
         self.set_font('Helvetica', '', 10.5)
         self.set_text_color(90, 100, 110)
-        self.cell(0, 7, 'Versione 3.4 - 19 Novembre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 7, 'Versione 3.5 - 26 Novembre 2026', align='C', new_x="LMARGIN", new_y="NEXT")
         self.cell(0, 7, 'Manuale Operativo Passo-Passo: Accessi, Procedure, Buste Paga, MOL, Magazzino, SLA, CRM & IA', align='C', new_x="LMARGIN", new_y="NEXT")
         self.ln(6)
         self.cell(0, 6.5, 'URL Gestionale (VPS 24/7): https://kandor.187.126.30.207.sslip.io/admin/', align='C', new_x="LMARGIN", new_y="NEXT")

@@ -1,10 +1,10 @@
 ================================================================================
 PODCAST UFFICIALE KANDOR ERP — GUIDA OPERATIVA PER I DIPENDENTI
 Titolo: "Lavorare Semplice con Kandor: Web App Mobile, Assistente IA e Bot Telegram"
-Basato su: Manuale Operativo Dipendenti Kandor (Versione 3.1)
+Basato su: Manuale Operativo Dipendenti Kandor (Versione 3.5 — 26 Novembre 2026)
 Destinatari: Lavoratori, Operatori di Cantiere, Capisquadra e Sostituti (Jolly)
 Formato: Script completo pronto per registrazione vocale, sintesi IA (ElevenLabs,
-         NotebookLM, OpenAI Audio) o lettura speaker.
+         NotebookLM, OpenAI Audio, Edge-TTS) o lettura speaker.
 ================================================================================
 
 NOTE DI PRODUZIONE E REGIA AUDIO:
@@ -113,7 +113,8 @@ MARCO:
 Come funziona esattamente la registrazione manuale delle ore e la conferma dei compagni di squadra?
 
 ELENA:
-Toccate il pulsante "Inserisci Ore" sul turno. Il campo "Ore lavorate" è già precompilato con la durata prevista del turno, ma potete cambiarlo liberamente oppure usare i comodi pulsanti rapidi "meno mezz'ora" (-0.5h) e "più mezz'ora" (+0.5h), aggiungendo anche una nota se ad esempio avete svolto un lavoro extra richiesto dal cliente.
+Toccate il pulsante "Inserisci Ore" sul turno. Il campo "Ore lavorate" è già precompilato con la durata prevista del turno, ma potete cambiarlo liberamente: potete scrivere ore decimali come 3.5, il numero secco 4, oppure usare il comodissimo formato ore e minuti con i due punti, ad esempio 1:34 o 02:15, senza dover fare calcoli! Se le ore differiscono dal previsto, il sistema vi chiederà una breve nota di motivazione per l'ufficio.
+Inoltre, potete usare i comodi pulsanti rapidi "meno mezz'ora" (-0.5h) e "più mezz'ora" (+0.5h).
 E attenzione a questa funzione importantissima per chi lavora in squadra:
 Se siete i primi a registrare le ore di quel turno, sotto al campo delle ore vedrete l'elenco dei vostri compagni di squadra previsti oggi, già selezionati con una spunta verde.
 - Se i colleghi erano regolarmente presenti con voi, lasciate la spunta verde: quando premete "Salva Ore", il sistema registrerà automaticamente le stesse ore anche per loro, così i vostri compagni non dovranno reinserirle!
@@ -123,7 +124,7 @@ MARCO:
 E cosa succede se un giorno, per fretta o stanchezza, mi dimentico di inserire le ore a fine turno?
 
 ELENA:
-Kandor pensa anche a questo! Nella stessa schermata trovate il riquadro giallo "Turni da compilare (ultimi 7 giorni)". Lì compaiono tutti i turni della settimana passata rimasti senza ore: basta toccare "Inserisci Ore", indicare le ore svolte e salvare. E in ogni caso, se non avete avuto modo di farlo, anche l'amministrazione può inserire e validare le ore direttamente dal calendario centrale dell'ufficio.
+Kandor pensa anche a questo! Nella stessa schermata trovate il riquadro "Turni da compilare", con una finestra estesa fino a 31 giorni indietro! Lì compaiono tutti i turni del mese passati rimasti senza ore: basta toccare "Inserisci Ore", indicare le ore svolte e salvare. E in ogni caso, se non avete avuto modo di farlo, anche l'amministrazione può inserire e validare le ore direttamente dal calendario centrale dell'ufficio.
 
 ================================================================================
 PARTE 5 — CALENDARIO SETTIMANALE, GOOGLE MAPS E GESTIONE ASSENZE
@@ -181,14 +182,15 @@ Fantastico! E come fa il dipendente a vedere e scaricare il proprio cedolino del
 ELENA:
 Ogni lavoratore ha a disposizione ben tre canali comodissimi e sicuri:
 1. Il primo canale è l'Archivio Digitale sempre disponibile dentro la Web App Mobile: basta toccare la quinta scheda in basso, "Profilo". Subito sotto alla foto profilo trovate la sezione "Le Tue Buste Paga (PDF)". Lì vedete l'elenco di tutti i vostri cedolini mensili con il mese e l'anno di riferimento, l'importo Netto in busta, il numero di pagine e la data di pubblicazione. Toccando il pulsante "Apri PDF", potete aprire, salvare sul telefono o stampare la vostra busta paga in qualsiasi momento, anche a distanza di mesi!
-2. Il secondo canale è l'invio automatico su Telegram: chi ha collegato il Bot Telegram di Kandor riceve direttamente nella chat un messaggio automatico con il periodo, il netto del mese e il file PDF della busta paga allegato, pronto da aprire con un tocco.
+2. Il secondo canale è l'invio automatico su Telegram: chi ha collegato il Bot Telegram di Kandor riceve direttamente nella chat un messaggio automatico con il periodo, il netto del mese e il file PDF della busta paga allegato, pronto da aprire con un tocco. In più, potete ricevere anche il PDF completo del vostro Calendario Presenze mensile con tutte le ore validate!
 3. Il terzo canale è WhatsApp: per chi non utilizza Telegram, l'amministrazione può inviare il cedolino direttamente su WhatsApp tramite un link personale protetto da codice crittografico riservato. Basta toccare il link nel messaggio WhatsApp per aprire e scaricare subito il PDF della propria busta paga, e il sistema conferma automaticamente all'ufficio che avete ricevuto e scaricato il documento!
 
 MARCO:
-Quindi niente più buste paga cartacee smarrite o attese per ritirare il foglio in ufficio: arriva tutto in automatico su Telegram, su WhatsApp e resta sempre archiviato nella scheda "Profilo" della Web App! E cos'altro troviamo nella scheda "Profilo"?
+Quindi niente più buste paga cartacee smarrite o attese per ritirare il foglio in ufficio: arriva tutto in automatico su Telegram, su WhatsApp e resta sempre archiviato nella scheda "Profilo" della Web App! E cos'altro troviamo nella scheda "Profilo" e tra le richieste al magazzino?
 
 ELENA:
-Sempre nella scheda "Profilo", subito sotto alle Buste Paga, ogni lavoratore può:
+C'è una grandissima novità: oltre ai materiali per il cantiere, dal menu potete richiedere direttamente al magazzino il vostro vestiario da lavoro e i dispositivi di protezione individuale DPI: scarpe antinfortunistiche, pantaloni, magliette, giacche e guanti. L'ufficio programmerà la consegna e preparerà il modulo ufficiale di consegna DPI con timbro e firma aziendale.
+Inoltre, sempre nella scheda "Profilo", subito sotto alle Buste Paga, ogni lavoratore può:
 - Scattare o cambiare la propria Foto Profilo toccando "Scatta o Cambia Foto Profilo".
 - Controllare la data di scadenza della propria Visita Medica periodica d'idoneità e vedere quanti giorni mancano.
 - Verificare l'elenco completo dei propri Corsi di Formazione — come Sicurezza, Antincendio, Primo Soccorso, Lavori in Quota, PLE o HACCP — con tutte le date di scadenza sempre sotto controllo.
@@ -198,18 +200,20 @@ PARTE 7 — IL BOT TELEGRAM (@kandor_gestionale_bot) E DOMANDE FREQUENTI (FAQ)
 ================================================================================
 
 MARCO:
-Prima abbiamo detto che, oltre alla Web App, chi usa Telegram può fare tutto anche dal Bot ufficiale. Ricordiamo brevemente come funziona?
+Prima abbiamo detto che, oltre alla Web App, chi usa Telegram può fare tutto anche dal Bot ufficiale con funzioni 100% native in chat. Ricordiamo brevemente come funziona?
 
 ELENA:
-Certamente! Su Telegram basta cercare "kandor_gestionale_bot" e premere "Avvia". La prima volta, se il telefono non è ancora associato, il Bot mostra un codice numerico chiamato ID Telegram: basta comunicarlo all'ufficio per attivare subito il proprio profilo.
-Dentro la chat di Telegram avete sempre i 6 bottoni del menu principale:
-- "Registra Ore"
-- "Turni Non Compilati"
-- "I Miei Turni"
-- "Malattia / Ferie / Permesso"
-- "Segnalazione"
-- e "Guida", che apre direttamente il manuale sul telefono.
-E anche su Telegram potete scrivere una frase libera come "Oggi ho fatto 4 ore al Condominio Rossi": il Bot IA capisce la frase e vi mostra un bottone verde di conferma rapida in un solo clic!
+Certamente! Su Telegram basta cercare "kandor_gestionale_bot" e premere "Avvia". La prima volta basta inserire il proprio Codice Fiscale e il PIN a 4 cifre per collegare il profilo in massima sicurezza con blocco anti-duplicato.
+Dentro la chat di Telegram avete sempre i comodi bottoni del menu principale:
+- "⏱ Registra Ore" (con supporto a ore secche o nel formato HH:MM come 1:34)
+- "📋 Turni da compilare" (fino a 31 giorni indietro)
+- "📅 Calendario"
+- "Malattia" / "Ferie" / "Permesso"
+- "🧴 Richiedi Materiali Cantiere" e Vestiario DPI
+- "🚨 Segnalazione"
+- "📄 Buste Paga"
+- e il nuovo pulsante "🎧 Podcast Audio" o "📖 Guida", che vi invia direttamente in chat sia il file audio MP3 della guida parlata sia il manuale PDF completo!
+E anche su Telegram potete scrivere una frase libera come "Oggi 1:34 al Condominio Rossi": il Bot IA capisce la frase e vi mostra un bottone verde di conferma rapida in un solo clic!
 
 MARCO:
 Chiudiamo il nostro episodio rispondendo alle due domande più frequenti dei lavoratori:

@@ -25,25 +25,25 @@ CAPITOLI_PODCAST_DIPENDENTI = [
         "id": 4,
         "titolo": "Come registrare le ore lavorate",
         "durata_stimata": "02:15",
-        "descrizione": "Tasto Registra Ore, digitazione rapida (es. '4' o '4 ore') e registrazione di squadra."
+        "descrizione": "Tasto Registra Ore, inserimento ore e minuti (es. '1:34' o '4'), motivazione scostamenti e squadra."
     },
     {
         "id": 5,
         "titolo": "Comunicare Malattia, Ferie o Permessi",
         "durata_stimata": "03:30",
-        "descrizione": "Come avvisare l'ufficio in pochi secondi e inviare la foto del certificato medico."
+        "descrizione": "Come avvisare l'ufficio in pochi secondi e inviare la foto o il numero di protocollo medico."
     },
     {
         "id": 6,
-        "titolo": "Segnalazioni dal cantiere e Prodotti mancanti",
+        "titolo": "Segnalazioni, Prodotti, Vestiario e DPI",
         "durata_stimata": "04:30",
-        "descrizione": "Detersivo finito o porta bloccata? Come inviare testo o foto al magazzino e responsabile."
+        "descrizione": "Detersivi cantiere ma anche richiesta divise, scarpe e DPI personali direttamente al magazzino."
     },
     {
         "id": 7,
-        "titolo": "Ricevere la Busta Paga e la Scheda App",
+        "titolo": "Busta Paga e Calendario Presenze PDF in Chat",
         "durata_stimata": "05:15",
-        "descrizione": "Il cedolino mensile direttamente in chat e il pulsante per aprire la Scheda Personale."
+        "descrizione": "Ricevere il cedolino e il riepilogo mensile PDF direttamente su Telegram senza intermediari."
     },
     {
         "id": 8,
@@ -81,23 +81,25 @@ Capitolo quattro: Come registrare le ore lavorate.
 Questo è il passaggio più importante e più semplice. Quando finisci il tuo turno in cantiere, apri Telegram:
 Puoi fare in due modi:
 Primo modo: tocca il pulsante "Registra Ore". Il bot ti mostrerà i cantieri in cui hai lavorato oggi; tocca il nome del cantiere e conferma le ore fatte.
-Secondo modo, ancora più veloce: scrivi direttamente un messaggio in chat! Ad esempio puoi scrivere "oggi 4 ore", oppure semplicemente il numero "4" se lavori nel tuo cantiere abituale. L'intelligenza artificiale di Kandor capisce subito e registra le tue ore senza farti perdere tempo.
+Secondo modo, ancora più veloce: scrivi direttamente un messaggio in chat! Puoi scrivere "oggi 4 ore", o il numero secco "4", oppure se hai fatto orari precisi puoi scrivere nel formato ore e minuti con i due punti, come "1:34" o "2:15". L'intelligenza artificiale di Kandor capisce subito e registra le tue ore senza farti perdere tempo.
+Se le ore inserite sono diverse da quelle previste, ti verrà chiesto di scrivere una breve motivazione a tutela del tuo stipendio.
 E se lavori insieme ad altri colleghi? Il tuo caposquadra può registrare le ore per tutta la squadra con un solo tocco; a te arriverà una notifica automatica di conferma con le ore registrate. Comodissimo!
 
 Capitolo cinque: Malattia, Ferie e Permessi.
 Se ti capita un imprevisto, hai la febbre o hai bisogno di un giorno di ferie, non devi preoccuparti.
 Apri il bot e tocca il pulsante Malattia oppure Ferie. Puoi anche scrivere semplicemente "domani malattia" o "ferie dal primo al tre del mese".
-Il bot ti chiederà le date e, in caso di malattia, puoi allegare direttamente una foto del certificato medico inviato dal medico curante. 
+Il bot ti chiederà le date e, in caso di malattia, puoi allegare direttamente una foto del certificato medico inviato dal medico curante o inserire il protocollo INPS. 
 L'ufficio riceverà la notifica istantaneamente e provvederà a organizzare la copertura del tuo turno, senza che tu debba fare decine di telefonate mentre non ti senti bene.
 
-Capitolo sei: Segnalazioni dal cantiere e richiesta materiali.
+Capitolo sei: Segnalazioni, Materiali, Vestiario e DPI.
 Mentre sei al lavoro noti una porta rotta, un guasto a un carrello o vedi che sta finendo il detergente per i pavimenti?
-Scrivilo direttamente al bot, oppure tocca il pulsante Segnalazione e scatta una foto al prodotto o al guasto.
-Il sistema riconosce in automatico la richiesta, avvisa il magazzino e il tuo responsabile di area, così che il materiale possa esserti rifornito al più presto senza fermare il tuo lavoro.
+Scrivilo direttamente al bot, oppure tocca il pulsante Segnalazione o Richiedi Materiali.
+Ma c'è una grande novità: da oggi puoi richiedere non solo i materiali per il cantiere, ma anche le tue dotazioni personali di vestiario e i dispositivi di protezione individuale: guanti, scarpe antinfortunistiche, pantaloni, magliette e camici. Il magazzino preparerà la consegna con la data stabilita e il modulo di consegna.
 
-Capitolo sette: La Busta Paga e la Scheda App.
+Capitolo sette: La Busta Paga e il Calendario Presenze PDF in Chat.
 Ogni mese, non appena le paghe sono pronte, il bot ti invia direttamente nella chat il file PDF della tua busta paga. È un documento protetto, riservato a te, che puoi scaricare, salvare o stampare quando vuoi.
-Inoltre, nel menu del bot trovi il pulsante "Apri Scheda Web App": toccandolo si apre una schermata elegante e moderna sul tuo telefono dove puoi vedere l'elenco completo delle ore lavorate nel mese, i tuoi dati contrattuali e lo storico dei tuoi cedolini.
+Inoltre, l'ufficio può inviarti direttamente su Telegram anche il PDF completo del tuo Calendario Presenze mensile, con il dettaglio di tutti i turni svolti, ore convalidate ed eventuali straordinari.
+E se usi la Web App per la timbratura con GPS, il menu a tendina ti mostrerà comodamente solo i cantieri in cui hai un turno programmato per la giornata, evitando qualsiasi possibilità di errore!
 
 Capitolo otto: Due consigli d'oro per lavorare sereni.
 Per avere un'esperienza perfetta, ti diamo due semplici consigli:

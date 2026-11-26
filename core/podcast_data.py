@@ -35,21 +35,21 @@ CAPITOLI_PODCAST = [
     },
     {
         "id": 6,
-        "titolo": "Cantieri, SLA e Controllo Qualità",
+        "titolo": "Cantieri, SLA, Dotazioni Personali e Registro DPI",
         "durata_stimata": "04:55",
-        "descrizione": "Note cliente, richieste materiali magazzino, triage IA segnalazioni e audit sul campo."
+        "descrizione": "Note cliente, richieste materiali magazzino, vestiario, registro DPI con timbro/firma Kandor e restituzioni."
     },
     {
         "id": 7,
-        "titolo": "Procedure, Buste Paga e Pre-Fatturazione",
+        "titolo": "Procedure, Cronologia UNDO, Buste Paga e Crediti IA",
         "durata_stimata": "05:48",
-        "descrizione": "Invio cedolini crittografati su Telegram/WhatsApp, monitoraggio ore e marginalità."
+        "descrizione": "Rollback lavorazioni, invio cedolini crittografati su Telegram/WhatsApp, monitoraggio crediti IA Gemini 2.5."
     },
     {
         "id": 8,
-        "titolo": "Le 3 Regole d'oro del Responsabile",
+        "titolo": "Invio Calendario Presenze Telegram e le 3 Regole d'oro",
         "durata_stimata": "06:40",
-        "descrizione": "La routine giornaliera in 3 passi per lavorare con efficienza, trasparenza e serenità."
+        "descrizione": "Invio PDF presenze ai lavoratori con blocco ore non validate e la routine quotidiana del Responsabile."
     }
 ]
 
@@ -93,19 +93,23 @@ Non appena l'assenza viene convalidata, entra in azione il motore di Smart Sosti
 Invece di farvi fare decine di telefonate a vuoto, l'algoritmo analizza all'istante tutti i dipendenti sostituti disponibili, calcola la vicinanza chilometrica rispetto al cantiere, verifica le qualifiche necessarie e crea una graduatoria automatica.
 Il sistema invia una notifica discreta al primo candidato disponibile. Se accetta, il turno viene aggiornato immediatamente sul calendario. Se rifiuta o non risponde entro un tempo prestabilito, il sistema passa automaticamente al candidato successivo. In ogni momento il Responsabile di Area riceve un riepilogo trasparente ed è libero di intervenire o confermare manualmente.
 
-Capitolo sei: Cantieri, Clienti, SLA e Controllo Qualità.
-Nella scheda di ciascun Cliente trovate l'indirizzo esatto geolocalizzato, le note operative speciali, le specifiche sui materiali e le ore mensili previste da contratto.
-Dal campo, i lavoratori possono inviare segnalazioni urgenti semplicemente scrivendo o scattando una foto al bot: che si tratti di un guasto a un macchinario, di una porta bloccata o della mancanza di detergenti, il sistema effettua un triage automatico, classificando l'urgenza e avvisando tempestivamente il magazzino e il responsabile di riferimento.
-Inoltre, attraverso il modulo Ispezioni Qualità, potete compilare direttamente dal vostro smartphone o tablet la scheda di audit periodica sul cantiere, con punteggio SLA e firma digitale.
+Capitolo sei: Cantieri, Clienti, SLA, Dotazioni Personali e Registro DPI.
+Nella scheda di ciascun Cliente trovate l'indirizzo esatto geolocalizzato, le note operative speciali, le specifiche sui materiali e le ore mensili previste da contratto, con gestione automatica delle festività nazionali, del patrono di Brembate di Sopra e delle sospensioni per ferie cliente.
+Dal campo, i lavoratori possono inviare segnalazioni urgenti e richiedere materiali, ma non solo: con il nuovo modulo Dotazioni Personali e Registro DPI, l'ufficio gestisce in modo impeccabile la consegna di divise, vestiario da lavoro e dispositivi di protezione individuale previsti dal Testo Unico sulla Sicurezza.
+È possibile modificare la data di consegna reale, registrare la restituzione degli indumenti a fine rapporto e stampare il verbale ufficiale di consegna DPI con timbro e firma aziendale Kandor, pronto per la firma del dipendente.
+Inoltre, attraverso il modulo Ispezioni Qualità, potete compilare direttamente da smartphone la scheda di audit periodica sul cantiere, con punteggio SLA e firma digitale.
 
-Capitolo siete: Procedure Operative, Buste Paga e Pre-Fatturazione.
-Kandor integra anche un potente modulo Procedure: per qualsiasi attività aziendale importante, come l'onboarding di un nuovo cliente o la consegna delle chiavi, potete avviare una procedura guidata con passaggi obbligatori e avvallo formale dei responsabili.
-Per quanto riguarda la parte amministrativa, il sistema include la Pre-Fatturazione automatica che confronta le ore lavorate con il canone concordato, evidenziando subito eventuali scostamenti o straordinari da fatturare separatamente. 
+Capitolo sette: Procedure Operative, Cronologia Rollback UNDO, Buste Paga e Credito IA.
+Kandor integra anche un potente modulo Procedure: per qualsiasi attività aziendale importante potete avviare una checklist guidata con avvalli bloccanti tra colleghi. 
+E se si commette un errore operativo? Niente panico: con il nuovo modulo Cronologia Lavorazioni e Rollback UNDO, potete visualizzare lo storico delle azioni e annullare con un clic modifiche indesiderate, con permessi profilati per ciascun responsabile.
+Per la parte economica, il sistema include la Pre-Fatturazione con alert per i dati fiscali mancanti dei clienti e il monitoraggio trasparente del Credito IA basato sul potente motore Gemini 2.5 Flash.
 Infine, con un clic, l'amministrazione può dividere i file PDF cumulativi delle buste paga e inviare a ciascun dipendente il proprio cedolino personale direttamente su Telegram o WhatsApp, protetto e crittografato.
 
-Capitolo otto: Le 3 Regole d'oro quotidiane per ogni Responsabile.
-Per ottenere il massimo da Kandor senza alcuno sforzo, vi consigliamo questa semplice routine giornaliera:
-Regola numero uno: Al mattino, date uno sguardo veloce al cruscotto iniziale per verificare che tutti i turni della giornata abbiano una squadra assegnata e che non ci siano segnalazioni notturne.
+Capitolo otto: Invio Calendario Presenze via Telegram e le 3 Regole d'oro del Responsabile.
+Novità fondamentale per la trasparenza con i lavoratori: dalla sezione Cedolini Paghe potete inviare con un solo tocco il PDF del Calendario Presenze mensile direttamente sulla chat Telegram del singolo dipendente o di tutti i collaboratori in blocco. 
+E per garantire la massima correttezza retributiva, il sistema include un blocco di sicurezza automatico: se nella mensilità sono presenti turni con ore non ancora validate, l'invio del calendario viene bloccato finché il responsabile non effettua la validazione!
+Per ottenere il massimo da Kandor senza alcuno sforzo, vi ricordiamo la semplice routine giornaliera in tre passi:
+Regola numero uno: Al mattino, date uno sguardo veloce al cruscotto iniziale per verificare che tutti i turni della giornata abbiano una squadra assegnata e che non ci siano segnalazioni o assenze impreviste.
 Regola numero due: Durante il giorno, se ricevete una notifica dal Bot Telegram per una sostituzione o un materiale mancante, prendete in carico la richiesta con i tasti rapidi: ci vogliono meno di dieci secondi.
 Regola numero tre: A fine giornata o al mattino successivo, aprite il Revisore Ore: controllate le presenze caricate dai capisquadra e cliccate su Valida. Questo garantirà una rendicontazione impeccabile e paghe puntuali e corrette per tutti.
 

@@ -1,8 +1,8 @@
 # KANDOR - Guida Operativa Completa per il Dipendente
 ## Web App Mobile (`/app/`) & Bot Telegram (`@kandor_gestionale_bot`)
 
-**Versione 3.4 — 19 Novembre 2026**  
-*Manuale Passo-Passo per la Registrazione Ore, Timbratura GPS/QR Code, Consultazione Turni, Richiesta Assenze, Ordine Materiali Cantiere, Segnalazioni e Scarico Buste Paga PDF*
+**Versione 3.5 — 26 Novembre 2026**  
+*Manuale Passo-Passo per la Registrazione Ore (anche formato HH:MM), Timbratura GPS/QR Code, Consultazione Turni, Richiesta Assenze, Vestiario e DPI, Segnalazioni, Calendario Presenze PDF, Buste Paga e Guida Audio Podcast*
 
 ---
 
@@ -25,16 +25,17 @@ Per rendere il lavoro quotidiano semplice, veloce e trasparente, **Kandor** mett
 
 Ecco in sintesi tutte le funzioni spiegate passo dopo passo in questo manuale:
 
-1. **⏱ Registrazione Ore del Giorno (con 1 solo tocco)**: confermi le ore previste per i tuoi cantieri di oggi oppure inserisci l'orario effettivamente svolto.
+1. **⏱ Registrazione Ore del Giorno (anche formato HH:MM)**: confermi le ore previste con un tocco, oppure scrivi orari precisi sia decimali (es. `3.5`) sia in ore e minuti (es. `1:34` o `02:15`) o ore secche (es. `4`).
 2. **💬 Motivazione Automatica per Ore Diverse dal Previsto**: se in un cantiere hai lavorato **meno ore** o **piu ore** rispetto a quelle previste dal tuo turno, il sistema ti chiede di scrivere brevemente il motivo (es. *"Finito 30 minuti prima per uffici chiusi"* o *"1 ora in piu per pulizia straordinaria scale"*), cosi l'ufficio paghe ha subito tutte le informazioni corrette.
 3. **📋 Recupero Turni da Compilare (fino a 31 Giorni indietro)**: visualizzi in un unico elenco tutti i turni degli **ultimi 31 giorni** che hai dimenticato di compilare (evidenziati con il pallino rosso 🔴) e li completi in pochi secondi.
-4. **📍 Timbratura Check-In / Check-Out con GPS e QR Code in Cantiere**: quando arrivi in cantiere puoi inquadrare il **Cartello QR Code Kandor** (o premere **`Check-In GPS`** nella Web App) e a fine turno premere **`Check-Out GPS`** per far calcolare automaticamente le ore lavorate.
+4. **📍 Timbratura Check-In / Check-Out con GPS e QR Code in Cantiere**: quando arrivi in cantiere puoi inquadrare il **Cartello QR Code Kandor** oppure premere **`Check-In GPS`** nella Web App (con comodo menu a tendina limitato ai soli cantieri con turno nella giornata) e a fine lavoro premere **`Check-Out GPS`** per far calcolare automaticamente le ore lavorate.
 5. **📅 Calendario Personale e Compagni di Squadra**: controlli i tuoi turni di oggi, domani e di tutta la settimana, vedi l'indirizzo esatto del cantiere (con apertura diretta in **Google Maps**) e vedi chi sono i tuoi compagni di squadra e se hanno gia segnato le ore.
-6. **🏥 Invio Richieste di Assenza (`Malattia`, `Ferie`, `Permesso`, `Legge 104`)**: comunichi in pochi tocchi un'assenza giornaliera o un permesso orario e inserisci il numero di protocollo del certificato medico INPS (PUC).
-7. **🧴 Richiesta Materiali e Prodotti per il Cantiere (`Richiedi Materiali`)**: quando in un cantiere sta finendo un detergente, la carta, i sacchi o un attrezzo, invii l'ordine direttamente al Magazzino scegliendo il cantiere e il prodotto dal menu.
-8. **📄 Consultazione e Scarico Buste Paga in PDF (`Buste Paga`)**: visualizzi l'elenco di tutte le tue buste paga mensili e scarichi il file **PDF ufficiale** direttamente dentro Telegram o nella Web App ogni volta che ti serve (anche per banca, CAF o730).
-9. **🔄 Accettazione o Rifiuto Proposte di Sostituzione**: quando l'ufficio cerca un sostituto per coprire un turno extra, ricevi la proposta sul telefono e puoi accettarla con un solo tocco (`✅ Accetto`).
-10. **🚨 Segnalazioni dal Cantiere, Chat con l'Ufficio e Foto Profilo**: segnali guasti o problemi riscontrati presso il cliente, scrivi direttamente ai Responsabili e aggiorni la tua foto profilo per il tesserino aziendale.
+6. **🏥 Invio Richieste di Assenza (`Malattia`, `Ferie`, `Permesso`, `Legge 104`)**: comunichi in pochi tocchi un'assenza giornaliera o un permesso orario e inserisci il numero di protocollo del certificato medico INPS (PUC) o la foto del certificato.
+7. **🧴 Richiesta Materiali, Vestiario da Lavoro e DPI (`Richiedi Materiali`)**: quando in cantiere sta finendo un prodotto oppure hai bisogno di nuove scarpe antinfortunistiche, pantaloni, magliette o guanti, invii l'ordine direttamente al Magazzino con un clic.
+8. **📄 Buste Paga e Calendario Presenze Mensili in PDF (`Buste Paga`)**: scarichi sul telefono le tue buste paga ufficiali e ricevi direttamente nella chat Telegram il PDF completo del Calendario Presenze con il riepilogo delle ore convalidate.
+9. **🎧 Guida Audio Podcast Integrata in Chat (`Podcast Audio`)**: puoi ascoltare la guida vocale ufficiale di Kandor direttamente nelle cuffie del telefono con il file MP3 nativo inviato dal bot.
+10. **🔄 Accettazione o Rifiuto Proposte di Sostituzione e Turni Jolly**: quando l'ufficio cerca un sostituto o propone un turno a un operatore Jolly, ricevi la scheda turno sul telefono e puoi accettarla o rifiutarla con un solo tocco.
+11. **🚨 Segnalazioni dal Cantiere, Chat con l'Ufficio e Foto Profilo**: segnali guasti o problemi riscontrati presso il cliente, scrivi direttamente ai Responsabili e aggiorni la tua foto profilo per il tesserino aziendale.
 
 ---
 
@@ -102,13 +103,14 @@ Quando apri il **Bot Telegram (`@kandor_gestionale_bot`)** (o premi il pulsante 
 | **📋 Turni da compilare** | Tab **Da Compilare (31gg)** | Recuperare i turni passati rimasti senza ore negli ultimi 31 giorni |
 | **Malattia** / **Ferie** | Tab **Assenze** | Inviare una comunicazione di malattia o una richiesta di ferie |
 | **Permesso** / **Legge 104** | Tab **Assenze** | Richiedere un permesso orario/giornaliero o Legge 104 |
-| **🧴 Richiedi Materiali Cantiere** | Tab **Materiali** | Ordinare prodotti o detergenti che stanno finendo in cantiere |
+| **🧴 Richiedi Materiali Cantiere** | Tab **Materiali** | Ordinare prodotti di pulizia, vestiario da lavoro e DPI |
 | **🚨 Segnalazione** | Tab **Segnalazioni** | Segnalare un guasto, un imprevisto o una nota dal cantiere |
-| **📄 Buste Paga** | Tab **Buste Paga** | Scaricare sul telefono le proprie buste paga in formato PDF |
+| **📄 Buste Paga** | Tab **Buste Paga** | Scaricare le buste paga e ricevere il calendario presenze in PDF |
+| **🎧 Podcast Audio** | Player Audio `/manuale-dipendente/podcast/` | Ascoltare la guida vocale del bot direttamente su Telegram |
 | **📸 Foto Profilo** | Icona **Foto in alto** | Scattare o caricare la propria foto per il tesserino aziendale |
 | **🏢 Registra Nuovo Cliente** *(Solo Responsabili)* | Sezione **Clienti** | Registrare al volo un nuovo cliente aggiornando subito l'anagrafica |
 | **📅 Assegna Turno** *(Solo Responsabili)* | Sezione **Turni** | Accesso rapido all'assegnazione e programmazione dei turni |
-| **📖 Guida** | Link **Guida** | Aprire questo manuale operativo sempre aggiornato |
+| **📖 Guida** | Link **Guida** | Aprire questo manuale operativo o ricevere il PDF in chat |
 
 ---
 
@@ -122,7 +124,10 @@ Quando apri il **Bot Telegram (`@kandor_gestionale_bot`)** (o premi il pulsante 
 4. Il Bot ti mostra il riepilogo del turno (Cliente, Orario previsto e Ore previste da contratto, es. `3.0 ore`) e ti propone le scelte rapide:
    - **Caso A — Hai fatto esattamente le ore previste**: tocca il pulsante **`✅ Conferma 3.0 ore (Previste)`** (oppure il bottone corrispondente alle tue ore). Le ore vengono salvate immediatamente!
    - **Caso B — Hai fatto un numero di ore DIVERSO da quello previsto** (es. mezz'ora in meno o un'ora in piu):
-     1. Tocca il bottone con il numero di ore effettivamente svolte (es. `2.5h` o `4.0h`) oppure tocca **`✏️ Altro (Scrivi ore)`** e digita il numero (es. `3.5`);
+     1. Tocca il bottone con il numero di ore effettivamente svolte (es. `2.5h` o `4.0h`) oppure tocca **`✏️ Altro (Scrivi ore)`** e digita il valore:
+        - Puoi digitare il numero decimale (es. `3.5`);
+        - Puoi digitare il numero secco di ore (es. `4`);
+        - Oppure puoi digitare comodamente nel formato **ore e minuti con i due punti `HH:MM` (es. `1:34` o `02:15`)**;
      2. **Richiesta automatica della Motivazione**: poiche le ore inserite sono diverse da quelle previste dal turno, il Bot ti chiedera:  
         *"📝 Hai indicato X ore invece delle Y previste. Scrivi brevemente il MOTIVO della variazione (es. lavoro extra richiesto, uscita anticipata, ecc.):"*
      3. Scrivi un breve messaggio con il motivo (es. *"Rimasta 1 ora in piu per pulire vetri portineria dopo lavori murari"*) e premi **Invia**;
@@ -152,8 +157,9 @@ In tutti i cantieri dotati di **Cartello QR Code Kandor** (o direttamente dalla 
 
 ### 4.1 Come Funziona il Check-In (Arrivo in Cantiere) e il Check-Out (Fine Lavoro)
 1. **Quando arrivi sul posto di lavoro**:
-   - Inquadra con la fotocamera del telefono il **Cartello QR Code** affisso nel locale pulizie del cantiere (oppure apri la Web App `/app/` sulla scheda del cantiere di oggi);
-   - Tocca il pulsante verde **`🟢 Check-In GPS (Inizio Lavoro)`** (acconsentendo, se richiesto dal telefono, alla posizione GPS);
+   - Inquadra con la fotocamera del telefono il **Cartello QR Code** affisso nel locale pulizie del cantiere oppure apri la Web App `/app/` sulla scheda del cantiere di oggi;
+   - **Menu a tendina selettivo (Novità v3.5)**: se apri il modulo timbratura dalla Web App, il selettore del cantiere ti mostra **esclusivamente i cantieri della tua giornata**, azzerando il rischio di selezionare un cantiere errato;
+   - Tocca il pulsante verde **`🟢 Check-In GPS (Inizio Lavoro)`** (acconsentendo, se richiesto dal telefono, alla geolocalizzazione GPS);
    - Il sistema verifica che ti trovi presso il cantiere (entro 300 metri) e registra l'ora esatta di entrata (es. `🟢 Check-In registrato alle 06:02`).
 2. **Quando hai terminato il turno**:
    - Riapri la Web App `/app/` (o inquadra nuovamente il QR Code) e tocca il pulsante rosso **`🔴 Check-Out GPS (Fine Lavoro)`**;
@@ -210,9 +216,15 @@ Non aspettare che un prodotto finisca completamente: appena vedi che in uno sgab
    - Apri il tab **`🧴 Materiali`**, scegli il **Cantiere**, il **Prodotto**, la **Quantita** e l'**Urgenza** (`Normale` o `Urgente`) e tocca **`📦 Invia Richiesta al Magazzino`**.
 3. La tua richiesta arriva in tempo reale nella sezione **Magazzino (`/magazzino-dotazioni/`)** dell'ufficio per la preparazione della consegna!
 
+### 7.2 Dotazioni Personali, Vestiario da Lavoro e Registro DPI (D.Lgs. 81/08)
+Kandor gestisce in modo rigoroso e conforme alla legge sulla sicurezza sul lavoro tutte le dotazioni individuali assegnate a ciascun dipendente:
+1. **Consegna Vestiario e DPI**: la Responsabile o l'Amministrazione registra nel sistema ogni capo di vestiario (pettorine, magliette, felpe) e dispositivo di protezione individuale (scarpe antinfortunistiche con certificazione, guanti di protezione chimica, occhiali protettivi);
+2. **Data Consegna Personalizzabile & Verbale Ufficiale**: all'atto della consegna, il gestionale genera il **Verbale di Consegna DPI** con data effettiva, marca, modello, taglia e seriale, recante il **timbro e la firma ufficiale Kandor** per la controfirma da parte del lavoratore;
+3. **Restituzione e Sostituzione per Usura**: in caso di cambio taglia, usura del materiale o cessazione del rapporto, il sistema traccia la restituzione o il rinnovo del DPI garantendo la massima trasparenza e sicurezza per tutti.
+
 ---
 
-## PARTE 8 — SCARICARE E CONSULTARE LE PROPRIE BUSTE PAGA IN PDF (`📄 Buste Paga`)
+## PARTE 8 — SCARICARE E CONSULTARE LE PROPRIE BUSTE PAGA IN PDF E CALENDARI PRESENZE
 
 Con Kandor hai sempre tutte le tue **Buste Paga in formato PDF** archiviate sul telefono, pronte da aprire, salvare o stampare in qualsiasi momento senza doverle richiedere in ufficio.
 
@@ -227,6 +239,11 @@ Con Kandor hai sempre tutte le tue **Buste Paga in formato PDF** archiviate sul 
 2. Vedrai l'elenco cronologico di tutti i tuoi cedolini mensili con la data di pubblicazione.
 3. Tocca il pulsante **`📥 Scarica PDF`** accanto al mese desiderato per aprire subito il documento PDF sul tuo telefono.
 4. Se l'ufficio ti invia la busta paga su **WhatsApp**, ti basta toccare il link sicuro contenuto nel messaggio per scaricare immediatamente il tuo PDF personale.
+
+### 8.3 Ricezione PDF del Calendario Presenze Mensile via Telegram
+Oltre al cedolino paga, l'ufficio può inviarti direttamente su Telegram il **PDF del Calendario Presenze Mensile** contenente il dettaglio giornaliero di tutte le ore lavorate, cantieri visitati ed eventuali assenze:
+1. **Controllo di Qualità Preventivo (Novità v3.5)**: l'ufficio invia il documento solo dopo aver validato tutte le ore; se vi sono giorni o turni con ore non validate o pari a zero, il sistema blocca l'invio e avverte il responsabile per proteggere l'esattezza dei tuoi conteggi;
+2. **Consultazione Immediata**: ricevi il file PDF direttamente nella chat del Bot, potendo così verificare in anticipo la perfetta corrispondenza tra le ore da te timbrate e quelle elaborate per la busta paga.
 
 ---
 
@@ -313,3 +330,21 @@ Il comando e il pulsante **`📅 Assegna Turno`** (o comando `/assegnaturno`) co
 6. **Notifiche e Riassegnazione Automatica**:
    - Quando il lavoratore o il caposquadra preme **`✅ Accetta Turno`**, il turno viene immediatamente scritto nel calendario gestionale e il responsabile riceve una notifica di conferma;
    - Se invece l'operatore preme **`❌ Rifiuta Turno`**, il responsabile riceve subito un avviso con bottoni di **riassegnazione immediata** a un altro Jolly o a un'altra Squadra libera, escludendo automaticamente chi ha declinato.
+
+---
+
+## PARTE 12 — GUIDA AUDIO PODCAST E INVIO AUTOMATICO FILE IN CHAT TELEGRAM
+
+Per rendere l'apprendimento immediato anche mentre viaggi o sei al lavoro, Kandor mette a disposizione la **Guida Audio Podcast** e la consegna diretta dei documenti in chat Telegram:
+
+### 12.1 Come Ascoltare la Guida Audio Podcast (`🎧 Podcast Audio`)
+1. **Dalla Web App Dipendenti (`/app/`) o dal link diretto**:
+   - Apri l'indirizzo `https://kandor.187.126.30.207.sslip.io/manuale-dipendente/podcast/`;
+   - Trovi il lettore multimediale interattivo con controlli di riproduzione, velocità (`1x`, `1.25x`, `1.5x`), barra di avanzamento e salto rapido capitolo per capitolo;
+   - Puoi ascoltarlo comodamente in cuffia durante gli spostamenti in auto o con i mezzi tra un cantiere e l'altro.
+2. **Direttamente nella chat Telegram con il Bot**:
+   - Toccando il pulsante **`🎧 Podcast Audio`** nel menu del Bot `@kandor_gestionale_bot`, il server ti invia direttamente il **file audio nativo MP3** (`podcast_dipendenti_telegram.mp3`);
+   - Puoi ascoltarlo direttamente nel player integrato di Telegram senza uscire dall'app e anche a schermo spento!
+
+### 12.2 Invio Immediato del Manuale PDF in Chat Telegram
+- Toccando il pulsante **`📖 Guida`** nel Bot, ricevi all'istante il file PDF ufficiale aggiornato (`MANUALE_DIPENDENTE_KANDOR.pdf`), completo di tutte le istruzioni illustrate da tenere sempre salvato sul telefono.
