@@ -1555,7 +1555,8 @@ def get_main_menu(dipendente=None):
         keyboard.append([{'text': '📅 Assegna Turno', 'callback_data': 'menu_assegna_turno'}])
 
     keyboard.append([
-        {'text': '📖 Guida', 'url': f'{base_url}/manuale-dipendente/'}
+        {'text': '📖 Guida Web', 'url': f'{base_url}/manuale-dipendente/'},
+        {'text': '🎧 Podcast Audio', 'url': f'{base_url}/manuale-dipendente/podcast/'}
     ])
     return {'inline_keyboard': keyboard}
 
@@ -1901,21 +1902,26 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             'reply_markup': get_main_menu(dipendente)
         }
 
-    # COMANDO /guida o /audio o /podcast
-    if clean_text in ('/guida', '/podcast', '/audio', 'guida', 'podcast', 'audio', 'come funziona'):
+    # COMANDO /guida o /audio o /podcast o /manuale
+    if clean_text in ('/guida', '/podcast', '/audio', '/manuale', 'guida', 'podcast', 'audio', 'manuale', 'come funziona'):
         _TELEGRAM_STATE.pop(telegram_chat_id, None)
         from django.conf import settings
         base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
         podcast_url = f"{base_url}/manuale-dipendente/podcast/"
+        manuale_url = f"{base_url}/manuale-dipendente/"
+        pdf_url = f"{base_url}/manuale-dipendente/pdf/"
         return {
             'text': (
-                f"🎧 *Guida Audio Bot Telegram*\n\n"
-                f"Ciao {dipendente.nome}! Abbiamo preparato una guida vocale di 6 minuti che ti spiega come usare il bot per turni, ore e malattie.\n\n"
-                f"Ascoltala qui:\n{podcast_url}"
+                f"📖 *Guida & Istruzioni per i Dipendenti*\n\n"
+                f"Ciao {dipendente.nome}! Scegli come preferisci consultare la guida:\n\n"
+                f"🎧 *Podcast Audio (6 min):* spiegazione a voce semplice per imparare a usare il bot, registrare le ore e comunicare le assenze.\n\n"
+                f"📖 *Guida Illustrata Web:* manuale passo-passo con schermate e spiegazioni scritte."
             ),
             'reply_markup': {
                 'inline_keyboard': [
-                    [{'text': '🎧 Ascolta Guida Audio', 'url': podcast_url}],
+                    [{'text': '🎧 Ascolta il Podcast Audio (~6m)', 'url': podcast_url}],
+                    [{'text': '📖 Leggi la Guida Web', 'url': manuale_url}],
+                    [{'text': '📄 Scarica Manuale PDF', 'url': pdf_url}],
                     [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
                 ]
             },
@@ -2556,6 +2562,31 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         return {
             'text': f"Ciao {dipendente.nome}! Cosa vuoi fare?",
             'reply_markup': get_main_menu(dipendente)
+        }
+
+    # Guida Dipendente (Podcast Audio & Manuale)
+    if callback_data == 'menu_guida':
+        from django.conf import settings
+        base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
+        podcast_url = f"{base_url}/manuale-dipendente/podcast/"
+        manuale_url = f"{base_url}/manuale-dipendente/"
+        pdf_url = f"{base_url}/manuale-dipendente/pdf/"
+        return {
+            'text': (
+                f"📖 *Guida & Istruzioni per i Dipendenti*\n\n"
+                f"Ciao {dipendente.nome}! Scegli come preferisci consultare la guida:\n\n"
+                f"🎧 *Podcast Audio (6 min):* spiegazione a voce semplice per imparare a usare il bot, registrare le ore e comunicare le assenze.\n\n"
+                f"📖 *Guida Illustrata Web:* manuale passo-passo con schermate e spiegazioni scritte."
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '🎧 Ascolta il Podcast Audio (~6m)', 'url': podcast_url}],
+                    [{'text': '📖 Leggi la Guida Web', 'url': manuale_url}],
+                    [{'text': '📄 Scarica Manuale PDF', 'url': pdf_url}],
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
         }
 
     # Registra Nuovo Cliente (Solo Responsabili)
