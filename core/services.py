@@ -1667,4 +1667,52 @@ def conferma_avvallo_passo_procedura(
         }
 
 
+def get_dipendenti_con_turni_futuri_ids(data_riferimento=None):
+    """
+    Restituisce l'insieme (set) degli ID dei dipendenti effettivamente utilizzati/assegnati
+    in almeno un turno di lavoro a partire da 'data_riferimento' (default: data odierna) in avanti.
+    Tiene conto di:
+    1. Capisquadra di turni futuri non escluse e non sospese.
+    2. Componenti di squadra di turni futuri non escluse e non sospese.
+    3. Sostituti con RichiestaSostituzione ACCETTATA o COMPLETATA su turni futuri.
+    """
+    if data_riferimento is None:
+        data_riferimento = timezone.now().date()
+
+    from django.db import models
+    from .models import AssegnazioneTurno, RichiestaSostituzione
+
+    qs_future = AssegnazioneTurno.objects.filter(
+        turno__data__gte=data_riferimento,
+        is_sospeso=False
+    )
+
+    capo_ids = set(
+        qs_future.filter(turno__squadra__caposquadra__isnull=False)
+        .exclude(dipendenti_esclusi=models.F('turno__squadra__caposquadra'))
+        .values_list('turno__squadra__caposquadra_id', flat=True)
+        .distinct()
+    )
+
+    comp_ids = set(
+        qs_future.filter(turno__squadra__componenti__isnull=False)
+        .exclude(dipendenti_esclusi=models.F('turno__squadra__componenti'))
+        .values_list('turno__squadra__componenti__id', flat=True)
+        .distinct()
+    )
+
+    sost_ids = set(
+        RichiestaSostituzione.objects.filter(
+            assegnazione_originale__turno__data__gte=data_riferimento,
+            stato__in=['ACCETTATA', 'COMPLETATA'],
+            sostituto__isnull=False
+        )
+        .values_list('sostituto_id', flat=True)
+        .distinct()
+    )
+
+    return capo_ids | comp_ids | sost_ids
+
+
+
 

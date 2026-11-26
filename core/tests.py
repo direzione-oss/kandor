@@ -796,6 +796,77 @@ class DipendentePartTimeTestCase(TestCase):
         cognomi_action = [sheet_action.cell(row=r, column=2).value for r in range(2, sheet_action.max_row + 1)]
         self.assertEqual(cognomi_action, ['Verdi'])
 
+    def test_turni_futuri_badge_and_filter(self):
+        from django.test import RequestFactory
+        from django.contrib.auth.models import User
+        from django.contrib.admin.sites import AdminSite
+        from core.admin import DipendenteAdmin, TurniFuturiDipendenteFilter
+        from core.models import Dipendente, Cliente, Squadra, Turno, AssegnazioneTurno
+        from core.services import get_dipendenti_con_turni_futuri_ids
+
+        today = timezone.now().date()
+        past_date = today - timedelta(days=5)
+        future_date = today + timedelta(days=5)
+
+        dip_futuro = Dipendente.objects.create(
+            nome='Attivo', cognome='Futuro', codice_fiscale='FTRATV80A01H501A', stato='ATTIVO'
+        )
+        dip_passato = Dipendente.objects.create(
+            nome='Solo', cognome='Passato', codice_fiscale='SPSPAS80A01H501B', stato='ATTIVO'
+        )
+        dip_senza = Dipendente.objects.create(
+            nome='Nessun', cognome='Turno', codice_fiscale='NSSNTR80A01H501C', stato='ATTIVO'
+        )
+
+        cli = Cliente.objects.create(ragione_sociale='Cliente Test Futuro')
+        sq_fut = Squadra.objects.create(nome='Squadra Futura', caposquadra=dip_futuro)
+        t_fut = Turno.objects.create(data=future_date, squadra=sq_fut)
+        AssegnazioneTurno.objects.create(
+            turno=t_fut, cliente=cli,
+            orario_inizio_previsto=time(8, 0), orario_fine_previsto=time(10, 0)
+        )
+
+        sq_past = Squadra.objects.create(nome='Squadra Passata', caposquadra=dip_passato)
+        t_past = Turno.objects.create(data=past_date, squadra=sq_past)
+        AssegnazioneTurno.objects.create(
+            turno=t_past, cliente=cli,
+            orario_inizio_previsto=time(8, 0), orario_fine_previsto=time(10, 0)
+        )
+
+        # 1. Verifica IDs da services
+        active_ids = get_dipendenti_con_turni_futuri_ids(today)
+        self.assertIn(dip_futuro.pk, active_ids)
+        self.assertNotIn(dip_passato.pk, active_ids)
+        self.assertNotIn(dip_senza.pk, active_ids)
+
+        # 2. Verifica badge
+        admin_obj = DipendenteAdmin(Dipendente, AdminSite())
+        badge_futuro = str(admin_obj.turni_futuri_badge(dip_futuro))
+        badge_senza = str(admin_obj.turni_futuri_badge(dip_senza))
+        self.assertIn('In Turno', badge_futuro)
+        self.assertIn('Nessuno', badge_senza)
+
+        # 3. Verifica SimpleListFilter
+        factory = RequestFactory()
+        admin_user = User.objects.create_superuser('admin_filter', 'filter@kandor.it', 'pass1234')
+
+        # Filtro: 'con'
+        req_con = factory.get('/admin/core/dipendente/?turni_futuri=con')
+        req_con.user = admin_user
+        filter_con = TurniFuturiDipendenteFilter(req_con, req_con.GET.copy(), Dipendente, admin_obj)
+        qs_con = filter_con.queryset(req_con, Dipendente.objects.filter(pk__in=[dip_futuro.pk, dip_passato.pk, dip_senza.pk]))
+        self.assertEqual(list(qs_con), [dip_futuro])
+
+        # Filtro: 'senza'
+        req_senza = factory.get('/admin/core/dipendente/?turni_futuri=senza')
+        req_senza.user = admin_user
+        filter_senza = TurniFuturiDipendenteFilter(req_senza, req_senza.GET.copy(), Dipendente, admin_obj)
+        qs_senza = filter_senza.queryset(req_senza, Dipendente.objects.filter(pk__in=[dip_futuro.pk, dip_passato.pk, dip_senza.pk]))
+        self.assertIn(dip_passato, qs_senza)
+        self.assertIn(dip_senza, qs_senza)
+        self.assertNotIn(dip_futuro, qs_senza)
+
+
 
 
 from core.models import TimeTracking

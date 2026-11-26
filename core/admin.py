@@ -537,14 +537,38 @@ class CanaleComunicazioneFilter(admin.SimpleListFilter):
         return queryset
 
 
+class TurniFuturiDipendenteFilter(admin.SimpleListFilter):
+    title = 'Turni Futuri (da oggi)'
+    parameter_name = 'turni_futuri'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('con', '✅ Con turni futuri (in turno)'),
+            ('senza', '❌ Senza turni futuri'),
+        )
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if not val:
+            return queryset
+        from .services import get_dipendenti_con_turni_futuri_ids
+        dip_ids = get_dipendenti_con_turni_futuri_ids()
+        if val == 'con':
+            return queryset.filter(id__in=dip_ids)
+        elif val == 'senza':
+            return queryset.exclude(id__in=dip_ids)
+        return queryset
+
+
 @admin.register(Dipendente)
 class DipendenteAdmin(KandorBaseAdmin):
     change_list_template = 'admin/core/dipendente/change_list.html'
-    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'jolly_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
+    list_display = ('foto_avatar', 'cognome', 'nome', 'stato', 'turni_futuri_badge', 'privacy_badge', 'livello_contrattuale', 'costo_orario_aziendale', 'sostituto_toggle_badge', 'jolly_toggle_badge', 'riceve_notifiche_toggle_badge', 'pin_accesso_badge', 'data_assunzione', 'part_time_display', 'usufruisce_104_display', 'data_ultima_visita_medica', 'data_licenziamento', 'category_protetta_display', 'telegram_chat_id')
     list_editable = ('costo_orario_aziendale',)
     search_fields = ('cognome', 'nome', 'codice_fiscale', 'pin_accesso', 'telegram_chat_id')
     list_filter = (
         StatoDipendenteDefaultAttiviFilter,
+        TurniFuturiDipendenteFilter,
         TelegramDipendenteFilter,
         WhatsAppDipendenteFilter,
         CanaleComunicazioneFilter,
@@ -897,9 +921,27 @@ class DipendenteAdmin(KandorBaseAdmin):
 
     def changelist_view(self, request, extra_context=None):
         self._cached_webapp_dip_ids = self._get_webapp_connected_dip_ids()
+        from .services import get_dipendenti_con_turni_futuri_ids
+        self._cached_turni_futuri_dip_ids = get_dipendenti_con_turni_futuri_ids()
         extra_context = dict(extra_context or {})
         extra_context.setdefault('title', 'Elenco Dipendenti')
         return super().changelist_view(request, extra_context=extra_context)
+
+    @admin.display(description='Turni Futuri', ordering='stato')
+    def turni_futuri_badge(self, obj):
+        ids = getattr(self, '_cached_turni_futuri_dip_ids', None)
+        if ids is None:
+            from .services import get_dipendenti_con_turni_futuri_ids
+            ids = get_dipendenti_con_turni_futuri_ids()
+            self._cached_turni_futuri_dip_ids = ids
+
+        if obj.pk in ids:
+            return mark_safe(
+                '<span style="display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:5px; background:#DCFCE7; color:#166534; border:1px solid #86EFAC; font-weight:800; font-size:11px; white-space:nowrap;" title="✅ Assegnato a uno o più turni di lavoro da oggi in avanti">&#10003; In Turno</span>'
+            )
+        return mark_safe(
+            '<span style="display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:5px; background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; font-weight:700; font-size:11px; white-space:nowrap;" title="⚠️ Nessun turno programmato per questo dipendente da oggi in avanti">&#10007; Nessuno</span>'
+        )
 
     @admin.display(description='🔑 PIN & App', ordering='pin_accesso')
     def pin_accesso_badge(self, obj):

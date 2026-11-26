@@ -369,12 +369,16 @@ def export_dipendenti_to_excel(queryset):
         'font_size': 9.5,
     })
 
+    from .services import get_dipendenti_con_turni_futuri_ids
+    turni_futuri_ids = get_dipendenti_con_turni_futuri_ids()
+
     headers = [
         'ID',
         'Cognome',
         'Nome',
         'Codice Fiscale',
         'Stato',
+        'Turni Futuri Programmati',
         'Data Nascita',
         'Data Assunzione',
         'Data Licenziamento',
@@ -414,6 +418,7 @@ def export_dipendenti_to_excel(queryset):
             (dip.nome or '', cell_left),
             (dip.codice_fiscale or '', cell_center),
             (dip.get_stato_display() if hasattr(dip, 'get_stato_display') else (dip.stato or ''), cell_center),
+            ('Sì' if dip.id in turni_futuri_ids else 'No', cell_center),
             (dip.data_nascita.strftime('%d/%m/%Y') if dip.data_nascita else '', cell_date if dip.data_nascita else cell_center),
             (dip.data_assunzione.strftime('%d/%m/%Y') if dip.data_assunzione else '', cell_date if dip.data_assunzione else cell_center),
             (dip.data_licenziamento.strftime('%d/%m/%Y') if dip.data_licenziamento else '', cell_date if dip.data_licenziamento else cell_center),
