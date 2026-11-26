@@ -1,0 +1,399 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<style>
+    .podcast-wrap {
+        max-width: 920px;
+        margin: 25px auto 50px auto;
+        padding: 0 15px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1f2937;
+    }
+    .podcast-hero-dip {
+        background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%);
+        color: white;
+        padding: 35px 30px;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px -5px rgba(5, 150, 105, 0.4);
+        margin-bottom: 25px;
+        position: relative;
+        overflow: hidden;
+    }
+    .podcast-hero-dip::after {
+        content: "📱";
+        position: absolute;
+        right: 25px;
+        top: 20px;
+        font-size: 100px;
+        opacity: 0.15;
+        pointer-events: none;
+    }
+    .podcast-hero-dip h1 {
+        margin: 0 0 10px 0;
+        font-size: 26px;
+        font-weight: 800;
+        color: #ffffff;
+        border: none;
+        padding: 0;
+    }
+    .podcast-hero-dip p {
+        margin: 0 0 18px 0;
+        font-size: 15px;
+        color: #ecfdf5;
+        max-width: 720px;
+        line-height: 1.6;
+    }
+    .hero-tags {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        margin-bottom: 20px;
+    }
+    .hero-tag {
+        background: rgba(255, 255, 255, 0.18);
+        padding: 5px 12px;
+        border-radius: 20px;
+        backdrop-filter: blur(4px);
+        font-weight: 600;
+        color: #f8fafc;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Player Card */
+    .player-card {
+        background: white;
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 25px;
+    }
+    .player-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .now-playing-title {
+        font-size: 17px;
+        font-weight: 700;
+        color: #0f172a;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .audio-player-custom {
+        width: 100%;
+        margin-bottom: 15px;
+        outline: none;
+        border-radius: 30px;
+    }
+    .player-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+    .btn-download {
+        background: #059669;
+        color: white;
+    }
+    .btn-download:hover {
+        background: #047857;
+        color: white;
+    }
+    .btn-share-wa {
+        background: #25d366;
+        color: white;
+    }
+    .btn-share-wa:hover {
+        background: #128c7e;
+        color: white;
+    }
+    .btn-copy {
+        background: #f1f5f9;
+        color: #334155;
+    }
+    .btn-copy:hover {
+        background: #e2e8f0;
+    }
+
+    /* Capitoli */
+    .chapters-card {
+        background: white;
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 25px;
+    }
+    .chapters-card h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: #065f46;
+        margin: 0 0 15px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        padding: 0;
+    }
+    .chapter-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+    .chapter-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: #f8fafc;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .chapter-item:hover {
+        background: #ecfdf5;
+        border-color: #6ee7b7;
+        transform: translateX(4px);
+    }
+    .chapter-info {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    .chapter-num {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #d1fae5;
+        color: #065f46;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 13px;
+    }
+    .chapter-text strong {
+        display: block;
+        font-size: 14px;
+        color: #0f172a;
+    }
+    .chapter-text span {
+        font-size: 12px;
+        color: #64748b;
+    }
+    .chapter-time {
+        font-size: 12px;
+        font-weight: 700;
+        color: #059669;
+        background: #ecfdf5;
+        padding: 4px 10px;
+        border-radius: 20px;
+        border: 1px solid #a7f3d0;
+        white-space: nowrap;
+    }
+
+    /* Transcript Card */
+    .transcript-card {
+        background: white;
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+    }
+    .transcript-card h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: #065f46;
+        margin: 0 0 15px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        padding: 0;
+    }
+    .transcript-content {
+        line-height: 1.8;
+        font-size: 14px;
+        color: #334155;
+        white-space: pre-line;
+        background: #f8fafc;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px solid #e2e8f0;
+        max-height: 380px;
+        overflow-y: auto;
+    }
+
+    .footer-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #e2e8f0;
+    }
+</style>
+
+<div class="podcast-wrap">
+    <!-- HERO HEADER -->
+    <div class="podcast-hero-dip">
+        <div class="hero-tags">
+            <span class="hero-tag">🎧 Guida Vocale per Dipendenti</span>
+            <span class="hero-tag">⏱ Durata: ~6 minuti</span>
+            <span class="hero-tag">🤖 Bot Telegram: @kandor_gestionale_bot</span>
+        </div>
+        <h1>📱 Come Usare il Bot Telegram — Guida Audio</h1>
+        <p>Una spiegazione semplice, passo dopo passo, pensata per tutti i nostri collaboratori: come consultare i turni, come registrare le ore lavorate in 30 secondi, richiedere ferie e malattia, e ricevere la busta paga sul cellulare.</p>
+    </div>
+
+    <!-- AUDIO PLAYER CARD -->
+    <div class="player-card">
+        <div class="player-header">
+            <div class="now-playing-title">
+                <span>🔊</span>
+                <div>
+                    <div>Audio Guida Bot Telegram per il Lavoratore</div>
+                    <small style="color:#64748b; font-weight:normal;">Audio chiaro in italiano &bull; Ottimizzato per smartphone</small>
+                </div>
+            </div>
+            <div class="player-actions">
+                <a href="{% url 'podcast_dipendente_audio_stream' %}" download="Guida_Audio_Telegram_Dipendenti.mp3" class="btn-action btn-download">
+                    ⬇️ Scarica MP3 (2.2 MB)
+                </a>
+                <button type="button" onclick="copiaLink()" class="btn-action btn-copy" id="btn-copy-link">
+                    🔗 Copia Link
+                </button>
+            </div>
+        </div>
+
+        <!-- HTML5 Audio Element -->
+        <audio id="main-dip-audio" class="audio-player-custom" controls preload="metadata">
+            <source src="{% url 'podcast_dipendente_audio_stream' %}" type="audio/mpeg">
+            Il tuo browser non supporta il player audio HTML5. <a href="{% url 'podcast_dipendente_audio_stream' %}">Scarica l'MP3 qui</a>.
+        </audio>
+
+        <!-- Controlli velocità e condivisione rapida -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-top:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:12px; font-weight:600; color:#64748b;">Velocità:</span>
+                <button type="button" onclick="setSpeed(1.0)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:12px; cursor:pointer; font-weight:bold;">1.0x</button>
+                <button type="button" onclick="setSpeed(1.25)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:12px; cursor:pointer; font-weight:bold;">1.25x</button>
+                <button type="button" onclick="setSpeed(1.5)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:12px; cursor:pointer; font-weight:bold;">1.5x</button>
+                <button type="button" onclick="skipAudio(-15)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; font-size:12px; cursor:pointer;">⏪ -15s</button>
+                <button type="button" onclick="skipAudio(15)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; font-size:12px; cursor:pointer;">⏩ +15s</button>
+            </div>
+
+            <!-- Share WhatsApp / Telegram -->
+            <div style="display:flex; gap:8px;">
+                <a href="https://api.whatsapp.com/send?text=Ciao!%20Ascolta%20questa%20breve%20Guida%20Audio%20su%20come%20usare%20il%20Bot%20Telegram%20per%20i%20turni%20e%20le%20ore:%20{{ request.build_absolute_uri }}" target="_blank" class="btn-action btn-share-wa" style="padding:6px 12px; font-size:12px;">
+                    📲 Invia ai Dipendenti su WhatsApp
+                </a>
+                <a href="https://t.me/share/url?url={{ request.build_absolute_uri }}&text=Guida%20Audio%20Bot%20Telegram%20Kandor" target="_blank" class="btn-action" style="background:#0088cc; color:white; padding:6px 12px; font-size:12px;">
+                    ✈️ Invia su Telegram
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- CAPITOLI / INDICE TEMPORALE -->
+    <div class="chapters-card">
+        <h2>📑 Argomenti Trattati nella Guida</h2>
+        <p style="font-size:13px; color:#64748b; margin-top:0; margin-bottom:15px;">Tocca un argomento per ascoltare direttamente quel punto:</p>
+        <div class="chapter-list">
+            {% for cap in capitoli %}
+            <div class="chapter-item" onclick="seekTo('{{ cap.durata_stimata }}')">
+                <div class="chapter-info">
+                    <div class="chapter-num">{{ cap.id }}</div>
+                    <div class="chapter-text">
+                        <strong>{{ cap.titolo }}</strong>
+                        <span>{{ cap.descrizione }}</span>
+                    </div>
+                </div>
+                <div class="chapter-time">▶ {{ cap.durata_stimata }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- TRASCRIZIONE COMPLETA -->
+    <div class="transcript-card">
+        <h2>📝 Testo Completo della Guida</h2>
+        <div class="transcript-content">{{ testo_podcast }}</div>
+    </div>
+
+    <!-- FOOTER NAV -->
+    <div class="footer-nav">
+        <a href="{% url 'manuale_dipendente' %}" style="display:inline-flex; align-items:center; gap:6px; color:#059669; font-weight:bold; text-decoration:none;">
+            ← Torna alla Guida Dipendenti Completa
+        </a>
+        <a href="/admin/" style="background:#065f46; color:white; padding:8px 18px; border-radius:6px; text-decoration:none; font-weight:bold;">
+            Vai alla Dashboard
+        </a>
+    </div>
+</div>
+
+<script>
+    const audio = document.getElementById('main-dip-audio');
+
+    function seekTo(timeStr) {
+        if (!audio) return;
+        const parts = timeStr.split(':');
+        let seconds = 0;
+        if (parts.length === 2) {
+            seconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        } else if (parts.length === 3) {
+            seconds = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+        }
+        audio.currentTime = seconds;
+        audio.play();
+    }
+
+    function setSpeed(speed) {
+        if (audio) {
+            audio.playbackRate = speed;
+        }
+    }
+
+    function skipAudio(delta) {
+        if (audio) {
+            audio.currentTime = Math.max(0, audio.currentTime + delta);
+        }
+    }
+
+    function copiaLink() {
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            const btn = document.getElementById('btn-copy-link');
+            if (btn) {
+                const oldText = btn.innerHTML;
+                btn.innerHTML = '✅ Link Copiato!';
+                setTimeout(() => { btn.innerHTML = oldText; }, 2500);
+            }
+        });
+    }
+</script>
+{% endblock %}

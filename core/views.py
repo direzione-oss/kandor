@@ -1742,6 +1742,37 @@ def podcast_audio_stream_view(request):
     return response
 
 
+def manuale_dipendente_podcast_view(request):
+    """Serve la pagina del Podcast Audio dedicato ai Dipendenti sul Bot Telegram."""
+    from .podcast_dipendente_data import CAPITOLI_PODCAST_DIPENDENTI, TEXT_PODCAST_DIPENDENTI
+    return render(request, 'core/manuale_dipendente_podcast.html', {
+        'capitoli': CAPITOLI_PODCAST_DIPENDENTI,
+        'testo_podcast': TEXT_PODCAST_DIPENDENTI,
+    })
+
+
+def podcast_dipendente_audio_stream_view(request):
+    """Serve il file audio MP3 del podcast dipendenti in streaming con supporto download."""
+    import os
+    from django.http import FileResponse, Http404
+    audio_path = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'audio', 'podcast_dipendenti_telegram.mp3')
+    if not os.path.exists(audio_path):
+        media_path = os.path.join(settings.MEDIA_ROOT, 'podcast_dipendenti_telegram.mp3')
+        if os.path.exists(media_path):
+            audio_path = media_path
+        else:
+            raise Http404("File audio del podcast dipendenti non trovato.")
+    
+    response = FileResponse(open(audio_path, 'rb'), content_type='audio/mpeg')
+    response['Accept-Ranges'] = 'bytes'
+    response['Content-Length'] = str(os.path.getsize(audio_path))
+    if 'download' in request.GET:
+        response['Content-Disposition'] = 'attachment; filename="Guida_Audio_Telegram_Dipendenti.mp3"'
+    else:
+        response['Content-Disposition'] = 'inline; filename="Guida_Audio_Telegram_Dipendenti.mp3"'
+    return response
+
+
 def titolari_dashboard_view(request):
     """Dashboard di supervisione per i titolari."""
     if not request.user.is_staff:
@@ -2022,7 +2053,28 @@ def manuale_dipendente_view(request):
     if in_table:
         new_lines.append('</tbody></table>')
     
-    body_html = '\n'.join(new_lines)
+    audio_banner = """
+<div style="background: linear-gradient(135deg, #064e3b, #059669); color: white; padding: 22px 24px; border-radius: 14px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(5,150,105,0.25);">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:28px;">🎧</span>
+            <div>
+                <h3 style="margin:0; color:white; font-size:17px; font-weight:700;">Preferisci ascoltare? Ascolta la Guida Audio Podcast (~6 min)</h3>
+                <small style="color:#ecfdf5;">Spiegazione semplice e veloce su come usare il bot di Telegram per turni, ore e malattie.</small>
+            </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <a href="/manuale-dipendente/podcast/" style="background:white; color:#065f46; padding:7px 14px; border-radius:6px; font-weight:bold; font-size:13px; text-decoration:none;">📑 Capitoli &amp; Testo</a>
+            <a href="/manuale-dipendente/podcast/audio/?download=1" style="background:#f59e0b; color:#78350f; padding:7px 14px; border-radius:6px; font-weight:bold; font-size:13px; text-decoration:none;">⬇️ Scarica MP3</a>
+        </div>
+    </div>
+    <audio controls preload="metadata" style="width:100%; border-radius:30px;">
+        <source src="/manuale-dipendente/podcast/audio/" type="audio/mpeg">
+        Il tuo browser non supporta il lettore audio.
+    </audio>
+</div>
+"""
+    body_html = audio_banner + '\n'.join(new_lines)
     
     page_html = f"""<!DOCTYPE html>
 <html lang="it">
@@ -2052,7 +2104,8 @@ def manuale_dipendente_view(request):
 <body>
 {body_html}
 <div style="position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px;" class="print-btn">
-    <a href="/manuale-dipendente/pdf/" target="_blank" style="background: #10b981; color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">⬇️ Scarica PDF Dipendente</a>
+    <a href="/manuale-dipendente/podcast/" style="background: #059669; color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">🎧 Ascolta Podcast</a>
+    <a href="/manuale-dipendente/pdf/" target="_blank" style="background: #10b981; color: white; text-decoration: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">⬇️ Scarica PDF</a>
     <button onclick="window.print()" style="background: #ff6f00; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">🖨️ Stampa</button>
 </div>
 </body>

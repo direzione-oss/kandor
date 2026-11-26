@@ -4,6 +4,7 @@ from .views import (
     data_management_view, download_template_view, import_data_view,
     export_data_view, backup_db_view, restore_db_view, manuale_view, manuale_pdf_view, manuale_dipendente_pdf_view, manuale_screenshot_view, manuale_dipendente_view,
     manuale_podcast_view, podcast_audio_stream_view,
+    manuale_dipendente_podcast_view, podcast_dipendente_audio_stream_view,
     chat_simulator_view, telegram_webhook_view, toggle_telegram_status,
     extend_contract_view, analisi_contratti_view, pdf_contratti_sotto_soglia,
     add_turno_ajax, edit_turno_ajax, delete_turno_ajax, get_squadre_clienti_json,
@@ -77,6 +78,8 @@ urlpatterns = [
     path('manuale/screenshots/<str:filename>', manuale_screenshot_view, name='manuale_screenshot'),
     path('screenshots/<str:filename>', manuale_screenshot_view, name='root_screenshot'),
     path('manuale-dipendente/', manuale_dipendente_view, name='manuale_dipendente'),
+    path('manuale-dipendente/podcast/', manuale_dipendente_podcast_view, name='manuale_dipendente_podcast'),
+    path('manuale-dipendente/podcast/audio/', podcast_dipendente_audio_stream_view, name='podcast_dipendente_audio_stream'),
     path('manuale-dipendente/pdf/', manuale_dipendente_pdf_view, name='manuale_dipendente_pdf'),
     path('generate-shifts/', generate_shifts_view, name='generate_shifts'),
     

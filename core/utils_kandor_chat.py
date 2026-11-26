@@ -1901,6 +1901,27 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             'reply_markup': get_main_menu(dipendente)
         }
 
+    # COMANDO /guida o /audio o /podcast
+    if clean_text in ('/guida', '/podcast', '/audio', 'guida', 'podcast', 'audio', 'come funziona'):
+        _TELEGRAM_STATE.pop(telegram_chat_id, None)
+        from django.conf import settings
+        base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
+        podcast_url = f"{base_url}/manuale-dipendente/podcast/"
+        return {
+            'text': (
+                f"🎧 *Guida Audio Bot Telegram*\n\n"
+                f"Ciao {dipendente.nome}! Abbiamo preparato una guida vocale di 6 minuti che ti spiega come usare il bot per turni, ore e malattie.\n\n"
+                f"Ascoltala qui:\n{podcast_url}"
+            ),
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '🎧 Ascolta Guida Audio', 'url': podcast_url}],
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            },
+            'parse_mode': 'Markdown'
+        }
+
     # COMANDO /scheda o /app
     if clean_text in ('/scheda', '/app', 'scheda', 'app'):
         _TELEGRAM_STATE.pop(telegram_chat_id, None)
