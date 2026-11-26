@@ -2299,6 +2299,7 @@ class DotazionePersonaleDipendente(models.Model):
     STATO_CHOICES = [
         ('RICHIESTA', '🔔 Richiesto (In attesa di consegna)'),
         ('CONSEGNATO', '✅ Consegnato'),
+        ('RESTITUITO', '🔄 Restituito in Sede'),
         ('ANNULLATO', '❌ Annullato'),
     ]
 
@@ -2330,6 +2331,7 @@ class DotazionePersonaleDipendente(models.Model):
     )
     data_richiesta = models.DateField(verbose_name="Data Richiesta")
     data_consegna = models.DateField(null=True, blank=True, verbose_name="Data Consegna Effettiva")
+    data_restituzione = models.DateField(null=True, blank=True, verbose_name="Data Restituzione Effettiva")
     consegnato_da = models.ForeignKey(
         Dipendente, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='dotazioni_personali_consegnate', verbose_name="Consegnato da (Responsabile)"
@@ -2353,6 +2355,8 @@ class DotazionePersonaleDipendente(models.Model):
             self.data_richiesta = timezone.now().date()
         if self.stato == 'CONSEGNATO' and not self.data_consegna:
             self.data_consegna = timezone.now().date()
+        if self.stato == 'RESTITUITO' and not self.data_restituzione:
+            self.data_restituzione = timezone.now().date()
         super().save(*args, **kwargs)
 
     def __str__(self):

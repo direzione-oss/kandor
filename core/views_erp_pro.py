@@ -453,30 +453,47 @@ def magazzino_dotazioni_view(request):
     richieste_dotazioni_aperte = DotazionePersonaleDipendente.objects.filter(stato='RICHIESTA').count()
     totale_dotazioni_consegnate = DotazionePersonaleDipendente.objects.filter(stato='CONSEGNATO').count()
 
-    # Scheda Registro Storico Consegne per ciascun Dipendente
+    # Scheda Registro Storico Consegne per ciascun Dipendente (sia attivi che restituiti)
     registro_dipendenti_dict = {}
-    consegne_effettuate = DotazionePersonaleDipendente.objects.filter(
-        stato='CONSEGNATO'
+    movimenti_effettuati = DotazionePersonaleDipendente.objects.filter(
+        stato__in=['CONSEGNATO', 'RESTITUITO']
     ).select_related('dipendente').order_by('dipendente__cognome', 'dipendente__nome', '-data_consegna')
 
     if dipendente_filter_id and str(dipendente_filter_id).isdigit():
-        consegne_effettuate = consegne_effettuate.filter(dipendente_id=int(dipendente_filter_id))
+        movimenti_effettuati = movimenti_effettuati.filter(dipendente_id=int(dipendente_filter_id))
 
-    for dp in consegne_effettuate:
+    for dp in movimenti_effettuati:
         d_id = dp.dipendente_id
         if d_id not in registro_dipendenti_dict:
             registro_dipendenti_dict[d_id] = {
                 'dipendente': dp.dipendente,
                 'oggetti': [],
+                'oggetti_attivi': [],
+                'oggetti_restituiti': [],
                 'riepilogo_capi': {},
             }
         registro_dipendenti_dict[d_id]['oggetti'].append(dp)
-        nome_ogg = dp.get_oggetto_display()
-        registro_dipendenti_dict[d_id]['riepilogo_capi'][nome_ogg] = (
-            registro_dipendenti_dict[d_id]['riepilogo_capi'].get(nome_ogg, 0) + dp.quantita
-        )
+        if dp.stato == 'CONSEGNATO':
+            registro_dipendenti_dict[d_id]['oggetti_attivi'].append(dp)
+            nome_ogg = dp.get_oggetto_display()
+            registro_dipendenti_dict[d_id]['riepilogo_capi'][nome_ogg] = (
+                registro_dipendenti_dict[d_id]['riepilogo_capi'].get(nome_ogg, 0) + dp.quantita
+            )
+        elif dp.stato == 'RESTITUITO':
+            registro_dipendenti_dict[d_id]['oggetti_restituiti'].append(dp)
 
     registro_dipendenti_list = list(registro_dipendenti_dict.values())
+
+    timbro_kandor_b64 = ""
+    try:
+        import base64
+        from django.conf import settings
+        timbro_path = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'img', 'timbro_kandor.jpg')
+        if os.path.exists(timbro_path):
+            with open(timbro_path, 'rb') as f:
+                timbro_kandor_b64 = base64.b64encode(f.read()).decode('utf-8')
+    except Exception:
+        pass
 
     return render(request, 'core/magazzino_dotazioni.html', {
         'prodotti': prodotti,
@@ -500,6 +517,7 @@ def magazzino_dotazioni_view(request):
         'stato_dotazione_selected': stato_dotazione_filter,
         'oggetto_dotazione_selected': oggetto_dotazione_filter,
         'oggetti_choices': DotazionePersonaleDipendente.OGGETTO_CHOICES,
+        'timbro_kandor_b64': timbro_kandor_b64,
     })
 
 
@@ -629,10 +647,19 @@ def magazzino_dotazioni_api(request):
 
     # AZIONI MATERIALE PERSONALE / VESTIARIO & DPI DIPENDENTI
     elif action == 'segna_consegna_personale':
+        import datetime
         dotazione_id = data.get('dotazione_id')
         item = get_object_or_404(DotazionePersonaleDipendente, pk=dotazione_id)
         item.stato = 'CONSEGNATO'
-        item.data_consegna = timezone.now().date()
+        data_c_raw = data.get('data_consegna')
+        if data_c_raw:
+            try:
+                item.data_consegna = datetime.date.fromisoformat(str(data_c_raw)[:10])
+            except Exception:
+                item.data_consegna = timezone.now().date()
+        else:
+            item.data_consegna = timezone.now().date()
+
         if request.user.is_authenticated:
             item.consegnato_da_user = request.user
         consegnato_da_id = data.get('consegnato_da_id')
@@ -644,16 +671,25 @@ def magazzino_dotazioni_api(request):
         item.save()
         return JsonResponse({
             'ok': True,
-            'message': f'✅ Consegna registrata: {item.get_oggetto_display()} (Taglia {item.taglia}) a {item.dipendente.nome} {item.dipendente.cognome}!',
+            'message': f'✅ Consegna registrata al {item.data_consegna.strftime("%d/%m/%Y")}: {item.get_oggetto_display()} (Taglia {item.taglia}) a {item.dipendente.nome} {item.dipendente.cognome}!',
         })
 
     elif action == 'registra_consegna_personale_diretta':
+        import datetime
         dip_id = data.get('dipendente_id')
         oggetto = (data.get('oggetto') or '').strip().upper()
         taglia = (data.get('taglia') or '').strip().upper()
         quantita = int(data.get('quantita') or 1)
         note = (data.get('note') or '').strip()
         consegnato_da_id = data.get('consegnato_da_id')
+        data_c_raw = data.get('data_consegna')
+        if data_c_raw:
+            try:
+                dt_consegna = datetime.date.fromisoformat(str(data_c_raw)[:10])
+            except Exception:
+                dt_consegna = timezone.now().date()
+        else:
+            dt_consegna = timezone.now().date()
 
         if not dip_id or not str(dip_id).isdigit():
             return JsonResponse({'ok': False, 'error': 'Seleziona il dipendente destinatario.'}, status=400)
@@ -673,17 +709,58 @@ def magazzino_dotazioni_api(request):
             quantita=max(1, quantita),
             stato='CONSEGNATO',
             urgenza='NORMALE',
-            data_richiesta=timezone.now().date(),
-            data_consegna=timezone.now().date(),
+            data_richiesta=dt_consegna,
+            data_consegna=dt_consegna,
             consegnato_da=consegnato_da_dip,
             consegnato_da_user=request.user if request.user.is_authenticated else None,
             note=note,
         )
         return JsonResponse({
             'ok': True,
-            'message': f'✅ Registrata consegna: {item.get_oggetto_display()} (Taglia {item.taglia} x{item.quantita}) a {dip.nome} {dip.cognome}.',
+            'message': f'✅ Registrata consegna al {dt_consegna.strftime("%d/%m/%Y")}: {item.get_oggetto_display()} (Taglia {item.taglia} x{item.quantita}) a {dip.nome} {dip.cognome}.',
             'id': item.id,
         })
+
+    elif action == 'segna_restituzione_personale':
+        import datetime
+        dotazione_id = data.get('dotazione_id')
+        item = get_object_or_404(DotazionePersonaleDipendente, pk=dotazione_id)
+        data_r_raw = data.get('data_restituzione')
+        if data_r_raw:
+            try:
+                dt_rest = datetime.date.fromisoformat(str(data_r_raw)[:10])
+            except Exception:
+                dt_rest = timezone.now().date()
+        else:
+            dt_rest = timezone.now().date()
+
+        item.stato = 'RESTITUITO'
+        item.data_restituzione = dt_rest
+        note_rest = (data.get('note') or '').strip()
+        aggiunta_nota = f"Restituito il {dt_rest.strftime('%d/%m/%Y')}" + (f": {note_rest}" if note_rest else "")
+        item.note = f"{item.note} | {aggiunta_nota}".strip(" |") if item.note else aggiunta_nota
+        item.save()
+        return JsonResponse({
+            'ok': True,
+            'message': f'🔄 Restituzione registrata: {item.get_oggetto_display()} (Taglia {item.taglia}) riconsegnato da {item.dipendente.nome} {item.dipendente.cognome} il {dt_rest.strftime("%d/%m/%Y")}.',
+        })
+
+    elif action == 'modifica_data_consegna_personale':
+        import datetime
+        dotazione_id = data.get('dotazione_id')
+        item = get_object_or_404(DotazionePersonaleDipendente, pk=dotazione_id)
+        nuova_data_raw = data.get('nuova_data')
+        if not nuova_data_raw:
+            return JsonResponse({'ok': False, 'error': 'Inserisci una data valida.'}, status=400)
+        try:
+            item.data_consegna = datetime.date.fromisoformat(str(nuova_data_raw)[:10])
+            item.save()
+            return JsonResponse({
+                'ok': True,
+                'message': f'Data consegna aggiornata a {item.data_consegna.strftime("%d/%m/%Y")}.',
+            })
+        except Exception as e:
+            return JsonResponse({'ok': False, 'error': f'Formato data non valido: {str(e)}'}, status=400)
 
     elif action == 'annulla_dotazione_personale':
         dotazione_id = data.get('dotazione_id')

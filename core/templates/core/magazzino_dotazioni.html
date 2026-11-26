@@ -219,7 +219,7 @@
                     <!-- Form Registra Consegna Dotazione Personale a Dipendente -->
                     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:16px">
                         <div style="font-weight:700;font-size:12.5px;color:#0369a1;margin-bottom:8px">+ Registra Consegna Dotazione Personale a Dipendente</div>
-                        <div style="display:grid;grid-template-columns:1.2fr 1.1fr 0.9fr 0.5fr auto;gap:8px;align-items:end">
+                        <div style="display:grid;grid-template-columns:1.2fr 1.1fr 0.8fr 0.4fr 0.8fr auto;gap:8px;align-items:end">
                             <div>
                                 <label style="font-size:11px;font-weight:700;color:#334155">Dipendente *</label>
                                 <select id="p_dipendente" class="erp-select">
@@ -256,6 +256,10 @@
                                 <label style="font-size:11px;font-weight:700;color:#334155">Q.tà</label>
                                 <input type="number" id="p_qta" value="1" min="1" max="20" class="erp-input">
                             </div>
+                            <div>
+                                <label style="font-size:11px;font-weight:700;color:#334155">Data Consegna *</label>
+                                <input type="date" id="p_data_consegna" value="{{ today_iso }}" class="erp-input">
+                            </div>
                             <button type="button" onclick="registraConsegnaPersonaleDiretta()" class="erp-btn" style="background:#2563eb">Registra</button>
                         </div>
                         <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -269,17 +273,18 @@
                         <table class="erp-table">
                             <thead>
                                 <tr>
-                                    <th>Data</th>
+                                    <th>Data Richiesta</th>
                                     <th>Dipendente</th>
                                     <th>Articolo &amp; Taglia</th>
                                     <th>Q.tà</th>
+                                    <th>Data Consegna / Reso</th>
                                     <th>Urgenza / Note</th>
-                                    <th>Stato &amp; Azione Consegna</th>
+                                    <th>Stato &amp; Azione</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in dotazioni_personali %}
-                                <tr style="{% if item.stato == 'RICHIESTA' %}background:#fffbeb{% endif %}">
+                                <tr style="{% if item.stato == 'RICHIESTA' %}background:#fffbeb{% elif item.stato == 'RESTITUITO' %}background:#f8fafc;opacity:0.85;{% endif %}">
                                     <td style="white-space:nowrap">{{ item.data_richiesta|date:"d/m/Y" }}</td>
                                     <td style="font-weight:700;color:#1e3a8a">
                                         {{ item.dipendente.cognome }} {{ item.dipendente.nome }}
@@ -291,6 +296,20 @@
                                         </span>
                                     </td>
                                     <td style="font-weight:700">x{{ item.quantita }}</td>
+                                    <td style="white-space:nowrap">
+                                        {% if item.stato == 'CONSEGNATO' %}
+                                        <span style="color:#047857;font-weight:700">
+                                            {{ item.data_consegna|date:"d/m/Y"|default:"-" }}
+                                        </span>
+                                        <button onclick="modificaDataConsegna({{ item.id }}, '{{ item.data_consegna|date:"Y-m-d"|default:today_iso }}')" title="Modifica data di consegna" style="background:none;border:none;cursor:pointer;font-size:11px;color:#2563eb;padding:0 2px">✏️</button>
+                                        {% elif item.stato == 'RESTITUITO' %}
+                                        <span style="color:#0284c7;font-size:11px;font-weight:700">
+                                            🔄 Reso il {{ item.data_restituzione|date:"d/m/Y"|default:"-" }}
+                                        </span>
+                                        {% else %}
+                                        <span style="color:#94a3b8;font-size:11px">— In attesa —</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if item.urgenza == 'URGENTE' %}
                                         <span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800">URGENTE</span>
@@ -306,8 +325,15 @@
                                             ✕
                                         </button>
                                         {% elif item.stato == 'CONSEGNATO' %}
-                                        <span style="color:#15803d;font-weight:700;font-size:11.5px">
-                                            ✅ Consegnato il {{ item.data_consegna|date:"d/m/Y"|default:item.data_richiesta|date:"d/m/Y" }}
+                                        <span style="color:#15803d;font-weight:700;font-size:11px">
+                                            ✅ Consegnato
+                                        </span>
+                                        <button onclick="segnaRestituzionePersonale({{ item.id }})" style="background:#0284c7;color:#fff;border:none;padding:3px 8px;border-radius:4px;font-size:10.5px;font-weight:700;cursor:pointer;margin-left:6px" title="Registra la restituzione dell'oggetto in sede">
+                                            🔄 Restituisci
+                                        </button>
+                                        {% elif item.stato == 'RESTITUITO' %}
+                                        <span style="background:#f1f5f9;color:#0369a1;border:1px solid #bae6fd;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700">
+                                            🔄 Restituito
                                         </span>
                                         {% else %}
                                         <span style="color:#64748b;font-size:11px">❌ {{ item.get_stato_display }}</span>
@@ -315,7 +341,7 @@
                                     </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:20px">Nessuna richiesta o consegna di materiale personale registrata.</td></tr>
+                                <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">Nessuna richiesta o consegna di materiale personale registrata.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -457,38 +483,72 @@
                                     </button>
                                 </div>
 
-                                <!-- Badge riepilogo articoli -->
+                                <!-- Badge riepilogo articoli attualmente in dotazione -->
                                 <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px">
                                     {% for ogg_nome, qta in reg.riepilogo_capi.items %}
                                     <span style="background:#fff;color:#1e293b;border:1px solid #cbd5e1;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:700">
                                         {{ ogg_nome }}: <strong>x{{ qta }}</strong>
                                     </span>
+                                    {% empty %}
+                                    <span style="font-size:11px;color:#94a3b8;font-style:italic">Nessun articolo attualmente in dotazione</span>
                                     {% endfor %}
                                 </div>
 
-                                <!-- Tabella consegne -->
-                                <table class="erp-table" style="font-size:11px;background:#fff">
+                                <!-- Tabella dotazioni attive (utilizzata anche per la stampa) -->
+                                <div style="font-size:11px;font-weight:700;color:#0f172a;margin-bottom:4px">🟢 In Dotazione al Lavoratore:</div>
+                                <table class="erp-table tabella-dpi-stampa" style="font-size:11px;background:#fff;margin-bottom:8px">
                                     <thead>
                                         <tr>
                                             <th>Data Consegna</th>
                                             <th>Oggetto</th>
                                             <th>Taglia</th>
                                             <th>Q.tà</th>
-                                            <th>Note</th>
+                                            <th>Note / Azione</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for con in reg.oggetti %}
+                                        {% for con in reg.oggetti_attivi %}
                                         <tr>
-                                            <td style="font-weight:700;white-space:nowrap">{{ con.data_consegna|date:"d/m/Y"|default:con.data_richiesta|date:"d/m/Y" }}</td>
+                                            <td style="font-weight:700;white-space:nowrap">{{ con.data_consegna|date:"d/m/Y"|default:"-" }}</td>
                                             <td style="font-weight:700">{{ con.get_oggetto_display }}</td>
                                             <td><span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-weight:800">{{ con.taglia }}</span></td>
                                             <td style="font-weight:700">x{{ con.quantita }}</td>
-                                            <td style="color:#64748b;font-size:10.5px">{{ con.note|default:"-" }}</td>
+                                            <td>
+                                                {{ con.note|default:"-" }}
+                                                <button type="button" onclick="segnaRestituzionePersonale({{ con.id }})" style="background:#0284c7;color:#fff;border:none;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;margin-left:4px" title="Riconsegna in sede">🔄 Reso</button>
+                                            </td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:8px">Nessuna dotazione attiva al momento.</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+
+                                {% if reg.oggetti_restituiti %}
+                                <div style="font-size:11px;font-weight:700;color:#64748b;margin-top:6px;margin-bottom:2px">🔄 Oggetti Restituiti / Resi in Sede:</div>
+                                <table class="erp-table" style="font-size:10.5px;background:#f1f5f9;color:#475569">
+                                    <thead>
+                                        <tr>
+                                            <th>Data Reso</th>
+                                            <th>Oggetto</th>
+                                            <th>Taglia</th>
+                                            <th>Q.tà</th>
+                                            <th>Note Reso</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for res in reg.oggetti_restituiti %}
+                                        <tr>
+                                            <td style="font-weight:700;white-space:nowrap">{{ res.data_restituzione|date:"d/m/Y"|default:"-" }}</td>
+                                            <td>{{ res.get_oggetto_display }}</td>
+                                            <td>{{ res.taglia }}</td>
+                                            <td>x{{ res.quantita }}</td>
+                                            <td>{{ res.note|default:"-" }}</td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
+                                {% endif %}
                             </div>
                             {% endfor %}
                         </div>
@@ -641,6 +701,7 @@ function registraConsegnaPersonaleDiretta() {
     const tagliaMan = (document.getElementById('p_taglia_manuale').value || '').trim();
     const taglia = tagliaMan || document.getElementById('p_taglia').value;
     const qta = document.getElementById('p_qta').value;
+    const dataConsegna = (document.getElementById('p_data_consegna').value || '{{ today_iso }}').trim();
     const note = document.getElementById('p_note').value;
 
     if (!dipId) { alert('Seleziona il dipendente destinatario.'); return; }
@@ -652,13 +713,41 @@ function registraConsegnaPersonaleDiretta() {
         oggetto: ogg,
         taglia: taglia,
         quantita: qta,
+        data_consegna: dataConsegna,
         note: note
     });
 }
 
 function segnaConsegnaPersonale(id) {
-    if (!confirm('Confermi l\'avvenuta consegna dell\'oggetto al dipendente?')) return;
-    postMagazzino({action: 'segna_consegna_personale', dotazione_id: id});
+    const dataInput = prompt("Conferma o modifica la Data Effettiva di Consegna (AAAA-MM-GG):", "{{ today_iso }}");
+    if (dataInput === null) return;
+    postMagazzino({
+        action: 'segna_consegna_personale',
+        dotazione_id: id,
+        data_consegna: dataInput.trim()
+    });
+}
+
+function modificaDataConsegna(id, dataAttuale) {
+    const nuovaData = prompt("Modifica la Data di Consegna per questo articolo (AAAA-MM-GG):", dataAttuale || "{{ today_iso }}");
+    if (!nuovaData || nuovaData.trim() === dataAttuale) return;
+    postMagazzino({
+        action: 'modifica_data_consegna_personale',
+        dotazione_id: id,
+        nuova_data: nuovaData.trim()
+    });
+}
+
+function segnaRestituzionePersonale(id) {
+    const dataRest = prompt("Inserisci la Data di Restituzione / Riconsegna in Sede (AAAA-MM-GG):", "{{ today_iso }}");
+    if (dataRest === null) return;
+    const noteRest = prompt("Note o motivo restituzione (opzionale, es. fine rapporto, reso per cambio taglia, capo usurato):", "");
+    postMagazzino({
+        action: 'segna_restituzione_personale',
+        dotazione_id: id,
+        data_restituzione: dataRest.trim(),
+        note: (noteRest || '').trim()
+    });
 }
 
 function annullaDotazionePersonale(id) {
@@ -670,7 +759,11 @@ function stampaSchedaDpi(dipId, nomeDip) {
     const schedaElem = document.getElementById('scheda-dip-' + dipId);
     if (!schedaElem) { alert('Scheda dipendente non trovata.'); return; }
 
-    const printWin = window.open('', '_blank', 'width=800,height=600');
+    // Prendi la tabella delle dotazioni attive
+    const tableElem = schedaElem.querySelector('.tabella-dpi-stampa') || schedaElem.querySelector('table');
+    const tableHtml = tableElem ? tableElem.outerHTML : '';
+
+    const printWin = window.open('', '_blank', 'width=850,height=700');
     printWin.document.write(`
         <!DOCTYPE html>
         <html>
@@ -678,39 +771,79 @@ function stampaSchedaDpi(dipId, nomeDip) {
             <title>Ricevuta Consegna DPI - ${nomeDip}</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 30px; font-size: 13px; color: #1e293b; }
-                h1 { font-size: 18px; margin-bottom: 4px; color: #0f172a; text-transform: uppercase; }
-                .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
-                th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+                h1 { font-size: 17px; margin-bottom: 4px; color: #0f172a; text-transform: uppercase; font-weight: 800; }
+                .subtitle { font-size: 11.5px; color: #475569; margin-bottom: 18px; }
+                .info-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 14px; border-radius: 6px; margin-bottom: 16px; font-size: 12px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 7px 10px; text-align: left; }
                 th { background: #f1f5f9; font-weight: bold; }
-                .signature-box { margin-top: 50px; display: flex; justify-content: space-between; }
-                .sig-line { width: 220px; border-top: 1px solid #000; text-align: center; padding-top: 6px; font-size: 12px; }
-                @media print { button { display: none; } }
+                button { display: none !important; }
+                .signature-box { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; }
+                .sig-block { width: 300px; text-align: center; }
+                .sig-line { border-top: 1px solid #000; padding-top: 6px; font-size: 12px; font-weight: bold; }
+                @media print { button { display: none !important; } }
             </style>
         </head>
         <body>
-            <div style="border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 15px;">
-                <h1>KANDOR &bull; Verbale di Assegnazione e Consegna DPI / Vestiario</h1>
-                <div class="subtitle">Ai sensi del D.Lgs. 81/08 (Sicurezza sul Lavoro) - Dotazione Personale Operativa</div>
+            <div style="border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h1>KANDOR &bull; Verbale di Assegnazione e Consegna DPI / Vestiario</h1>
+                    <div class="subtitle">Ai sensi del D.Lgs. 81/08 (Sicurezza sul Lavoro) - Dotazione Personale Operativa</div>
+                </div>
+                <div style="text-align: right; font-size: 11px; color: #64748b;">
+                    KANDOR Società Cooperativa<br>
+                    Via Martiri di Cefalonia, 2 - Almenno S.B. (BG)<br>
+                    P.IVA 04182710162
+                </div>
             </div>
-            <div>
-                <strong>Lavoratore / Dipendente:</strong> ${nomeDip}<br>
-                <strong>Data Stampa Verbale:</strong> ${new Date().toLocaleDateString('it-IT')}<br>
+
+            <div class="info-box">
+                <div style="display: flex; justify-content: space-between;">
+                    <div>
+                        <strong>Lavoratore / Dipendente:</strong> ${nomeDip}<br>
+                        <strong>Azienda Datrice:</strong> KANDOR Società Cooperativa
+                    </div>
+                    <div style="text-align: right;">
+                        <strong>Data Rilascio Verbale:</strong> ${new Date().toLocaleDateString('it-IT')}<br>
+                        <strong>Stato Dotazione:</strong> Consegna Attiva
+                    </div>
+                </div>
             </div>
-            ${schedaElem.querySelector('table').outerHTML}
-            <div style="margin-top: 25px; font-size: 11px; color: #475569; line-height: 1.4;">
-                Il sottoscritto lavoratore dichiara di aver ricevuto in data odierna gli indumenti e Dispositivi di Protezione Individuale (DPI) sopra elencati in perfetto stato di conservazione ed efficienza, e si impegna ad utilizzarli conformemente alle istruzioni ricevute.
+
+            <h3 style="font-size: 13px; color: #0f172a; margin-bottom: 6px;">ELENCO INDUMENTI E DISPOSITIVI DI PROTEZIONE INDIVIDUALE IN DOTAZIONE:</h3>
+            ${tableHtml}
+
+            <div style="margin-top: 20px; font-size: 11px; color: #475569; line-height: 1.45; background: #fafafa; border: 1px solid #eee; padding: 10px; border-radius: 4px;">
+                Il sottoscritto lavoratore dichiara di aver ricevuto in data odierna gli indumenti e Dispositivi di Protezione Individuale (DPI) sopra elencati in perfetto stato di conservazione ed efficienza, e si impegna ad utilizzarli con diligenza conformemente alle istruzioni operative ricevute ai sensi dell'art. 20 del D.Lgs. 81/08, nonché a riconsegnarli in caso di sostituzione o cessazione del rapporto di lavoro.
             </div>
+
             <div class="signature-box">
-                <div class="sig-line">Firma Datore di Lavoro / Delegato</div>
-                <div class="sig-line">Firma del Lavoratore per Ricevuta</div>
+                <!-- Timbro e Firma Kandor preimpostata -->
+                <div class="sig-block">
+                    {% if timbro_kandor_b64 %}
+                    <img src="data:image/jpeg;base64,{{ timbro_kandor_b64 }}" style="max-width: 250px; height: auto; display: block; margin: 0 auto -6px auto;" alt="Timbro e Firma Kandor">
+                    {% else %}
+                    <img src="/static/core/img/timbro_kandor.jpg" style="max-width: 250px; height: auto; display: block; margin: 0 auto -6px auto;" alt="Timbro e Firma Kandor">
+                    {% endif %}
+                    <div class="sig-line">
+                        Firma Datore di Lavoro / Delegato<br>
+                        <span style="font-size: 10px; font-weight: normal; color: #475569;">KANDOR Società Cooperativa</span>
+                    </div>
+                </div>
+
+                <!-- Firma del lavoratore -->
+                <div class="sig-block" style="margin-bottom: 10px;">
+                    <div class="sig-line" style="margin-top: 60px;">
+                        Firma del Lavoratore per Ricevuta
+                    </div>
+                </div>
             </div>
         </body>
         </html>
     `);
     printWin.document.close();
     printWin.focus();
-    setTimeout(() => { printWin.print(); }, 250);
+    setTimeout(() => { printWin.print(); }, 350);
 }
 
 function registraConsegna() {
