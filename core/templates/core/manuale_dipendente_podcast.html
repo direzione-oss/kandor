@@ -1,399 +1,302 @@
-{% extends "admin/base_site.html" %}
-{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Guida Audio Bot Telegram — Kandor ERP</title>
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background: #f1f5f9;
+            color: #0f172a;
+            line-height: 1.5;
+        }
+        .container {
+            max-width: 680px;
+            margin: 0 auto;
+        }
+        .hero {
+            background: linear-gradient(135deg, #064e3b 0%, #059669 100%);
+            color: white;
+            padding: 24px 20px;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(5,150,105,0.25);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .hero h1 {
+            margin: 0 0 8px 0;
+            font-size: 22px;
+            font-weight: 800;
+        }
+        .hero p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.92;
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
 
-{% block content %}
-<style>
-    .podcast-wrap {
-        max-width: 920px;
-        margin: 25px auto 50px auto;
-        padding: 0 15px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        color: #1f2937;
-    }
-    .podcast-hero-dip {
-        background: linear-gradient(135deg, #064e3b 0%, #059669 50%, #10b981 100%);
-        color: white;
-        padding: 35px 30px;
-        border-radius: 16px;
-        box-shadow: 0 10px 25px -5px rgba(5, 150, 105, 0.4);
-        margin-bottom: 25px;
-        position: relative;
-        overflow: hidden;
-    }
-    .podcast-hero-dip::after {
-        content: "📱";
-        position: absolute;
-        right: 25px;
-        top: 20px;
-        font-size: 100px;
-        opacity: 0.15;
-        pointer-events: none;
-    }
-    .podcast-hero-dip h1 {
-        margin: 0 0 10px 0;
-        font-size: 26px;
-        font-weight: 800;
-        color: #ffffff;
-        border: none;
-        padding: 0;
-    }
-    .podcast-hero-dip p {
-        margin: 0 0 18px 0;
-        font-size: 15px;
-        color: #ecfdf5;
-        max-width: 720px;
-        line-height: 1.6;
-    }
-    .hero-tags {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        font-size: 12px;
-        margin-bottom: 20px;
-    }
-    .hero-tag {
-        background: rgba(255, 255, 255, 0.18);
-        padding: 5px 12px;
-        border-radius: 20px;
-        backdrop-filter: blur(4px);
-        font-weight: 600;
-        color: #f8fafc;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
+        /* Player Box */
+        .player-box {
+            background: white;
+            border-radius: 16px;
+            padding: 22px 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .track-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+        .track-sub {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 18px;
+        }
+        .play-btn-large {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: #059669;
+            color: white;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            box-shadow: 0 6px 16px rgba(5,150,105,0.4);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, background 0.2s;
+            margin-bottom: 15px;
+        }
+        .play-btn-large:active {
+            transform: scale(0.95);
+        }
+        audio {
+            width: 100%;
+            margin-top: 10px;
+            margin-bottom: 15px;
+            border-radius: 30px;
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-dl { background: #059669; color: white; }
+        .btn-pdf { background: #f59e0b; color: #78350f; }
+        .btn-tg { background: #0088cc; color: white; }
 
-    /* Player Card */
-    .player-card {
-        background: white;
-        border-radius: 14px;
-        padding: 24px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        border: 1px solid #e2e8f0;
-        margin-bottom: 25px;
-    }
-    .player-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 15px;
-        margin-bottom: 20px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid #f1f5f9;
-    }
-    .now-playing-title {
-        font-size: 17px;
-        font-weight: 700;
-        color: #0f172a;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .audio-player-custom {
-        width: 100%;
-        margin-bottom: 15px;
-        outline: none;
-        border-radius: 30px;
-    }
-    .player-actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        align-items: center;
-    }
-    .btn-action {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 700;
-        text-decoration: none;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border: none;
-    }
-    .btn-download {
-        background: #059669;
-        color: white;
-    }
-    .btn-download:hover {
-        background: #047857;
-        color: white;
-    }
-    .btn-share-wa {
-        background: #25d366;
-        color: white;
-    }
-    .btn-share-wa:hover {
-        background: #128c7e;
-        color: white;
-    }
-    .btn-copy {
-        background: #f1f5f9;
-        color: #334155;
-    }
-    .btn-copy:hover {
-        background: #e2e8f0;
-    }
+        /* Capitoli */
+        .card {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            font-size: 17px;
+            color: #065f46;
+            margin: 0 0 14px 0;
+            font-weight: 700;
+        }
+        .chap-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-radius: 10px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .chap-item:active { background: #ecfdf5; }
+        .chap-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #d1fae5;
+            color: #065f46;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 12px;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .chap-text { flex-grow: 1; text-align: left; }
+        .chap-text strong { display: block; font-size: 13px; color: #0f172a; }
+        .chap-text span { font-size: 11px; color: #64748b; }
+        .chap-time {
+            font-size: 11px;
+            font-weight: 700;
+            color: #059669;
+            background: #ecfdf5;
+            padding: 3px 8px;
+            border-radius: 12px;
+            white-space: nowrap;
+            margin-left: 10px;
+        }
 
-    /* Capitoli */
-    .chapters-card {
-        background: white;
-        border-radius: 14px;
-        padding: 24px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        border: 1px solid #e2e8f0;
-        margin-bottom: 25px;
-    }
-    .chapters-card h2 {
-        font-size: 18px;
-        font-weight: 700;
-        color: #065f46;
-        margin: 0 0 15px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        border: none;
-        padding: 0;
-    }
-    .chapter-list {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-    .chapter-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 12px 16px;
-        background: #f8fafc;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    .chapter-item:hover {
-        background: #ecfdf5;
-        border-color: #6ee7b7;
-        transform: translateX(4px);
-    }
-    .chapter-info {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-    .chapter-num {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: #d1fae5;
-        color: #065f46;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 13px;
-    }
-    .chapter-text strong {
-        display: block;
-        font-size: 14px;
-        color: #0f172a;
-    }
-    .chapter-text span {
-        font-size: 12px;
-        color: #64748b;
-    }
-    .chapter-time {
-        font-size: 12px;
-        font-weight: 700;
-        color: #059669;
-        background: #ecfdf5;
-        padding: 4px 10px;
-        border-radius: 20px;
-        border: 1px solid #a7f3d0;
-        white-space: nowrap;
-    }
-
-    /* Transcript Card */
-    .transcript-card {
-        background: white;
-        border-radius: 14px;
-        padding: 24px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.06);
-        border: 1px solid #e2e8f0;
-    }
-    .transcript-card h2 {
-        font-size: 18px;
-        font-weight: 700;
-        color: #065f46;
-        margin: 0 0 15px 0;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        border: none;
-        padding: 0;
-    }
-    .transcript-content {
-        line-height: 1.8;
-        font-size: 14px;
-        color: #334155;
-        white-space: pre-line;
-        background: #f8fafc;
-        padding: 20px;
-        border-radius: 10px;
-        border: 1px solid #e2e8f0;
-        max-height: 380px;
-        overflow-y: auto;
-    }
-
-    .footer-nav {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 30px;
-        padding-top: 20px;
-        border-top: 1px solid #e2e8f0;
-    }
-</style>
-
-<div class="podcast-wrap">
-    <!-- HERO HEADER -->
-    <div class="podcast-hero-dip">
-        <div class="hero-tags">
-            <span class="hero-tag">🎧 Guida Vocale per Dipendenti</span>
-            <span class="hero-tag">⏱ Durata: ~6 minuti</span>
-            <span class="hero-tag">🤖 Bot Telegram: @kandor_gestionale_bot</span>
-        </div>
-        <h1>📱 Come Usare il Bot Telegram — Guida Audio</h1>
-        <p>Una spiegazione semplice, passo dopo passo, pensata per tutti i nostri collaboratori: come consultare i turni, come registrare le ore lavorate in 30 secondi, richiedere ferie e malattia, e ricevere la busta paga sul cellulare.</p>
+        /* Testo */
+        .transcript-text {
+            font-size: 13px;
+            line-height: 1.7;
+            color: #334155;
+            white-space: pre-line;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+        }
+        .footer-back {
+            text-align: center;
+            margin-top: 25px;
+        }
+        .footer-back a {
+            color: #059669;
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- HERO -->
+    <div class="hero">
+        <div class="badge">🎧 Kandor Audio Dipendenti</div>
+        <h1>📱 Guida al Bot Telegram</h1>
+        <p>Come usare il bot per turni, registrazione ore e malattie in 6 minuti.</p>
     </div>
 
-    <!-- AUDIO PLAYER CARD -->
-    <div class="player-card">
-        <div class="player-header">
-            <div class="now-playing-title">
-                <span>🔊</span>
-                <div>
-                    <div>Audio Guida Bot Telegram per il Lavoratore</div>
-                    <small style="color:#64748b; font-weight:normal;">Audio chiaro in italiano &bull; Ottimizzato per smartphone</small>
-                </div>
-            </div>
-            <div class="player-actions">
-                <a href="{% url 'podcast_dipendente_audio_stream' %}" download="Guida_Audio_Telegram_Dipendenti.mp3" class="btn-action btn-download">
-                    ⬇️ Scarica MP3 (2.2 MB)
-                </a>
-                <button type="button" onclick="copiaLink()" class="btn-action btn-copy" id="btn-copy-link">
-                    🔗 Copia Link
-                </button>
-            </div>
+    <!-- AUDIO PLAYER -->
+    <div class="player-box">
+        <div class="track-title">🔊 Ascolta la Spiegazione Vocale</div>
+        <div class="track-sub">Premi il pulsante Play per iniziare l'ascolto:</div>
+
+        <div>
+            <button id="play-pause-btn" class="play-btn-large" onclick="togglePlay()">▶</button>
         </div>
 
-        <!-- HTML5 Audio Element -->
-        <audio id="main-dip-audio" class="audio-player-custom" controls preload="metadata">
+        <audio id="dip-audio" controls playsinline webkit-playsinline preload="auto">
             <source src="{% url 'podcast_dipendente_audio_stream' %}" type="audio/mpeg">
-            Il tuo browser non supporta il player audio HTML5. <a href="{% url 'podcast_dipendente_audio_stream' %}">Scarica l'MP3 qui</a>.
+            Il tuo dispositivo non supporta il lettore audio.
         </audio>
 
-        <!-- Controlli velocità e condivisione rapida -->
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-top:10px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:12px; font-weight:600; color:#64748b;">Velocità:</span>
-                <button type="button" onclick="setSpeed(1.0)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:12px; cursor:pointer; font-weight:bold;">1.0x</button>
-                <button type="button" onclick="setSpeed(1.25)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:12px; cursor:pointer; font-weight:bold;">1.25x</button>
-                <button type="button" onclick="setSpeed(1.5)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff; font-size:12px; cursor:pointer; font-weight:bold;">1.5x</button>
-                <button type="button" onclick="skipAudio(-15)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; font-size:12px; cursor:pointer;">⏪ -15s</button>
-                <button type="button" onclick="skipAudio(15)" style="padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; background:#f8fafc; font-size:12px; cursor:pointer;">⏩ +15s</button>
-            </div>
-
-            <!-- Share WhatsApp / Telegram -->
-            <div style="display:flex; gap:8px;">
-                <a href="https://api.whatsapp.com/send?text=Ciao!%20Ascolta%20questa%20breve%20Guida%20Audio%20su%20come%20usare%20il%20Bot%20Telegram%20per%20i%20turni%20e%20le%20ore:%20{{ request.build_absolute_uri }}" target="_blank" class="btn-action btn-share-wa" style="padding:6px 12px; font-size:12px;">
-                    📲 Invia ai Dipendenti su WhatsApp
-                </a>
-                <a href="https://t.me/share/url?url={{ request.build_absolute_uri }}&text=Guida%20Audio%20Bot%20Telegram%20Kandor" target="_blank" class="btn-action" style="background:#0088cc; color:white; padding:6px 12px; font-size:12px;">
-                    ✈️ Invia su Telegram
-                </a>
-            </div>
+        <div class="btn-row">
+            <a href="{% url 'podcast_dipendente_audio_stream' %}?download=1" class="action-btn btn-dl" download="Guida_Audio_Telegram_Dipendenti.mp3">
+                ⬇️ Scarica MP3 (2.2 MB)
+            </a>
+            <a href="{% url 'manuale_dipendente_pdf' %}?download=1" class="action-btn btn-pdf" target="_blank" download="MANUALE_DIPENDENTE_KANDOR.pdf">
+                📄 Scarica Manuale PDF
+            </a>
+            <a href="https://t.me/kandor_gestionale_bot" class="action-btn btn-tg" target="_blank">
+                ✈️ Apri Bot Telegram
+            </a>
         </div>
     </div>
 
-    <!-- CAPITOLI / INDICE TEMPORALE -->
-    <div class="chapters-card">
-        <h2>📑 Argomenti Trattati nella Guida</h2>
-        <p style="font-size:13px; color:#64748b; margin-top:0; margin-bottom:15px;">Tocca un argomento per ascoltare direttamente quel punto:</p>
-        <div class="chapter-list">
-            {% for cap in capitoli %}
-            <div class="chapter-item" onclick="seekTo('{{ cap.durata_stimata }}')">
-                <div class="chapter-info">
-                    <div class="chapter-num">{{ cap.id }}</div>
-                    <div class="chapter-text">
-                        <strong>{{ cap.titolo }}</strong>
-                        <span>{{ cap.descrizione }}</span>
-                    </div>
+    <!-- CAPITOLI -->
+    <div class="card">
+        <h2>📑 Argomenti (Tocca per saltare al minuto)</h2>
+        {% for cap in capitoli %}
+        <div class="chap-item" onclick="seekTo('{{ cap.durata_stimata }}')">
+            <div style="display:flex; align-items:center;">
+                <div class="chap-num">{{ cap.id }}</div>
+                <div class="chap-text">
+                    <strong>{{ cap.titolo }}</strong>
+                    <span>{{ cap.descrizione }}</span>
                 </div>
-                <div class="chapter-time">▶ {{ cap.durata_stimata }}</div>
             </div>
-            {% endfor %}
+            <div class="chap-time">▶ {{ cap.durata_stimata }}</div>
         </div>
+        {% endfor %}
     </div>
 
-    <!-- TRASCRIZIONE COMPLETA -->
-    <div class="transcript-card">
-        <h2>📝 Testo Completo della Guida</h2>
-        <div class="transcript-content">{{ testo_podcast }}</div>
+    <!-- TRASCRIZIONE -->
+    <div class="card">
+        <h2>📝 Trascrizione Testuale</h2>
+        <div class="transcript-text">{{ testo_podcast }}</div>
     </div>
 
-    <!-- FOOTER NAV -->
-    <div class="footer-nav">
-        <a href="{% url 'manuale_dipendente' %}" style="display:inline-flex; align-items:center; gap:6px; color:#059669; font-weight:bold; text-decoration:none;">
-            ← Torna alla Guida Dipendenti Completa
-        </a>
-        <a href="/admin/" style="background:#065f46; color:white; padding:8px 18px; border-radius:6px; text-decoration:none; font-weight:bold;">
-            Vai alla Dashboard
-        </a>
+    <div class="footer-back">
+        <a href="{% url 'manuale_dipendente' %}">← Apri il Manuale Web Completo</a>
     </div>
 </div>
 
 <script>
-    const audio = document.getElementById('main-dip-audio');
+    const audio = document.getElementById('dip-audio');
+    const playBtn = document.getElementById('play-pause-btn');
+
+    function togglePlay() {
+        if (!audio) return;
+        if (audio.paused) {
+            audio.play().then(() => {
+                playBtn.innerHTML = '⏸';
+            }).catch(e => {
+                console.log('Playback error:', e);
+            });
+        } else {
+            audio.pause();
+            playBtn.innerHTML = '▶';
+        }
+    }
+
+    if (audio) {
+        audio.onplay = () => { playBtn.innerHTML = '⏸'; };
+        audio.onpause = () => { playBtn.innerHTML = '▶'; };
+        audio.onended = () => { playBtn.innerHTML = '▶'; };
+    }
 
     function seekTo(timeStr) {
         if (!audio) return;
         const parts = timeStr.split(':');
-        let seconds = 0;
+        let sec = 0;
         if (parts.length === 2) {
-            seconds = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-        } else if (parts.length === 3) {
-            seconds = parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10);
+            sec = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
         }
-        audio.currentTime = seconds;
-        audio.play();
-    }
-
-    function setSpeed(speed) {
-        if (audio) {
-            audio.playbackRate = speed;
-        }
-    }
-
-    function skipAudio(delta) {
-        if (audio) {
-            audio.currentTime = Math.max(0, audio.currentTime + delta);
-        }
-    }
-
-    function copiaLink() {
-        navigator.clipboard.writeText(window.location.href).then(() => {
-            const btn = document.getElementById('btn-copy-link');
-            if (btn) {
-                const oldText = btn.innerHTML;
-                btn.innerHTML = '✅ Link Copiato!';
-                setTimeout(() => { btn.innerHTML = oldText; }, 2500);
-            }
+        audio.currentTime = sec;
+        audio.play().then(() => {
+            playBtn.innerHTML = '⏸';
         });
     }
 </script>
-{% endblock %}
+</body>
+</html>

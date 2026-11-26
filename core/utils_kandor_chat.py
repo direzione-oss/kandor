@@ -1555,8 +1555,7 @@ def get_main_menu(dipendente=None):
         keyboard.append([{'text': '📅 Assegna Turno', 'callback_data': 'menu_assegna_turno'}])
 
     keyboard.append([
-        {'text': '📖 Guida Web', 'url': f'{base_url}/manuale-dipendente/'},
-        {'text': '🎧 Podcast Audio', 'url': f'{base_url}/manuale-dipendente/podcast/'}
+        {'text': '📖 Guida & Podcast', 'callback_data': 'menu_guida'}
     ])
     return {'inline_keyboard': keyboard}
 
@@ -1909,19 +1908,20 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
         base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
         podcast_url = f"{base_url}/manuale-dipendente/podcast/"
         manuale_url = f"{base_url}/manuale-dipendente/"
-        pdf_url = f"{base_url}/manuale-dipendente/pdf/"
         return {
             'text': (
                 f"📖 *Guida & Istruzioni per i Dipendenti*\n\n"
                 f"Ciao {dipendente.nome}! Scegli come preferisci consultare la guida:\n\n"
                 f"🎧 *Podcast Audio (6 min):* spiegazione a voce semplice per imparare a usare il bot, registrare le ore e comunicare le assenze.\n\n"
-                f"📖 *Guida Illustrata Web:* manuale passo-passo con schermate e spiegazioni scritte."
+                f"📄 *Manuale PDF:* documento completo con tutte le istruzioni illustrate.\n\n"
+                f"Puoi ricevere l'audio o il PDF direttamente qui su Telegram toccando i pulsanti sotto:"
             ),
             'reply_markup': {
                 'inline_keyboard': [
-                    [{'text': '🎧 Ascolta il Podcast Audio (~6m)', 'url': podcast_url}],
-                    [{'text': '📖 Leggi la Guida Web', 'url': manuale_url}],
-                    [{'text': '📄 Scarica Manuale PDF', 'url': pdf_url}],
+                    [{'text': '🎧 Ascolta Audio (qui su Telegram)', 'callback_data': 'invia_podcast_audio'}],
+                    [{'text': '📄 Ricevi Manuale PDF (qui su Telegram)', 'callback_data': 'invia_manuale_pdf'}],
+                    [{'text': '🌐 Apri Pagina Web Audio', 'url': podcast_url}],
+                    [{'text': '📖 Leggi Guida Online', 'url': manuale_url}],
                     [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
                 ]
             },
@@ -2570,23 +2570,48 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
         base_url = getattr(settings, 'PUBLIC_BASE_URL', 'https://kandor.187.126.30.207.sslip.io').rstrip('/')
         podcast_url = f"{base_url}/manuale-dipendente/podcast/"
         manuale_url = f"{base_url}/manuale-dipendente/"
-        pdf_url = f"{base_url}/manuale-dipendente/pdf/"
         return {
             'text': (
                 f"📖 *Guida & Istruzioni per i Dipendenti*\n\n"
                 f"Ciao {dipendente.nome}! Scegli come preferisci consultare la guida:\n\n"
                 f"🎧 *Podcast Audio (6 min):* spiegazione a voce semplice per imparare a usare il bot, registrare le ore e comunicare le assenze.\n\n"
-                f"📖 *Guida Illustrata Web:* manuale passo-passo con schermate e spiegazioni scritte."
+                f"📄 *Manuale PDF:* documento completo con tutte le istruzioni illustrate.\n\n"
+                f"Tocca uno dei pulsanti sotto per ricevere l'audio o il file direttamente qui su Telegram:"
             ),
             'reply_markup': {
                 'inline_keyboard': [
-                    [{'text': '🎧 Ascolta il Podcast Audio (~6m)', 'url': podcast_url}],
-                    [{'text': '📖 Leggi la Guida Web', 'url': manuale_url}],
-                    [{'text': '📄 Scarica Manuale PDF', 'url': pdf_url}],
+                    [{'text': '🎧 Ascolta Audio (qui su Telegram)', 'callback_data': 'invia_podcast_audio'}],
+                    [{'text': '📄 Ricevi Manuale PDF (qui su Telegram)', 'callback_data': 'invia_manuale_pdf'}],
+                    [{'text': '🌐 Apri Pagina Web Audio', 'url': podcast_url}],
+                    [{'text': '📖 Leggi Guida Online', 'url': manuale_url}],
                     [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
                 ]
             },
             'parse_mode': 'Markdown'
+        }
+
+    if callback_data == 'invia_podcast_audio':
+        invia_podcast_audio_telegram(telegram_chat_id)
+        return {
+            'text': "✅ Ti ho inviato il file audio qui sopra in chat!\nTocca il pulsante ▶️ Play per ascoltarlo.",
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '📖 Altre Guide', 'callback_data': 'menu_guida'}],
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            }
+        }
+
+    if callback_data == 'invia_manuale_pdf':
+        invia_manuale_pdf_telegram(telegram_chat_id)
+        return {
+            'text': "✅ Ti ho inviato il file PDF qui sopra in chat!\nToccalo per aprirlo e leggerlo.",
+            'reply_markup': {
+                'inline_keyboard': [
+                    [{'text': '📖 Altre Guide', 'callback_data': 'menu_guida'}],
+                    [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
+                ]
+            }
         }
 
     # Registra Nuovo Cliente (Solo Responsabili)
@@ -3497,6 +3522,42 @@ def _is_image_file(filename, content_type=None):
     return False
 
 
+def invia_podcast_audio_telegram(chat_id):
+    """Invia il file audio MP3 del podcast direttamente nella chat Telegram."""
+    import os
+    from django.conf import settings
+    path = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'audio', 'podcast_dipendenti_telegram.mp3')
+    if not os.path.exists(path):
+        path = os.path.join(settings.MEDIA_ROOT, 'podcast_dipendenti_telegram.mp3')
+    if os.path.exists(path):
+        with open(path, 'rb') as f:
+            b = f.read()
+        return send_telegram_file(
+            chat_id, b, 'Guida_Audio_Telegram_Dipendenti.mp3',
+            caption='🎧 *Guida Audio Bot Telegram Kandor ERP*\nPremi Play per ascoltare la spiegazione vocale di 6 minuti!',
+            content_type='audio/mpeg'
+        )
+    return False
+
+
+def invia_manuale_pdf_telegram(chat_id):
+    """Invia il file PDF del manuale dipendente direttamente nella chat Telegram."""
+    import os
+    from django.conf import settings
+    path = os.path.join(settings.BASE_DIR, 'MANUALE_DIPENDENTE_KANDOR.pdf')
+    if not os.path.exists(path):
+        path = os.path.join(settings.MEDIA_ROOT, 'manuali', 'MANUALE_DIPENDENTE_KANDOR.pdf')
+    if os.path.exists(path):
+        with open(path, 'rb') as f:
+            b = f.read()
+        return send_telegram_file(
+            chat_id, b, 'MANUALE_DIPENDENTE_KANDOR.pdf',
+            caption='📄 *Manuale Operativo Dipendente Kandor ERP*\nEcco il manuale PDF pronto da consultare o salvare.',
+            content_type='application/pdf'
+        )
+    return False
+
+
 def send_telegram_file(chat_id, file_bytes, filename, caption='', content_type=None):
     """Invia un file (foto, PDF cedolino, documento, ecc.) via Telegram a chat_id."""
     from django.conf import settings
@@ -3519,7 +3580,22 @@ def send_telegram_file(chat_id, file_bytes, filename, caption='', content_type=N
         data['caption'] = cap
 
     is_img = _is_image_file(safe_name, mime)
+    is_audio = safe_name.lower().endswith(('.mp3', '.ogg', '.m4a', '.wav')) or mime.startswith('audio/')
     try:
+        if is_audio:
+            url_audio = f"https://api.telegram.org/bot{token}/sendAudio"
+            audio_data = dict(data)
+            audio_data['title'] = 'Guida Bot Telegram (Kandor ERP)'
+            audio_data['performer'] = 'Kandor ERP'
+            r = requests.post(
+                url_audio,
+                data=audio_data,
+                files={'audio': (safe_name, file_bytes, mime if mime.startswith('audio/') else 'audio/mpeg')},
+                timeout=60,
+            )
+            if r.status_code == 200:
+                return True
+
         if is_img:
             url_photo = f"https://api.telegram.org/bot{token}/sendPhoto"
             r = requests.post(
@@ -3536,7 +3612,7 @@ def send_telegram_file(chat_id, file_bytes, filename, caption='', content_type=N
             url_doc,
             data=data,
             files={'document': (safe_name, file_bytes, mime)},
-            timeout=30,
+            timeout=40,
         )
         return r.status_code == 200
     except Exception as e:
