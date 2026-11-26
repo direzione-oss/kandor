@@ -2064,19 +2064,20 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             del _TELEGRAM_STATE[telegram_chat_id]
             
             note_extra = ""
-            match = re.match(r'^\s*(\d+(?:[.,]\d+)?)\s*(?:or[ae]|h)?(?:\s*[-:]?\s*(.*))?$', clean_text, re.IGNORECASE)
+            from .utils_ore import parse_ore_input
+            match = re.match(r'^\s*([0-9]+(?:[:.,][0-9]+)?(?:[hm]|min)?)\s*(?:or[ae]|h )?(?:\s*[-:]?\s*(.*))?$', clean_text, re.IGNORECASE)
+            hours_dec = None
             if match:
-                hours_str = match.group(1).replace(',', '.')
+                hours_str = match.group(1)
                 note_extra = (match.group(2) or '').strip()
-                try:
-                    hours = float(hours_str)
-                except ValueError:
-                    return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
-            else:
-                try:
-                    hours = float(clean_text.replace(',', '.').replace(':', '.'))
-                except ValueError:
-                    return "Formato ore non valido. Scrivi un numero (es: 8 o 7.5)"
+                hours_dec = parse_ore_input(hours_str)
+            if hours_dec is None:
+                hours_dec = parse_ore_input(clean_text)
+
+            if hours_dec is None or hours_dec <= 0:
+                return "Formato ore non valido. Scrivi ad esempio 1:34 (per 1h e 34min), 8 o 7:30"
+
+            hours = float(hours_dec)
             
             try:
                 assegnazione = AssegnazioneTurno.objects.filter(
