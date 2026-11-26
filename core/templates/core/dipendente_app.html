@@ -620,6 +620,52 @@
             {% endfor %}
             {% endif %}
 
+            <!-- TIMBRATURA GPS CANTIERE (SCELTA LIBERA DA MENU) -->
+            <div class="card" style="background:#F8FAFC; border:1.5px solid #CBD5E1; margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span style="font-weight:800; font-size:14px; color:#0F172A;">📍 Timbratura GPS Cantiere</span>
+                    <span class="badge" style="background:#E2E8F0; color:#334155; font-weight:700;">Scelta Libera</span>
+                </div>
+
+                {% if timbratura_aperta_info %}
+                <div style="background:#ECFDF5; border:1px solid #10B981; border-radius:10px; padding:10px 12px; margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+                    <div style="font-size:22px;">🟢</div>
+                    <div style="font-size:12.5px; color:#065F46;">
+                        <strong>Check-In attivo:</strong> sei al lavoro presso <strong>{{ timbratura_aperta_info.cliente_nome }}</strong> dalle ore <strong>{{ timbratura_aperta_info.check_in_ora }}</strong>.
+                    </div>
+                </div>
+                {% endif %}
+
+                <div style="font-size:12px; color:#64748B; margin-bottom:8px;">
+                    Scegli il cantiere in cui ti trovi per timbrare l'ingresso o l'uscita con verifica GPS:
+                </div>
+
+                <div class="form-group" style="margin-bottom:10px;">
+                    <select id="quick_timbra_cliente_id" class="form-control" style="font-weight:600; font-size:13.5px; padding:10px;" onchange="aggiornaDettaglioCantiereSelezionato()">
+                        <option value="">-- Seleziona Cantiere / Cliente --</option>
+                        {% for c in tutti_clienti %}
+                        <option value="{{ c.id }}" data-indirizzo="{{ c.indirizzo_sede|default:'' }}" {% if timbratura_aperta_info and timbratura_aperta_info.cliente_id == c.id %}selected{% endif %}>
+                            🏢 {{ c.ragione_sociale }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <div id="quick_timbra_indirizzo" style="font-size:11.5px; color:#475569; margin-top:5px; {% if not timbratura_aperta_info %}display:none;{% endif %}">
+                        {% if timbratura_aperta_info %}
+                        📍 <em>Cantiere selezionato per il Check-Out</em>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <button type="button" class="btn btn-success" style="padding:11px 8px; font-weight:800; font-size:13.5px; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="timbraLiberaGps('CHECK_IN')">
+                        <span>🟢 Check-In GPS</span>
+                    </button>
+                    <button type="button" class="btn btn-danger" style="padding:11px 8px; font-weight:800; font-size:13.5px; display:flex; justify-content:center; align-items:center; gap:6px;" onclick="timbraLiberaGps('CHECK_OUT')">
+                        <span>🔴 Check-Out GPS</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- Turni di Oggi -->
             <div class="section-title">
                 <span>⏱ I Tuoi Turni di Oggi</span>
@@ -1836,6 +1882,33 @@
             }, 150);
         }
 
+        async function timbraLiberaGps(tipo) {
+            const sel = document.getElementById('quick_timbra_cliente_id');
+            const clienteId = sel ? sel.value : '';
+            if (!clienteId) {
+                alert('Seleziona prima il cantiere / cliente dal menu a tendina.');
+                if (sel) sel.focus();
+                return;
+            }
+            try { localStorage.setItem('kandor_last_timbratura_cliente_id', clienteId); } catch(e){}
+            await timbraGeofenceGps(tipo, '', clienteId);
+        }
+
+        function aggiornaDettaglioCantiereSelezionato() {
+            const sel = document.getElementById('quick_timbra_cliente_id');
+            const indBox = document.getElementById('quick_timbra_indirizzo');
+            if (!sel || !indBox) return;
+            const opt = sel.options[sel.selectedIndex];
+            const ind = opt ? opt.getAttribute('data-indirizzo') : '';
+            if (ind) {
+                indBox.style.display = 'block';
+                indBox.innerHTML = '📍 <em>' + ind + '</em>';
+            } else {
+                indBox.style.display = 'none';
+                indBox.innerHTML = '';
+            }
+        }
+
         async function timbraGeofenceGps(tipo, assignId, clienteId) {
             showToast('🛰️ Rilevamento coordinate GPS in corso...', false);
 
@@ -1845,13 +1918,20 @@
                 fd.append('tipo_timbratura', tipo);
                 if (assignId) fd.append('assign_id', assignId);
                 if (clienteId) fd.append('cliente_id', clienteId);
-                if (lat !== null) fd.append('lat', String(lat));
-                if (lon !== null) fd.append('lon', String(lon));
+                if (lat !== null) {
+                    fd.append('lat', String(lat));
+                    fd.append('latitudine', String(lat));
+                }
+                if (lon !== null) {
+                    fd.append('lon', String(lon));
+                    fd.append('longitudine', String(lon));
+                }
                 if (acc !== null) fd.append('accuracy', String(acc));
 
                 const res = await postAppAction(fd);
                 if (res && res.ok) {
                     showToast(res.message, true);
+                    setTimeout(() => { location.reload(); }, 1400);
                 } else if (res) {
                     alert(res.error || 'Errore durante la timbratura GPS.');
                 }
@@ -1871,6 +1951,20 @@
                 sendTimbratura(null, null, null);
             }
         }
+
+        // Ripristino rapido ultimo cantiere selezionato se non già impostato dal server
+        try {
+            document.addEventListener('DOMContentLoaded', () => {
+                const sel = document.getElementById('quick_timbra_cliente_id');
+                if (sel && !sel.value) {
+                    const lastCli = localStorage.getItem('kandor_last_timbratura_cliente_id');
+                    if (lastCli) {
+                        sel.value = lastCli;
+                        aggiornaDettaglioCantiereSelezionato();
+                    }
+                }
+            });
+        } catch(e){}
 
         async function inviaRichiestaMateriale(e) {
             e.preventDefault();

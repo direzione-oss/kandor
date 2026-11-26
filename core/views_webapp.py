@@ -12,6 +12,8 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from .models import (
     Dipendente,
     Cliente,
+    Squadra,
+    Turno,
     AssegnazioneTurno,
     TimeTracking,
     ProximityLog,
@@ -450,15 +452,37 @@ def dipendente_app_view(request):
     except Exception:
         pass
     prodotti_magazzino = list(ProdottoMagazzino.objects.filter(attivo=True).order_by('categoria', 'nome'))
+    tutti_clienti = list(Cliente.objects.all().order_by('ragione_sociale'))
     is_ispettore = bool(ra or dip.squadre_capitanate.exists() or dip.livello_contrattuale in ('CAPOSQUADRA', 'RESPONSABILE'))
     if is_ispettore:
-        clienti_dipendente = list(Cliente.objects.all().order_by('ragione_sociale'))
+        clienti_dipendente = tutti_clienti
     else:
         c_ids = {t['cliente_id'] for t in turni_31gg if t.get('cliente_id')}
         if c_ids:
             clienti_dipendente = list(Cliente.objects.filter(pk__in=c_ids).order_by('ragione_sociale'))
         else:
-            clienti_dipendente = list(Cliente.objects.all().order_by('ragione_sociale')[:50])
+            clienti_dipendente = tutti_clienti[:50]
+
+    # Controllo eventuale Check-In aperto oggi (senza Check-Out)
+    timbratura_aperta_oggi = (
+        TimeTracking.objects.filter(
+            dipendente=dip,
+            check_in__isnull=False,
+            check_out__isnull=True,
+            assegnazione__turno__data=today,
+        )
+        .select_related('assegnazione__cliente')
+        .order_by('-check_in')
+        .first()
+    )
+    timbratura_aperta_info = None
+    if timbratura_aperta_oggi and timbratura_aperta_oggi.assegnazione and timbratura_aperta_oggi.assegnazione.cliente:
+        timbratura_aperta_info = {
+            'cliente_id': timbratura_aperta_oggi.assegnazione.cliente.id,
+            'cliente_nome': timbratura_aperta_oggi.assegnazione.cliente.ragione_sociale,
+            'check_in_ora': timezone.localtime(timbratura_aperta_oggi.check_in).strftime('%H:%M'),
+            'assign_id': timbratura_aperta_oggi.assegnazione.id,
+        }
 
     richieste_materiali_recenti = list(
         ConsegnaRichiestaMateriale.objects.filter(richiesto_da=dip)
@@ -509,6 +533,8 @@ def dipendente_app_view(request):
         'buste_paga': buste_paga,
         'prodotti_magazzino': prodotti_magazzino,
         'clienti_dipendente': clienti_dipendente,
+        'tutti_clienti': tutti_clienti,
+        'timbratura_aperta_info': timbratura_aperta_info,
         'richieste_materiali_recenti': richieste_materiali_recenti,
         'is_ispettore': is_ispettore,
         'ispezioni_recenti': ispezioni_recenti,
@@ -962,8 +988,8 @@ def dipendente_app_action_view(request):
         assign_id = request.POST.get('assign_id')
         cliente_id = request.POST.get('cliente_id')
         tipo_timbratura = (request.POST.get('tipo_timbratura') or 'CHECK_IN').strip().upper()
-        lat_raw = request.POST.get('latitudine')
-        lon_raw = request.POST.get('longitudine')
+        lat_raw = request.POST.get('latitudine') or request.POST.get('lat')
+        lon_raw = request.POST.get('longitudine') or request.POST.get('lon')
 
         now = timezone.now()
         today = timezone.localdate()
@@ -989,10 +1015,34 @@ def dipendente_app_action_view(request):
                     .first()
                 )
 
+        # Se non esiste ancora un turno programmato oggi per questo cantiere, crealo al volo
+        if not assign and cliente_id and str(cliente_id).isdigit():
+            target_cli = Cliente.objects.filter(pk=int(cliente_id)).first()
+            if target_cli:
+                squadra = dip.squadre_appartenenza.first() or dip.squadre_capitanate.first()
+                if not squadra:
+                    squadra = Squadra.objects.first()
+                turno, _ = Turno.objects.get_or_create(
+                    data=today,
+                    squadra=squadra,
+                )
+                ora_inizio = timezone.localtime(now).time().replace(second=0, microsecond=0)
+                dt_fine = datetime.combine(today, ora_inizio) + timedelta(hours=2)
+                assign, _ = AssegnazioneTurno.objects.get_or_create(
+                    turno=turno,
+                    cliente=target_cli,
+                    defaults={
+                        'orario_inizio_previsto': ora_inizio,
+                        'orario_fine_previsto': dt_fine.time(),
+                        'ore_previste_contratto': Decimal('2.00'),
+                        'mansione_svolta': "Timbratura rapida da App Dipendenti",
+                    }
+                )
+
         if not assign:
             return JsonResponse({
                 'ok': False,
-                'error': 'Nessun turno programmato oggi per questo cantiere. Usa la compilazione ore standard o contatta l\'ufficio.',
+                'error': 'Seleziona un cantiere valido per registrare la timbratura GPS.',
             })
 
         cliente = assign.cliente

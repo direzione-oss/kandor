@@ -2968,6 +2968,93 @@ class DipendenteCanaliComunicazioneFiltriTestCase(TestCase):
         self.assertEqual(resp_comb.status_code, 200)
 
 
+class TimbraturaLiberaGpsWebAppTestCase(TestCase):
+    """
+    Test di verifica per la Timbratura Libera GPS da Web App:
+    - Selezione libera di qualsiasi cantiere attivo
+    - Check-In GPS su cantiere senza turno programmato (creazione al volo del turno)
+    - Check-Out GPS con calcolo automatico ore e aggiornamento stato aperto
+    """
+    def setUp(self):
+        from core.models import Dipendente, Cliente
+        self.dip = Dipendente.objects.create(
+            nome="Giulia",
+            cognome="Verdi",
+            codice_fiscale="VRDGLI85A01H501Z",
+            stato="ATTIVO",
+            privacy_accettata=True,
+            privacy_versione='1.0',
+        )
+        self.cli = Cliente.objects.create(
+            ragione_sociale="Condominio Smeraldo",
+            indirizzo_sede="Via Roma 1, Bergamo",
+            latitudine=45.6983,
+            longitudine=9.6773,
+        )
+        session = self.client.session
+        session['dipendente_app_id'] = self.dip.id
+        session['dipendente_webapp_auth'] = True
+        session.save()
+
+    def test_timbratura_libera_checkin_and_checkout(self):
+        from core.models import TimeTracking, ProximityLog
+
+        # 1. Verifica che la home dell'app mostri tutti i clienti
+        resp = self.client.get('/app/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('tutti_clienti', resp.context)
+        self.assertTrue(any(c.id == self.cli.id for c in resp.context['tutti_clienti']))
+
+        # 2. Check-In GPS libero senza turno programmato
+        post_in = self.client.post('/app/action/', {
+            'action': 'timbra_geofence_gps',
+            'cliente_id': self.cli.id,
+            'tipo_timbratura': 'CHECK_IN',
+            'lat': '45.6983',
+            'lon': '9.6773',
+        })
+        self.assertEqual(post_in.status_code, 200)
+        data_in = post_in.json()
+        self.assertTrue(data_in.get('ok'))
+        self.assertIn('Check-In registrato', data_in.get('message', ''))
+
+        # TimeTracking creato con check_in
+        tt = TimeTracking.objects.filter(dipendente=self.dip, assegnazione__cliente=self.cli).first()
+        self.assertIsNotNone(tt)
+        self.assertIsNotNone(tt.check_in)
+        self.assertIsNone(tt.check_out)
+
+        # ProximityLog registrato
+        pl = ProximityLog.objects.filter(dipendente=self.dip, cliente=self.cli).first()
+        self.assertIsNotNone(pl)
+        self.assertTrue(pl.is_near)
+
+        # 3. La Home dell'app adesso deve mostrare timbratura_aperta_info
+        resp_after_in = self.client.get('/app/')
+        self.assertEqual(resp_after_in.status_code, 200)
+        open_info = resp_after_in.context.get('timbratura_aperta_info')
+        self.assertIsNotNone(open_info)
+        self.assertEqual(open_info['cliente_id'], self.cli.id)
+
+        # 4. Check-Out GPS libero
+        post_out = self.client.post('/app/action/', {
+            'action': 'timbra_geofence_gps',
+            'cliente_id': self.cli.id,
+            'tipo_timbratura': 'CHECK_OUT',
+            'lat': '45.6983',
+            'lon': '9.6773',
+        })
+        self.assertEqual(post_out.status_code, 200)
+        data_out = post_out.json()
+        self.assertTrue(data_out.get('ok'))
+        self.assertIn('Check-Out registrato', data_out.get('message', ''))
+
+        tt.refresh_from_db()
+        self.assertIsNotNone(tt.check_out)
+        self.assertGreater(tt.ore_dichiarate, 0)
+
+
+
 
 
 
