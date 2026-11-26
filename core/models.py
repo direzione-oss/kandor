@@ -2279,6 +2279,87 @@ class ConsegnaRichiestaMateriale(models.Model):
         return f"{art} x{self.quantita:g} → {self.cliente.ragione_sociale} [{self.get_stato_display()}]"
 
 
+class DotazionePersonaleDipendente(models.Model):
+    """
+    Traccia sia le richieste di materiale personale / vestiario & DPI inviate dagli operatori dall'App Dipendenti,
+    sia le consegne effettive registrate dai responsabili di magazzino per ogni singolo dipendente.
+    Oggetti previsti: Felpa, Maglietta, Scarpe antinfortunistiche, Giubbino, Scaldacollo, Cerata, Gilet.
+    """
+    OGGETTO_CHOICES = [
+        ('FELPA', '🧥 Felpa'),
+        ('MAGLIETTA', '👕 Maglietta'),
+        ('SCARPE', '👞 Scarpe Antinfortunistiche'),
+        ('GIUBBINO', '🧥 Giubbino'),
+        ('SCALDACOLLO', '🧣 Scaldacollo'),
+        ('CERATA', '🌧️ Cerata'),
+        ('GILET', '🦺 Gilet'),
+        ('ALTRO', '📦 Altro Materiale Personale / DPI'),
+    ]
+
+    STATO_CHOICES = [
+        ('RICHIESTA', '🔔 Richiesto (In attesa di consegna)'),
+        ('CONSEGNATO', '✅ Consegnato'),
+        ('ANNULLATO', '❌ Annullato'),
+    ]
+
+    URGENZA_CHOICES = [
+        ('NORMALE', 'Normale'),
+        ('URGENTE', 'Urgente'),
+    ]
+
+    dipendente = models.ForeignKey(
+        Dipendente, on_delete=models.CASCADE,
+        related_name='dotazioni_personali', verbose_name="Dipendente"
+    )
+    oggetto = models.CharField(
+        max_length=30, choices=OGGETTO_CHOICES, default='FELPA',
+        verbose_name="Oggetto / Articolo"
+    )
+    taglia = models.CharField(
+        max_length=30, verbose_name="Taglia / Numero",
+        help_text="Es. S, M, L, XL, XXL, 3XL oppure numero scarpe 42, 43..."
+    )
+    quantita = models.PositiveIntegerField(default=1, verbose_name="Quantità")
+    stato = models.CharField(
+        max_length=20, choices=STATO_CHOICES, default='RICHIESTA',
+        verbose_name="Stato Consegna"
+    )
+    urgenza = models.CharField(
+        max_length=15, choices=URGENZA_CHOICES, default='NORMALE',
+        verbose_name="Urgenza"
+    )
+    data_richiesta = models.DateField(verbose_name="Data Richiesta")
+    data_consegna = models.DateField(null=True, blank=True, verbose_name="Data Consegna Effettiva")
+    consegnato_da = models.ForeignKey(
+        Dipendente, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dotazioni_personali_consegnate', verbose_name="Consegnato da (Responsabile)"
+    )
+    consegnato_da_user = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='dotazioni_personali_registrate', verbose_name="Registrato da (Utente)"
+    )
+    note = models.CharField(max_length=300, blank=True, default='', verbose_name="Note")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Materiale Personale / DPI Dipendente"
+        verbose_name_plural = "Materiali Personali & DPI Dipendenti"
+        ordering = ['-data_richiesta', '-id']
+
+    def save(self, *args, **kwargs):
+        from django.utils import timezone
+        if not self.data_richiesta:
+            self.data_richiesta = timezone.now().date()
+        if self.stato == 'CONSEGNATO' and not self.data_consegna:
+            self.data_consegna = timezone.now().date()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.dipendente} — {self.get_oggetto_display()} (Taglia {self.taglia}) x{self.quantita} [{self.get_stato_display()}]"
+
+
+
 # ==============================================================================
 # 3. QUALITÀ, ISPEZIONI CANTIERE (SLA CLIENTE) & TIMBRATURA GEOFENCE / QR
 # ==============================================================================

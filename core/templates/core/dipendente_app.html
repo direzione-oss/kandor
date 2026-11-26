@@ -1170,6 +1170,96 @@
                 {% endif %}
             </div>
 
+            <!-- Richiesta Materiale Personale / Vestiario & DPI -->
+            <div class="section-title" id="sezioneMaterialePersonale" style="margin-top:20px;">🦺 Richiesta Materiale Personale (Vestiario &amp; DPI)</div>
+            <div class="card" style="border-left:4px solid #3B82F6;">
+                <p style="font-size:12px; color:#64748B; margin-top:0; margin-bottom:12px;">
+                    Richiedi la divisa o i DPI personali indicando l'articolo e la tua taglia. Il magazzino prenderà in carico la richiesta per la consegna.
+                </p>
+                <form id="formRichiestaMaterialePersonale" onsubmit="inviaRichiestaMaterialePersonale(event)">
+                    <div class="form-group">
+                        <label class="form-label">1. Articolo Vestiario / DPI Personale *</label>
+                        <select id="pers_oggetto" class="form-control" required onchange="aggiornaTagliePersonale()">
+                            <option value="FELPA">🧥 Felpa aziendale</option>
+                            <option value="MAGLIETTA">👕 Maglietta / T-Shirt</option>
+                            <option value="SCARPE">👞 Scarpe Antinfortunistiche</option>
+                            <option value="GIUBBINO">🧥 Giubbino invernale</option>
+                            <option value="SCALDACOLLO">🧣 Scaldacollo</option>
+                            <option value="CERATA">🌧️ Cerata impermeabile</option>
+                            <option value="GILET">🦺 Gilet multitasche / alta visibilità</option>
+                        </select>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:8px;" class="form-group">
+                        <div>
+                            <label class="form-label" id="lbl_pers_taglia">2. Taglia *</label>
+                            <select id="pers_taglia" class="form-control" required>
+                                <option value="S">S</option>
+                                <option value="M" selected>M</option>
+                                <option value="L">L</option>
+                                <option value="XL">XL</option>
+                                <option value="XXL">XXL</option>
+                                <option value="3XL">3XL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Quantità</label>
+                            <input type="number" id="pers_quantita" step="1" min="1" max="10" value="1" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;" class="form-group">
+                        <div>
+                            <label class="form-label">Urgenza</label>
+                            <select id="pers_urgenza" class="form-control">
+                                <option value="NORMALE">🟢 Normale (prossima fornitura)</option>
+                                <option value="URGENTE">🔴 Urgente (sostituzione DPI usurato)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Taglia personalizzata (opzionale)</label>
+                            <input type="text" id="pers_taglia_manuale" class="form-control" placeholder="Es. 43 e 1/2, 4XL...">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Note / Motivo richiesta</label>
+                        <input type="text" id="pers_note" class="form-control" placeholder="Es. Sostituzione scarpe consumate, cambio stagione...">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-block" style="background:#2563EB;">🦺 Invia Richiesta Vestiario Personale</button>
+                </form>
+
+                {% if richieste_dotazioni_personali %}
+                <div style="margin-top:14px; padding-top:10px; border-top:1px solid #E2E8F0;">
+                    <div style="font-size:12px; font-weight:800; color:#1E3A8A; margin-bottom:8px;">📋 Storico Tuo Vestiario &amp; DPI Consegnati:</div>
+                    <div style="max-height:220px; overflow-y:auto;">
+                        {% for dp in richieste_dotazioni_personali %}
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; padding:6px 0; border-bottom:1px dashed #E2E8F0;">
+                            <div>
+                                <span style="font-weight:700;">{{ dp.get_oggetto_display }}</span> — Taglia: <strong>{{ dp.taglia }}</strong> (x{{ dp.quantita }})
+                                <div style="font-size:10.5px; color:#64748B;">
+                                    Richiesto il {{ dp.data_richiesta|date:"d/m/Y" }}
+                                    {% if dp.data_consegna %} &bull; Consegnato il <strong>{{ dp.data_consegna|date:"d/m/Y" }}</strong>{% endif %}
+                                    {% if dp.note %} &bull; <em>{{ dp.note }}</em>{% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                {% if dp.stato == 'CONSEGNATO' %}
+                                    <span class="badge badge-green" style="white-space:nowrap;">✅ Consegnato</span>
+                                {% elif dp.stato == 'RICHIESTA' %}
+                                    <span class="badge badge-amber" style="white-space:nowrap;">🔔 In attesa</span>
+                                {% else %}
+                                    <span class="badge" style="background:#F1F5F9; color:#64748B; white-space:nowrap;">❌ Annullato</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
             {% if is_ispettore %}
             <!-- Scheda Ispezione Qualità Cantiere (Mobile per Responsabili Area / Caposquadra) -->
             <div class="section-title">⭐ Verbale Controllo Qualità Cantiere (SLA)</div>
@@ -2005,6 +2095,84 @@
                 showToast(res.message, true);
             } else if (res) {
                 alert(res.error || 'Errore durante l\'invio della richiesta materiali.');
+            }
+        }
+
+        function aggiornaTagliePersonale() {
+            const oggetto = document.getElementById('pers_oggetto').value;
+            const selectTaglia = document.getElementById('pers_taglia');
+            const lblTaglia = document.getElementById('lbl_pers_taglia');
+            if (!selectTaglia) return;
+
+            selectTaglia.innerHTML = '';
+            if (oggetto === 'SCARPE') {
+                lblTaglia.innerText = '2. Numero Scarpa *';
+                const numeri = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'];
+                numeri.forEach(num => {
+                    const opt = document.createElement('option');
+                    opt.value = num;
+                    opt.innerText = 'N. ' + num;
+                    if (num === '42') opt.selected = true;
+                    selectTaglia.appendChild(opt);
+                });
+            } else if (oggetto === 'SCALDACOLLO') {
+                lblTaglia.innerText = '2. Taglia *';
+                const taglie = [
+                    {val: 'UNICA', label: 'Taglia Unica'},
+                    {val: 'S/M', label: 'S/M'},
+                    {val: 'L/XL', label: 'L/XL'}
+                ];
+                taglie.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.val;
+                    opt.innerText = t.label;
+                    selectTaglia.appendChild(opt);
+                });
+            } else {
+                lblTaglia.innerText = '2. Taglia *';
+                const taglie = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+                taglie.forEach(tg => {
+                    const opt = document.createElement('option');
+                    opt.value = tg;
+                    opt.innerText = tg;
+                    if (tg === 'L') opt.selected = true;
+                    selectTaglia.appendChild(opt);
+                });
+            }
+        }
+
+        async function inviaRichiestaMaterialePersonale(e) {
+            e.preventDefault();
+            const oggetto = document.getElementById('pers_oggetto').value;
+            const tagliaManual = (document.getElementById('pers_taglia_manuale').value || '').trim();
+            const tagliaSelect = document.getElementById('pers_taglia').value;
+            const tagliaEffettiva = tagliaManual || tagliaSelect;
+
+            const quantita = document.getElementById('pers_quantita').value;
+            const urgenza = document.getElementById('pers_urgenza').value;
+            const note = document.getElementById('pers_note').value;
+
+            if (!tagliaEffettiva) {
+                alert('Indica la taglia o il numero per l\'articolo richiesto.');
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'richiedi_materiale_personale');
+            fd.append('oggetto', oggetto);
+            fd.append('taglia', tagliaEffettiva);
+            fd.append('quantita', quantita);
+            fd.append('urgenza', urgenza);
+            fd.append('note', note);
+
+            const res = await postAppAction(fd);
+            if (res && res.ok) {
+                document.getElementById('pers_note').value = '';
+                document.getElementById('pers_taglia_manuale').value = '';
+                showToast(res.message, true);
+                setTimeout(() => location.reload(), 1200);
+            } else if (res) {
+                alert(res.error || 'Errore durante l\'invio della richiesta vestiario.');
             }
         }
 

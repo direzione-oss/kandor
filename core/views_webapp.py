@@ -27,6 +27,7 @@ from .models import (
     CedolinoDipendente,
     ProdottoMagazzino,
     ConsegnaRichiestaMateriale,
+    DotazionePersonaleDipendente,
     IspezioneQualitaCantiere,
     ensure_default_prodotti_magazzino,
 )
@@ -489,6 +490,10 @@ def dipendente_app_view(request):
         .select_related('cliente', 'prodotto')
         .order_by('-data_richiesta', '-id')[:15]
     )
+    richieste_dotazioni_personali = list(
+        DotazionePersonaleDipendente.objects.filter(dipendente=dip)
+        .order_by('-data_richiesta', '-id')[:25]
+    )
     ispezioni_recenti = []
     if is_ispettore:
         ispezioni_recenti = list(
@@ -536,6 +541,7 @@ def dipendente_app_view(request):
         'tutti_clienti': tutti_clienti,
         'timbratura_aperta_info': timbratura_aperta_info,
         'richieste_materiali_recenti': richieste_materiali_recenti,
+        'richieste_dotazioni_personali': richieste_dotazioni_personali,
         'is_ispettore': is_ispettore,
         'ispezioni_recenti': ispezioni_recenti,
         'qr_cliente': qr_cliente,
@@ -981,6 +987,62 @@ def dipendente_app_action_view(request):
             'ok': True,
             'message': f"🧴 Richiesta inviata al Magazzino: {q_dec:g}x {nome_mat} per {cliente.ragione_sociale}!",
             'id': req_mat.id,
+        })
+
+    # 10b. RICHIESTA MATERIALE PERSONALE / VESTIARIO & DPI (Felpa, Maglietta, Scarpe, Giubbino, Scaldacollo, Cerata, Gilet)
+    elif action == 'richiedi_materiale_personale':
+        oggetto = (request.POST.get('oggetto') or '').strip().upper()
+        taglia = (request.POST.get('taglia') or '').strip().upper()
+        quantita_raw = request.POST.get('quantita') or '1'
+        urgenza = (request.POST.get('urgenza') or 'NORMALE').strip().upper()
+        note = (request.POST.get('note') or '').strip()
+
+        OGGETTI_MAP = {
+            'FELPA': 'Felpa',
+            'MAGLIETTA': 'Maglietta',
+            'SCARPE': 'Scarpe Antinfortunistiche',
+            'GIUBBINO': 'Giubbino',
+            'SCALDACOLLO': 'Scaldacollo',
+            'CERATA': 'Cerata',
+            'GILET': 'Gilet',
+            'ALTRO': 'Altro Materiale Personale',
+        }
+
+        if oggetto not in OGGETTI_MAP:
+            return JsonResponse({'ok': False, 'error': 'Seleziona un capo o DPI valido (es. Felpa, Maglietta, Scarpe, Giubbino, Scaldacollo, Cerata, Gilet).'})
+        if not taglia:
+            return JsonResponse({'ok': False, 'error': 'Indica la taglia o il numero per il materiale personale richiesto.'})
+
+        try:
+            q_int = max(1, int(quantita_raw))
+        except Exception:
+            q_int = 1
+
+        req_dot = DotazionePersonaleDipendente.objects.create(
+            dipendente=dip,
+            oggetto=oggetto,
+            taglia=taglia,
+            quantita=q_int,
+            stato='RICHIESTA',
+            urgenza=urgenza if urgenza in ['NORMALE', 'URGENTE'] else 'NORMALE',
+            data_richiesta=timezone.localdate(),
+            note=note,
+        )
+
+        nome_capo = OGGETTI_MAP.get(oggetto, oggetto)
+        try:
+            from .services import notifica_nuovo_messaggio
+            notifica_nuovo_messaggio(
+                dip,
+                f"🦺 RICHIESTA MATERIALE PERSONALE [{dip.nome} {dip.cognome}]: {q_int}x {nome_capo} (Taglia {taglia})" + (f" ({note})" if note else ""),
+            )
+        except Exception:
+            pass
+
+        return JsonResponse({
+            'ok': True,
+            'message': f"🦺 Richiesta registrata con successo: {q_int}x {nome_capo} (Taglia {taglia})! Verrà preparata dal magazzino.",
+            'id': req_dot.id,
         })
 
     # 11. TIMBRATURA GEOFENCE GPS / QR CODE IN CANTIERE (Check-In / Check-Out reale + ProximityLog)

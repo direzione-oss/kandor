@@ -27,6 +27,7 @@ from .models import (
     ConsegnaRichiestaMateriale,
     Dipendente,
     DotazioneCantiere,
+    DotazionePersonaleDipendente,
     IspezioneQualitaCantiere,
     Mezzo,
     ModelloProcedura,
@@ -432,6 +433,51 @@ def magazzino_dotazioni_view(request):
     clienti = list(Cliente.objects.all().order_by('ragione_sociale'))
     dipendenti = list(Dipendente.objects.filter(stato='ATTIVO').order_by('cognome', 'nome'))
 
+    # Materiale Personale / Vestiario & DPI Dipendenti
+    dipendente_filter_id = request.GET.get('dipendente_id', '')
+    stato_dotazione_filter = request.GET.get('stato_dotazione', '')
+    oggetto_dotazione_filter = request.GET.get('oggetto_dotazione', '')
+
+    dotazioni_personali_qs = DotazionePersonaleDipendente.objects.select_related(
+        'dipendente', 'consegnato_da', 'consegnato_da_user'
+    ).order_by('-data_richiesta', '-id')
+
+    if dipendente_filter_id and str(dipendente_filter_id).isdigit():
+        dotazioni_personali_qs = dotazioni_personali_qs.filter(dipendente_id=int(dipendente_filter_id))
+    if stato_dotazione_filter:
+        dotazioni_personali_qs = dotazioni_personali_qs.filter(stato=stato_dotazione_filter)
+    if oggetto_dotazione_filter:
+        dotazioni_personali_qs = dotazioni_personali_qs.filter(oggetto=oggetto_dotazione_filter)
+
+    dotazioni_personali = list(dotazioni_personali_qs[:200])
+    richieste_dotazioni_aperte = DotazionePersonaleDipendente.objects.filter(stato='RICHIESTA').count()
+    totale_dotazioni_consegnate = DotazionePersonaleDipendente.objects.filter(stato='CONSEGNATO').count()
+
+    # Scheda Registro Storico Consegne per ciascun Dipendente
+    registro_dipendenti_dict = {}
+    consegne_effettuate = DotazionePersonaleDipendente.objects.filter(
+        stato='CONSEGNATO'
+    ).select_related('dipendente').order_by('dipendente__cognome', 'dipendente__nome', '-data_consegna')
+
+    if dipendente_filter_id and str(dipendente_filter_id).isdigit():
+        consegne_effettuate = consegne_effettuate.filter(dipendente_id=int(dipendente_filter_id))
+
+    for dp in consegne_effettuate:
+        d_id = dp.dipendente_id
+        if d_id not in registro_dipendenti_dict:
+            registro_dipendenti_dict[d_id] = {
+                'dipendente': dp.dipendente,
+                'oggetti': [],
+                'riepilogo_capi': {},
+            }
+        registro_dipendenti_dict[d_id]['oggetti'].append(dp)
+        nome_ogg = dp.get_oggetto_display()
+        registro_dipendenti_dict[d_id]['riepilogo_capi'][nome_ogg] = (
+            registro_dipendenti_dict[d_id]['riepilogo_capi'].get(nome_ogg, 0) + dp.quantita
+        )
+
+    registro_dipendenti_list = list(registro_dipendenti_dict.values())
+
     return render(request, 'core/magazzino_dotazioni.html', {
         'prodotti': prodotti,
         'prodotti_sotto_scorta': prodotti_sotto_scorta,
@@ -445,6 +491,15 @@ def magazzino_dotazioni_view(request):
         'cliente_id_selected': int(cliente_id) if (cliente_id and str(cliente_id).isdigit()) else None,
         'stato_selected': stato_filter,
         'today_iso': today.strftime('%Y-%m-%d'),
+        # Dotazioni personali
+        'dotazioni_personali': dotazioni_personali,
+        'richieste_dotazioni_aperte': richieste_dotazioni_aperte,
+        'totale_dotazioni_consegnate': totale_dotazioni_consegnate,
+        'registro_dipendenti_list': registro_dipendenti_list,
+        'dipendente_id_selected': int(dipendente_filter_id) if (dipendente_filter_id and str(dipendente_filter_id).isdigit()) else None,
+        'stato_dotazione_selected': stato_dotazione_filter,
+        'oggetto_dotazione_selected': oggetto_dotazione_filter,
+        'oggetti_choices': DotazionePersonaleDipendente.OGGETTO_CHOICES,
     })
 
 
@@ -570,6 +625,74 @@ def magazzino_dotazioni_api(request):
         return JsonResponse({
             'ok': True,
             'message': f'Consegna #{item.id} impostata come "{item.get_stato_display()}" (€{item.costo_totale:.2f}).',
+        })
+
+    # AZIONI MATERIALE PERSONALE / VESTIARIO & DPI DIPENDENTI
+    elif action == 'segna_consegna_personale':
+        dotazione_id = data.get('dotazione_id')
+        item = get_object_or_404(DotazionePersonaleDipendente, pk=dotazione_id)
+        item.stato = 'CONSEGNATO'
+        item.data_consegna = timezone.now().date()
+        if request.user.is_authenticated:
+            item.consegnato_da_user = request.user
+        consegnato_da_id = data.get('consegnato_da_id')
+        if consegnato_da_id and str(consegnato_da_id).isdigit():
+            item.consegnato_da = Dipendente.objects.filter(pk=int(consegnato_da_id)).first()
+        if data.get('note'):
+            note_extra = str(data.get('note')).strip()
+            item.note = f"{item.note} | {note_extra}".strip(" |") if item.note else note_extra
+        item.save()
+        return JsonResponse({
+            'ok': True,
+            'message': f'✅ Consegna registrata: {item.get_oggetto_display()} (Taglia {item.taglia}) a {item.dipendente.nome} {item.dipendente.cognome}!',
+        })
+
+    elif action == 'registra_consegna_personale_diretta':
+        dip_id = data.get('dipendente_id')
+        oggetto = (data.get('oggetto') or '').strip().upper()
+        taglia = (data.get('taglia') or '').strip().upper()
+        quantita = int(data.get('quantita') or 1)
+        note = (data.get('note') or '').strip()
+        consegnato_da_id = data.get('consegnato_da_id')
+
+        if not dip_id or not str(dip_id).isdigit():
+            return JsonResponse({'ok': False, 'error': 'Seleziona il dipendente destinatario.'}, status=400)
+        dip = get_object_or_404(Dipendente, pk=int(dip_id))
+
+        if not oggetto or not taglia:
+            return JsonResponse({'ok': False, 'error': 'Indica sia l\'articolo che la relativa taglia/numero.'}, status=400)
+
+        consegnato_da_dip = None
+        if consegnato_da_id and str(consegnato_da_id).isdigit():
+            consegnato_da_dip = Dipendente.objects.filter(pk=int(consegnato_da_id)).first()
+
+        item = DotazionePersonaleDipendente.objects.create(
+            dipendente=dip,
+            oggetto=oggetto,
+            taglia=taglia,
+            quantita=max(1, quantita),
+            stato='CONSEGNATO',
+            urgenza='NORMALE',
+            data_richiesta=timezone.now().date(),
+            data_consegna=timezone.now().date(),
+            consegnato_da=consegnato_da_dip,
+            consegnato_da_user=request.user if request.user.is_authenticated else None,
+            note=note,
+        )
+        return JsonResponse({
+            'ok': True,
+            'message': f'✅ Registrata consegna: {item.get_oggetto_display()} (Taglia {item.taglia} x{item.quantita}) a {dip.nome} {dip.cognome}.',
+            'id': item.id,
+        })
+
+    elif action == 'annulla_dotazione_personale':
+        dotazione_id = data.get('dotazione_id')
+        item = get_object_or_404(DotazionePersonaleDipendente, pk=dotazione_id)
+        item.stato = 'ANNULLATO'
+        item.save()
+        return JsonResponse({
+            'ok': True,
+            'message': f'Richiesta #{item.id} annullata.',
         })
 
     return JsonResponse({'ok': False, 'error': f'Azione non riconosciuta: {action}'}, status=400)

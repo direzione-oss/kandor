@@ -17,14 +17,18 @@
     .erp-input, .erp-select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; width: 100%; box-sizing: border-box; }
     .erp-btn { background: #0f766e; color: #fff; border: none; padding: 8px 15px; border-radius: 6px; font-weight: 700; font-size: 12.5px; cursor: pointer; }
     .erp-btn:hover { opacity: .92; }
+    .tab-nav { display: flex; gap: 8px; border-bottom: 2px solid #cbd5e1; margin-bottom: 18px; }
+    .tab-btn { background: none; border: none; padding: 10px 18px; font-size: 14px; font-weight: 700; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #0f766e; border-bottom-color: #0f766e; background: #f0fdfa; border-radius: 6px 6px 0 0; }
+    .tab-btn.active.vestiario { color: #2563eb; border-bottom-color: #2563eb; background: #eff6ff; }
 </style>
 
 <div style="padding: 14px;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:3px solid #0f766e;padding-bottom:12px;margin-bottom:20px">
         <div>
-            <h1 style="margin:0;color:#115e59;font-size:22px">🧴 Magazzino Prodotti, Attrezzature &amp; Consegne Cantiere</h1>
+            <h1 style="margin:0;color:#115e59;font-size:22px">🧴 Magazzino Prodotti, Attrezzature &amp; Vestiario DPI Dipendenti</h1>
             <p style="margin:4px 0 0 0;color:#64748b;font-size:13px">
-                Inventario macchinari assegnati ai clienti (collegato al Punto 3 della procedura Disdetta Contratto), scorte detergenti e richieste materiali da App Dipendenti / Telegram
+                Inventario cantiere &amp; macchinari, scorte magazzino, e gestione materiale personale dipendenti (felpe, magliette, scarpe antinfortunistiche, giubbini, scaldacollo, cerata, gilet).
             </p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -37,9 +41,14 @@
     <!-- KPI -->
     <div class="erp-grid">
         <div class="erp-kpi" style="border-top-color:#d97706">
-            <div class="lbl">🔔 Richieste Materiali Aperte</div>
+            <div class="lbl">🔔 Richieste Cantiere Aperte</div>
             <div class="val" style="color:#b45309">{{ richieste_aperte }}</div>
-            <div style="font-size:11.5px;color:#64748b">Da App Dipendenti e Bot Telegram</div>
+            <div style="font-size:11.5px;color:#64748b">Detergenti &amp; materiali da evadere</div>
+        </div>
+        <div class="erp-kpi" style="border-top-color:#2563eb">
+            <div class="lbl">🦺 Richieste Vestiario Dipendenti</div>
+            <div class="val" style="color:#1d4ed8">{{ richieste_dotazioni_aperte }}</div>
+            <div style="font-size:11.5px;color:#64748b">DPI e abbigliamento personale in attesa</div>
         </div>
         <div class="erp-kpi" style="border-top-color:#0f766e">
             <div class="lbl">🧴 Costo Materiali Consegnati (Mese)</div>
@@ -51,12 +60,257 @@
             <div class="val" style="color:#dc2626">{{ prodotti_sotto_scorta|length }}</div>
             <div style="font-size:11.5px;color:#64748b">Su {{ prodotti|length }} articoli in catalogo</div>
         </div>
-        <div class="erp-kpi" style="border-top-color:#2563eb">
-            <div class="lbl">⚙️ Dotazioni &amp; Macchinari Attivi</div>
-            <div class="val" style="color:#1d4ed8">{{ dotazioni|length }}</div>
-            <div style="font-size:11.5px;color:#64748b">{% if dotazioni_da_ritirare %}🔴 {{ dotazioni_da_ritirare|length }} da ritirare per disdetta{% else %}Tutti regolari{% endif %}</div>
+        <div class="erp-kpi" style="border-top-color:#10b981">
+            <div class="lbl">📋 DPI &amp; Vestiario Consegnati</div>
+            <div class="val" style="color:#047857">{{ totale_dotazioni_consegnate }}</div>
+            <div style="font-size:11.5px;color:#64748b">Totale articoli registrati ai dipendenti</div>
         </div>
     </div>
+
+    <!-- BARRA DI NAVIGAZIONE A TAB -->
+    <div class="tab-nav">
+        <button type="button" class="tab-btn {% if not dipendente_id_selected and not stato_dotazione_selected %}active{% endif %}" id="btnTabCantiere" onclick="switchMagazzinoTab('cantiere')">
+            🧴 1. Magazzino Cantiere &amp; Dotazioni Clienti
+        </button>
+        <button type="button" class="tab-btn vestiario {% if dipendente_id_selected or stato_dotazione_selected %}active{% endif %}" id="btnTabVestiario" onclick="switchMagazzinoTab('vestiario')">
+            🦺 2. Vestiario &amp; DPI Personale Dipendenti {% if richieste_dotazioni_aperte > 0 %}<span style="background:#ef4444;color:#fff;border-radius:999px;padding:2px 7px;font-size:11px;margin-left:4px">{{ richieste_dotazioni_aperte }}</span>{% endif %}
+        </button>
+    </div>
+
+    <!-- TAB 2: VESTIARIO & DPI PERSONALE DIPENDENTI -->
+    <div id="sezioneVestiario" style="{% if not dipendente_id_selected and not stato_dotazione_selected %}display:none;{% endif %}">
+        <!-- Barra Filtri Vestiario -->
+        <div style="background:#eff6ff;padding:12px 16px;border-radius:10px;border:1px solid #bfdbfe;margin-bottom:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0">
+                <label style="font-weight:700;font-size:12.5px;color:#1e3a8a">Filtra Registro Dipendente:</label>
+                <select name="dipendente_id" class="erp-select" style="width:260px">
+                    <option value="">— Tutti i Dipendenti —</option>
+                    {% for d in dipendenti %}
+                    <option value="{{ d.id }}" {% if dipendente_id_selected == d.id %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+                    {% endfor %}
+                </select>
+                <select name="stato_dotazione" class="erp-select" style="width:200px">
+                    <option value="">— Tutti gli Stati —</option>
+                    <option value="RICHIESTA" {% if stato_dotazione_selected == 'RICHIESTA' %}selected{% endif %}>🔔 In Attesa di Consegna</option>
+                    <option value="CONSEGNATO" {% if stato_dotazione_selected == 'CONSEGNATO' %}selected{% endif %}>✅ Consegnato</option>
+                    <option value="ANNULLATO" {% if stato_dotazione_selected == 'ANNULLATO' %}selected{% endif %}>❌ Annullato</option>
+                </select>
+                <button type="submit" class="erp-btn" style="background:#1d4ed8">Filtra Vestiario</button>
+                {% if dipendente_id_selected or stato_dotazione_selected %}
+                <a href="/magazzino-dotazioni/?stato_dotazione=" style="font-size:12px;color:#2563eb">Azzera filtri</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:start">
+            <!-- COLONNA SINISTRA VESTIARIO: Richieste Aperte e Registrazione Consegna -->
+            <div>
+                <!-- Modulo Registra Consegna Diretta a Dipendente -->
+                <div class="erp-panel" style="border-top:4px solid #2563eb">
+                    <div class="erp-panel-hdr" style="background:#1e3a8a">
+                        <span>➕ Registra Consegna Diretta Vestiario / DPI a Dipendente</span>
+                        <span style="font-size:11.5px;color:#bfdbfe">Fornitura Nuova o Cambio Misura</span>
+                    </div>
+                    <div class="erp-panel-body">
+                        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px">
+                            <div style="display:grid;grid-template-columns:1.2fr 1fr 0.9fr 0.6fr auto;gap:8px;align-items:end">
+                                <div>
+                                    <label style="font-size:11px;font-weight:700;color:#334155">Dipendente *</label>
+                                    <select id="p_dipendente" class="erp-select">
+                                        <option value="">Seleziona dipendente...</option>
+                                        {% for d in dipendenti %}
+                                        <option value="{{ d.id }}" {% if dipendente_id_selected == d.id %}selected{% endif %}>{{ d.cognome }} {{ d.nome }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;font-weight:700;color:#334155">Articolo *</label>
+                                    <select id="p_oggetto" class="erp-select" onchange="aggiornaTaglieAdmin()">
+                                        <option value="FELPA">🧥 Felpa aziendale</option>
+                                        <option value="MAGLIETTA">👕 Maglietta</option>
+                                        <option value="SCARPE">👞 Scarpe Antinfortunistiche</option>
+                                        <option value="GIUBBINO">🧥 Giubbino</option>
+                                        <option value="SCALDACOLLO">🧣 Scaldacollo</option>
+                                        <option value="CERATA">🌧️ Cerata</option>
+                                        <option value="GILET">🦺 Gilet</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;font-weight:700;color:#334155" id="lbl_p_taglia">Taglia / Misura *</label>
+                                    <select id="p_taglia" class="erp-select">
+                                        <option value="S">S</option>
+                                        <option value="M">M</option>
+                                        <option value="L" selected>L</option>
+                                        <option value="XL">XL</option>
+                                        <option value="XXL">XXL</option>
+                                        <option value="3XL">3XL</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;font-weight:700;color:#334155">Q.tà</label>
+                                    <input type="number" id="p_qta" value="1" min="1" max="20" class="erp-input">
+                                </div>
+                                <button type="button" onclick="registraConsegnaPersonaleDiretta()" class="erp-btn" style="background:#2563eb">Consegna</button>
+                            </div>
+                            <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                                <div>
+                                    <input type="text" id="p_note" placeholder="Note consegna (es. Prima fornitura, sostituzione usura...)" class="erp-input" style="font-size:12px">
+                                </div>
+                                <div>
+                                    <input type="text" id="p_taglia_manuale" placeholder="Taglia manuale (opzionale, es. 43.5, 4XL)" class="erp-input" style="font-size:12px">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Richieste Vestiario In Arrivo dai Dipendenti -->
+                <div class="erp-panel">
+                    <div class="erp-panel-hdr" style="background:#0f172a">
+                        <span>🔔 Richieste Vestiario &amp; DPI Ricevute dai Dipendenti</span>
+                        <span style="font-size:11.5px;color:#94a3b8">Segna la consegna per aggiornare la lista del lavoratore</span>
+                    </div>
+                    <div class="erp-panel-body" style="padding:0">
+                        <table class="erp-table">
+                            <thead>
+                                <tr>
+                                    <th>Data Richiesta</th>
+                                    <th>Dipendente</th>
+                                    <th>Articolo &amp; Taglia</th>
+                                    <th>Q.tà</th>
+                                    <th>Urgenza</th>
+                                    <th>Stato &amp; Azione Consegna</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in dotazioni_personali %}
+                                <tr style="{% if item.stato == 'RICHIESTA' %}background:#fffbeb;{% endif %}">
+                                    <td style="white-space:nowrap">{{ item.data_richiesta|date:"d/m/Y" }}</td>
+                                    <td style="font-weight:700;color:#1e3a8a">
+                                        {{ item.dipendente.cognome }} {{ item.dipendente.nome }}
+                                    </td>
+                                    <td>
+                                        <strong>{{ item.get_oggetto_display }}</strong>
+                                        <span style="background:#e0f2fe;color:#0369a1;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:800;margin-left:4px">
+                                            Taglia: {{ item.taglia }}
+                                        </span>
+                                        {% if item.note %}<div style="font-size:11px;color:#64748b;margin-top:2px"><em>{{ item.note }}</em></div>{% endif %}
+                                    </td>
+                                    <td style="font-weight:700">x{{ item.quantita }}</td>
+                                    <td>
+                                        {% if item.urgenza == 'URGENTE' %}
+                                        <span style="background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;font-size:10.5px;font-weight:800">🔴 URGENTE</span>
+                                        {% else %}
+                                        <span style="color:#64748b;font-size:11px">Normale</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="white-space:nowrap">
+                                        {% if item.stato == 'RICHIESTA' %}
+                                        <button onclick="segnaConsegnaPersonale({{ item.id }})" style="background:#16a34a;color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer">
+                                            ✅ Segna Consegna
+                                        </button>
+                                        <button onclick="annullaDotazionePersonale({{ item.id }})" style="background:#94a3b8;color:#fff;border:none;padding:5px 8px;border-radius:5px;font-size:11px;cursor:pointer;margin-left:4px">
+                                            ✕ Annulla
+                                        </button>
+                                        {% elif item.stato == 'CONSEGNATO' %}
+                                        <span style="color:#15803d;font-weight:700;font-size:11.5px">
+                                            ✅ Consegnato il {{ item.data_consegna|date:"d/m/Y"|default:"-" }}
+                                        </span>
+                                        {% else %}
+                                        <span style="color:#64748b;font-size:11.5px">❌ {{ item.get_stato_display }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" style="text-align:center;color:#94a3b8;padding:24px">
+                                        Nessuna richiesta di materiale personale o vestiario trovata.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLONNA DESTRA VESTIARIO: LISTA PER OGNI DIPENDENTE DEGLI OGGETTI CONSEGNATI -->
+            <div>
+                <div class="erp-panel" style="border-top:4px solid #10b981">
+                    <div class="erp-panel-hdr" style="background:#065f46">
+                        <span>📋 Lista Oggetti Consegnati per Dipendente</span>
+                        <span style="font-size:11.5px;color:#a7f3d0">Registro Dotazioni Personali &amp; DPI</span>
+                    </div>
+                    <div class="erp-panel-body">
+                        <p style="font-size:12px;color:#475569;margin-top:0">
+                            Consulta la lista completa degli indumenti e DPI in possesso di ciascun lavoratore. Clicca su <strong>Stampa Ricevuta DPI</strong> per generare il modulo per la sicurezza.
+                        </p>
+
+                        {% if registro_dipendenti_list %}
+                            {% for reg in registro_dipendenti_list %}
+                            <div style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.05)" id="scheda-dip-{{ reg.dipendente.id }}">
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:10px">
+                                    <div>
+                                        <span style="font-size:15px;font-weight:800;color:#0f172a">{{ reg.dipendente.cognome }} {{ reg.dipendente.nome }}</span>
+                                        <div style="font-size:11.5px;color:#64748b">C.F. {{ reg.dipendente.codice_fiscale|default:"-" }} &bull; {{ reg.dipendente.telefono|default:"" }}</div>
+                                    </div>
+                                    <button onclick="stampaSchedaDpi({{ reg.dipendente.id }}, '{{ reg.dipendente.cognome|escapejs }} {{ reg.dipendente.nome|escapejs }}')" style="background:#047857;color:#fff;border:none;padding:5px 12px;border-radius:5px;font-size:11.5px;font-weight:700;cursor:pointer">
+                                        🖨️ Stampa Ricevuta DPI
+                                    </button>
+                                </div>
+
+                                <!-- Badge riepilogo articoli -->
+                                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+                                    {% for ogg_nome, qta in reg.riepilogo_capi.items %}
+                                    <span style="background:#f1f5f9;color:#1e293b;border:1px solid #cbd5e1;padding:3px 8px;border-radius:6px;font-size:11.5px;font-weight:700">
+                                        {{ ogg_nome }}: <strong>x{{ qta }}</strong>
+                                    </span>
+                                    {% endfor %}
+                                </div>
+
+                                <!-- Elenco consegne -->
+                                <table class="erp-table" style="font-size:11.5px">
+                                    <thead>
+                                        <tr style="background:#f8fafc">
+                                            <th style="padding:6px">Data Consegna</th>
+                                            <th style="padding:6px">Oggetto</th>
+                                            <th style="padding:6px">Taglia</th>
+                                            <th style="padding:6px">Q.tà</th>
+                                            <th style="padding:6px">Note / Assegnato da</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for con in reg.oggetti %}
+                                        <tr>
+                                            <td style="padding:6px;font-weight:700">{{ con.data_consegna|date:"d/m/Y"|default:con.data_richiesta|date:"d/m/Y" }}</td>
+                                            <td style="padding:6px;font-weight:700">{{ con.get_oggetto_display }}</td>
+                                            <td style="padding:6px"><span style="background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-weight:800">{{ con.taglia }}</span></td>
+                                            <td style="padding:6px;font-weight:700">x{{ con.quantita }}</td>
+                                            <td style="padding:6px;color:#64748b">
+                                                {{ con.note|default:"-" }}
+                                                {% if con.consegnato_da_user %}<span style="font-size:10.5px">(@{{ con.consegnato_da_user.username }})</span>{% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div style="background:#f8fafc;padding:20px;text-align:center;border-radius:8px;border:1px dashed #cbd5e1;color:#64748b;font-size:13px">
+                                Nessun oggetto o vestiario ancora registrato come consegnato ai dipendenti.<br>
+                                Registra una prima consegna tramite il modulo sopra.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 1: MAGAZZINO CANTIERE & PRODOTTI (ESISTENTE) -->
+    <div id="sezioneCantiere" style="{% if dipendente_id_selected or stato_dotazione_selected %}display:none;{% endif %}">
+
 
     {% if dotazioni_da_ritirare %}
     <div style="background:#fef2f2;border:1px solid #ef4444;border-radius:10px;padding:14px 18px;margin-bottom:20px">
@@ -347,9 +601,74 @@
             </div>
         </div>
     </div>
+    </div> <!-- Fine #sezioneCantiere -->
 </div>
 
 <script>
+function switchMagazzinoTab(tab) {
+    const secCantiere = document.getElementById('sezioneCantiere');
+    const secVestiario = document.getElementById('sezioneVestiario');
+    const btnCantiere = document.getElementById('btnTabCantiere');
+    const btnVestiario = document.getElementById('btnTabVestiario');
+
+    if (tab === 'vestiario') {
+        secCantiere.style.display = 'none';
+        secVestiario.style.display = 'block';
+        btnCantiere.classList.remove('active');
+        btnVestiario.classList.add('active');
+        window.location.hash = 'vestiario';
+    } else {
+        secVestiario.style.display = 'none';
+        secCantiere.style.display = 'block';
+        btnVestiario.classList.remove('active');
+        btnCantiere.classList.add('active');
+        window.location.hash = 'cantiere';
+    }
+}
+
+// Inizializzazione tab al caricamento
+document.addEventListener('DOMContentLoaded', () => {
+    if (window.location.hash === '#vestiario') {
+        switchMagazzinoTab('vestiario');
+    }
+});
+
+function aggiornaTaglieAdmin() {
+    const ogg = document.getElementById('p_oggetto').value;
+    const sel = document.getElementById('p_taglia');
+    const lbl = document.getElementById('lbl_p_taglia');
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (ogg === 'SCARPE') {
+        lbl.innerText = 'Numero Scarpa *';
+        const num = ['36', '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'];
+        num.forEach(n => {
+            const o = document.createElement('option');
+            o.value = n;
+            o.innerText = 'N. ' + n;
+            if (n === '42') o.selected = true;
+            sel.appendChild(o);
+        });
+    } else if (ogg === 'SCALDACOLLO') {
+        lbl.innerText = 'Taglia *';
+        [{v:'UNICA', l:'Taglia Unica'}, {v:'S/M', l:'S/M'}, {v:'L/XL', l:'L/XL'}].forEach(t => {
+            const o = document.createElement('option');
+            o.value = t.v;
+            o.innerText = t.l;
+            sel.appendChild(o);
+        });
+    } else {
+        lbl.innerText = 'Taglia *';
+        ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'].forEach(tg => {
+            const o = document.createElement('option');
+            o.value = tg;
+            o.innerText = tg;
+            if (tg === 'L') o.selected = true;
+            sel.appendChild(o);
+        });
+    }
+}
+
 async function postMagazzino(payload) {
     const resp = await fetch('/api/magazzino-dotazioni/action/', {
         method: 'POST',
@@ -360,6 +679,85 @@ async function postMagazzino(payload) {
     if (!data.ok) { alert(data.error || 'Errore'); return null; }
     location.reload();
 }
+
+function registraConsegnaPersonaleDiretta() {
+    const dipId = document.getElementById('p_dipendente').value;
+    const ogg = document.getElementById('p_oggetto').value;
+    const tagliaMan = (document.getElementById('p_taglia_manuale').value || '').trim();
+    const taglia = tagliaMan || document.getElementById('p_taglia').value;
+    const qta = document.getElementById('p_qta').value;
+    const note = document.getElementById('p_note').value;
+
+    if (!dipId) { alert('Seleziona il dipendente destinatario.'); return; }
+    if (!taglia) { alert('Indica la taglia o numero di scarpa.'); return; }
+
+    postMagazzino({
+        action: 'registra_consegna_personale_diretta',
+        dipendente_id: dipId,
+        oggetto: ogg,
+        taglia: taglia,
+        quantita: qta,
+        note: note
+    });
+}
+
+function segnaConsegnaPersonale(id) {
+    if (!confirm('Confermi l\'avvenuta consegna dell\'oggetto al dipendente?')) return;
+    postMagazzino({action: 'segna_consegna_personale', dotazione_id: id});
+}
+
+function annullaDotazionePersonale(id) {
+    if (!confirm('Vuoi annullare questa richiesta?')) return;
+    postMagazzino({action: 'annulla_dotazione_personale', dotazione_id: id});
+}
+
+function stampaSchedaDpi(dipId, nomeDip) {
+    const schedaElem = document.getElementById('scheda-dip-' + dipId);
+    if (!schedaElem) { alert('Scheda dipendente non trovata.'); return; }
+
+    const printWin = window.open('', '_blank', 'width=800,height=600');
+    printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Ricevuta Consegna DPI - ${nomeDip}</title>
+            <style>
+                body { font-family: Arial, sans-serif; margin: 30px; font-size: 13px; color: #1e293b; }
+                h1 { font-size: 18px; margin-bottom: 4px; color: #0f172a; text-transform: uppercase; }
+                .subtitle { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; }
+                th { background: #f1f5f9; font-weight: bold; }
+                .signature-box { margin-top: 50px; display: flex; justify-content: space-between; }
+                .sig-line { width: 220px; border-top: 1px solid #000; text-align: center; padding-top: 6px; font-size: 12px; }
+                @media print { button { display: none; } }
+            </style>
+        </head>
+        <body>
+            <div style="border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 15px;">
+                <h1>KANDOR &bull; Verbale di Assegnazione e Consegna DPI / Vestiario</h1>
+                <div class="subtitle">Ai sensi del D.Lgs. 81/08 (Sicurezza sul Lavoro) - Dotazione Personale Operativa</div>
+            </div>
+            <div>
+                <strong>Lavoratore / Dipendente:</strong> ${nomeDip}<br>
+                <strong>Data Stampa Verbale:</strong> ${new Date().toLocaleDateString('it-IT')}<br>
+            </div>
+            ${schedaElem.querySelector('table').outerHTML}
+            <div style="margin-top: 25px; font-size: 11px; color: #475569; line-height: 1.4;">
+                Il sottoscritto lavoratore dichiara di aver ricevuto in data odierna gli indumenti e Dispositivi di Protezione Individuale (DPI) sopra elencati in perfetto stato di conservazione ed efficienza, e si impegna ad utilizzarli conformemente alle istruzioni ricevute.
+            </div>
+            <div class="signature-box">
+                <div class="sig-line">Firma Datore di Lavoro / Delegato</div>
+                <div class="sig-line">Firma del Lavoratore per Ricevuta</div>
+            </div>
+        </body>
+        </html>
+    `);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => { printWin.print(); }, 250);
+}
+
 function registraConsegna() {
     const cid = document.getElementById('con_cliente').value;
     const pid = document.getElementById('con_prodotto').value;

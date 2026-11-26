@@ -35,7 +35,7 @@ from .models import (
     ensure_default_corsi_formazione, ensure_corsi_per_dipendente,
     ModelloProcedura, PassoModelloProcedura, ProceduraAvviata, PassoProceduraAvviata,
     ensure_default_procedure, LottoBustePaga, CedolinoDipendente,
-    ProdottoMagazzino, DotazioneCantiere, ConsegnaRichiestaMateriale,
+    ProdottoMagazzino, DotazioneCantiere, ConsegnaRichiestaMateriale, DotazionePersonaleDipendente,
     IspezioneQualitaCantiere, PreventivoCommerciale, VoceAmbientePreventivo,
     ensure_default_prodotti_magazzino,
     TelegramConversationState, SchedulerExecutionLog,
@@ -2120,6 +2120,16 @@ class ConsegnaRichiestaMaterialeAdmin(KandorBaseAdmin):
     list_filter = ('stato', 'urgenza', 'data_richiesta')
     search_fields = ('cliente__ragione_sociale', 'descrizione_libera', 'prodotto__nome', 'note')
     autocomplete_fields = ('cliente', 'prodotto', 'richiesto_da', 'consegnato_da')
+
+
+@admin.register(DotazionePersonaleDipendente)
+class DotazionePersonaleDipendenteAdmin(KandorBaseAdmin):
+    list_display = ('data_richiesta', 'dipendente', 'oggetto', 'taglia', 'quantita', 'stato', 'urgenza', 'data_consegna', 'consegnato_da', 'consegnato_da_user')
+    list_editable = ('stato',)
+    list_filter = ('stato', 'oggetto', 'taglia', 'urgenza', 'data_richiesta', 'data_consegna')
+    search_fields = ('dipendente__cognome', 'dipendente__nome', 'taglia', 'note')
+    autocomplete_fields = ('dipendente', 'consegnato_da')
+
 
 
 @admin.register(IspezioneQualitaCantiere)

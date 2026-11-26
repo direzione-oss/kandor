@@ -410,6 +410,15 @@ CATALOGO_SEZIONI_PORTALE = [
         'default_responsabile': True,
     },
     {
+        'codice': 'mod_DotazionePersonaleDipendente',
+        'gruppo': 'TABELLE',
+        'gruppo_label': '🗂️ Voci Operatività Giornaliera, Anagrafiche & Sistema',
+        'icona': '🦺',
+        'titolo': 'Magazzino: Dotazioni Personali & DPI Dipendenti',
+        'descrizione': 'Richieste e consegne materiale personale (felpa, maglietta, scarpe, ecc.)',
+        'default_responsabile': True,
+    },
+    {
         'codice': 'mod_IspezioneQualitaCantiere',
         'gruppo': 'TABELLE',
         'gruppo_label': '🗂️ Voci Operatività Giornaliera, Anagrafiche & Sistema',
