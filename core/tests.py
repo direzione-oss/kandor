@@ -2093,12 +2093,10 @@ class TelegramResponsabiliMenuTestCase(TestCase):
                 self.assertIsInstance(btn, dict)
                 self.assertIn('text', btn)
 
-        # Il primo bottone deve essere la Scheda Web App
+        # Il primo bottone deve essere la Registrazione Ore nativa Telegram
         primo_btn = ik[0][0]
-        self.assertIn('Scheda Web App', primo_btn['text'])
-        app_link = primo_btn.get('url') or primo_btn.get('web_app', {}).get('url', '')
-        self.assertTrue(bool(app_link))
-        self.assertIn(self.dip_normale.codice_fiscale, app_link)
+        self.assertIn('Registra Ore', primo_btn['text'])
+        self.assertEqual(primo_btn.get('callback_data'), 'menu_ore')
 
         # Comando /scheda
         res_scheda = handle_telegram_message("11111111", "/scheda")
