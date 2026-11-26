@@ -7,6 +7,7 @@ from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 from django.db.models import Q
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 from .models import (
     Dipendente,
@@ -237,6 +238,7 @@ def _get_assegnazioni_dipendente(dipendente, data_inizio, data_fine=None):
     return result
 
 
+@xframe_options_exempt
 def dipendente_app_login_view(request):
     dip = _get_logged_dipendente(request)
     if dip:
@@ -279,11 +281,13 @@ def dipendente_app_login_view(request):
     })
 
 
+@xframe_options_exempt
 def dipendente_app_logout_view(request):
     request.session.pop(SESSION_KEY_DIP_ID, None)
     return HttpResponseRedirect('/app/login/')
 
 
+@xframe_options_exempt
 def dipendente_app_view(request):
     dip = _get_logged_dipendente(request)
     if not dip:
@@ -516,6 +520,7 @@ def dipendente_app_view(request):
     return response
 
 
+@xframe_options_exempt
 def dipendente_app_action_view(request):
     """Endpoint unificato AJAX/POST per tutte le azioni della Web App Dipendenti."""
     dip = _get_logged_dipendente(request)
