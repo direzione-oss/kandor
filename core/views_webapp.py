@@ -139,6 +139,7 @@ def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None, t
     maps_url = f"https://www.google.com/maps/search/?api=1&query={quote_plus(indirizzo)}" if indirizzo else ''
     ore_prev = _calcola_ore_previste(assign)
     mansione = assign.mansione_svolta or (assign.cliente.note_mansioni if assign.cliente else '') or ''
+    from .utils_ore import format_ore_hhmm, format_ore_estese
 
     GIORNI_SETT = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
     d = assign.turno.data
@@ -162,8 +163,11 @@ def _serialize_assign_for_dipendente(assign, dipendente, sost_assign_ids=None, t
         'is_sostituzione': assign.id in sost_assign_ids,
         'is_compilato': bool(tt and tt.ore_dichiarate is not None),
         'ore_dichiarate': float(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else None,
-        'ore_dichiarate_str': str(round(float(tt.ore_dichiarate), 1)) if (tt and tt.ore_dichiarate is not None) else str(ore_prev),
-        'ore_previste_str': str(ore_prev),
+        'ore_dichiarate_hhmm': format_ore_hhmm(tt.ore_dichiarate, include_zero=False) if (tt and tt.ore_dichiarate is not None) else '',
+        'ore_dichiarate_fmt': format_ore_estese(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else '',
+        'ore_dichiarate_str': format_ore_hhmm(tt.ore_dichiarate, include_zero=False) if (tt and tt.ore_dichiarate is not None) else format_ore_hhmm(ore_prev),
+        'ore_previste_hhmm': format_ore_hhmm(ore_prev),
+        'ore_previste_str': format_ore_hhmm(ore_prev),
         'note_dichiarate': (tt.note or '') if tt else '',
         'has_check_in': bool(tt and tt.check_in),
         'has_check_out': bool(tt and tt.check_out),
@@ -529,7 +533,7 @@ def dipendente_app_action_view(request):
     # 1. SALVA ORE TURNO (+ conferma presenze squadra)
     if action == 'salva_ore':
         assign_id = request.POST.get('assign_id')
-        ore_raw = (request.POST.get('ore') or '').strip().replace(',', '.')
+        ore_raw = (request.POST.get('ore') or '').strip()
         note = (request.POST.get('note') or '').strip()
         presenti_ids_raw = request.POST.getlist('presenti_ids[]') or request.POST.getlist('presenti_ids')
         gestisci_squadra = request.POST.get('gestisci_squadra') == '1'
@@ -539,18 +543,19 @@ def dipendente_app_action_view(request):
         except (ValueError, TypeError, AssegnazioneTurno.DoesNotExist):
             return JsonResponse({'ok': False, 'error': 'Turno non trovato.'})
 
+        from .utils_ore import parse_ore_input
         try:
-            ore_val = float(ore_raw)
-            if ore_val <= 0 or ore_val > 24:
-                return JsonResponse({'ok': False, 'error': 'Inserisci un numero di ore valido (tra 0.5 e 24).'})
-        except ValueError:
-            return JsonResponse({'ok': False, 'error': 'Formato ore non valido.'})
+            ore_dec = parse_ore_input(ore_raw)
+            if not ore_dec or ore_dec <= 0 or ore_dec > 24:
+                return JsonResponse({'ok': False, 'error': 'Inserisci un valore di ore valido (es. 1:34 o 8:00).'})
+            ore_val = float(ore_dec)
+        except Exception:
+            return JsonResponse({'ok': False, 'error': 'Formato ore non valido. Inserisci le ore come ore:minuti (es. 1:34 o 8:00).'})
 
         ore_prev = _calcola_ore_previste(assign)
         if abs(ore_val - ore_prev) < 0.01:
             note = ''
 
-        ore_dec = Decimal(str(round(ore_val, 1)))
         tt, _ = TimeTracking.objects.get_or_create(
             dipendente=dip,
             assegnazione=assign,
@@ -605,7 +610,7 @@ def dipendente_app_action_view(request):
                             try:
                                 send_telegram_message(
                                     comp.telegram_chat_id,
-                                    f"ℹ️ *{dip.nome} {dip.cognome}* ha registrato *{ore_val}h* per la squadra "
+                                    f"ℹ️ *{dip.nome} {dip.cognome}* ha registrato *{format_ore_estese(ore_dec)}* per la squadra "
                                     f"presso *{assign.cliente.ragione_sociale}* ({data_str}).",
                                 )
                             except Exception:

@@ -680,7 +680,7 @@
                     <div class="shift-actions">
                         {% if t.is_compilato %}
                             <div>
-                                <span class="badge badge-green">✅ Ore registrate: {{ t.ore_dichiarate }}h</span>
+                                <span class="badge badge-green">✅ Ore registrate: {{ t.ore_dichiarate_hhmm|default:t.ore_dichiarate_str }}</span>
                                 {% if t.note_dichiarate %}
                                 <div style="font-size:11.5px; color:#64748B; margin-top:3px;">📝 {{ t.note_dichiarate }}</div>
                                 {% endif %}
@@ -781,7 +781,7 @@
                     </div>
                     <div class="shift-actions" style="margin-top:8px; padding-top:8px;">
                         <div>
-                            <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h inserite</span>
+                            <span class="badge badge-green">✅ {{ t.ore_dichiarate_hhmm|default:t.ore_dichiarate_str }} inserite</span>
                             {% if t.note_dichiarate %}
                             <div style="font-size:11.5px; color:#64748B; margin-top:3px;">📝 {{ t.note_dichiarate }}</div>
                             {% endif %}
@@ -865,7 +865,7 @@
                     <div class="shift-actions">
                         {% if t.is_compilato %}
                             <div>
-                                <span class="badge badge-green">✅ {{ t.ore_dichiarate }}h registrate</span>
+                                <span class="badge badge-green">✅ {{ t.ore_dichiarate_hhmm|default:t.ore_dichiarate_str }} registrate</span>
                                 {% if t.note_dichiarate %}
                                 <div style="font-size:11.5px; color:#64748B; margin-top:3px;">📝 {{ t.note_dichiarate }}</div>
                                 {% endif %}
@@ -1360,11 +1360,17 @@
                 <input type="hidden" id="modal_assign_id">
                 <input type="hidden" id="modal_ore_previste">
                 <div class="form-group">
-                    <label class="form-label">Ore Svolte (es. 4 oppure 3.5)</label>
+                    <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Ore Svolte (formato <b>ore:minuti</b>)</span>
+                        <span style="font-size:11.5px; color:#64748B;">Es. 1:34 o 8:00</span>
+                    </label>
                     <div style="display:flex; gap:8px;">
-                        <button type="button" class="btn btn-outline" onclick="cambiaOreModal(-0.5)">➖ 0.5h</button>
-                        <input type="number" id="modal_ore_val" step="0.5" min="0.5" max="24" class="form-control" style="text-align:center; font-size:20px; font-weight:800;" required oninput="aggiornaVisibilitaMotivoOre()" onchange="aggiornaVisibilitaMotivoOre()">
-                        <button type="button" class="btn btn-outline" onclick="cambiaOreModal(0.5)">➕ 0.5h</button>
+                        <button type="button" class="btn btn-outline" onclick="cambiaOreModal(-0.5)">➖ 30m</button>
+                        <input type="text" id="modal_ore_val" class="form-control" style="text-align:center; font-size:24px; font-weight:800; letter-spacing:1px;" placeholder="1:34" required oninput="aggiornaVisibilitaMotivoOre()" onchange="aggiornaVisibilitaMotivoOre()" autocomplete="off">
+                        <button type="button" class="btn btn-outline" onclick="cambiaOreModal(0.5)">➕ 30m</button>
+                    </div>
+                    <div style="font-size:11.5px; color:#64748B; text-align:center; margin-top:5px;">
+                        ⏱️ Inserisci ore e minuti con i due punti (es: <b>1:34</b> = 1 ora e 34 min)
                     </div>
                 </div>
 
@@ -1468,27 +1474,55 @@
             apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni, orePreviste);
         }
 
+        function formatHHMM(val) {
+            if (val === null || val === undefined || val === '') return '';
+            const s = String(val).trim();
+            if (s.indexOf(':') !== -1) return s;
+            const f = parseFloat(s.replace(',', '.'));
+            if (isNaN(f) || f <= 0) return '';
+            let h = Math.floor(f);
+            let m = Math.round((f - h) * 60);
+            if (m >= 60) { h++; m = 0; }
+            return h + ':' + (m < 10 ? '0' + m : m);
+        }
+
+        function parseHHMM(val) {
+            if (!val) return 0;
+            const s = String(val).trim();
+            if (s.indexOf(':') !== -1) {
+                const parts = s.split(':');
+                const h = parseInt(parts[0], 10) || 0;
+                const m = parseInt(parts[1], 10) || 0;
+                return Math.round((h + m / 60.0) * 100) / 100;
+            }
+            const f = parseFloat(s.replace(',', '.'));
+            return isNaN(f) ? 0 : f;
+        }
+
         function cambiaOreModal(delta) {
             const el = document.getElementById('modal_ore_val');
-            const cur = parseFloat(String(el.value || 0).replace(',', '.')) || 0;
-            const next = Math.min(24, Math.max(0.5, Math.round((cur + delta) * 10) / 10));
-            el.value = next;
+            let curDec = parseHHMM(el.value);
+            let curMin = Math.round(curDec * 60);
+            let nextMin = Math.max(15, Math.min(24 * 60, Math.round(curMin + delta * 60)));
+            let h = Math.floor(nextMin / 60);
+            let m = Math.round(nextMin % 60);
+            el.value = h + ':' + (m < 10 ? '0' + m : m);
             aggiornaVisibilitaMotivoOre();
         }
 
         function aggiornaVisibilitaMotivoOre() {
-            const oreVal = parseFloat(String(document.getElementById('modal_ore_val').value || '').replace(',', '.'));
-            const orePrev = parseFloat(String(document.getElementById('modal_ore_previste').value || '').replace(',', '.'));
+            const oreVal = parseHHMM(document.getElementById('modal_ore_val').value);
+            const orePrev = parseHHMM(document.getElementById('modal_ore_previste').value);
             const box = document.getElementById('modalMotivoVariazioneBox');
             const hdr = document.getElementById('modalMotivoVariazioneHeader');
             if (!box) return;
 
-            if (!isNaN(oreVal) && !isNaN(orePrev) && Math.abs(oreVal - orePrev) >= 0.01) {
+            if (oreVal > 0 && orePrev > 0 && Math.abs(oreVal - orePrev) >= (4.0 / 60.0)) {
                 box.style.display = 'block';
                 if (hdr) {
-                    const diff = Math.round((oreVal - orePrev) * 10) / 10;
-                    const diffStr = diff > 0 ? `+${diff}h` : `${diff}h`;
-                    hdr.textContent = `⚠️ Ore diverse da quelle previste (${oreVal}h invece di ${orePrev}h, ${diffStr})`;
+                    const diffMin = Math.round((oreVal - orePrev) * 60);
+                    const diffStr = diffMin > 0 ? `+${diffMin} min` : `${diffMin} min`;
+                    hdr.textContent = `⚠️ Ore diverse da quelle previste (${formatHHMM(oreVal)} invece di ${formatHHMM(orePrev)}, ${diffStr})`;
                 }
             } else {
                 box.style.display = 'none';
@@ -1496,12 +1530,13 @@
         }
 
         function apriModalOre(assignId, clienteNome, dataStr, oreDefault, noteDefault, compagni, orePreviste) {
-            const prevClean = String(orePreviste !== undefined ? orePreviste : (oreDefault || 4)).replace(',', '.');
+            const prevHHMM = formatHHMM(orePreviste !== undefined && orePreviste !== '' ? orePreviste : (oreDefault || '4:00'));
+            const defaultHHMM = formatHHMM(oreDefault || prevHHMM || '4:00');
             document.getElementById('modal_assign_id').value = assignId;
-            document.getElementById('modal_ore_previste').value = prevClean;
+            document.getElementById('modal_ore_previste').value = prevHHMM;
             document.getElementById('modalOreTitolo').textContent = '⏱ ' + clienteNome;
-            document.getElementById('modalOreSub').textContent = '📅 Turno di ' + dataStr + ' • Ore previste: ' + prevClean + 'h';
-            document.getElementById('modal_ore_val').value = String(oreDefault || 4).replace(',', '.');
+            document.getElementById('modalOreSub').textContent = '📅 Turno di ' + dataStr + ' • Ore previste: ' + prevHHMM;
+            document.getElementById('modal_ore_val').value = defaultHHMM;
             document.getElementById('modal_note_val').value = noteDefault || '';
             aggiornaVisibilitaMotivoOre();
 
@@ -1543,10 +1578,10 @@
 
         async function salvaOreTurno(e) {
             e.preventDefault();
-            const oreStr = document.getElementById('modal_ore_val').value;
-            const oreVal = parseFloat(String(oreStr || '').replace(',', '.'));
-            const orePrev = parseFloat(String(document.getElementById('modal_ore_previste').value || '').replace(',', '.'));
-            const isDiverso = (!isNaN(oreVal) && !isNaN(orePrev) && Math.abs(oreVal - orePrev) >= 0.01);
+            const oreStr = document.getElementById('modal_ore_val').value.trim();
+            const oreVal = parseHHMM(oreStr);
+            const orePrev = parseHHMM(document.getElementById('modal_ore_previste').value);
+            const isDiverso = (oreVal > 0 && orePrev > 0 && Math.abs(oreVal - orePrev) >= (4.0 / 60.0));
 
             const fd = new FormData();
             fd.append('action', 'salva_ore');

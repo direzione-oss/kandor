@@ -15,6 +15,18 @@ def multiply_80(value):
     except (TypeError, ValueError):
         return 0
 
+@register.filter
+def format_hhmm(value):
+    """Formatta ore decimali in stringa H:MM (es. 1.57 -> 1:34, 8.0 -> 8:00)."""
+    from core.utils_ore import format_ore_hhmm
+    return format_ore_hhmm(value)
+
+@register.filter
+def format_ore_estese_tag(value):
+    """Formatta ore decimali in stringa estesa (es. 1.57 -> 1h34', 8.0 -> 8h)."""
+    from core.utils_ore import format_ore_estese
+    return format_ore_estese(value)
+
 @register.simple_tag
 def unread_chat_count():
     from core.models import MessaggioChat

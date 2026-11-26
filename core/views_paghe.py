@@ -16,6 +16,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import Cliente, Dipendente, TimeTracking, ModificaCedolino, to_decimal, Assenza, Turno, AssegnazioneTurno
+from .utils_ore import parse_ore_input, format_ore_hhmm, format_ore_estese
 from .paghe_service import (
     MESI_NOMI,
     calcola_ore_lavorate_record,
@@ -791,9 +792,13 @@ def salva_modifica_cedolino_ajax(request):
         def parse_optional_decimal(val):
             if val is not None and str(val).strip() != '':
                 try:
-                    return to_decimal(val, places=2)
-                except (ValueError, TypeError):
-                    pass
+                    from .utils_ore import parse_ore_input
+                    return parse_ore_input(val)
+                except Exception:
+                    try:
+                        return to_decimal(val, places=2)
+                    except (ValueError, TypeError):
+                        pass
             return None
 
         giorni_lavorati = parse_optional_int(data.get('giorni_lavorati_override'))
@@ -875,6 +880,7 @@ def dettaglio_ore_giorno_ajax(request):
             'cliente_nome': cliente.ragione_sociale if cliente else 'Senza Cliente',
             'squadra_nome': squadra.nome if squadra else (tt.assegnazione.turno.nome_squadra if tt.assegnazione and tt.assegnazione.turno else 'Senza Squadra'),
             'ore': round(ore, 2),
+            'ore_hhmm': format_ore_hhmm(ore, include_zero=False),
             'is_validated': bool(tt.is_validated),
             'note': tt.note or '',
             'source': tt.source or 'MANUAL',
@@ -963,11 +969,12 @@ def salva_ore_giorno_ajax(request):
                     continue
 
                 if ore_raw is not None and str(ore_raw).strip() != '':
-                    ore_val = float(str(ore_raw).replace(',', '.'))
-                    if ore_val <= 0:
-                        tt.delete()
-                        continue
-                    tt.ore_dichiarate = to_decimal(ore_val, places=2)
+                    ore_dec = parse_ore_input(ore_raw)
+                    if ore_dec is not None:
+                        if ore_dec <= 0:
+                            tt.delete()
+                            continue
+                        tt.ore_dichiarate = ore_dec
                 
                 if 'is_validated' in r:
                     tt.is_validated = bool(r.get('is_validated'))
@@ -980,8 +987,8 @@ def salva_ore_giorno_ajax(request):
             if nuovo_rec and isinstance(nuovo_rec, dict):
                 ore_nuove_raw = nuovo_rec.get('ore')
                 if ore_nuove_raw is not None and str(ore_nuove_raw).strip() != '':
-                    ore_nuove = float(str(ore_nuove_raw).replace(',', '.'))
-                    if ore_nuove > 0:
+                    ore_nuove_dec = parse_ore_input(ore_nuove_raw)
+                    if ore_nuove_dec is not None and ore_nuove_dec > 0:
                         cliente_id = nuovo_rec.get('cliente_id')
                         cliente = None
                         if cliente_id:
@@ -1021,7 +1028,7 @@ def salva_ore_giorno_ajax(request):
                         TimeTracking.objects.create(
                             dipendente=dipendente,
                             assegnazione=assign,
-                            ore_dichiarate=to_decimal(ore_nuove, places=2),
+                            ore_dichiarate=ore_nuove_dec,
                             is_validated=is_val,
                             note=nota_nuova,
                             source='ADMIN'

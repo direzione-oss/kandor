@@ -562,7 +562,14 @@ def edit_turno_ajax(request, assign_id):
             assign.mansione_svolta = data['note']
         if 'ore_previste' in data:
             ore_p = data['ore_previste']
-            assign.ore_previste_contratto = float(str(ore_p).replace(',', '.')) if ore_p else None
+            if ore_p is not None and str(ore_p).strip() != '':
+                from .utils_ore import parse_ore_input
+                try:
+                    assign.ore_previste_contratto = parse_ore_input(ore_p)
+                except Exception:
+                    assign.ore_previste_contratto = None
+            else:
+                assign.ore_previste_contratto = None
 
         # --- Cambio squadra ---
         if data.get('squadra_id'):
@@ -988,11 +995,15 @@ def validate_ore_ajax(request, assign_id):
         single_dip_id = data.get('dipendente_id')
         ore_val = None
         if ore_param is not None and str(ore_param).strip() != '':
-            ore_val = Decimal(str(float(str(ore_param).replace(',', '.'))))
-            if ore_val <= 0:
+            from .utils_ore import parse_ore_input
+            try:
+                ore_val = parse_ore_input(ore_param)
+            except Exception:
+                ore_val = None
+            if not ore_val or ore_val <= 0:
                 return JsonResponse({
                     'status': 'error',
-                    'error': 'Inserisci un numero di ore valido (> 0).',
+                    'error': 'Inserisci un valore di ore valido (es. 1:34 o 8:00).',
                 }, status=400)
         elif action != 'unvalidate':
             first_tt = TimeTracking.objects.filter(assegnazione=assign, dipendente__in=active_dips).order_by('id').first()
@@ -1033,8 +1044,9 @@ def validate_ore_ajax(request, assign_id):
                 raw_ind = ore_per_dip_raw.get(str(dip.pk)) if isinstance(ore_per_dip_raw, dict) else None
                 if raw_ind is not None and str(raw_ind).strip() != '':
                     try:
-                        val_ind = Decimal(str(float(str(raw_ind).replace(',', '.'))))
-                        if val_ind > 0:
+                        from .utils_ore import parse_ore_input
+                        val_ind = parse_ore_input(raw_ind)
+                        if val_ind and val_ind > 0:
                             dip_ore = val_ind
                     except (ValueError, TypeError):
                         pass
@@ -1121,6 +1133,7 @@ def get_assegnazione_componenti_json(request, assign_id):
             ass = assenze_map.get(dip.pk) if not sostituto_di else None
             req_sost = sost_by_assente.get(dip.pk) if not sostituto_di else None
             ore_d = float(tt.ore_dichiarate) if (tt and tt.ore_dichiarate is not None) else (float(tt.durata_ore) if (tt and tt.durata_ore) else None)
+            from .utils_ore import format_ore_hhmm, format_ore_estese
             return {
                 'id': dip.pk,
                 'nome': f"{dip.cognome} {dip.nome}",
@@ -1138,6 +1151,8 @@ def get_assegnazione_componenti_json(request, assign_id):
                 'sostituto_id': req_sost.sostituto_id if req_sost else None,
                 'sostituto_assegnato': f"{req_sost.sostituto.cognome} {req_sost.sostituto.nome}" if (req_sost and req_sost.sostituto) else None,
                 'ore_dichiarate': ore_d if not ass else None,
+                'ore_dichiarate_hhmm': format_ore_hhmm(ore_d, include_zero=False) if (ore_d and not ass) else '',
+                'ore_dichiarate_fmt': format_ore_estese(ore_d) if (ore_d and not ass) else '',
                 'is_validated': (tt.is_validated if tt else False) if not ass else False,
                 'source': tt.source if tt else None,
                 'note': tt.note if tt else '',
@@ -1694,6 +1709,37 @@ def manuale_view(request):
 
     content_html = _convert_markdown_safe(content)
     return render(request, 'core/manuale.html', {'content_html': content_html})
+
+
+def manuale_podcast_view(request):
+    """Serve la pagina dedicata del Podcast Audio per i Responsabili di Area e Capisquadra."""
+    from .podcast_data import CAPITOLI_PODCAST, TEXT_PODCAST
+    return render(request, 'core/manuale_podcast.html', {
+        'capitoli': CAPITOLI_PODCAST,
+        'testo_podcast': TEXT_PODCAST,
+    })
+
+
+def podcast_audio_stream_view(request):
+    """Serve il file audio MP3 del podcast in streaming con supporto download."""
+    import os
+    from django.http import FileResponse, Http404
+    audio_path = os.path.join(settings.BASE_DIR, 'core', 'static', 'core', 'audio', 'podcast_responsabili_kandor.mp3')
+    if not os.path.exists(audio_path):
+        media_path = os.path.join(settings.MEDIA_ROOT, 'podcast_responsabili_kandor.mp3')
+        if os.path.exists(media_path):
+            audio_path = media_path
+        else:
+            raise Http404("File audio del podcast non trovato.")
+    
+    response = FileResponse(open(audio_path, 'rb'), content_type='audio/mpeg')
+    response['Accept-Ranges'] = 'bytes'
+    response['Content-Length'] = str(os.path.getsize(audio_path))
+    if 'download' in request.GET:
+        response['Content-Disposition'] = 'attachment; filename="Podcast_Responsabili_Kandor_ERP.mp3"'
+    else:
+        response['Content-Disposition'] = 'inline; filename="Podcast_Responsabili_Kandor_ERP.mp3"'
+    return response
 
 
 def titolari_dashboard_view(request):

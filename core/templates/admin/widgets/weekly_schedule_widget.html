@@ -320,7 +320,7 @@
   <div id="edit-ore-dip-note-banner" style="display:none;margin-bottom:8px;padding:7px 10px;background:#dbeafe;border:1px solid #93c5fd;border-left:4px solid #2563eb;border-radius:5px;font-size:12px;color:#1e3a8a;font-weight:600;line-height:1.35"></div>
   <div id="edit-ore-controls" style="display:flex;flex-direction:column;gap:8px">
     <div style="display:flex;gap:8px">
-      <input type="number" id="edit-ore-input" step="0.5" min="0" max="24" placeholder="Ore (es: 8)" style="width:120px;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
+      <input type="text" id="edit-ore-input" placeholder="HH:MM (es: 1:34)" style="width:130px;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;font-weight:700" title="Inserisci ore in formato ore:minuti (es. 1:34 per 1h e 34m, oppure 8:00)">
       <input type="text" id="edit-ore-note-input" placeholder="Note / Motivazione Straordinari (opzionale)" style="flex:1;padding:7px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px">
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -519,6 +519,31 @@ var _turnoDate=''; var _dataLoaded=false; var _editId=null;
 var HOUR_PX=80; var GRID_START=4;
 var _drag={el:null,startY:0,origTop:0,duration:0,moved:false};
 var _ORE_BADGE_COLORS={green:['#27ae60','#fff'],yellow:['#f39c12','#fff'],red:['#e74c3c','#fff'],white:['#bdc3c7','#444']};
+
+function formatHHMM(val) {
+  if (val === null || val === undefined || val === '') return '';
+  var s = String(val).trim();
+  if (s.indexOf(':') !== -1) return s;
+  var f = parseFloat(s.replace(',', '.'));
+  if (isNaN(f) || f <= 0) return '';
+  var h = Math.floor(f);
+  var m = Math.round((f - h) * 60);
+  if (m >= 60) { h++; m = 0; }
+  return h + ':' + (m < 10 ? '0' + m : m);
+}
+
+function parseHHMM(val) {
+  if (!val) return 0;
+  var s = String(val).trim();
+  if (s.indexOf(':') !== -1) {
+    var parts = s.split(':');
+    var h = parseInt(parts[0], 10) || 0;
+    var m = parseInt(parts[1], 10) || 0;
+    return Math.round((h + m / 60.0) * 100) / 100;
+  }
+  var f = parseFloat(s.replace(',', '.'));
+  return isNaN(f) ? 0 : f;
+}
 
 function _fmtTime(totalMin){
   totalMin=Math.max(0,Math.min(totalMin,23*60+59));
@@ -799,21 +824,21 @@ try {
   } else if (calcShiftHours > 0) {
     prefillOrePreviste = (calcShiftHours % 1 === 0) ? calcShiftHours.toFixed(0) : calcShiftHours.toFixed(1);
   }
-  document.getElementById('edit-ore-input').value = prefillOrePreviste;
+  document.getElementById('edit-ore-input').value = formatHHMM(prefillOrePreviste);
   document.getElementById('edit-ore-controls').style.display = 'flex';
   document.getElementById('edit-ore-no-submit-msg').style.display = hasOreInviate ? 'none' : 'block';
   
   var _op = (orePreviste && parseFloat(orePreviste) > 0) ? parseFloat(orePreviste) : calcShiftHours;
   var displayStr = '—';
   if (_op && _op > 0) {
-    displayStr = (_op % 1 === 0) ? _op.toFixed(0) + 'h' : _op.toFixed(1) + 'h';
+    displayStr = formatHHMM(_op);
   }
   document.getElementById('edit-ore-previste-text').textContent = displayStr;
   document.getElementById('edit-straordinario').checked=(isRicorrente!=='1');
   
   var badge=document.getElementById('edit-ore-badge');
   if (hasOreInviate) {
-    badge.textContent = 'Segnalate: ' + oreDichiarate + 'h';
+    badge.textContent = 'Segnalate: ' + formatHHMM(oreDichiarate);
     badge.style.background = '#e2e8f0';
     badge.style.color = '#334155';
     badge.style.border = '1px solid #cbd5e1';
@@ -1003,14 +1028,13 @@ try {
         oreWrap.onclick = function(ev){ ev.stopPropagation(); };
 
         var oreInp = document.createElement('input');
-        oreInp.type = 'number';
-        oreInp.step = '0.5';
-        oreInp.min = '0';
+        oreInp.type = 'text';
+        oreInp.placeholder = '1:34';
         oreInp.className = 'comp-ore-input';
         oreInp.dataset.dipId = c.id;
-        oreInp.value = defaultCompOre;
-        oreInp.title = 'Ore individuali per ' + c.nome;
-        oreInp.style.cssText = 'width:54px;padding:1px 4px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid ' + (c.is_validated ? '#10b981' : '#cbd5e1') + ';background:#fff;text-align:center;';
+        oreInp.value = formatHHMM(c.ore_dichiarate_hhmm || c.ore_dichiarate || defaultCompOre);
+        oreInp.title = 'Ore individuali per ' + c.nome + ' (es. 1:34)';
+        oreInp.style.cssText = 'width:56px;padding:1px 4px;font-size:11px;font-weight:700;border-radius:6px;border:1px solid ' + (c.is_validated ? '#10b981' : '#cbd5e1') + ';background:#fff;text-align:center;';
         oreWrap.appendChild(oreInp);
 
         var oreSpan = document.createElement('span');
@@ -1063,19 +1087,19 @@ try {
     var allVal = (activeCompCount > 0 && validatedCompCount === activeCompCount);
     if (maxOreDichiarate !== null && maxOreDichiarate > 0) {
       if (allVal) {
-        badge.textContent = '✅ Già Validate: ' + maxOreDichiarate + 'h';
+        badge.textContent = '✅ Già Validate: ' + formatHHMM(maxOreDichiarate);
         badge.style.background = '#d1fae5';
         badge.style.color = '#065f46';
         badge.style.border = '1px solid #10b981';
         if (alreadyValMsg) alreadyValMsg.style.display = 'block';
       } else {
-        badge.textContent = 'Segnalate: ' + maxOreDichiarate + 'h';
+        badge.textContent = 'Segnalate: ' + formatHHMM(maxOreDichiarate);
         badge.style.background = '#e2e8f0';
         badge.style.color = '#334155';
         badge.style.border = '1px solid #cbd5e1';
         if (alreadyValMsg) alreadyValMsg.style.display = 'none';
       }
-      document.getElementById('edit-ore-input').value = maxOreDichiarate;
+      document.getElementById('edit-ore-input').value = formatHHMM(maxOreDichiarate);
       document.getElementById('edit-ore-controls').style.display = 'flex';
       document.getElementById('edit-ore-no-submit-msg').style.display = 'none';
     } else {
@@ -1098,13 +1122,13 @@ function closeEditTurno(skipReload){
 
 function submitOreSingoloDipendente(dipId, oreValRaw){
   if(!_editId)return;
-  var ore=parseFloat(oreValRaw);
-  if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido per il dipendente');return;}
+  var decOre = parseHHMM(oreValRaw);
+  if(isNaN(decOre)||decOre<=0){alert('Inserisci un valore di ore valido (es. 1:34 o 8:00)');return;}
   var noteVal=(document.getElementById('edit-ore-note-input') ? document.getElementById('edit-ore-note-input').value : '').trim();
   var oreMap={};
-  oreMap[String(dipId)]=ore;
+  oreMap[String(dipId)]=oreValRaw;
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({ore:ore,dipendente_id:dipId,ore_per_dipendente:oreMap,note:noteVal,validate:true})
+    body:JSON.stringify({ore:oreValRaw,dipendente_id:dipId,ore_per_dipendente:oreMap,note:noteVal,validate:true})
   }).then(function(r){return r.json()}).then(function(d){
     if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'impossibile validare'))}
   }).catch(function(){alert('Errore di connessione')});
@@ -1112,19 +1136,21 @@ function submitOreSingoloDipendente(dipId, oreValRaw){
 
 function submitOreManual(validate){
   if(!_editId)return;
-  var ore=parseFloat(document.getElementById('edit-ore-input').value);
+  var oreValRaw = document.getElementById('edit-ore-input').value;
+  var decOre = parseHHMM(oreValRaw);
+  if(isNaN(decOre)||decOre<=0){alert('Inserisci un valore di ore valido (es. 1:34 o 8:00)');return;}
   var noteVal=(document.getElementById('edit-ore-note-input') ? document.getElementById('edit-ore-note-input').value : '').trim();
-  if(isNaN(ore)||ore<=0){alert('Inserisci un numero di ore valido');return;}
   var collected=_collectEsclusiAndSostituti();
   var orePerDip={};
   document.querySelectorAll('#edit-componenti-list .comp-ore-input').forEach(function(inp){
-    var v=parseFloat(inp.value);
-    if(inp.dataset.dipId && !isNaN(v) && v>0){
-      orePerDip[String(inp.dataset.dipId)]=v;
+    var vRaw = inp.value;
+    var vDec = parseHHMM(vRaw);
+    if(inp.dataset.dipId && !isNaN(vDec) && vDec > 0){
+      orePerDip[String(inp.dataset.dipId)] = vRaw;
     }
   });
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},
-    body:JSON.stringify({ore:ore,ore_per_dipendente:orePerDip,note:noteVal,validate:validate,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
+    body:JSON.stringify({ore:oreValRaw,ore_per_dipendente:orePerDip,note:noteVal,validate:validate,dipendenti_esclusi:collected.esclusi,sostituzioni_esclusi:collected.sostituzioni_esclusi})
   }).then(function(r){return r.json()}).then(function(d){
     if(d.status==='ok'){closeEditTurno(true);location.reload()}else{alert('Errore: '+(d.error||'impossibile salvare'))}
   }).catch(function(){alert('Errore di connessione')})
@@ -1135,9 +1161,10 @@ function submitValidaOre(action){
   var collected=_collectEsclusiAndSostituti();
   var orePerDip={};
   document.querySelectorAll('#edit-componenti-list .comp-ore-input').forEach(function(inp){
-    var v=parseFloat(inp.value);
-    if(inp.dataset.dipId && !isNaN(v) && v>0){
-      orePerDip[String(inp.dataset.dipId)]=v;
+    var vRaw = inp.value;
+    var vDec = parseHHMM(vRaw);
+    if(inp.dataset.dipId && !isNaN(vDec) && vDec > 0){
+      orePerDip[String(inp.dataset.dipId)] = vRaw;
     }
   });
   fetch('/api/validate-ore/'+_editId+'/',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':'{{ csrf_token }}'},

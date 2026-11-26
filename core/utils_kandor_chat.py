@@ -3019,7 +3019,7 @@ def handle_telegram_callback(telegram_chat_id, callback_data, sender_name="Utent
             _prompt += f"⏱ Ore previste: {_ore_previste}h\n"
         if _tt_esistente and _tt_esistente.ore_dichiarate:
             _prompt += f"✅ Ore già registrate: {_tt_esistente.ore_dichiarate}h\n"
-        _prompt += "\nQuante ore hai lavorato?\n(Scrivi il numero, es: 8 o 7.5 - invio per confermare le ore previste)"
+        _prompt += "\nQuante ore hai lavorato?\n(Scrivi ad es: 1:34 per 1h e 34m, oppure 8 o 7:30 - invio per confermare le ore previste)"
         return {'text': _prompt}
 
     # Callback per conferma squadra al completo

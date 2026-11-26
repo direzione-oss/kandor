@@ -837,8 +837,8 @@
                         </select>
                     </div>
                     <div>
-                        <label style="font-size: 0.72rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Ore Lavorate (h)</label>
-                        <input type="number" step="0.5" min="0" max="24" id="mog_nuovo_ore" placeholder="es. 8.0" oninput="aggiornaTotalePreview()" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 4px; box-sizing: border-box;">
+                        <label style="font-size: 0.72rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Ore Lavorate (es: 1:34 o 8)</label>
+                        <input type="text" id="mog_nuovo_ore" placeholder="es: 1:34 o 8" oninput="aggiornaTotalePreview()" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.85rem; font-weight: bold; margin-top: 4px; box-sizing: border-box;">
                     </div>
                 </div>
                 <div>
@@ -987,8 +987,8 @@
             </div>
             <div style="display: grid; grid-template-columns: 130px 1fr; gap: 10px;">
                 <div>
-                    <label style="font-size: 0.7rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Ore Lavorate (h)</label>
-                    <input type="number" step="0.5" min="0" max="24" class="rec-ore" value="${rec.ore}" oninput="aggiornaTotalePreview()" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.9rem; font-weight: bold; margin-top: 3px; box-sizing: border-box;">
+                    <label style="font-size: 0.7rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Ore Lavorate (es: 1:34 o 8)</label>
+                    <input type="text" class="rec-ore" value="${rec.ore_hhmm || rec.ore}" oninput="aggiornaTotalePreview()" style="width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 0.9rem; font-weight: bold; margin-top: 3px; box-sizing: border-box;">
                 </div>
                 <div>
                     <label style="font-size: 0.7rem; font-weight: 700; color: #64748B; text-transform: uppercase;">Note / Mansione</label>
@@ -1019,6 +1019,28 @@
         aggiornaTotalePreview();
     }
 
+    function parseHHMM(val) {
+        if (val === null || val === undefined) return 0;
+        const s = String(val).trim();
+        if (!s) return 0;
+        if (s.includes(':')) {
+            const parts = s.split(':');
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            return h + (m / 60);
+        }
+        const num = parseFloat(s.replace(',', '.'));
+        return isNaN(num) ? 0 : num;
+    }
+
+    function formatHHMM(dec) {
+        if (dec === null || dec === undefined || isNaN(dec) || dec <= 0) return '0:00';
+        const totalMinutes = Math.round(dec * 60);
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        return `${h}:${m < 10 ? '0' : ''}${m}`;
+    }
+
     function aggiornaTotalePreview() {
         let tot = 0.0;
         const cards = document.querySelectorAll('.mog-record-card');
@@ -1026,19 +1048,20 @@
             if (c.dataset.eliminato !== 'true') {
                 const inp = c.querySelector('.rec-ore');
                 if (inp && inp.value) {
-                    const val = parseFloat(inp.value.replace(',', '.'));
-                    if (!isNaN(val) && val > 0) tot += val;
+                    const val = parseHHMM(inp.value);
+                    if (val > 0) tot += val;
                 }
             }
         });
 
         const nuovoInp = document.getElementById('mog_nuovo_ore');
         if (nuovoInp && nuovoInp.value) {
-            const valN = parseFloat(nuovoInp.value.replace(',', '.'));
-            if (!isNaN(valN) && valN > 0) tot += valN;
+            const valN = parseHHMM(nuovoInp.value);
+            if (valN > 0) tot += valN;
         }
 
-        document.getElementById('mog_totale_preview').innerText = 'Totale Giorno: ' + (Math.round(tot * 100) / 100).toFixed(1) + ' h';
+        const oreFmt = formatHHMM(tot);
+        document.getElementById('mog_totale_preview').innerText = 'Totale Giorno: ' + oreFmt + ' (' + (Math.round(tot * 100) / 100).toFixed(2) + ' h)';
     }
 
     function chiudiModalModificaGiorno() {
@@ -1071,11 +1094,11 @@
         let nuovoRecord = null;
         const nuovoOre = document.getElementById('mog_nuovo_ore').value.trim();
         if (nuovoOre) {
-            const nOre = parseFloat(nuovoOre.replace(',', '.'));
-            if (!isNaN(nOre) && nOre > 0) {
+            const nOreDec = parseHHMM(nuovoOre);
+            if (nOreDec > 0) {
                 nuovoRecord = {
                     cliente_id: document.getElementById('mog_nuovo_cliente').value,
-                    ore: nOre,
+                    ore: nuovoOre,
                     is_validated: document.getElementById('mog_nuovo_valida').checked,
                     note: document.getElementById('mog_nuovo_note').value.trim()
                 };
