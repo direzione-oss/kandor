@@ -852,7 +852,7 @@ def dipendente_app_action_view(request):
     elif action == 'assistente_ia':
         testo = (request.POST.get('testo') or '').strip()
         if not testo:
-            return JsonResponse({'ok': False, 'error': 'Scrivi o detta una richiesta (es. "Oggi 4 ore da Condominio Verdi" o "Domani malattia").'})
+            return JsonResponse({'ok': False, 'error': 'Scrivi o detta una richiesta (es. "Oggi 4 ore" o "Domani malattia").'})
 
         from .ai_engine import interpreta_messaggio_libero
         from .utils_kandor_chat import _salva_ore_turno, _gestisci_assenza_con_sostituzione, _crea_segnalazione_con_triage_ia

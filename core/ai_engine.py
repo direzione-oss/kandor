@@ -607,6 +607,16 @@ def _estrai_ore_lavorate_naturali(testo):
     if m_std:
         return float(m_std.group(1).replace(',', '.'))
 
+    # Pattern numero isolato (es. '4', '4.5', '4,5', '8')
+    m_num = re.match(r'^\s*(\d+(?:[.,]\d+)?)\s*$', low)
+    if m_num:
+        try:
+            val = float(m_num.group(1).replace(',', '.'))
+            if 0 < val <= 24:
+                return val
+        except ValueError:
+            pass
+
     return None
 
 

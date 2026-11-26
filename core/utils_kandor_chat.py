@@ -2241,10 +2241,17 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
         parsed_ia = {'intent': 'SCONOSCIUTO'}
 
     if parsed_ia.get('intent') == 'REGISTRA_ORE' and parsed_ia.get('ore') and parsed_ia.get('assegnazione_id'):
+        ass_obj = parsed_ia.get('assegnazione')
         ass_id = parsed_ia['assegnazione_id']
         ore_val = parsed_ia['ore']
         cli_nome = parsed_ia.get('cliente_nome') or 'Cantiere'
         data_lbl = parsed_ia.get('data').strftime('%d/%m/%Y') if parsed_ia.get('data') else 'Oggi'
+
+        # Se il testo è un numero isolato (es. '4', '4.5') o dice 'oggi X ore' e ha un turno unico identificato, salva direttamente!
+        clean_strip = text.strip()
+        if ass_obj and (re.match(r'^\s*\d+(?:[.,]\d+)?\s*(?:or[ae]|h)?\s*$', clean_strip, re.IGNORECASE) or 'oggi' in clean_strip.lower()):
+            return _salva_ore_turno(dipendente, ass_obj, ore_val, clean_strip)
+
         return {
             'text': (
                 f"🤖 *Assistente IA Kandor*\n"
@@ -2302,7 +2309,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
     # Nessun comando riconosciuto: mostra menu
     cmd_104 = ", /104" if getattr(dipendente, 'usufruisce_104', False) else ""
     return {
-        'text': f"Ciao {dipendente.nome}! Usa i bottoni per navigare il menu o scrivi liberamente (es. 'oggi 4 ore da Condominio Verdi' oppure 'domani malattia').\nComandi rapidi:\n- /ore — registra ore\n- /malattia, /ferie, /permesso{cmd_104}\n- /segnalazione testo",
+        'text': f"Ciao {dipendente.nome}! Usa i bottoni per navigare il menu o scrivi liberamente (es. 'oggi 4 ore' oppure 'domani malattia').\nComandi rapidi:\n- /ore — registra ore\n- /malattia, /ferie, /permesso{cmd_104}\n- /segnalazione testo",
         'reply_markup': get_main_menu(dipendente)
     }
 
