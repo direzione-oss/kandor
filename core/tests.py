@@ -2096,13 +2096,15 @@ class TelegramResponsabiliMenuTestCase(TestCase):
         # Il primo bottone deve essere la Scheda Web App
         primo_btn = ik[0][0]
         self.assertIn('Scheda Web App', primo_btn['text'])
-        self.assertIn('web_app', primo_btn)
-        self.assertIn(self.dip_normale.codice_fiscale, primo_btn['web_app']['url'])
+        app_link = primo_btn.get('url') or primo_btn.get('web_app', {}).get('url', '')
+        self.assertTrue(bool(app_link))
+        self.assertIn(self.dip_normale.codice_fiscale, app_link)
 
         # Comando /scheda
         res_scheda = handle_telegram_message("11111111", "/scheda")
         self.assertIn("Scheda Web App", res_scheda['text'])
-        self.assertIn('web_app', res_scheda['reply_markup']['inline_keyboard'][0][0])
+        btn_scheda = res_scheda['reply_markup']['inline_keyboard'][0][0]
+        self.assertTrue('url' in btn_scheda or 'web_app' in btn_scheda)
 
     def test_non_responsabile_is_blocked(self):
         from core.utils_kandor_chat import handle_telegram_callback, handle_telegram_message

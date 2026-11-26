@@ -1527,10 +1527,7 @@ def get_main_menu(dipendente=None):
         app_url = f"{base_url}/app/"
 
     keyboard = [
-        [
-            {'text': '📲 Apri Scheda Web App', 'web_app': {'url': app_url}},
-            {'text': '🌐 Nel Browser', 'url': app_url}
-        ],
+        [{'text': '📲 Apri Scheda Web App', 'url': app_url}],
         [{'text': '⏱ Registra Ore', 'callback_data': 'menu_ore'}],
         [{'text': '📅 Calendario', 'callback_data': 'menu_calendario'}],
         [{'text': '📋 Turni da compilare', 'callback_data': 'menu_turni_mancanti'}],
@@ -1949,10 +1946,7 @@ def handle_telegram_message(telegram_chat_id, text, sender_name="Utente"):
             ),
             'reply_markup': {
                 'inline_keyboard': [
-                    [
-                        {'text': '📲 Apri Scheda Web App', 'web_app': {'url': app_url}},
-                        {'text': '🌐 Nel Browser', 'url': app_url}
-                    ],
+                    [{'text': '📲 Apri Scheda Web App', 'url': app_url}],
                     [{'text': '↩ Menu Principale', 'callback_data': 'menu_start'}]
                 ]
             },
